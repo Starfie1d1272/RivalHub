@@ -10,13 +10,15 @@ vi.hoisted(() => { vi.stubEnv("VERCEL", "1"); });
 const { db, schema, hashCredential, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx } = api;
 
 describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
+  // Awaited HTTP requests release their permit in finally; admitted demand
+  // tickets are already consumed. Only the contention scenario leaves tickets
+  // waiting for a turn and needs to exercise their real expiry below.
   afterEach(() => {
     expect(getRuntimeResourceSnapshot().find(row => row.name === "mizar.live")?.inFlight).toBe(0);
     expect(getRuntimeResourceSnapshot().find(row => row.name === "mizar.reliable")?.inFlight).toBe(0);
   });
   it("keeps a public read and reliable map completion available while both LIVE sends hold permits", async () => {
     const fixtures = await Promise.all(Array.from({ length: 3 }, () => prepared()));
-    await delay(1500);
     const before = publications.length;
     const resourceBefore = getRuntimeResourceSnapshot();
     let release!: () => void;
@@ -55,7 +57,6 @@ describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
 
   it.each([false, true])("accepts fresh LIVE at 95ms SQL RTT with observed lineup=%s", async observedLineup => {
     const f = await prepared();
-    await delay(1500);
     state.mode = "fast";
     const input = snapshot(f, 1);
     if (observedLineup) {
@@ -86,17 +87,16 @@ describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
 
   it.each(["timeout", "429", "stalled-body", "invalid-body"] as const)("releases ingress after %s and accepts a fresh frame", async fault => {
     const f = await prepared();
-    await delay(1500);
     state.mode = fault;
     expect(await ingestMizarLive(f.credentialHash, snapshot(f, 1), 1)).toEqual({ accepted: false, reason: "broadcast_unavailable" });
-    await delay(1000);
+    // A fresh fixture has two delivery tokens: failure consumes one, so the
+    // recovery must work immediately without waiting for a rate-limit refill.
     state.mode = "fast";
     expect(await ingestMizarLive(f.credentialHash, snapshot(f, 2), 1)).toEqual({ accepted: true });
   });
 
 it("bounds credential-lock waits, rotates blocked sources and accepts fresh recovery", async () => {
     const fixtures = await Promise.all(Array.from({ length: 4 }, () => prepared()));
-    await delay(1500);
     const contended = [0, 0, 0, 0];
     state.mode = "fast";
     const before = publications.length;
@@ -121,6 +121,8 @@ it("bounds credential-lock waits, rotates blocked sources and accepts fresh reco
     }
     expect(contended).toEqual([2, 2, 2, 2]);
     expect(publications).toHaveLength(before);
+    // The final tick leaves two capacity-rejected demand tickets. Let those
+    // expire before probing recovery in fixture order rather than ticket order.
     await delay(1500);
     for (const f of fixtures) expect(await (await upload(f, 5)).json()).toEqual({ accepted: true });
     reports.push({ scenario: "bounded-credential-lock", contended, recovered: fixtures.length });
@@ -131,20 +133,16 @@ it("bounds credential-lock waits, rotates blocked sources and accepts fresh reco
     const other = await prepared();
     const sameCompetitionToken = `rh_mizar_${f.installationBId}_${"c".repeat(64)}`;
     await db.update(schema.mizarInstallations).set({ credentialHash: hashCredential(sameCompetitionToken) }).where(eq(schema.mizarInstallations.id, f.installationBId));
-    await delay(1500);
     const before = publications.length;
     const post = (token: string, input = snapshot(f)) => POST(new Request("http://local.test/api/mizar/live", {
       method: "POST", headers: { authorization: `Bearer ${token}`, "x-rivalhub-authority": "1" }, body: JSON.stringify(input),
     }), { params: Promise.resolve({ operation: "live" }) });
     const unknown = f.token.slice(0, -64) + "b".repeat(64);
-    // Expire earlier demand tickets between different credentials so these
-    // assertions exercise database authority rather than the fairness gate.
+    // Each awaited rejection releases its admitted permit, so changing
+    // credentials does not leave a demand ticket to expire between requests.
     expect((await post(unknown)).status).toBe(403);
-    await delay(1500);
     expect((await post(sameCompetitionToken)).status).toBe(403);
-    await delay(1500);
     expect((await post(other.token)).status).toBe(403);
-    await delay(1500);
     expect((await post(f.token, { ...snapshot(f), competitionId: other.seasonId })).status).toBe(403);
     await db.update(schema.mizarInstallations).set({ revokedAt: new Date() }).where(eq(schema.mizarInstallations.id, f.installationId));
     expect((await post(f.token)).status).toBe(403);
@@ -175,9 +173,6 @@ it("serves four staggered 2 Hz sources and preserves unchanged 1 Hz heartbeats a
     const fixtures = await Promise.all(
       Array.from({ length: 4 }, () => prepared()),
     );
-    // This scenario starts after the previous sources stop. Let their bounded
-    // demand leases expire; recovery while other tickets exist is tested above.
-    await delay(1500);
     state.mode = "fast";
     const outcomes: boolean[][] = fixtures.map(() => []);
     const start = performance.now();

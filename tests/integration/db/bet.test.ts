@@ -10,36 +10,6 @@ import { fixture,read } from "./harness/bet-fixture";
 describe("BET transactional admission and settlement",()=>{
   // Real SQL protects per-team sums and lifecycle retention; component fixtures cannot.
 
-  it("bounds settlement reads under the program lock and replays the latest correction without duplicate payouts",async()=>fixture(async f=>{
-    const market=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="match_winner")!;
-    for(const [userId,option] of [[f.userId,0],[f.otherId,1]] as const) {
-      await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId,marketId:market.id,optionId:market.options[option]!.id,amount:"100",requestId:randomUUID()}));
-    }
-    const reconcile=()=>f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
-    await f.db.update(schema.matches).set({status:"finished",scoreA:2,scoreB:0,completedAt:new Date()}).where(eq(schema.matches.id,f.matchId));
-    await reconcile();
-    expect((await read(f.db,f.seasonId,f.userId)).balance).toBe("1100");
-    await f.db.update(schema.matches).set({scoreA:0,scoreB:2}).where(eq(schema.matches.id,f.matchId));
-    await reconcile();
-    expect((await read(f.db,f.seasonId,f.userId)).balance).toBe("900");
-    expect((await read(f.db,f.seasonId,f.otherId)).balance).toBe("1100");
-
-    const batches=()=>f.db.select({id:schema.betSettlements.id,revision:schema.betSettlements.revision})
-      .from(schema.betSettlements).innerJoin(schema.betMarkets,eq(schema.betMarkets.id,schema.betSettlements.marketId))
-      .where(eq(schema.betMarkets.seasonId,f.seasonId)).orderBy(schema.betSettlements.id);
-    const before=await batches();
-    expect((await f.db.select().from(schema.betMarkets).where(eq(schema.betMarkets.seasonId,f.seasonId))).length).toBeGreaterThan(3);
-    const queries:string[]=[];
-    const measured=drizzle(f.db.$client,{schema,logger:{logQuery:query=>queries.push(query)}});
-    await measured.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
-    // Actual SQL round trips, rather than local elapsed time, protect remote lock occupancy.
-    const settlementReads=queries.filter(query=>/^select\b/.test(query) && /from "bet_(options|stakes|settlements)"/.test(query));
-    expect(settlementReads.length).toBeLessThanOrEqual(3);
-    expect(await batches()).toEqual(before);
-    expect((await read(f.db,f.seasonId,f.userId)).balance).toBe("900");
-    expect((await read(f.db,f.seasonId,f.otherId)).balance).toBe("1100");
-  }));
-
   it("allows administrators while retaining current roster conflicts in both read and write paths", async () => fixture(async f => {
     await f.db.update(schema.users).set({role:"super_admin"}).where(eq(schema.users.id,f.userId));
     await f.db.insert(schema.seasonAdminGrants).values({seasonId:f.seasonId,userId:f.otherId});
@@ -203,25 +173,6 @@ describe("BET transactional admission and settlement",()=>{
     await f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
     expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===prematch.id)).toMatchObject({state:"refunded",mine:{amount:"100",payout:"100"}});
   }));
-  it("opens map winners in sequence while prematch totals lock independently and refund an unplayed decider",async()=>fixture(async f=>{
-    await f.db.insert(schema.matchVetoSessions).values({matchId:f.matchId,startedAt:new Date(),completedAt:new Date(),mapPoolSnapshot:["de_inferno","de_nuke","de_mirage"]});
-    const maps=await f.db.insert(schema.matchMaps).values(["de_inferno","de_nuke","de_mirage"].map((mapName,i)=>({matchId:f.matchId,mapOrder:i+1,mapName}))).returning();
-    const reconcile=()=>f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});await reconcile();
-    const board=await read(f.db,f.seasonId,f.userId);const rounds=board.markets.find(m=>m.type==="total_rounds" && m.context.startsWith("第1图"))!;
-    expect(board.markets.filter(m=>m.type==="total_rounds")).toHaveLength(3);
-    expect(board.markets.filter(m=>m.type==="map_winner")).toHaveLength(1);
-    await expect(f.db.update(schema.betMarkets).set({line:45}).where(eq(schema.betMarkets.id,rounds.id))).rejects.toThrow();
-    await f.db.update(schema.matchMaps).set({startedAt:new Date()}).where(eq(schema.matchMaps.id,maps[0]!.id));
-    expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===rounds.id)?.state).toBe("locked");
-    await f.db.update(schema.matches).set({status:"in_progress",gameplayStartedAt:new Date()}).where(eq(schema.matches.id,f.matchId));
-    await f.db.update(schema.matchMaps).set({completedAt:new Date(),scoreA:13,scoreB:7}).where(eq(schema.matchMaps.id,maps[0]!.id));await reconcile();
-    const second=(await read(f.db,f.seasonId,f.userId)).markets.filter(m=>m.type==="map_winner");expect(second).toHaveLength(2);expect(second[1]?.state).toBe("open");
-    await f.db.update(schema.matchMaps).set({startedAt:new Date(),completedAt:new Date(),scoreA:13,scoreB:9}).where(eq(schema.matchMaps.id,maps[1]!.id));
-    await f.db.update(schema.matches).set({status:"finished",scoreA:2,scoreB:0}).where(eq(schema.matches.id,f.matchId));await reconcile();
-    expect((await read(f.db,f.seasonId,f.userId)).markets.filter(m=>m.type==="map_winner")).toHaveLength(2);
-    expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="total_rounds" && m.context.startsWith("第3图"))?.state).toBe("refunded");
-  }));
-
   // Deployment can run the old worker between migration and application promotion.
   // Real SQL must prove the scheduler remains due and publication is retried once.
   it("recovers a new catalog even if an older worker consumed dirty before promotion",async()=>fixture(async f=>{
@@ -249,7 +200,7 @@ describe("BET transactional admission and settlement",()=>{
 
   // Protect financial identity/terms across BP and real concurrent worker publication.
   // Pure domain tests cannot prove unique pools, immutable options or ledger refunds.
-  it("accepts every BO3 slot before BP, freezes invested terms across BP/reschedule and refunds unused stakes once",async()=>fixture(async f=>{
+  it("preserves invested BO3 slots across BP, sequential map starts and unused-decider refunds",async()=>fixture(async f=>{
     const {db,seasonId,userId,matchId}=f;
     const reconcile=()=>db.transaction(async tx=>{await lockBetProgram(tx,seasonId);await reconcileBetInTx(tx,seasonId);});
     const before=await db.select().from(schema.betMarkets).where(and(eq(schema.betMarkets.matchId,matchId),eq(schema.betMarkets.type,"total_rounds")));
@@ -258,22 +209,32 @@ describe("BET transactional admission and settlement",()=>{
     expect(board.markets.filter(m=>m.type==="total_rounds").every(m=>m.canStake && m.context.includes("地图待定"))).toBe(true);
     const third=board.markets.find(m=>m.context.startsWith("第3图"))!;
     await db.transaction(tx=>stakeBetInTx(tx,{seasonId,userId,marketId:third.id,optionId:third.options[0]!.id,amount:"200",requestId:randomUUID()}));
-    await db.update(schema.matches).set({scheduledAt:new Date(Date.now()+86400000),status:"in_progress",startedAt:new Date()}).where(eq(schema.matches.id,matchId));
     await db.insert(schema.matchVetoSessions).values({matchId,startedAt:new Date(),completedAt:new Date(),mapPoolSnapshot:["de_inferno","de_nuke","de_mirage"]});
     const maps=await db.insert(schema.matchMaps).values(["de_inferno","de_nuke","de_mirage"].map((mapName,i)=>({matchId,mapOrder:i+1,mapName}))).returning();
+    await reconcile();
+    expect((await read(db,seasonId,userId)).markets.filter(m=>m.type==="map_winner")).toHaveLength(1);
+    await db.update(schema.matches).set({scheduledAt:new Date(Date.now()+86400000),status:"in_progress",startedAt:new Date()}).where(eq(schema.matches.id,matchId));
     await Promise.all([reconcile(),reconcile()]);
     expect(await db.select().from(schema.betMarkets).where(and(eq(schema.betMarkets.matchId,matchId),eq(schema.betMarkets.type,"total_rounds")))).toEqual(before);
+    const first=before.find(m=>m.subject.kind==="map_slot" && m.subject.mapOrder===1)!;
+    await expect(db.update(schema.betMarkets).set({line:45}).where(eq(schema.betMarkets.id,first.id))).rejects.toThrow();
     expect((await read(db,seasonId,userId)).markets.find(m=>m.id===third.id)).toMatchObject({context:"第3图 · Mirage",canStake:true,pool:"200",mine:{amount:"200"}});
     await db.update(schema.matchMaps).set({mapName:"de_ancient"}).where(eq(schema.matchMaps.id,maps[2]!.id));await reconcile();
     expect((await read(db,seasonId,userId)).markets.find(m=>m.id===third.id)).toMatchObject({context:"第3图 · Ancient",pool:"200"});
-    await db.update(schema.matchMaps).set({startedAt:new Date(),completedAt:new Date(),scoreA:13,scoreB:7}).where(eq(schema.matchMaps.id,maps[0]!.id));
-    const lock=(await db.query.betMarkets.findFirst({where:eq(schema.betMarkets.id,before.find(m=>m.subject.kind==="map_slot" && m.subject.mapOrder===1)!.id)}))!.lockedAt;
+    await db.update(schema.matchMaps).set({startedAt:new Date()}).where(eq(schema.matchMaps.id,maps[0]!.id));
+    const lock=(await db.query.betMarkets.findFirst({where:eq(schema.betMarkets.id,first.id)}))!.lockedAt;
     expect(lock).not.toBeNull(); // SQL outbox, before any reconciliation.
-    expect((await read(db,seasonId,userId)).markets.find(m=>m.id===third.id)?.canStake).toBe(true);
+    const started=await read(db,seasonId,userId);
+    expect(started.markets.find(m=>m.id===first.id)?.state).toBe("locked");
+    expect(started.markets.find(m=>m.id===third.id)?.canStake).toBe(true);
+    await db.update(schema.matches).set({gameplayStartedAt:new Date()}).where(eq(schema.matches.id,matchId));
+    await db.update(schema.matchMaps).set({completedAt:new Date(),scoreA:13,scoreB:7}).where(eq(schema.matchMaps.id,maps[0]!.id));await reconcile();
+    const second=(await read(db,seasonId,userId)).markets.filter(m=>m.type==="map_winner");expect(second).toHaveLength(2);expect(second[1]?.state).toBe("open");
     await db.update(schema.matchMaps).set({startedAt:new Date(),completedAt:new Date(),scoreA:13,scoreB:9}).where(eq(schema.matchMaps.id,maps[1]!.id));
     await db.update(schema.matches).set({status:"finished",scoreA:2,scoreB:0}).where(eq(schema.matches.id,matchId));
     await Promise.all([reconcile(),reconcile()]);
     const after=await read(db,seasonId,userId);expect(after.balance).toBe("1000");
+    expect(after.markets.filter(m=>m.type==="map_winner")).toHaveLength(2);
     expect(after.markets.find(m=>m.id===third.id)).toMatchObject({state:"refunded",mine:{amount:"200",payout:"200"}});
     expect(after.records.filter(r=>r.label.includes("退款"))).toHaveLength(1);
     expect(after.records.find(r=>r.amount==="-200")?.context).toContain("第3图");
@@ -329,7 +290,7 @@ describe("BET transactional admission and settlement",()=>{
     expect((await read(db,seasonId,userId)).markets.filter(m=>m.matchId===match!.id && m.type==="total_rounds")).toHaveLength(3);
   }));
 
-  it("opens automatically without PickEm, ignores schedule, permanently locks at gameplay and conserves pool across correction",async()=>fixture(async f=>{
+  it("opens independently, locks at gameplay and bounds settlement reads while conserving corrected pools",async()=>fixture(async f=>{
     const {db,seasonId,userId,otherId,matchId}=f;
     expect(await db.select().from(schema.predictionPrograms)).toHaveLength(0);
     const board=await read(db,seasonId,userId);expect(board.markets.filter(m=>m.matchId===matchId)).toHaveLength(7);
@@ -349,6 +310,19 @@ describe("BET transactional admission and settlement",()=>{
     await reconcile();expect((await read(db,seasonId,userId)).balance).toBe("1300");expect((await read(db,seasonId,otherId)).balance).toBe("700");
     await reconcile();expect((await read(db,seasonId,userId)).balance).toBe("1300");
     await db.update(schema.matches).set({scoreA:0,scoreB:2}).where(eq(schema.matches.id,matchId));await reconcile();
+    expect((await read(db,seasonId,userId)).balance).toBe("750");expect((await read(db,seasonId,otherId)).balance).toBe("1250");
+    const batches=()=>db.select({id:schema.betSettlements.id,revision:schema.betSettlements.revision})
+      .from(schema.betSettlements).innerJoin(schema.betMarkets,eq(schema.betMarkets.id,schema.betSettlements.marketId))
+      .where(eq(schema.betMarkets.seasonId,seasonId)).orderBy(schema.betSettlements.id);
+    const before=await batches();
+    expect((await db.select().from(schema.betMarkets).where(eq(schema.betMarkets.seasonId,seasonId))).length).toBeGreaterThan(3);
+    const queries:string[]=[];
+    const measured=drizzle(db.$client,{schema,logger:{logQuery:query=>queries.push(query)}});
+    await measured.transaction(async tx=>{await lockBetProgram(tx,seasonId);await reconcileBetInTx(tx,seasonId);});
+    // Actual SQL round trips, rather than local elapsed time, protect remote lock occupancy.
+    const settlementReads=queries.filter(query=>/^select\b/.test(query) && /from "bet_(options|stakes|settlements)"/.test(query));
+    expect(settlementReads.length).toBeLessThanOrEqual(3);
+    expect(await batches()).toEqual(before);
     expect((await read(db,seasonId,userId)).balance).toBe("750");expect((await read(db,seasonId,otherId)).balance).toBe("1250");
     await expect(db.update(schema.betMarkets).set({lockedAt:null}).where(eq(schema.betMarkets.id,m.id))).rejects.toThrow();
     await expect(db.update(schema.betLedger).set({amount:BigInt(99)})).rejects.toThrow();
