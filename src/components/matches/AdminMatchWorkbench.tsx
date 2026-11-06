@@ -177,7 +177,7 @@ export function AdminMatchWorkbench({
       <section aria-labelledby="operator-task" className="space-y-3 rounded border border-[var(--color-border)] border-l-2 border-l-[var(--color-accent)] bg-[var(--color-bg)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="operator-task" className="text-xl font-semibold">{taskTitle}</h2>
-          <OperatorTaskControls elapsed={operator.workflow.elapsed} />
+          <OperatorTaskControls elapsed={operator.workflow.elapsed} autoRefresh={match.status === "scheduled" || match.status === "in_progress"} />
         </div>
         {match.status === "scheduled" && startBlockers.length > 0 && <p className="text-sm text-[var(--color-warn)]">{startBlockers.join("；")}</p>}
         {operator.workflow.primaryTask === "source_check" && <p className="text-sm text-[var(--color-warn)]">{operator.workflow.description}</p>}
