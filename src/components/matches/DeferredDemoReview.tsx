@@ -22,6 +22,8 @@ export function DeferredDemoReview({ seasonId, matchId, summary }: { seasonId: s
   const error = isCurrent(failure) ? failure!.message : null;
   useEffect(() => {
     if (!active) return;
+    const alreadyRead = [data, failure].some(read => read?.summary === summary && read.attempt === attempt && read.seasonId === seasonId && read.matchId === matchId);
+    if (alreadyRead) return;
     let cancelled = false;
     const identity = { summary, attempt, seasonId, matchId };
     // New RSC summary identity after a mutation refresh rechecks the visible review.
@@ -31,9 +33,9 @@ export function DeferredDemoReview({ seasonId, matchId, summary }: { seasonId: s
       else setFailure({ ...identity, message: result.error.message });
     }).catch(() => { if (!cancelled) setFailure({ ...identity, message: "暂时无法读取待处理详情，请重试。" }); });
     return () => { cancelled = true; };
-  }, [active, attempt, matchId, seasonId, summary]);
+  }, [active, attempt, matchId, seasonId, summary, data, failure]);
   return <details id={`demo-review-${summary.matchMapId}`} className="rounded border border-[var(--color-border)] p-3 text-sm"
-    onToggle={event => { if (event.currentTarget.open) setActive(true); }}>
+    onToggle={event => setActive(event.currentTarget.open)}>
     <summary className="cursor-pointer">第 {summary.mapOrder} 图 · {mapLabel(summary.mapName)} · Demo 需要处理 · 查看核对详情</summary>
     {active && !fresh && !error && <p role="status">正在读取待处理详情…{data ? "上次核对内容暂不可操作，未保存草稿已保留。" : ""}</p>}
     {error && <p role="alert">{error}<Button variant="outline" size="sm" onClick={() => setAttempt(value => value + 1)}>重试</Button></p>}
