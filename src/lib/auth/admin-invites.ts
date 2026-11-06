@@ -5,12 +5,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { and, count, eq } from "drizzle-orm";
 
 import type { TxDb } from "@/db/client";
-import {
-  adminInviteClaims,
-  adminInvites,
-    seasonAdminGrants,
-  users,
-} from "@/db/schema";
+import { adminInviteClaims, adminInvites, seasonAdminGrants, users } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 export type AdminInviteRole = "season_admin" | "super_admin";
@@ -54,10 +49,7 @@ export async function claimAdminInviteInTx(
     throw new AppError(ErrorCode.UNAUTHORIZED, "邀请码已失效");
   }
   if (claimedCount >= invite.maxUses) {
-    await tx
-      .update(adminInvites)
-      .set({ isActive: false })
-      .where(eq(adminInvites.id, invite.id));
+    await tx.update(adminInvites).set({ isActive: false }).where(eq(adminInvites.id, invite.id));
     throw new AppError(ErrorCode.UNAUTHORIZED, "邀请码已用完");
   }
 
@@ -65,10 +57,7 @@ export async function claimAdminInviteInTx(
     .select({ userId: adminInviteClaims.userId })
     .from(adminInviteClaims)
     .where(
-      and(
-        eq(adminInviteClaims.inviteId, invite.id),
-        eq(adminInviteClaims.userId, input.userId),
-      ),
+      and(eq(adminInviteClaims.inviteId, invite.id), eq(adminInviteClaims.userId, input.userId)),
     )
     .limit(1);
   if (existingClaim) {
@@ -128,17 +117,15 @@ export async function claimAdminInviteInTx(
 
   const nextClaimCount = claimedCount + 1;
   if (nextClaimCount >= invite.maxUses) {
-    await tx
-      .update(adminInvites)
-      .set({ isActive: false })
-      .where(eq(adminInvites.id, invite.id));
+    await tx.update(adminInvites).set({ isActive: false }).where(eq(adminInvites.id, invite.id));
   }
 
   await writeAuditInTx(tx, {
     seasonId: invite.seasonId,
     action: "user.claim_invite",
     actorId: currentUser.id,
-    targetId: currentUser.id,meta: {
+    targetId: currentUser.id,
+    meta: {
       inviteId: invite.id,
       inviteRole: invite.role,
       email: currentUser.email,

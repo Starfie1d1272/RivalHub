@@ -74,7 +74,8 @@ export function MatchHeroHeader({
         <div className="flex items-center gap-4 justify-end min-w-0">
           <div className="text-right min-w-0">
             <TeamProfileLink
-              seasonSlug={seasonSlug} entryId={match.entryAId}
+              seasonSlug={seasonSlug}
+              entryId={match.entryAId}
               className="block break-words font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
               style={{
                 fontFamily: "var(--font-display)",
@@ -113,7 +114,9 @@ export function MatchHeroHeader({
               }}
             >
               {(match.displayScore ?? match).scoreA ?? "—"}
-              <span className="mx-3" style={{ color: "var(--color-fg-dim)", fontSize: 24 }}>:</span>
+              <span className="mx-3" style={{ color: "var(--color-fg-dim)", fontSize: 24 }}>
+                :
+              </span>
               {(match.displayScore ?? match).scoreB ?? "—"}
             </div>
           ) : (
@@ -132,7 +135,11 @@ export function MatchHeroHeader({
           <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
             <PosChip pos={stageName ?? presentMatchStage(match.stage)} />
             <PosChip pos={MATCH_FORMAT_LABELS[match.format] ?? match.format} />
-            <MatchStatusBadge status={match.status as "scheduled" | "in_progress" | "finished" | "cancelled"} isForfeit={match.isForfeit} scheduledAt={match.scheduledAt} />
+            <MatchStatusBadge
+              status={match.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+              isForfeit={match.isForfeit}
+              scheduledAt={match.scheduledAt}
+            />
           </div>
         </div>
 
@@ -152,7 +159,8 @@ export function MatchHeroHeader({
           )}
           <div className="min-w-0">
             <TeamProfileLink
-              seasonSlug={seasonSlug} entryId={match.entryBId}
+              seasonSlug={seasonSlug}
+              entryId={match.entryBId}
               className="block break-words font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
               style={{
                 fontFamily: "var(--font-display)",
@@ -166,16 +174,20 @@ export function MatchHeroHeader({
         </div>
       </div>
 
-      {isFinished && match.resultDisposition === "pending" && <p className="text-center text-sm text-[var(--color-fg-mid)]">结果待补</p>}
-      {isFinished && match.resultDisposition === "omitted" && <p className="text-center text-sm text-[var(--color-fg-mid)]">未提交结果</p>}
+      {isFinished && match.resultDisposition === "pending" && (
+        <p className="text-center text-sm text-[var(--color-fg-mid)]">结果待补</p>
+      )}
+      {isFinished && match.resultDisposition === "omitted" && (
+        <p className="text-center text-sm text-[var(--color-fg-mid)]">未提交结果</p>
+      )}
       <div className="text-center text-xs text-[var(--color-fg-dim)]">
         {isFinished
           ? match.completedAt
             ? `完成于 ${formatCSTDateTime(match.completedAt)}`
             : "结束时间未记录"
           : match.scheduledAt
-          ? `计划于 ${formatCSTDateTime(match.scheduledAt)}`
-          : "未排期"}
+            ? `计划于 ${formatCSTDateTime(match.scheduledAt)}`
+            : "未排期"}
       </div>
     </>
   );

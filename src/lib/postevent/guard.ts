@@ -9,10 +9,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
  * (adjudications, honor lifecycle, sanction governance, audit viewing) live
  * outside this gate by design.
  */
-export async function lockSeasonForTournamentInTx(
-  txOrDb: Pick<TxDb, "select">,
-  seasonId: string,
-) {
+export async function lockSeasonForTournamentInTx(txOrDb: Pick<TxDb, "select">, seasonId: string) {
   const [row] = await txOrDb
     .select({ status: seasons.status })
     .from(seasons)

@@ -36,7 +36,11 @@ export const metadata: Metadata = {
       { url: "/brand/rivalhub/icon-192-transparent.png", sizes: "192x192", type: "image/png" },
     ],
     apple: [
-      { url: "/brand/rivalhub/apple-touch-icon-transparent.png", sizes: "180x180", type: "image/png" },
+      {
+        url: "/brand/rivalhub/apple-touch-icon-transparent.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
     ],
   },
 };
@@ -51,11 +55,17 @@ export default function RootLayout({
       <head>
         <link rel="stylesheet" href="/brackets-viewer.min.css" />
       </head>
-      <body className={`${geist.variable} ${jetbrainsMono.variable} antialiased min-h-screen flex flex-col`}>
+      <body
+        className={`${geist.variable} ${jetbrainsMono.variable} antialiased min-h-screen flex flex-col`}
+      >
         <OperationsProvider>
-          <Suspense fallback={null}><PreviewMirrorBanner /></Suspense>
+          <Suspense fallback={null}>
+            <PreviewMirrorBanner />
+          </Suspense>
           <Header />
-          <Suspense fallback={null}><DeploymentUpdateNotice /></Suspense>
+          <Suspense fallback={null}>
+            <DeploymentUpdateNotice />
+          </Suspense>
           <main className="flex-1">{children}</main>
           <Footer />
           <Suspense fallback={null}>
@@ -72,7 +82,11 @@ async function PreviewMirrorBanner() {
   if (!isPreview()) return null;
   await connection();
   const mirror = await readPreviewMirrorIdentity();
-  return <aside className="border-b border-border bg-muted px-4 py-2 text-center text-xs text-muted-foreground">
-    <span className="font-mono">PR PREVIEW / DEV MIRROR</span> · source {mirror?.sourceTag ?? "unknown"} · refreshed {mirror?.refreshedAt.toLocaleString("zh-CN") ?? "unknown"}
-  </aside>;
+  return (
+    <aside className="border-b border-border bg-muted px-4 py-2 text-center text-xs text-muted-foreground">
+      <span className="font-mono">PR PREVIEW / DEV MIRROR</span> · source{" "}
+      {mirror?.sourceTag ?? "unknown"} · refreshed{" "}
+      {mirror?.refreshedAt.toLocaleString("zh-CN") ?? "unknown"}
+    </aside>
+  );
 }

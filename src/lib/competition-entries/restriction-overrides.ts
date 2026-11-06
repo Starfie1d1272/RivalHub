@@ -39,7 +39,11 @@ export function sameQualificationFindingSnapshot(
 
 export async function loadActiveRestrictionOverridesInTx(
   tx: TxDb,
-  input: { competitionId: string; entryIds: readonly string[]; rosterRevisionIds?: readonly string[] },
+  input: {
+    competitionId: string;
+    entryIds: readonly string[];
+    rosterRevisionIds?: readonly string[];
+  },
 ): Promise<CompetitionEntryRestrictionOverride[]> {
   if (input.entryIds.length === 0) return [];
   const conditions = [
@@ -49,9 +53,16 @@ export async function loadActiveRestrictionOverridesInTx(
   ];
   if (input.rosterRevisionIds && input.rosterRevisionIds.length === 0) return [];
   if (input.rosterRevisionIds) {
-    conditions.push(inArray(competitionEntryRestrictionOverrides.rosterRevisionId, [...new Set(input.rosterRevisionIds)]));
+    conditions.push(
+      inArray(competitionEntryRestrictionOverrides.rosterRevisionId, [
+        ...new Set(input.rosterRevisionIds),
+      ]),
+    );
   }
-  return tx.select().from(competitionEntryRestrictionOverrides).where(and(...conditions));
+  return tx
+    .select()
+    .from(competitionEntryRestrictionOverrides)
+    .where(and(...conditions));
 }
 
 export function unresolvedQualificationFindings(

@@ -35,12 +35,18 @@ export const MAJOR_TEAM_CONFIG: TeamRegistrationConfig = {
 
 export const RIVALS_STAGE_PLAN: StagePlan = [
   {
-    key: "qualifier", name: "排位赛", type: "round_robin", teamCount: 8,
+    key: "qualifier",
+    name: "排位赛",
+    type: "round_robin",
+    teamCount: 8,
     advanceTiers: [{ placement: "*", count: 8 }],
     matchFormat: "bo1",
   },
   {
-    key: "playoff", name: "正赛", type: "double_elim", teamCount: 8,
+    key: "playoff",
+    name: "正赛",
+    type: "double_elim",
+    teamCount: 8,
     advanceTiers: [{ placement: "1st", count: 1 }],
     matchFormat: "bo3",
     finalFormat: "bo5",
@@ -107,25 +113,37 @@ export const OPEN_TOURNAMENT_PRESET: SeasonCapabilities = {
  */
 export const MAJOR_STAGE_PLAN: StagePlan = [
   {
-    key: "stage1", name: "阶段一", type: "swiss", teamCount: 16,
+    key: "stage1",
+    name: "阶段一",
+    type: "swiss",
+    teamCount: 16,
     advanceTiers: [{ placement: "*", count: 8 }],
     matchFormat: "bo1",
     seeds: [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
   },
   {
-    key: "stage2", name: "阶段二", type: "swiss", teamCount: 16,
+    key: "stage2",
+    name: "阶段二",
+    type: "swiss",
+    teamCount: 16,
     entrySeeds: 8,
     advanceTiers: [{ placement: "*", count: 8 }],
     matchFormat: "bo1",
   },
   {
-    key: "stage3", name: "阶段三", type: "swiss", teamCount: 16,
+    key: "stage3",
+    name: "阶段三",
+    type: "swiss",
+    teamCount: 16,
     entrySeeds: 8,
     advanceTiers: [{ placement: "*", count: 8 }],
     matchFormat: "bo3",
   },
   {
-    key: "playoff", name: "淘汰赛", type: "single_elim", teamCount: 8,
+    key: "playoff",
+    name: "淘汰赛",
+    type: "single_elim",
+    teamCount: 8,
     advanceTiers: [{ placement: "1st", count: 1 }],
     matchFormat: "bo3",
     finalFormat: "bo5",
@@ -135,19 +153,28 @@ export const MAJOR_STAGE_PLAN: StagePlan = [
 /** Managed Major-24 preset; the built-in Major template remains Major-32 by default. */
 export const MAJOR_24_STAGE_PLAN: StagePlan = [
   {
-    key: "stage1", name: "阶段一", type: "swiss", teamCount: 16,
+    key: "stage1",
+    name: "阶段一",
+    type: "swiss",
+    teamCount: 16,
     advanceTiers: [{ placement: "*", count: 8 }],
     matchFormat: "bo3",
     seeds: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
   },
   {
-    key: "stage2", name: "阶段二", type: "swiss", teamCount: 16,
+    key: "stage2",
+    name: "阶段二",
+    type: "swiss",
+    teamCount: 16,
     entrySeeds: 8,
     advanceTiers: [{ placement: "*", count: 8 }],
     matchFormat: "bo3",
   },
   {
-    key: "playoff", name: "淘汰赛", type: "single_elim", teamCount: 8,
+    key: "playoff",
+    name: "淘汰赛",
+    type: "single_elim",
+    teamCount: 8,
     advanceTiers: [{ placement: "1st", count: 1 }],
     matchFormat: "bo3",
     finalFormat: "bo5",
@@ -161,7 +188,15 @@ export const MAJOR_REGISTRATION_CONFIG: RegistrationConfig = {
   screenshotCount: 1,
   maxTotal: 256,
   // NJU Major's announced pool is intentionally separate from the live Valve/default pool.
-  mapPool: ["de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke"],
+  mapPool: [
+    "de_ancient",
+    "de_anubis",
+    "de_cache",
+    "de_dust2",
+    "de_inferno",
+    "de_mirage",
+    "de_nuke",
+  ],
 };
 
 const MAJOR_DEFAULT_CAPABILITIES: SeasonCapabilities = {
@@ -172,12 +207,14 @@ const MAJOR_DEFAULT_CAPABILITIES: SeasonCapabilities = {
   stagePlan: MAJOR_STAGE_PLAN,
   registrationConfig: MAJOR_REGISTRATION_CONFIG,
   teamRegistrationConfig: MAJOR_TEAM_CONFIG,
-  affiliationRules: [{
-    institutionCode: "4132010284",
-    eligibleAcademicStatuses: ["enrolled", "graduated"],
-    minRosterMembers: 3,
-    minStartingMembers: 3,
-  }],
+  affiliationRules: [
+    {
+      institutionCode: "4132010284",
+      eligibleAcademicStatuses: ["enrolled", "graduated"],
+      minRosterMembers: 3,
+      minStartingMembers: 3,
+    },
+  ],
   maxTeamSize: 9,
   minTeamSize: 5,
   starterCount: 5,
@@ -257,8 +294,11 @@ export function createCustomTournamentTemplate(): SeasonCapabilities {
 
 export function createCompetitionTemplate(template: CompetitionTemplate): SeasonCapabilities {
   switch (template) {
-    case "rivals": return createRivalsTemplate();
-    case "major": return createMajorTemplate();
-    case "custom": return createCustomTournamentTemplate();
+    case "rivals":
+      return createRivalsTemplate();
+    case "major":
+      return createMajorTemplate();
+    case "custom":
+      return createCustomTournamentTemplate();
   }
 }

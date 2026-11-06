@@ -28,26 +28,38 @@ import { ok, type ActionResult } from "@/types/action";
 function demoRecheckError(scope: string, error: unknown, phase: string): ActionResult<never> {
   const result = actionError(scope, error, phase);
   if (result.success || result.error.code !== ErrorCode.INTERNAL_ERROR) return result;
-  const recovery = phase === "revalidation"
-    ? "检查结果已保存，但页面刷新失败。请先刷新核对身份与 Demo 状态，不要重新上传或重复确认；如无法查看，请联系管理员。"
-    : classifyError(error).retryable
-      ? "未能完成 Demo 检查。请先刷新核对状态，稍后使用“按当前资料重新检查”或“重新检查本赛事全部待处理 Demo”；不要重新上传同一份数据。如仍失败，请联系管理员。"
-      : "未能完成 Demo 检查。请先刷新核对状态，并联系管理员排查系统故障；恢复后使用“按当前资料重新检查”或“重新检查本赛事全部待处理 Demo”，不要重新上传同一份数据。";
-  return { ...result, error: { ...result.error, message: `${recovery}排查编号：${result.error.requestId}` } };
+  const recovery =
+    phase === "revalidation"
+      ? "检查结果已保存，但页面刷新失败。请先刷新核对身份与 Demo 状态，不要重新上传或重复确认；如无法查看，请联系管理员。"
+      : classifyError(error).retryable
+        ? "未能完成 Demo 检查。请先刷新核对状态，稍后使用“按当前资料重新检查”或“重新检查本赛事全部待处理 Demo”；不要重新上传同一份数据。如仍失败，请联系管理员。"
+        : "未能完成 Demo 检查。请先刷新核对状态，并联系管理员排查系统故障；恢复后使用“按当前资料重新检查”或“重新检查本赛事全部待处理 Demo”，不要重新上传同一份数据。";
+  return {
+    ...result,
+    error: { ...result.error, message: `${recovery}排查编号：${result.error.requestId}` },
+  };
 }
 
 const uuid = z.guid();
 const steam64 = z.string().regex(/^\d{17}$/, "Steam64 ID 格式无效。");
 
 async function loadImportContext(importId: string) {
-  const row = await db.query.matchDemoImports.findFirst({ where: eq(matchDemoImports.id, importId), columns: { id: true, seasonId: true, matchId: true } });
+  const row = await db.query.matchDemoImports.findFirst({
+    where: eq(matchDemoImports.id, importId),
+    columns: { id: true, seasonId: true, matchId: true },
+  });
   if (!row) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
-  const season = await db.query.seasons.findFirst({ where: eq(seasons.id, row.seasonId), columns: { id: true, slug: true } });
+  const season = await db.query.seasons.findFirst({
+    where: eq(seasons.id, row.seasonId),
+    columns: { id: true, slug: true },
+  });
   if (!season) throw new AppError(ErrorCode.NOT_FOUND, "Demo 对应的赛季不存在。");
   return { row, season };
 }
 
-type ConfirmStoredDemoParticipantIdentityActionData = Awaited<ReturnType<typeof confirmStoredDemoParticipantIdentityInTx>> & {
+type ConfirmStoredDemoParticipantIdentityActionData = Awaited<
+  ReturnType<typeof confirmStoredDemoParticipantIdentityInTx>
+> & {
   relatedRechecks: {
     attempted: number;
     confirmed: number;
@@ -60,16 +72,20 @@ type ConfirmStoredDemoParticipantIdentityActionData = Awaited<ReturnType<typeof 
 export async function confirmStoredDemoParticipantIdentity(
   input: unknown,
 ): Promise<ActionResult<ConfirmStoredDemoParticipantIdentityActionData>> {
-  const parsed = z.object({ importId: uuid, eventRosterMemberId: uuid, observedSteam64: steam64 }).safeParse(input);
+  const parsed = z
+    .object({ importId: uuid, eventRosterMemberId: uuid, observedSteam64: steam64 })
+    .safeParse(input);
   if (!parsed.success) return failValidation("比赛 Steam 身份确认参数无效。");
   try {
     const { row, season } = await loadImportContext(parsed.data.importId);
     const admin = await requireSeasonAdmin(row.seasonId);
     const actorId = auditActorId(admin);
-    const result = await db.transaction((tx) => confirmStoredDemoParticipantIdentityInTx(tx, {
-      ...parsed.data,
-      actorId,
-    }));
+    const result = await db.transaction((tx) =>
+      confirmStoredDemoParticipantIdentityInTx(tx, {
+        ...parsed.data,
+        actorId,
+      }),
+    );
     let relatedRechecks;
     try {
       relatedRechecks = await revalidateNeedsAttentionImportsForSteam64({
@@ -81,12 +97,23 @@ export async function confirmStoredDemoParticipantIdentity(
     } catch (error) {
       const requestId = ensureRequestId();
       captureException("demo.recheck.failure", error, {
-        scope: "demo", operation: "recheck.related", requestId, safeContext: { phase: "candidate_selection" },
+        scope: "demo",
+        operation: "recheck.related",
+        requestId,
+        safeContext: { phase: "candidate_selection" },
       });
-      relatedRechecks = { attempted: 0, confirmed: 0, remaining: 0, failed: 1, affectedMatchIds: [], requestId };
+      relatedRechecks = {
+        attempted: 0,
+        confirmed: 0,
+        remaining: 0,
+        failed: 1,
+        affectedMatchIds: [],
+        requestId,
+      };
     }
     revalidateMatchPaths(season.slug, row.matchId);
-    for (const matchId of relatedRechecks.affectedMatchIds) revalidateMatchPaths(season.slug, matchId);
+    for (const matchId of relatedRechecks.affectedMatchIds)
+      revalidateMatchPaths(season.slug, matchId);
     return ok({
       ...result,
       relatedRechecks: {
@@ -101,7 +128,6 @@ export async function confirmStoredDemoParticipantIdentity(
     return actionError("confirmStoredDemoParticipantIdentity", error);
   }
 }
-
 
 export async function recheckSeasonStoredDemoImports(
   input: unknown,
@@ -125,7 +151,6 @@ export async function recheckSeasonStoredDemoImports(
   }
 }
 
-
 export async function recheckStoredDemoImport(
   input: unknown,
 ): Promise<ActionResult<Awaited<ReturnType<typeof revalidateStoredDemoImportInTx>>>> {
@@ -137,11 +162,13 @@ export async function recheckStoredDemoImport(
     const admin = await requireSeasonAdmin(row.seasonId);
     const actorId = auditActorId(admin);
     phase = "recheck";
-    const result = await db.transaction((tx) => revalidateStoredDemoImportInTx(tx, {
-      importId: row.id,
-      actorId,
-      verifiedBy: `admin:${actorId}`,
-    }));
+    const result = await db.transaction((tx) =>
+      revalidateStoredDemoImportInTx(tx, {
+        importId: row.id,
+        actorId,
+        verifiedBy: `admin:${actorId}`,
+      }),
+    );
     phase = "revalidation";
     revalidateMatchPaths(season.slug, row.matchId);
     return ok(result);
@@ -149,7 +176,6 @@ export async function recheckStoredDemoImport(
     return demoRecheckError("recheckStoredDemoImport", error, phase);
   }
 }
-
 
 export async function rejectStoredDemoImport(
   input: unknown,
@@ -159,10 +185,12 @@ export async function rejectStoredDemoImport(
   try {
     const { row, season } = await loadImportContext(parsed.data.importId);
     const admin = await requireSeasonAdmin(row.seasonId);
-    const result = await db.transaction((tx) => rejectStoredDemoImportInTx(tx, {
-      importId: parsed.data.importId,
-      actorId: auditActorId(admin),
-    }));
+    const result = await db.transaction((tx) =>
+      rejectStoredDemoImportInTx(tx, {
+        importId: parsed.data.importId,
+        actorId: auditActorId(admin),
+      }),
+    );
     revalidateMatchPaths(season.slug, row.matchId);
     return ok(result);
   } catch (error) {
@@ -173,22 +201,37 @@ export async function rejectStoredDemoImport(
 export async function retireGameplaySteamIdentity(
   input: unknown,
 ): Promise<ActionResult<Awaited<ReturnType<typeof retireSeasonGameplaySteamIdentityInTx>>>> {
-  const parsed = z.object({ identityId: uuid, reason: z.string().trim().min(2).max(500) }).safeParse(input);
+  const parsed = z
+    .object({ identityId: uuid, reason: z.string().trim().min(2).max(500) })
+    .safeParse(input);
   if (!parsed.success) return failValidation("撤销比赛 Steam 身份的参数无效。");
   try {
-    const identity = await db.query.userGameplaySteamIds.findFirst({ where: eq(userGameplaySteamIds.id, parsed.data.identityId) });
+    const identity = await db.query.userGameplaySteamIds.findFirst({
+      where: eq(userGameplaySteamIds.id, parsed.data.identityId),
+    });
     if (!identity?.sourceImportId) return failValidation("只能撤销由比赛确认产生的 Steam 身份。");
-    const source = await db.query.matchDemoImports.findFirst({ where: eq(matchDemoImports.id, identity.sourceImportId), columns: { seasonId: true, matchId: true } });
+    const source = await db.query.matchDemoImports.findFirst({
+      where: eq(matchDemoImports.id, identity.sourceImportId),
+      columns: { seasonId: true, matchId: true },
+    });
     if (!source) return failValidation("该 Steam 身份的来源 Demo 不存在。");
-    const season = await db.query.seasons.findFirst({ where: eq(seasons.id, source.seasonId), columns: { id: true, slug: true } });
+    const season = await db.query.seasons.findFirst({
+      where: eq(seasons.id, source.seasonId),
+      columns: { id: true, slug: true },
+    });
     if (!season) return failValidation("该 Steam 身份的来源赛季不存在。");
     const admin = await requireSeasonAdmin(season.id);
-    const result = await db.transaction((tx) => retireSeasonGameplaySteamIdentityInTx(tx, {
-      ...parsed.data,
-      seasonId: season.id,
-      actorId: auditActorId(admin),
-    }));
-    const sourceMatch = await db.query.matches.findFirst({ where: eq(matches.id, source.matchId), columns: { id: true } });
+    const result = await db.transaction((tx) =>
+      retireSeasonGameplaySteamIdentityInTx(tx, {
+        ...parsed.data,
+        seasonId: season.id,
+        actorId: auditActorId(admin),
+      }),
+    );
+    const sourceMatch = await db.query.matches.findFirst({
+      where: eq(matches.id, source.matchId),
+      columns: { id: true },
+    });
     if (sourceMatch) revalidateMatchPaths(season.slug, sourceMatch.id);
     return ok(result);
   } catch (error) {

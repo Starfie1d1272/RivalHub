@@ -18,7 +18,11 @@ import { ErrorCode } from "@/lib/errors";
 import type { ConversionPolicyMapping } from "@/lib/competitive/conversion-policy";
 
 const idSchema = z.guid();
-const versionSchema = z.string().trim().min(1, "请填写新的策略版本。 ").max(128, "策略版本不能超过 128 个字符。 ");
+const versionSchema = z
+  .string()
+  .trim()
+  .min(1, "请填写新的策略版本。 ")
+  .max(128, "策略版本不能超过 128 个字符。 ");
 const noteSchema = z.string().trim().max(4000, "说明不能超过 4000 个字符。 ").nullable().optional();
 
 function revalidateConversionPolicies(): void {
@@ -31,15 +35,19 @@ function invalid(message: string): ActionResult<never> {
   return fail({ code: ErrorCode.VALIDATION_FAILED, message });
 }
 
-export async function createConversionPolicyDraftAction(input: unknown): Promise<ActionResult<{ id: string }>> {
-  const parsed = z.object({
-    basePolicyId: idSchema,
-    version: versionSchema,
-    sourceNote: noteSchema,
-    rationale: noteSchema,
-    changeSummary: noteSchema,
-    internalNote: noteSchema,
-  }).safeParse(input);
+export async function createConversionPolicyDraftAction(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = z
+    .object({
+      basePolicyId: idSchema,
+      version: versionSchema,
+      sourceNote: noteSchema,
+      rationale: noteSchema,
+      changeSummary: noteSchema,
+      internalNote: noteSchema,
+    })
+    .safeParse(input);
   if (!parsed.success) return invalid("请填写有效的基准策略和新版本号。 ");
   try {
     const session = await requireSuperAdmin();
@@ -51,19 +59,26 @@ export async function createConversionPolicyDraftAction(input: unknown): Promise
   }
 }
 
-export async function updateConversionPolicyDraftAction(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({
-    id: idSchema,
-    mapping: z.unknown(),
-    sourceNote: noteSchema,
-    rationale: noteSchema,
-    changeSummary: noteSchema,
-    internalNote: noteSchema,
-  }).safeParse(input);
+export async function updateConversionPolicyDraftAction(
+  input: unknown,
+): Promise<ActionResult<void>> {
+  const parsed = z
+    .object({
+      id: idSchema,
+      mapping: z.unknown(),
+      sourceNote: noteSchema,
+      rationale: noteSchema,
+      changeSummary: noteSchema,
+      internalNote: noteSchema,
+    })
+    .safeParse(input);
   if (!parsed.success) return invalid("请填写有效的换算策略草稿。 ");
   try {
     const session = await requireSuperAdmin();
-    await updateConversionPolicyDraft({ ...parsed.data, mapping: parsed.data.mapping as ConversionPolicyMapping }, auditActorId(session));
+    await updateConversionPolicyDraft(
+      { ...parsed.data, mapping: parsed.data.mapping as ConversionPolicyMapping },
+      auditActorId(session),
+    );
     revalidateConversionPolicies();
     return ok(undefined);
   } catch (error) {
@@ -84,7 +99,9 @@ export async function approveConversionPolicyAction(input: unknown): Promise<Act
   }
 }
 
-export async function setCurrentConversionPolicyAction(input: unknown): Promise<ActionResult<void>> {
+export async function setCurrentConversionPolicyAction(
+  input: unknown,
+): Promise<ActionResult<void>> {
   const parsed = z.object({ id: idSchema }).safeParse(input);
   if (!parsed.success) return invalid("换算策略标识无效。 ");
   try {
@@ -118,5 +135,7 @@ export async function readConversionPolicyDetail(input: unknown) {
     const id = parsed.data;
     await requireSuperAdmin();
     return ok(await loadConversionPolicyAdminDetail(db, id));
-  } catch (error) { return actionError("readConversionPolicyDetail", error); }
+  } catch (error) {
+    return actionError("readConversionPolicyDetail", error);
+  }
 }

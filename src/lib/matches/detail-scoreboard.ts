@@ -38,18 +38,49 @@ export async function loadMatchScoreboard(
   currentImports?: MatchPerformance["currentImports"],
 ) {
   assertCompetitionMatch(match);
-  const completed = maps.filter(map => canConfirmMapScoreboard(map) && map.scoreA! + map.scoreB! > 0);
-  if (completed.length === 0) return { completed, confirmedMapIds: new Set<string>(), provisionalMapIds: new Set<string>(), mapPlayers: new Map<string, MatchScoreboardPlayer[]>(), detailedPlayers: [], detailedPlayerIds: new Set<string>(), detailedMapIds: new Set<string>(), mvpCandidates: [], summaryPlayers: [] };
-  const rows = await db.select().from(matchPlayerStats).where(and(
-    eq(matchPlayerStats.matchId, match.id),
-    inArray(matchPlayerStats.mapId, completed.map((map) => map.id)),
-  ));
+  const completed = maps.filter(
+    (map) => canConfirmMapScoreboard(map) && map.scoreA! + map.scoreB! > 0,
+  );
+  if (completed.length === 0)
+    return {
+      completed,
+      confirmedMapIds: new Set<string>(),
+      provisionalMapIds: new Set<string>(),
+      mapPlayers: new Map<string, MatchScoreboardPlayer[]>(),
+      detailedPlayers: [],
+      detailedPlayerIds: new Set<string>(),
+      detailedMapIds: new Set<string>(),
+      mvpCandidates: [],
+      summaryPlayers: [],
+    };
+  const rows = await db
+    .select()
+    .from(matchPlayerStats)
+    .where(
+      and(
+        eq(matchPlayerStats.matchId, match.id),
+        inArray(
+          matchPlayerStats.mapId,
+          completed.map((map) => map.id),
+        ),
+      ),
+    );
   const detail = performance === undefined ? await getMatchPerformance(match.id) : performance;
   const validImports = currentImports ?? detail?.currentImports;
-  const { rows: confirmedRows, conflicts } = selectUnambiguousMatchStatsRows(rows.filter((row) => row.verifiedByAdmin !== null && row.userId !== null
-    && userIdToTeamId.has(row.userId)
-    && (!row.dakImportId || validImports?.[row.mapId] === row.dakImportId)));
-  const detailedPlayers = detail?.overall.map(player => ({ userId: player.player.entityKey, name: player.player.displayName })) ?? [];
+  const { rows: confirmedRows, conflicts } = selectUnambiguousMatchStatsRows(
+    rows.filter(
+      (row) =>
+        row.verifiedByAdmin !== null &&
+        row.userId !== null &&
+        userIdToTeamId.has(row.userId) &&
+        (!row.dakImportId || validImports?.[row.mapId] === row.dakImportId),
+    ),
+  );
+  const detailedPlayers =
+    detail?.overall.map((player) => ({
+      userId: player.player.entityKey,
+      name: player.player.displayName,
+    })) ?? [];
   const mapPlayers = new Map<string, MatchScoreboardPlayer[]>();
   for (const row of confirmedRows) {
     if (!row.userId) continue;
@@ -77,22 +108,63 @@ export async function loadMatchScoreboard(
     });
     mapPlayers.set(row.mapId, players);
   }
-  const confirmedMapIds = new Set(confirmedRows.map(row => row.mapId));
+  const confirmedMapIds = new Set(confirmedRows.map((row) => row.mapId));
   const provisionalMapIds = new Set<string>();
-  const importedMapIds = new Set(rows.filter(row => row.dakImportId).map(row => row.mapId));
+  const importedMapIds = new Set(rows.filter((row) => row.dakImportId).map((row) => row.mapId));
   for (const map of completed) {
     if (!map.provisionalPlayers?.length || importedMapIds.has(map.id)) continue;
     const existing = mapPlayers.get(map.id) ?? [];
-    const confirmedUsers = new Set(existing.map(player => player.userId));
-    const provisional = selectUnambiguousMatchStatsRows(map.provisionalPlayers.map(player => ({ ...player, mapId: map.id })));
-    const players = provisional.rows.flatMap(player => {
+    const confirmedUsers = new Set(existing.map((player) => player.userId));
+    const provisional = selectUnambiguousMatchStatsRows(
+      map.provisionalPlayers.map((player) => ({ ...player, mapId: map.id })),
+    );
+    const players = provisional.rows.flatMap((player) => {
       const teamId = userIdToTeamId.get(player.userId);
-      if (confirmedUsers.has(player.userId) || conflicts.has(`${map.id}:${player.userId}`)) return [];
+      if (confirmedUsers.has(player.userId) || conflicts.has(`${map.id}:${player.userId}`))
+        return [];
       if (teamId !== match.entryAId && teamId !== match.entryBId) return [];
-      return [{ userId: player.userId, perfectName: player.name, teamId, kills: player.kills, deaths: player.deaths, assists: player.assists, hsPercent: null, firstKills: null, multiKills: null, clutches: null, adr: null, rws: null, ratingPro: null, we: null, mapsPlayed: 1, mapIds: [map.id], isProvisional: true }];
+      return [
+        {
+          userId: player.userId,
+          perfectName: player.name,
+          teamId,
+          kills: player.kills,
+          deaths: player.deaths,
+          assists: player.assists,
+          hsPercent: null,
+          firstKills: null,
+          multiKills: null,
+          clutches: null,
+          adr: null,
+          rws: null,
+          ratingPro: null,
+          we: null,
+          mapsPlayed: 1,
+          mapIds: [map.id],
+          isProvisional: true,
+        },
+      ];
     });
-    if (players.length) { mapPlayers.set(map.id, [...existing, ...players]); provisionalMapIds.add(map.id); }
+    if (players.length) {
+      mapPlayers.set(map.id, [...existing, ...players]);
+      provisionalMapIds.add(map.id);
+    }
   }
   const rounds = new Map(completed.map((map) => [map.id, map.scoreA! + map.scoreB!]));
-  return { completed, confirmedMapIds, provisionalMapIds, mapPlayers, detailedPlayers, detailedPlayerIds: new Set(detailedPlayers.map(player => player.userId)), detailedMapIds: new Set(Object.keys(detail?.byMap ?? {})), ...aggregateFinishedPlayerStats(confirmedRows, userIdToTeamId, match.entryAId, match.entryBId, rounds) };
+  return {
+    completed,
+    confirmedMapIds,
+    provisionalMapIds,
+    mapPlayers,
+    detailedPlayers,
+    detailedPlayerIds: new Set(detailedPlayers.map((player) => player.userId)),
+    detailedMapIds: new Set(Object.keys(detail?.byMap ?? {})),
+    ...aggregateFinishedPlayerStats(
+      confirmedRows,
+      userIdToTeamId,
+      match.entryAId,
+      match.entryBId,
+      rounds,
+    ),
+  };
 }

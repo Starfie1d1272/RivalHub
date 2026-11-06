@@ -1,5 +1,9 @@
 import { formatCST } from "@/lib/utils/date";
-import { MATCH_TIME_PROPOSAL_STATUS_LABELS, type MatchTimeProposalStatus, type PublicMatchTimeProposal } from "@/lib/matches/time-proposals";
+import {
+  MATCH_TIME_PROPOSAL_STATUS_LABELS,
+  type MatchTimeProposalStatus,
+  type PublicMatchTimeProposal,
+} from "@/lib/matches/time-proposals";
 
 interface TimeProposalHistoryProps {
   proposals: PublicMatchTimeProposal[];
@@ -15,7 +19,11 @@ const STATUS_COLORS = {
 
 export function TimeProposalHistory({ proposals }: TimeProposalHistoryProps) {
   if (proposals.length === 0) {
-    return <p className="text-sm" style={{ color: "var(--color-fg-dim)" }}>暂无时间协商记录</p>;
+    return (
+      <p className="text-sm" style={{ color: "var(--color-fg-dim)" }}>
+        暂无时间协商记录
+      </p>
+    );
   }
 
   return (
@@ -40,9 +48,18 @@ export function TimeProposalHistory({ proposals }: TimeProposalHistoryProps) {
               {MATCH_TIME_PROPOSAL_STATUS_LABELS[p.status]}
             </span>
           </div>
-          {p.status === "accepted" && p.resolution && <p className="mt-1 text-xs text-[var(--color-fg-mid)]">
-            {{ participant_accept: "双方确认", auto_timeout: "完整 24 小时未回应后自动采纳", auto_cutoff: "按历史截止政策自动确定", admin_force: "管理员指定" }[p.resolution]}
-          </p>}
+          {p.status === "accepted" && p.resolution && (
+            <p className="mt-1 text-xs text-[var(--color-fg-mid)]">
+              {
+                {
+                  participant_accept: "双方确认",
+                  auto_timeout: "完整 24 小时未回应后自动采纳",
+                  auto_cutoff: "按历史截止政策自动确定",
+                  admin_force: "管理员指定",
+                }[p.resolution]
+              }
+            </p>
+          )}
           {p.rejectReason && (
             <p className="mt-1 text-xs" style={{ color: "var(--color-fg-mid)" }}>
               拒绝原因：{p.rejectReason}

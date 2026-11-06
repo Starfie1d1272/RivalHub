@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
-const confirmSecondaryEmailIdentity = observeAction("identity.confirmSecondaryEmailIdentity", telemetry_confirmSecondaryEmailIdentity);
+const confirmSecondaryEmailIdentity = observeAction(
+  "identity.confirmSecondaryEmailIdentity",
+  telemetry_confirmSecondaryEmailIdentity,
+);
 
 export function SecondaryIdentityConfirmationForm({
   tokenHash,
@@ -27,7 +30,12 @@ export function SecondaryIdentityConfirmationForm({
   function confirm() {
     const taskToken = task.begin("submit");
     startTransition(async () => {
-      const result = await confirmSecondaryEmailIdentity({ tokenHash, requestId, stateToken, otpType });
+      const result = await confirmSecondaryEmailIdentity({
+        tokenHash,
+        requestId,
+        stateToken,
+        otpType,
+      });
       if (!result.success) {
         setFailure(result.error.message);
         return;
@@ -40,7 +48,12 @@ export function SecondaryIdentityConfirmationForm({
   return failure ? (
     <div className="space-y-3">
       <p className="text-sm text-[var(--color-fg-mid)]">{failure}</p>
-      <Link href="/settings/security" className="inline-flex text-sm underline hover:text-[var(--color-accent)]">返回账号与安全</Link>
+      <Link
+        href="/settings/security"
+        className="inline-flex text-sm underline hover:text-[var(--color-accent)]"
+      >
+        返回账号与安全
+      </Link>
     </div>
   ) : (
     <Button type="button" className="w-full" onClick={confirm} disabled={pending}>

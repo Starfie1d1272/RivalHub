@@ -19,7 +19,11 @@ export function MetricFamilyTabs<Key extends string>({
   onChange: (value: Key) => void;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="flex min-w-0 gap-1 overflow-x-auto border-b border-[var(--color-border)]">
+    <div
+      role="tablist"
+      aria-label={label}
+      className="flex min-w-0 gap-1 overflow-x-auto border-b border-[var(--color-border)]"
+    >
       {options.map((option) => {
         const active = value === option.key;
         return (
@@ -28,7 +32,10 @@ export function MetricFamilyTabs<Key extends string>({
             role="tab"
             aria-selected={active}
             type="button"
-            onClick={() => { recordFilter("tab", option.key); onChange(option.key); }}
+            onClick={() => {
+              recordFilter("tab", option.key);
+              onChange(option.key);
+            }}
             className={[
               "-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
               "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]",

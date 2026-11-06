@@ -12,18 +12,56 @@ import type { StatsSearch } from "@/lib/stats/view-state";
 
 export const metadata: Metadata = { title: "数据中心", alternates: { canonical: "/stats" } };
 export default function StatsPage({ searchParams }: { searchParams: Promise<StatsSearch> }) {
-  return <PageLayout variant="workbench" className="space-y-3">
-    <Suspense fallback={<StatsViewSkeleton />}><StatsContent searchParams={searchParams} /></Suspense>
-  </PageLayout>;
+  return (
+    <PageLayout variant="workbench" className="space-y-3">
+      <Suspense fallback={<StatsViewSkeleton />}>
+        <StatsContent searchParams={searchParams} />
+      </Suspense>
+    </PageLayout>
+  );
 }
 async function StatsContent({ searchParams }: { searchParams: Promise<StatsSearch> }) {
   let result;
-  try { result = await getPlatformStatsPage(await searchParams); }
-  catch (error) { if (isAppErrorCode(error, ErrorCode.NOT_FOUND)) notFound(); throw error; }
+  try {
+    result = await getPlatformStatsPage(await searchParams);
+  } catch (error) {
+    if (isAppErrorCode(error, ErrorCode.NOT_FOUND)) notFound();
+    throw error;
+  }
   const { data, query, event, stages, events } = result;
   const mapDetail = data.tab === "maps" ? data.mapDetail : undefined;
-  return <div className="space-y-4">
-    <PageHeader title="数据中心" className="pb-3" actions={<div className="flex min-w-0 flex-wrap items-center gap-3"><span className="text-sm">赛事</span><StatsEventSelector events={events} value={event?.slug ?? ""} query={query} />{event && <nav aria-label="本届赛事" className="flex flex-wrap gap-4 text-sm text-[var(--color-fg-mid)]"><Link href={`/${event.slug}`} className="hover:text-[var(--color-accent)]">返回本届赛事 →</Link><Link href={`/${event.slug}/matches`} className="hover:text-[var(--color-accent)]">查看赛程 →</Link></nav>}</div>} />
-    <TournamentStatsView data={data} mapDetail={mapDetail} query={query} seasonSlug={event?.slug ?? ""} stages={stages} />
-  </div>;
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title="数据中心"
+        className="pb-3"
+        actions={
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <span className="text-sm">赛事</span>
+            <StatsEventSelector events={events} value={event?.slug ?? ""} query={query} />
+            {event && (
+              <nav
+                aria-label="本届赛事"
+                className="flex flex-wrap gap-4 text-sm text-[var(--color-fg-mid)]"
+              >
+                <Link href={`/${event.slug}`} className="hover:text-[var(--color-accent)]">
+                  返回本届赛事 →
+                </Link>
+                <Link href={`/${event.slug}/matches`} className="hover:text-[var(--color-accent)]">
+                  查看赛程 →
+                </Link>
+              </nav>
+            )}
+          </div>
+        }
+      />
+      <TournamentStatsView
+        data={data}
+        mapDetail={mapDetail}
+        query={query}
+        seasonSlug={event?.slug ?? ""}
+        stages={stages}
+      />
+    </div>
+  );
 }

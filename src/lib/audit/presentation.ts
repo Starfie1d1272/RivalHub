@@ -49,7 +49,9 @@ export interface AuditEventDefinition extends AuditActionDefinition {
 export type AuditReadAction = keyof typeof AUDIT_ACTION_DEFINITIONS;
 /** Retired actions remain readable, but cannot be selected by new producers. */
 export type AuditAction = {
-  [Action in AuditReadAction]: typeof AUDIT_ACTION_DEFINITIONS[Action] extends { legacy: true } ? never : Action;
+  [Action in AuditReadAction]: (typeof AUDIT_ACTION_DEFINITIONS)[Action] extends { legacy: true }
+    ? never
+    : Action;
 }[AuditReadAction];
 
 const DEFAULT_TARGETS: Record<AuditCategory, AuditTargetContract> = {
@@ -139,12 +141,27 @@ const TARGET_OVERRIDES: Readonly<Partial<Record<AuditReadAction, AuditTargetCont
   "match.propose_time": { type: "match", lifecycle: "stable" },
   "match.respond_time_proposal": { type: "match_time_proposal", lifecycle: "stable" },
   "institution.manual_created": { type: "institution", lifecycle: "stable" },
-  "competitive_platform_season.create": { type: "competitive_platform_season", lifecycle: "stable" },
-  "competitive_platform_season.update": { type: "competitive_platform_season", lifecycle: "stable" },
-  "competitive_platform_season.set_active": { type: "competitive_platform_season", lifecycle: "stable" },
-  "competitive_platform_season.set_current": { type: "competitive_platform_season", lifecycle: "stable" },
+  "competitive_platform_season.create": {
+    type: "competitive_platform_season",
+    lifecycle: "stable",
+  },
+  "competitive_platform_season.update": {
+    type: "competitive_platform_season",
+    lifecycle: "stable",
+  },
+  "competitive_platform_season.set_active": {
+    type: "competitive_platform_season",
+    lifecycle: "stable",
+  },
+  "competitive_platform_season.set_current": {
+    type: "competitive_platform_season",
+    lifecycle: "stable",
+  },
   "competitive_platform_season.move": { type: "competitive_platform_season", lifecycle: "stable" },
-  "competitive_platform_season.delete": { type: "competitive_platform_season", lifecycle: "tombstone" },
+  "competitive_platform_season.delete": {
+    type: "competitive_platform_season",
+    lifecycle: "tombstone",
+  },
   "competitive_platform_rank.create": { type: "competitive_platform_rank", lifecycle: "stable" },
   "competitive_platform_rank.rename": { type: "competitive_platform_rank", lifecycle: "stable" },
   "competitive_platform_rank.move": { type: "competitive_platform_rank", lifecycle: "stable" },
@@ -192,14 +209,30 @@ const TARGET_OVERRIDES: Readonly<Partial<Record<AuditReadAction, AuditTargetCont
  * producer has been retired.
  */
 export const AUDIT_ACTION_DEFINITIONS = {
-  "announcement.import_release_history": { label: "导入历史发布公告", category: "season", legacy: true },
-  "identity.merge_preflight.remediation": { label: "修复身份合并预检数据", category: "user", legacy: true },
-  "identity.steam64.remediation": { label: "修复 Steam64 身份资料", category: "user", legacy: true },
+  "announcement.import_release_history": {
+    label: "导入历史发布公告",
+    category: "season",
+    legacy: true,
+  },
+  "identity.merge_preflight.remediation": {
+    label: "修复身份合并预检数据",
+    category: "user",
+    legacy: true,
+  },
+  "identity.steam64.remediation": {
+    label: "修复 Steam64 身份资料",
+    category: "user",
+    legacy: true,
+  },
   "match.roster.correction": { label: "修正比赛阵容", category: "match", legacy: true },
   "match.import_demo": { label: "导入 Demo 数据", category: "match", legacy: true },
   "match.admin_update_roster": { label: "管理员调整比赛阵容", category: "match", legacy: true },
   "season.recompute_ratings": { label: "重新计算赛季 Rating", category: "season", legacy: true },
-  "season.rollback_to_voting": { label: "将赛季恢复到队长投票阶段", category: "season", legacy: true },
+  "season.rollback_to_voting": {
+    label: "将赛季恢复到队长投票阶段",
+    category: "season",
+    legacy: true,
+  },
   "admin.dak.pair": { label: "连接 DAK Studio", category: "admin" },
   "admin.dak.revoke_pairing": { label: "撤销 DAK Studio 连接", category: "admin" },
   "announcement.create": { label: "创建公告", category: "season" },
@@ -323,11 +356,14 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "match.correct_map_score": { label: "修正地图比分", category: "match" },
   "match.delete": { label: "删除比赛", category: "match" },
   "match.forfeit": { label: "判定比赛弃权", category: "match" },
-  "update_match_completed_at": { label: "更新比赛完成时间", category: "match" },
+  update_match_completed_at: { label: "更新比赛完成时间", category: "match" },
   "match.series.corrected": { label: "更正系列赛果", category: "match" },
   "match.result.corrected": { label: "修正正式赛果", category: "match" },
   "match.managed.invalidated": { label: "使后续比赛失效", category: "match" },
-  "competition_qualification.invalidate_match": { label: "作废后续 Play-in 比赛", category: "major" },
+  "competition_qualification.invalidate_match": {
+    label: "作废后续 Play-in 比赛",
+    category: "major",
+  },
   "match.recovery.adjudicated": { label: "裁定比赛恢复结果", category: "match" },
 
   "season.create": { label: "创建赛季", category: "season" },
@@ -394,14 +430,20 @@ export const AUDIT_ACTION_DEFINITIONS = {
 
   "institution.manual_created": { label: "新增院校目录条目", category: "education" },
   "education_verification.submit": { label: "提交教育认证", category: "education" },
-  "education_verification.institutional_email": { label: "通过校邮箱完成认证", category: "education" },
+  "education_verification.institutional_email": {
+    label: "通过校邮箱完成认证",
+    category: "education",
+  },
   "education_verification.approved": { label: "通过教育认证审核", category: "education" },
   "education_verification.rejected": { label: "驳回教育认证审核", category: "education" },
 
   "competitive_platform.update": { label: "更新竞技平台", category: "competitive" },
   "competitive_platform_season.create": { label: "创建平台赛季目录", category: "competitive" },
   "competitive_platform_season.update": { label: "更新平台赛季目录", category: "competitive" },
-  "competitive_platform_season.set_active": { label: "调整平台赛季启用状态", category: "competitive" },
+  "competitive_platform_season.set_active": {
+    label: "调整平台赛季启用状态",
+    category: "competitive",
+  },
   "competitive_platform_season.set_current": { label: "切换当前平台赛季", category: "competitive" },
   "competitive_platform_season.move": { label: "调整平台赛季顺序", category: "competitive" },
   "competitive_platform_season.delete": { label: "删除平台赛季目录", category: "competitive" },
@@ -409,7 +451,10 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "competitive_platform_rank.rename": { label: "重命名平台段位", category: "competitive" },
   "competitive_platform_rank.move": { label: "调整平台段位顺序", category: "competitive" },
   "competitive_platform_rank.delete": { label: "删除平台段位", category: "competitive" },
-  "competitive_profile.repair_missing_season": { label: "补齐历史最高达成赛季", category: "competitive" },
+  "competitive_profile.repair_missing_season": {
+    label: "补齐历史最高达成赛季",
+    category: "competitive",
+  },
   "competitive_profile.self_declare": { label: "更新竞技段位资料", category: "competitive" },
   "competitive_roles.self_declare": { label: "更新竞技位置资料", category: "competitive" },
   "map_preferences.self_declare": { label: "更新地图熟练度", category: "competitive" },
@@ -441,7 +486,10 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "competition_qualification.generate_round": { label: "生成 Play-in 轮次", category: "major" },
   "competition_qualification.reset": { label: "重置 Play-in 配置", category: "major" },
   "competition_qualification.sync_roster": { label: "同步 Play-in 参赛名单", category: "major" },
-  "competition_qualification.reconcile_roster": { label: "同步 Play-in 报名名单", category: "major" },
+  "competition_qualification.reconcile_roster": {
+    label: "同步 Play-in 报名名单",
+    category: "major",
+  },
   "major.swiss.finalize_round": { label: "确认 Major 瑞士轮", category: "major" },
   "major.stage.transition": { label: "推进 Major 阶段", category: "major" },
   "major.playoff.start": { label: "启动 Major 淘汰赛", category: "major" },
@@ -508,12 +556,19 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "team_application.materialize": { label: "生成正式参赛队", category: "entry" },
 } as const;
 
-export const AUDIT_EVENT_REGISTRY: Readonly<{ [Action in AuditReadAction]: AuditEventDefinition }> = Object.freeze(
-  Object.fromEntries(Object.entries(AUDIT_ACTION_DEFINITIONS).map(([action, definition]) => [
-    action,
-    { ...definition, target: TARGET_OVERRIDES[action as AuditReadAction] ?? DEFAULT_TARGETS[definition.category] },
-  ])) as { [Action in AuditReadAction]: AuditEventDefinition },
-);
+export const AUDIT_EVENT_REGISTRY: Readonly<{ [Action in AuditReadAction]: AuditEventDefinition }> =
+  Object.freeze(
+    Object.fromEntries(
+      Object.entries(AUDIT_ACTION_DEFINITIONS).map(([action, definition]) => [
+        action,
+        {
+          ...definition,
+          target:
+            TARGET_OVERRIDES[action as AuditReadAction] ?? DEFAULT_TARGETS[definition.category],
+        },
+      ]),
+    ) as { [Action in AuditReadAction]: AuditEventDefinition },
+  );
 
 export const AUDIT_ACTION_KEYS = Object.freeze(Object.keys(AUDIT_EVENT_REGISTRY));
 
@@ -553,9 +608,13 @@ export interface AuditLogDetail extends AuditLogView {
   fields: Array<{ label: string; value: string }>;
 }
 
-export function getAuditActionPresentation(action: string | null | undefined): AuditActionPresentation {
+export function getAuditActionPresentation(
+  action: string | null | undefined,
+): AuditActionPresentation {
   const actionKey = action ?? "";
-  const definition = Object.hasOwn(AUDIT_EVENT_REGISTRY, actionKey) ? AUDIT_EVENT_REGISTRY[actionKey as AuditReadAction] : undefined;
+  const definition = Object.hasOwn(AUDIT_EVENT_REGISTRY, actionKey)
+    ? AUDIT_EVENT_REGISTRY[actionKey as AuditReadAction]
+    : undefined;
   if (!definition) {
     return {
       actionKey,
@@ -649,11 +708,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function numberValue(meta: Record<string, unknown>, key: string): number | null {
-  return typeof meta[key] === "number" && Number.isFinite(meta[key]) ? meta[key] as number : null;
+  return typeof meta[key] === "number" && Number.isFinite(meta[key]) ? (meta[key] as number) : null;
 }
 
 function booleanValue(meta: Record<string, unknown>, key: string): boolean | null {
-  return typeof meta[key] === "boolean" ? meta[key] as boolean : null;
+  return typeof meta[key] === "boolean" ? (meta[key] as boolean) : null;
 }
 
 const STATE_LABELS: Readonly<Record<string, string>> = {
@@ -697,15 +756,26 @@ const EVIDENCE_TYPE_LABELS: Readonly<Record<string, string>> = {
 };
 
 function safeState(value: unknown): string | null {
-  return typeof value === "string" ? STATE_LABELS[value] ?? null : null;
+  return typeof value === "string" ? (STATE_LABELS[value] ?? null) : null;
 }
 
-function appendCount(parts: string[], meta: Record<string, unknown>, key: string, label: string): void {
+function appendCount(
+  parts: string[],
+  meta: Record<string, unknown>,
+  key: string,
+  label: string,
+): void {
   const value = numberValue(meta, key);
   if (value !== null && value >= 0) parts.push(`${label} ${value}`);
 }
 
-function appendBoolean(parts: string[], meta: Record<string, unknown>, key: string, yes: string, no?: string): void {
+function appendBoolean(
+  parts: string[],
+  meta: Record<string, unknown>,
+  key: string,
+  yes: string,
+  no?: string,
+): void {
   const value = booleanValue(meta, key);
   if (value === true) parts.push(yes);
   else if (value === false && no) parts.push(no);
@@ -728,7 +798,9 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
   const parts: string[] = [];
   if (action === "postmatch.report.revoke") parts.push("开放名单更正");
   if (action === "postmatch.video.update" && typeof meta.videoChange === "string") {
-    const change = Object.hasOwn(VIDEO_CHANGE_LABELS, meta.videoChange) ? VIDEO_CHANGE_LABELS[meta.videoChange] : undefined;
+    const change = Object.hasOwn(VIDEO_CHANGE_LABELS, meta.videoChange)
+      ? VIDEO_CHANGE_LABELS[meta.videoChange]
+      : undefined;
     if (change) parts.push(change);
   }
   const scoreA = numberValue(meta, "scoreA");
@@ -739,7 +811,8 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
 
   if (action.startsWith("match.")) {
     const mapOrder = numberValue(meta, "mapOrder");
-    if (mapOrder !== null && Number.isInteger(mapOrder) && mapOrder > 0) parts.push(`第 ${mapOrder} 图`);
+    if (mapOrder !== null && Number.isInteger(mapOrder) && mapOrder > 0)
+      parts.push(`第 ${mapOrder} 图`);
     appendCount(parts, meta, "playerCount", "选手");
     if (action.startsWith("match.demo.")) appendCount(parts, meta, "issueCount", "待处理问题");
     appendCount(parts, meta, "stepCount", "步骤");
@@ -747,10 +820,15 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
     appendBoolean(parts, meta, "winnerChanged", "胜者已变化");
     appendBoolean(parts, meta, "isForfeit", "弃权赛果");
     appendBoolean(parts, meta, "postMatch", "赛后修改");
-    if (action === "match.demo.identity_confirm" && typeof meta.playerName === "string" && meta.playerName.trim()) {
+    if (
+      action === "match.demo.identity_confirm" &&
+      typeof meta.playerName === "string" &&
+      meta.playerName.trim()
+    ) {
       parts.push(`选手 ${meta.playerName.trim().slice(0, 72)}`);
     }
-    if (action === "match.demo.identity_confirm" || action === "match.demo.identity_retire") appendSteam64(parts, meta);
+    if (action === "match.demo.identity_confirm" || action === "match.demo.identity_retire")
+      appendSteam64(parts, meta);
   }
 
   appendCount(parts, meta, "matchCount", "比赛");
@@ -770,8 +848,10 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
   if (from && to) parts.push(`状态 ${from} → ${to}`);
   else if (to) parts.push(`状态 ${to}`);
 
-  const evidenceType = typeof meta.evidenceType === "string" ? EVIDENCE_TYPE_LABELS[meta.evidenceType] : undefined;
-  if (evidenceType && action.startsWith("education_verification.")) parts.push(`材料 ${evidenceType}`);
+  const evidenceType =
+    typeof meta.evidenceType === "string" ? EVIDENCE_TYPE_LABELS[meta.evidenceType] : undefined;
+  if (evidenceType && action.startsWith("education_verification."))
+    parts.push(`材料 ${evidenceType}`);
 
   appendBoolean(parts, meta, "reviewNote", "含审核备注");
   appendBoolean(parts, meta, "hasReviewNote", "含审核备注");
@@ -781,20 +861,26 @@ export function summarizeAuditMeta(action: string, meta: unknown): string | null
   appendBoolean(parts, meta, "active", "已启用", "已停用");
   appendBoolean(parts, meta, "isCurrent", "已设为当前");
   appendBoolean(parts, meta, "autoPicked", "自动选人");
-  if (action === "team.captain.transfer") appendBoolean(parts, meta, "emergencyOverride", "管理员紧急转移");
+  if (action === "team.captain.transfer")
+    appendBoolean(parts, meta, "emergencyOverride", "管理员紧急转移");
   if (action === "user_identity.merge" && isRecord(meta.summary)) {
     appendCount(parts, meta.summary, "AUTOMATIC", "合并记录");
     appendCount(parts, meta.summary, "PRESERVE", "保留历史记录");
   }
 
   if (typeof meta.direction === "string") {
-    const directionLabel = { up: "上移", down: "下移", left: "左移", right: "右移" }[meta.direction];
+    const directionLabel = { up: "上移", down: "下移", left: "左移", right: "右移" }[
+      meta.direction
+    ];
     if (directionLabel) parts.push(directionLabel);
   }
 
-  const sourceLabel = typeof meta.source === "string"
-    ? ({ linked_team: "关联队伍", event_native: "赛事原生" } as Record<string, string>)[meta.source]
-    : undefined;
+  const sourceLabel =
+    typeof meta.source === "string"
+      ? ({ linked_team: "关联队伍", event_native: "赛事原生" } as Record<string, string>)[
+          meta.source
+        ]
+      : undefined;
   if (sourceLabel) parts.push(sourceLabel);
 
   if (parts.length > 0) return parts.join(" · ");

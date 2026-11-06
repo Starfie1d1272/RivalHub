@@ -27,16 +27,21 @@ interface MatchRosterViewProps {
   teamBRoster: RosterPlayer[] | null;
 }
 
-function RosterColumn({ teamName, roster, entryId }: { entryId?: string; teamName: string; roster: RosterPlayer[] | null }) {
+function RosterColumn({
+  teamName,
+  roster,
+  entryId,
+}: {
+  entryId?: string;
+  teamName: string;
+  roster: RosterPlayer[] | null;
+}) {
   const starters = roster?.filter((p) => p.isStarter) ?? [];
   const subs = roster?.filter((p) => !p.isStarter) ?? [];
 
   return (
     <div>
-      <div
-        className="mb-3 text-sm font-semibold"
-        style={{ color: "var(--color-fg-mid)" }}
-      >
+      <div className="mb-3 text-sm font-semibold" style={{ color: "var(--color-fg-mid)" }}>
         <TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink>
       </div>
       {roster && roster.length > 0 ? (
@@ -48,17 +53,33 @@ function RosterColumn({ teamName, roster, entryId }: { entryId?: string; teamNam
               style={{ color: "var(--color-fg)" }}
             >
               {p.userId ? (
-                <PlayerProfileLink userId={p.userId} className="flex max-w-full min-w-0 items-center gap-2 hover:text-[var(--color-accent)] transition-colors">
-                  <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} hasActivePublicSanction={p.hasActivePublicSanction} size="sm" />
+                <PlayerProfileLink
+                  userId={p.userId}
+                  className="flex max-w-full min-w-0 items-center gap-2 hover:text-[var(--color-accent)] transition-colors"
+                >
+                  <PlayerAvatar
+                    name={getPublicDisplayName(p)}
+                    avatarUrl={p.avatarUrl}
+                    hasActivePublicSanction={p.hasActivePublicSanction}
+                    size="sm"
+                  />
                   <span className="truncate">{getPublicDisplayName(p)}</span>
                 </PlayerProfileLink>
               ) : (
                 <span className="flex max-w-full min-w-0 items-center gap-2">
-                  <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} hasActivePublicSanction={p.hasActivePublicSanction} size="sm" />
+                  <PlayerAvatar
+                    name={getPublicDisplayName(p)}
+                    avatarUrl={p.avatarUrl}
+                    hasActivePublicSanction={p.hasActivePublicSanction}
+                    size="sm"
+                  />
                   <span className="truncate">{getPublicDisplayName(p)}</span>
                 </span>
               )}
-              {p.registrationPosition && CS2_POSITION_LABELS[p.registrationPosition as Cs2Position] && <PosChip pos={positionLabel(p.registrationPosition)} small />}
+              {p.registrationPosition &&
+                CS2_POSITION_LABELS[p.registrationPosition as Cs2Position] && (
+                  <PosChip pos={positionLabel(p.registrationPosition)} small />
+                )}
             </div>
           ))}
           {subs.length > 0 && (
@@ -66,17 +87,31 @@ function RosterColumn({ teamName, roster, entryId }: { entryId?: string; teamNam
               className="pt-1 mt-1 text-xs"
               style={{ borderTop: "1px solid var(--color-border)", color: "var(--color-fg-mid)" }}
             >
-              替补：{subs.map((p, i) => (
+              替补：
+              {subs.map((p, i) => (
                 <span key={i} className="inline-flex items-center gap-1 align-middle">
                   {i > 0 && "、"}
                   {p.userId ? (
-                    <PlayerProfileLink userId={p.userId} className="hover:text-[var(--color-accent)] transition-colors">
-                      <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} hasActivePublicSanction={p.hasActivePublicSanction} size="sm" />
+                    <PlayerProfileLink
+                      userId={p.userId}
+                      className="hover:text-[var(--color-accent)] transition-colors"
+                    >
+                      <PlayerAvatar
+                        name={getPublicDisplayName(p)}
+                        avatarUrl={p.avatarUrl}
+                        hasActivePublicSanction={p.hasActivePublicSanction}
+                        size="sm"
+                      />
                       <span className="truncate">{getPublicDisplayName(p)}</span>
                     </PlayerProfileLink>
                   ) : (
                     <>
-                      <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} hasActivePublicSanction={p.hasActivePublicSanction} size="sm" />
+                      <PlayerAvatar
+                        name={getPublicDisplayName(p)}
+                        avatarUrl={p.avatarUrl}
+                        hasActivePublicSanction={p.hasActivePublicSanction}
+                        size="sm"
+                      />
                       <span className="truncate">{getPublicDisplayName(p)}</span>
                     </>
                   )}
@@ -95,7 +130,8 @@ function RosterColumn({ teamName, roster, entryId }: { entryId?: string; teamNam
 }
 
 export function MatchRosterView({
-  entryAId, entryBId,
+  entryAId,
+  entryBId,
   teamAName,
   teamARoster,
   teamBName,

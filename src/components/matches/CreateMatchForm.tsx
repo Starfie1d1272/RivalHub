@@ -90,7 +90,9 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
               </SelectTrigger>
               <SelectContent>
                 {teams.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -103,9 +105,13 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
                 <SelectValue placeholder="选择队伍" />
               </SelectTrigger>
               <SelectContent>
-                {teams.filter((t) => t.id !== entryAId).map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
+                {teams
+                  .filter((t) => t.id !== entryAId)
+                  .map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -118,7 +124,9 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
               </SelectTrigger>
               <SelectContent>
                 {stages.map((s) => (
-                  <SelectItem key={s.key} value={s.key}>{s.name}</SelectItem>
+                  <SelectItem key={s.key} value={s.key}>
+                    {s.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -144,7 +152,9 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
         </DialogBody>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>取消</Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            取消
+          </Button>
           <Button onClick={handleSubmit} disabled={!canSubmit || isPending}>
             {isPending ? "创建中..." : "创建比赛"}
           </Button>

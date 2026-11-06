@@ -9,7 +9,10 @@ import { getCurrentStatsSelectionInTx } from "./tournament-query";
 /** OCR remains independently verified; DAK rows must belong to the selected valid lineage. */
 function currentStatsCondition(currentImportIds: readonly string[]) {
   return currentImportIds.length
-    ? sql`(mps.dak_import_id IS NULL OR mps.dak_import_id IN (${sql.join(currentImportIds.map((id) => sql`${id}`), sql`, `)}))`
+    ? sql`(mps.dak_import_id IS NULL OR mps.dak_import_id IN (${sql.join(
+        currentImportIds.map((id) => sql`${id}`),
+        sql`, `,
+      )}))`
     : sql`mps.dak_import_id IS NULL`;
 }
 
@@ -35,11 +38,15 @@ export async function getVerifiedPlayerStatsBySeason(
 ): Promise<Map<string, VerifiedPlayerSeasonStats>> {
   if (userIds && userIds.length === 0) return new Map();
   const userFilter = userIds?.length
-    ? sql`AND mps.user_id IN (${sql.join(userIds.map((userId) => sql`${userId}`), sql`, `)})`
+    ? sql`AND mps.user_id IN (${sql.join(
+        userIds.map((userId) => sql`${userId}`),
+        sql`, `,
+      )})`
     : sql``;
-  const result = await db.transaction(async (tx) => {
-    const selection = await getCurrentStatsSelectionInTx(tx, { seasonId, userIds });
-    return tx.execute(sql`
+  const result = await db.transaction(
+    async (tx) => {
+      const selection = await getCurrentStatsSelectionInTx(tx, { seasonId, userIds });
+      return tx.execute(sql`
     SELECT
       mps.user_id,
       count(distinct mps.map_id)::int AS maps,
@@ -58,7 +65,9 @@ export async function getVerifiedPlayerStatsBySeason(
       ${userFilter}
     GROUP BY mps.user_id
     `);
-  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
 
   return new Map(
     (result.rows as unknown as VerifiedPlayerStatsRow[]).map((row) => [
@@ -77,9 +86,10 @@ export async function getVerifiedPlayerStatsBySeason(
 export async function getPublicPlayerMapExperienceContext(userIds: readonly string[]) {
   const ids = [...new Set(userIds)];
   if (!ids.length) return { experience: [], experiencedMemberIds: [] };
-  const result = await db.transaction(async (tx) => {
-    const selection = await getCurrentStatsSelectionInTx(tx, { userIds: ids });
-    return tx.execute(sql`
+  const result = await db.transaction(
+    async (tx) => {
+      const selection = await getCurrentStatsSelectionInTx(tx, { userIds: ids });
+      return tx.execute(sql`
     SELECT mm.map_name, count(*)::int AS samples, count(distinct mps.user_id)::int AS players,
       array_agg(DISTINCT mps.user_id) AS player_ids,
       ${simpleAvg("mps.rating_pro")} AS rating, ${roundWeightedAvg("mps.adr")} AS adr,
@@ -92,15 +102,32 @@ export async function getPublicPlayerMapExperienceContext(userIds: readonly stri
       AND mps.verified_by_admin IS NOT NULL
       AND mm.completed_at IS NOT NULL AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL
       AND ${currentStatsCondition(selection.currentImportIds)}
-      AND mps.user_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
+      AND mps.user_id IN (${sql.join(
+        ids.map((id) => sql`${id}`),
+        sql`, `,
+      )})
     GROUP BY mm.map_name ORDER BY count(*) DESC, mm.map_name
     `);
-  }, { isolationLevel: "repeatable read", accessMode: "read only" });
-  const rows = result.rows as unknown as { map_name: string; samples: number; players: number; player_ids: string[]; rating: number | null; adr: number | null; kd: number | null }[];
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
+  const rows = result.rows as unknown as {
+    map_name: string;
+    samples: number;
+    players: number;
+    player_ids: string[];
+    rating: number | null;
+    adr: number | null;
+    kd: number | null;
+  }[];
   return {
     experience: rows.map((row) => ({
-      mapName: row.map_name, samples: Number(row.samples), players: Number(row.players),
-      rating: row.rating === null ? null : Number(row.rating), adr: row.adr === null ? null : Number(row.adr), kd: row.kd === null ? null : Number(row.kd),
+      mapName: row.map_name,
+      samples: Number(row.samples),
+      players: Number(row.players),
+      rating: row.rating === null ? null : Number(row.rating),
+      adr: row.adr === null ? null : Number(row.adr),
+      kd: row.kd === null ? null : Number(row.kd),
     })),
     experiencedMemberIds: [...new Set(rows.flatMap((row) => row.player_ids))],
   };

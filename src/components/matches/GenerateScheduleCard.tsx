@@ -58,7 +58,8 @@ export function GenerateScheduleCard({
           共 {teamCount} 支队伍参赛
           {stagePlan.map((stage) => (
             <span key={stage.key}>
-              {" · "}{stage.name}：{STAGE_TYPE_LABELS[stage.type]}
+              {" · "}
+              {stage.name}：{STAGE_TYPE_LABELS[stage.type]}
             </span>
           ))}
         </p>
@@ -77,9 +78,7 @@ export function GenerateScheduleCard({
           </DialogHeader>
           <DialogBody>
             <div className="space-y-2 text-sm leading-6 text-[var(--color-fg-secondary)]">
-              <span className="block">
-                系统将根据赛季配置初始化第一个阶段。
-              </span>
+              <span className="block">系统将根据赛季配置初始化第一个阶段。</span>
               {firstStage?.type === "round_robin" && (
                 <span className="block">
                   单循环 {teamCount} 队 → 共 {(teamCount * (teamCount - 1)) / 2} 场 BO1。

@@ -3,22 +3,44 @@ import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
 import { scoreboardVersion, scoreboardVersionColumns } from "@/lib/ocr/scoreboard-version";
 import type { ScoreboardSnapshot } from "@/lib/ocr/scoreboard-contract";
-import { eventRosterMembers, eventRosters, matchRosters, matchRosterPlayers, matchPlayerStats, users } from "@/db/schema";
+import {
+  eventRosterMembers,
+  eventRosters,
+  matchRosters,
+  matchRosterPlayers,
+  matchPlayerStats,
+  users,
+} from "@/db/schema";
 
 /** Effective MatchRoster starters own identity; legacy matches use current EventRoster only when no lineup exists. */
-export async function loadScoreboardPlayers(database: DB | TxDb, matchId: string, entryIds: string[]) {
-  const rosters = await database.select({ id: matchRosters.id, entryId: matchRosters.entryId }).from(matchRosters)
+export async function loadScoreboardPlayers(
+  database: DB | TxDb,
+  matchId: string,
+  entryIds: string[],
+) {
+  const rosters = await database
+    .select({ id: matchRosters.id, entryId: matchRosters.entryId })
+    .from(matchRosters)
     .where(eq(matchRosters.matchId, matchId));
   const players: { userId: string; perfectName: string | null }[] = [];
   for (const entryId of entryIds) {
-    const roster = rosters.find(row => row.entryId === entryId);
+    const roster = rosters.find((row) => row.entryId === entryId);
     if (rosters.length > 0 && !roster) continue;
     const rows = roster
-      ? await database.select({ userId: users.id, perfectName: users.perfectName }).from(matchRosterPlayers)
-          .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
+      ? await database
+          .select({ userId: users.id, perfectName: users.perfectName })
+          .from(matchRosterPlayers)
+          .innerJoin(
+            eventRosterMembers,
+            eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId),
+          )
           .innerJoin(users, eq(users.id, eventRosterMembers.userId))
-          .where(and(eq(matchRosterPlayers.rosterId, roster.id), eq(matchRosterPlayers.isStarter, true)))
-      : await database.select({ userId: users.id, perfectName: users.perfectName }).from(eventRosterMembers)
+          .where(
+            and(eq(matchRosterPlayers.rosterId, roster.id), eq(matchRosterPlayers.isStarter, true)),
+          )
+      : await database
+          .select({ userId: users.id, perfectName: users.perfectName })
+          .from(eventRosterMembers)
           .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
           .innerJoin(users, eq(users.id, eventRosterMembers.userId))
           .where(and(eq(eventRosters.entryId, entryId), eq(eventRosterMembers.isCurrent, true)));
@@ -29,8 +51,12 @@ export async function loadScoreboardPlayers(database: DB | TxDb, matchId: string
 
 /** Caller locks canonical match/map, just as Demo promotion does. No Demo lineage is changed. */
 export async function clearOperatorScoreboardInTx(tx: TxDb, mapId: string) {
-  await tx.delete(matchPlayerStats).where(and(eq(matchPlayerStats.mapId, mapId), isNull(matchPlayerStats.dakImportId)));
-  await tx.update(matchPlayerStats).set({ ratingPro: null, rws: null, we: null })
+  await tx
+    .delete(matchPlayerStats)
+    .where(and(eq(matchPlayerStats.mapId, mapId), isNull(matchPlayerStats.dakImportId)));
+  await tx
+    .update(matchPlayerStats)
+    .set({ ratingPro: null, rws: null, we: null })
     .where(and(eq(matchPlayerStats.mapId, mapId), isNotNull(matchPlayerStats.dakImportId)));
 }
 
@@ -62,7 +88,10 @@ export interface OperatorScoreboardRow {
  * fields keeps DAK lineage (dakImportId), the verification actor/time and other
  * internal columns out of anything that can reach a browser.
  */
-export async function loadOperatorScoreboard(database: DB | TxDb, mapId: string): Promise<OperatorScoreboardRow[]> {
+export async function loadOperatorScoreboard(
+  database: DB | TxDb,
+  mapId: string,
+): Promise<OperatorScoreboardRow[]> {
   const rows = await database
     .select({
       perfectName: matchPlayerStats.perfectName,
@@ -87,15 +116,52 @@ export async function loadOperatorScoreboard(database: DB | TxDb, mapId: string)
 }
 
 /** One projection owner for both narrow legacy reads and versioned full-fact reads. */
-function presentOperatorScoreboardRows(rows: readonly Pick<typeof matchPlayerStats.$inferSelect,
-  "perfectName" | "userId" | "kills" | "deaths" | "assists" | "hsPercent" | "firstKills" | "multiKills" | "clutches" | "adr" | "rws" | "ratingPro" | "we" | "dakImportId">[]): OperatorScoreboardRow[] {
-  return rows.map(row => ({ perfectName: row.perfectName, userId: row.userId, kills: row.kills, deaths: row.deaths,
-    assists: row.assists, hsPercent: row.hsPercent, firstKills: row.firstKills, multiKills: row.multiKills,
-    clutches: row.clutches, adr: row.adr, rws: row.rws, ratingPro: row.ratingPro, we: row.we, gameplayLocked: row.dakImportId !== null }));
+function presentOperatorScoreboardRows(
+  rows: readonly Pick<
+    typeof matchPlayerStats.$inferSelect,
+    | "perfectName"
+    | "userId"
+    | "kills"
+    | "deaths"
+    | "assists"
+    | "hsPercent"
+    | "firstKills"
+    | "multiKills"
+    | "clutches"
+    | "adr"
+    | "rws"
+    | "ratingPro"
+    | "we"
+    | "dakImportId"
+  >[],
+): OperatorScoreboardRow[] {
+  return rows.map((row) => ({
+    perfectName: row.perfectName,
+    userId: row.userId,
+    kills: row.kills,
+    deaths: row.deaths,
+    assists: row.assists,
+    hsPercent: row.hsPercent,
+    firstKills: row.firstKills,
+    multiKills: row.multiKills,
+    clutches: row.clutches,
+    adr: row.adr,
+    rws: row.rws,
+    ratingPro: row.ratingPro,
+    we: row.we,
+    gameplayLocked: row.dakImportId !== null,
+  }));
 }
 
 /** Facts and version come from the same statement; hash-only lineage stays opaque. */
-export async function loadOperatorScoreboardSnapshot(database: DB | TxDb, mapId: string): Promise<ScoreboardSnapshot> {
-  const rows = await database.select(scoreboardVersionColumns).from(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId)).orderBy(desc(matchPlayerStats.ratingPro), asc(matchPlayerStats.id));
+export async function loadOperatorScoreboardSnapshot(
+  database: DB | TxDb,
+  mapId: string,
+): Promise<ScoreboardSnapshot> {
+  const rows = await database
+    .select(scoreboardVersionColumns)
+    .from(matchPlayerStats)
+    .where(eq(matchPlayerStats.mapId, mapId))
+    .orderBy(desc(matchPlayerStats.ratingPro), asc(matchPlayerStats.id));
   return { rows: presentOperatorScoreboardRows(rows), version: scoreboardVersion(mapId, rows) };
 }

@@ -6,7 +6,8 @@ export const DISCIPLINE_ADMIN_DEFAULTS = {
   sort: "newest",
 } as const;
 
-export type DisciplineAdminSearchParams = Record<string, string | string[] | undefined> | URLSearchParams;
+export type DisciplineAdminSearchParams =
+  Record<string, string | string[] | undefined> | URLSearchParams;
 export type DisciplineAdminStatus = "all" | "active" | "draft" | "expired" | "revoked";
 export type DisciplineAdminSort = "newest";
 export type DisciplineStoredStatus = "draft" | "active" | "expired" | "revoked";

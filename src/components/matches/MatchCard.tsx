@@ -30,7 +30,9 @@ interface MatchCardProps {
 
 export function MatchCard({
   matchId,
-  entryAId, entryBId, liveContext,
+  entryAId,
+  entryBId,
+  liveContext,
   seasonSlug,
   teamAName,
   teamBName,
@@ -49,7 +51,9 @@ export function MatchCard({
   const finishedTime = completedAt ?? scheduledAt ?? null;
   const timeText =
     status === "finished"
-      ? finishedTime ? formatCSTDateTime(finishedTime) : null
+      ? finishedTime
+        ? formatCSTDateTime(finishedTime)
+        : null
       : status === "scheduled" && scheduledAt
         ? formatCSTDateTime(scheduledAt)
         : status === "scheduled" && !scheduledAt
@@ -61,16 +65,46 @@ export function MatchCard({
       data-highlighted={highlighted || undefined}
       className="data-[highlighted=true]:bg-[var(--color-accent-soft)] data-[highlighted=true]:border-l-4 data-[highlighted=true]:border-l-[var(--color-accent)] flex flex-col lg:flex-row lg:items-center lg:justify-between lg:h-16 lg:py-0 gap-2 px-4 py-3 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-panel-hi)] transition-colors duration-150"
     >
-      <div className={`flex-1 min-w-0 ${showLiveScore ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 lg:grid lg:grid-cols-[minmax(0,1fr)_11rem_minmax(0,1fr)] lg:gap-3" : "grid grid-cols-[minmax(0,1fr)_5rem_minmax(0,1fr)] items-center gap-3 lg:grid-cols-[minmax(0,1fr)_11rem_minmax(0,1fr)]"}`}>
-        <span className={`font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base ${showLiveScore ? "col-start-1 row-start-1 lg:text-right" : "text-right"}`}><TeamProfileLink entryId={entryAId} seasonSlug={seasonSlug}>{teamAName}</TeamProfileLink></span>
-        <Link href={`/${seasonSlug}/matches/${matchId}`} aria-label={`查看 ${teamAName} 对 ${teamBName} 比赛`} className={`text-center font-mono tabular-nums text-[var(--color-fg-mid)] text-sm shrink-0 ${showLiveScore ? "col-start-2 row-start-1 row-span-2 lg:row-span-1" : ""}`}>
-          {status === "finished"
-            ? `${(displayScore ? displayScore.scoreA : scoreA) ?? "—"} : ${(displayScore ? displayScore.scoreB : scoreB) ?? "—"}`
-            : showLiveScore ? <MatchListLiveScore matchId={matchId} entryAId={entryAId} entryBId={entryBId} context={liveContext} /> : "vs"}
+      <div
+        className={`flex-1 min-w-0 ${showLiveScore ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 lg:grid lg:grid-cols-[minmax(0,1fr)_11rem_minmax(0,1fr)] lg:gap-3" : "grid grid-cols-[minmax(0,1fr)_5rem_minmax(0,1fr)] items-center gap-3 lg:grid-cols-[minmax(0,1fr)_11rem_minmax(0,1fr)]"}`}
+      >
+        <span
+          className={`font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base ${showLiveScore ? "col-start-1 row-start-1 lg:text-right" : "text-right"}`}
+        >
+          <TeamProfileLink entryId={entryAId} seasonSlug={seasonSlug}>
+            {teamAName}
+          </TeamProfileLink>
+        </span>
+        <Link
+          href={`/${seasonSlug}/matches/${matchId}`}
+          aria-label={`查看 ${teamAName} 对 ${teamBName} 比赛`}
+          className={`text-center font-mono tabular-nums text-[var(--color-fg-mid)] text-sm shrink-0 ${showLiveScore ? "col-start-2 row-start-1 row-span-2 lg:row-span-1" : ""}`}
+        >
+          {status === "finished" ? (
+            `${(displayScore ? displayScore.scoreA : scoreA) ?? "—"} : ${(displayScore ? displayScore.scoreB : scoreB) ?? "—"}`
+          ) : showLiveScore ? (
+            <MatchListLiveScore
+              matchId={matchId}
+              entryAId={entryAId}
+              entryBId={entryBId}
+              context={liveContext}
+            />
+          ) : (
+            "vs"
+          )}
         </Link>
-        <span className={`font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base ${showLiveScore ? "col-start-1 row-start-2 lg:col-start-3 lg:row-start-1" : ""}`}><TeamProfileLink entryId={entryBId} seasonSlug={seasonSlug}>{teamBName}</TeamProfileLink></span>
+        <span
+          className={`font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base ${showLiveScore ? "col-start-1 row-start-2 lg:col-start-3 lg:row-start-1" : ""}`}
+        >
+          <TeamProfileLink entryId={entryBId} seasonSlug={seasonSlug}>
+            {teamBName}
+          </TeamProfileLink>
+        </span>
       </div>
-      <Link href={`/${seasonSlug}/matches/${matchId}`} className="flex items-center gap-2 shrink-0 flex-wrap lg:flex-nowrap lg:min-w-80 lg:w-max lg:justify-end">
+      <Link
+        href={`/${seasonSlug}/matches/${matchId}`}
+        className="flex items-center gap-2 shrink-0 flex-wrap lg:flex-nowrap lg:min-w-80 lg:w-max lg:justify-end"
+      >
         {timeText && (
           <span className="whitespace-nowrap text-xs text-[var(--color-fg-mid)]">{timeText}</span>
         )}

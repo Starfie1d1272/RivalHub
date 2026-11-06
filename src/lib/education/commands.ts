@@ -35,14 +35,17 @@ export async function requireEducationSubmissionContext(
       where: and(eq(users.id, session.userId), eq(users.status, "active")),
       columns: { id: true, emailVerifiedAt: true },
     }),
-    db.select({ id: userIdentities.id })
+    db
+      .select({ id: userIdentities.id })
       .from(userIdentities)
-      .where(and(
-        eq(userIdentities.userId, session.userId),
-        eq(userIdentities.kind, "email"),
-        eq(userIdentities.status, "active"),
-        sql`${userIdentities.verifiedAt} IS NOT NULL`,
-      ))
+      .where(
+        and(
+          eq(userIdentities.userId, session.userId),
+          eq(userIdentities.kind, "email"),
+          eq(userIdentities.status, "active"),
+          sql`${userIdentities.verifiedAt} IS NOT NULL`,
+        ),
+      )
       .limit(1),
   ]);
 
@@ -70,12 +73,15 @@ export async function submitChsiEducationVerification(input: {
     await lockEducationSubmissionInTx(tx, context);
     await lockChsiEvidenceCodeInTx(tx, context.userId, input.evidenceCode);
 
-    const sameCode = await tx.select({ status: educationVerifications.status })
+    const sameCode = await tx
+      .select({ status: educationVerifications.status })
       .from(educationVerifications)
-      .where(and(
-        eq(educationVerifications.userId, context.userId),
-        eq(educationVerifications.evidenceCode, input.evidenceCode),
-      ))
+      .where(
+        and(
+          eq(educationVerifications.userId, context.userId),
+          eq(educationVerifications.evidenceCode, input.evidenceCode),
+        ),
+      )
       .for("update");
     if (sameCode.some((row) => row.status === "pending")) return "already_pending";
     if (sameCode.some((row) => row.status === "approved")) return "already_approved";
@@ -83,14 +89,18 @@ export async function submitChsiEducationVerification(input: {
     if (existingClaim === "approved") return "already_approved";
     if (existingClaim === "pending") return "already_pending";
 
-    const evidenceType = input.academicStatus === "enrolled" ? "chsi_enrollment_report" : "chsi_education_report";
-    const [verification] = await tx.insert(educationVerifications).values({
-      userId: context.userId,
-      institutionId: context.institutionId,
-      academicStatus: input.academicStatus,
-      evidenceType,
-      evidenceCode: input.evidenceCode,
-    }).returning({ id: educationVerifications.id });
+    const evidenceType =
+      input.academicStatus === "enrolled" ? "chsi_enrollment_report" : "chsi_education_report";
+    const [verification] = await tx
+      .insert(educationVerifications)
+      .values({
+        userId: context.userId,
+        institutionId: context.institutionId,
+        academicStatus: input.academicStatus,
+        evidenceType,
+        evidenceCode: input.evidenceCode,
+      })
+      .returning({ id: educationVerifications.id });
     if (!verification) throw new AppError(ErrorCode.INTERNAL_ERROR, "无法创建教育认证记录。");
     await insertEducationSubmissionAudit(tx, {
       actorId: auditActorId(input.session),
@@ -166,11 +176,19 @@ export async function lockEducationSubmissionInTx(
   tx: Pick<TxDb, "execute">,
   context: EducationSubmissionContext,
 ): Promise<void> {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`education-manual:${context.userId}:${context.institutionId}`}, 0))`);
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`education-manual:${context.userId}:${context.institutionId}`}, 0))`,
+  );
 }
 
-async function lockChsiEvidenceCodeInTx(tx: Pick<TxDb, "execute">, userId: string, evidenceCode: string): Promise<void> {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`education-verification:${userId}:${evidenceCode}`}, 0))`);
+async function lockChsiEvidenceCodeInTx(
+  tx: Pick<TxDb, "execute">,
+  userId: string,
+  evidenceCode: string,
+): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`education-verification:${userId}:${evidenceCode}`}, 0))`,
+  );
 }
 
 async function findPendingOrApprovedClaimInTx(
@@ -178,14 +196,17 @@ async function findPendingOrApprovedClaimInTx(
   context: EducationSubmissionContext,
   academicStatus: "enrolled" | "graduated",
 ): Promise<"approved" | "pending" | null> {
-  const rows = await tx.select({ status: educationVerifications.status })
+  const rows = await tx
+    .select({ status: educationVerifications.status })
     .from(educationVerifications)
-    .where(and(
-      eq(educationVerifications.userId, context.userId),
-      eq(educationVerifications.institutionId, context.institutionId),
-      eq(educationVerifications.academicStatus, academicStatus),
-      inArray(educationVerifications.status, ["pending", "approved"]),
-    ))
+    .where(
+      and(
+        eq(educationVerifications.userId, context.userId),
+        eq(educationVerifications.institutionId, context.institutionId),
+        eq(educationVerifications.academicStatus, academicStatus),
+        inArray(educationVerifications.status, ["pending", "approved"]),
+      ),
+    )
     .for("update");
   if (rows.some((row) => row.status === "approved")) return "approved";
   if (rows.some((row) => row.status === "pending")) return "pending";
@@ -194,11 +215,17 @@ async function findPendingOrApprovedClaimInTx(
 
 async function insertEducationSubmissionAudit(
   tx: Pick<TxDb, "insert">,
-  input: { actorId: string; targetId: string; institutionId: string; evidenceType: "chsi_enrollment_report" | "chsi_education_report" | "manual_other" },
+  input: {
+    actorId: string;
+    targetId: string;
+    institutionId: string;
+    evidenceType: "chsi_enrollment_report" | "chsi_education_report" | "manual_other";
+  },
 ): Promise<void> {
   await writeAuditInTx(tx, {
     action: "education_verification.submit",
     actorId: input.actorId,
-    targetId: input.targetId,meta: { institutionId: input.institutionId, evidenceType: input.evidenceType },
+    targetId: input.targetId,
+    meta: { institutionId: input.institutionId, evidenceType: input.evidenceType },
   });
 }

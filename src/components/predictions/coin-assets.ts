@@ -9,7 +9,10 @@ export const COIN_FINISHES: Record<string, { metal: string; label: string }> = {
 
 /** Owner-supplied 2026 artwork; each grade currently supplies one face. */
 export function coinFaces(coin: string) {
-  const grade = ({ 青铜: "bronze", 白银: "silver", 黄金: "gold", 钻石: "diamond" } as Record<string, string>)[coin] ?? "bronze";
+  const grade =
+    ({ 青铜: "bronze", 白银: "silver", 黄金: "gold", 钻石: "diamond" } as Record<string, string>)[
+      coin
+    ] ?? "bronze";
   const face = `/images/pickem/coin-${grade}.webp`;
   return { front: face, back: face };
 }

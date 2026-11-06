@@ -44,7 +44,10 @@ export function calculateStandings(
   roundScoresByMatchId: ReadonlyMap<string, readonly MatchRoundScore[]>,
 ): TeamStanding[] {
   // 初始化每支队伍的数据
-  const stats = new Map<string, { wins: number; losses: number; netRounds: number; totalRoundsWon: number }>();
+  const stats = new Map<
+    string,
+    { wins: number; losses: number; netRounds: number; totalRoundsWon: number }
+  >();
   for (const t of competitionEntries) {
     stats.set(t.id, { wins: 0, losses: 0, netRounds: 0, totalRoundsWon: 0 });
   }
@@ -64,8 +67,13 @@ export function calculateStandings(
       a.netRounds += mapScore.scoreA - mapScore.scoreB;
       b.netRounds += mapScore.scoreB - mapScore.scoreA;
     }
-    if (scoreA > scoreB) { a.wins++; b.losses++; }
-    else { b.wins++; a.losses++; }
+    if (scoreA > scoreB) {
+      a.wins++;
+      b.losses++;
+    } else {
+      b.wins++;
+      a.losses++;
+    }
   }
 
   const standings: TeamStanding[] = competitionEntries.map((t) => {
@@ -98,6 +106,8 @@ export function calculateStandings(
     return (a.draftOrder ?? Number.MAX_SAFE_INTEGER) - (b.draftOrder ?? Number.MAX_SAFE_INTEGER);
   });
 
-  standings.forEach((s, i) => { s.seed = i + 1; });
+  standings.forEach((s, i) => {
+    s.seed = i + 1;
+  });
   return standings;
 }

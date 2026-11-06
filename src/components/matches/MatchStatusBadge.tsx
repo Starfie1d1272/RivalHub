@@ -8,8 +8,10 @@ const TONE_STYLES: Record<SemanticTone, string> = {
   info: "border-[var(--color-info-edge)] text-[var(--color-info)] bg-[var(--color-info-soft)]",
   success: "border-[var(--color-ok-edge)] text-[var(--color-ok)] bg-[var(--color-ok-soft)]",
   warn: "border-[var(--color-warn-edge)] text-[var(--color-warn)] bg-[var(--color-warn-soft)]",
-  danger: "border-[var(--color-danger-edge)] text-[var(--color-danger)] bg-[var(--color-danger-soft)]",
-  accent: "border-[var(--color-accent-edge)] text-[var(--color-accent)] bg-[var(--color-accent-soft)]",
+  danger:
+    "border-[var(--color-danger-edge)] text-[var(--color-danger)] bg-[var(--color-danger-soft)]",
+  accent:
+    "border-[var(--color-accent-edge)] text-[var(--color-accent)] bg-[var(--color-accent-soft)]",
 };
 
 export function MatchStatusBadge({

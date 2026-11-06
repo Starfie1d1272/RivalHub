@@ -4,4 +4,6 @@ export const CLIENT_CATEGORIES = {
   os: ["windows", "macos", "linux", "android", "ios", "other"],
   source: ["none", "internal", "search", "social", "external", "unknown"],
 } as const;
-export type ClientContext = { [K in keyof typeof CLIENT_CATEGORIES]: (typeof CLIENT_CATEGORIES)[K][number] };
+export type ClientContext = {
+  [K in keyof typeof CLIENT_CATEGORIES]: (typeof CLIENT_CATEGORIES)[K][number];
+};

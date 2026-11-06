@@ -45,7 +45,11 @@ export function isSafePublicHref(value: string, options: { allowMailto?: boolean
   }
 }
 
-export function safePublicHref(value: string | null | undefined, fallback: string | null = null, options?: { allowMailto?: boolean }): string | null {
+export function safePublicHref(
+  value: string | null | undefined,
+  fallback: string | null = null,
+  options?: { allowMailto?: boolean },
+): string | null {
   const href = value?.trim();
   return href && isSafePublicHref(href, options) ? href : fallback;
 }
@@ -64,8 +68,22 @@ export function seasonPublicAssetUrl(path: string | null): string | null {
 
 export function toPublicSeasonInfo(
   info: Pick<SeasonPublicInfo, "rulesLabel" | "rulesHref"> | null,
-  groups: readonly Pick<CommunityGroup, "id" | "label" | "audience" | "status" | "groupNumber" | "qrImagePath" | "joinUrl" | "note" | "sortOrder">[],
-  contacts: readonly Pick<SeasonContact, "id" | "label" | "publicName" | "value" | "href" | "note" | "sortOrder">[],
+  groups: readonly Pick<
+    CommunityGroup,
+    | "id"
+    | "label"
+    | "audience"
+    | "status"
+    | "groupNumber"
+    | "qrImagePath"
+    | "joinUrl"
+    | "note"
+    | "sortOrder"
+  >[],
+  contacts: readonly Pick<
+    SeasonContact,
+    "id" | "label" | "publicName" | "value" | "href" | "note" | "sortOrder"
+  >[],
   seasonSlug?: string,
 ): PublicSeasonInfo {
   const defaultRulesHref = seasonSlug === "2026-nju-rivals" ? "/rules/spring" : "/rules";
@@ -76,35 +94,39 @@ export function toPublicSeasonInfo(
     },
     groups: [...groups]
       .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
-      .map((group) => group.status === "active"
-        ? {
-            id: group.id,
-            label: group.label,
-            audience: group.audience,
-            status: group.status,
-            groupNumber: group.groupNumber,
-            qrImageUrl: seasonPublicAssetUrl(group.qrImagePath),
-            joinUrl: safePublicHref(group.joinUrl),
-            note: group.note,
-          }
-        : {
-            id: group.id,
-            label: group.label,
-            audience: group.audience,
-            status: group.status,
-            groupNumber: null,
-            qrImageUrl: null,
-            joinUrl: null,
-            note: group.note,
-          }),
-    contacts: [...contacts].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)).map((contact) => ({
-      id: contact.id,
-      label: contact.label,
-      publicName: contact.publicName,
-      value: contact.value,
-      href: safePublicHref(contact.href, null, { allowMailto: true }),
-      note: contact.note,
-    })),
+      .map((group) =>
+        group.status === "active"
+          ? {
+              id: group.id,
+              label: group.label,
+              audience: group.audience,
+              status: group.status,
+              groupNumber: group.groupNumber,
+              qrImageUrl: seasonPublicAssetUrl(group.qrImagePath),
+              joinUrl: safePublicHref(group.joinUrl),
+              note: group.note,
+            }
+          : {
+              id: group.id,
+              label: group.label,
+              audience: group.audience,
+              status: group.status,
+              groupNumber: null,
+              qrImageUrl: null,
+              joinUrl: null,
+              note: group.note,
+            },
+      ),
+    contacts: [...contacts]
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
+      .map((contact) => ({
+        id: contact.id,
+        label: contact.label,
+        publicName: contact.publicName,
+        value: contact.value,
+        href: safePublicHref(contact.href, null, { allowMailto: true }),
+        note: contact.note,
+      })),
   };
 }
 
@@ -121,5 +143,7 @@ export function seasonLogoAssetPath(logoUrl: string | null, seasonId: string): s
   const prefix = seasonPublicAssetUrl(`${seasonId}/event-logo/`);
   if (!prefix || !logoUrl?.startsWith(prefix)) return null;
   const filename = logoUrl.slice(prefix.length);
-  return /^[0-9a-f-]{36}\.(png|jpg|webp)$/.test(filename) ? `${seasonId}/event-logo/${filename}` : null;
+  return /^[0-9a-f-]{36}\.(png|jpg|webp)$/.test(filename)
+    ? `${seasonId}/event-logo/${filename}`
+    : null;
 }

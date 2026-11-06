@@ -41,7 +41,10 @@ export function TeamLogoImage({
       <span
         role="img"
         aria-label={accessibleLabel}
-        className={cn("flex h-full w-full items-center justify-center font-bold text-[var(--color-fg-dim)]", fallbackClassName)}
+        className={cn(
+          "flex h-full w-full items-center justify-center font-bold text-[var(--color-fg-dim)]",
+          fallbackClassName,
+        )}
       >
         {initial}
       </span>

@@ -12,11 +12,19 @@ import { parseStatsQuery, statsHref, type StatsSearch } from "@/lib/stats/view-s
 import { ErrorCode, isAppErrorCode } from "@/lib/errors";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
 
-interface StatsPageProps { params: Promise<{ seasonSlug: string }>; searchParams: Promise<StatsSearch> }
+interface StatsPageProps {
+  params: Promise<{ seasonSlug: string }>;
+  searchParams: Promise<StatsSearch>;
+}
 
 export async function generateMetadata({ params }: StatsPageProps): Promise<Metadata> {
   const season = await getPublicSeasonBySlug((await params).seasonSlug);
-  return { title: season ? `${season.name} · 数据中心` : "数据中心", alternates: season ? { canonical: `/stats?event=${encodeURIComponent(season.slug)}` } : undefined };
+  return {
+    title: season ? `${season.name} · 数据中心` : "数据中心",
+    alternates: season
+      ? { canonical: `/stats?event=${encodeURIComponent(season.slug)}` }
+      : undefined,
+  };
 }
 
 export default async function StatsPage({ params, searchParams }: StatsPageProps) {
@@ -24,29 +32,59 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
-  const stages = (await getPublicSeasonStagePresentation(season)).officialStages.map(({ key, name }) => ({ key, name }));
-  const query = parseStatsQuery(await searchParams, stages.map((stage) => stage.key));
+  const stages = (await getPublicSeasonStagePresentation(season)).officialStages.map(
+    ({ key, name }) => ({ key, name }),
+  );
+  const query = parseStatsQuery(
+    await searchParams,
+    stages.map((stage) => stage.key),
+  );
   if (query.stage === "__invalid__") notFound();
   if (season.status !== "draft") permanentRedirect(statsHref(seasonSlug, query));
   query.preview = true;
-  const scope = { seasonId: season.id, stage: query.stage || undefined, format: query.format || undefined };
+  const scope = {
+    seasonId: season.id,
+    stage: query.stage || undefined,
+    format: query.format || undefined,
+  };
   const visibility = season.status === "draft" ? "draft" : "public";
 
   let data;
   let mapDetail;
   try {
     if (query.tab === "maps" && query.map) {
-      mapDetail = await readOptionalPublicStats("tournament_map", () => getPublicTournamentMapDetail({ ...scope, map: query.map }, visibility)) ?? undefined;
+      mapDetail =
+        (await readOptionalPublicStats("tournament_map", () =>
+          getPublicTournamentMapDetail({ ...scope, map: query.map }, visibility),
+        )) ?? undefined;
     } else {
-      data = await readOptionalPublicStats("tournament", () => getPublicTournamentStats({
-        ...scope,
-        view: query.tab,
-        mapFilter: query.tab === "players" || query.tab === "teams" || query.tab === "weapons" || query.tab === "records" ? query.mapFilter || undefined : undefined,
-        weaponTeamId: query.tab === "weapons" ? query.teamFilter || undefined : undefined,
-      }, visibility)) ?? undefined;
+      data =
+        (await readOptionalPublicStats("tournament", () =>
+          getPublicTournamentStats(
+            {
+              ...scope,
+              view: query.tab,
+              mapFilter:
+                query.tab === "players" ||
+                query.tab === "teams" ||
+                query.tab === "weapons" ||
+                query.tab === "records"
+                  ? query.mapFilter || undefined
+                  : undefined,
+              weaponTeamId: query.tab === "weapons" ? query.teamFilter || undefined : undefined,
+            },
+            visibility,
+          ),
+        )) ?? undefined;
       if (data && query.tab === "records") {
-        data = { ...data, records: buildRecords(data.recordTies ?? [], query.recordPage),
-          recordEvents: await getTournamentRecordEvents({ ...scope, mapFilter: query.mapFilter || undefined }, query) };
+        data = {
+          ...data,
+          records: buildRecords(data.recordTies ?? [], query.recordPage),
+          recordEvents: await getTournamentRecordEvents(
+            { ...scope, mapFilter: query.mapFilter || undefined },
+            query,
+          ),
+        };
       }
     }
   } catch (error) {
@@ -65,7 +103,13 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   return (
     <PageLayout as="div" variant="wide" className="space-y-6">
       <PageHeader title="数据统计" eyebrow={season.name} />
-      <TournamentStatsView data={data ? publicStatsView(data, query) : undefined} mapDetail={mapDetail} query={query} seasonSlug={seasonSlug} stages={stages} />
+      <TournamentStatsView
+        data={data ? publicStatsView(data, query) : undefined}
+        mapDetail={mapDetail}
+        query={query}
+        seasonSlug={seasonSlug}
+        stages={stages}
+      />
     </PageLayout>
   );
 }

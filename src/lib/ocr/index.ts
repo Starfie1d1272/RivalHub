@@ -24,15 +24,26 @@ export async function extractScoreboardFromBase64(
   mimeType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg",
 ): Promise<ScoreboardOCRResult> {
   // Do not trust the Client's MIME type or Buffer's permissive base64 decoder.
-  if (typeof base64Image !== "string" || base64Image.length === 0 || base64Image.length > OCR_MAX_ENCODED_LENGTH
-    || base64Image.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64Image)) {
+  if (
+    typeof base64Image !== "string" ||
+    base64Image.length === 0 ||
+    base64Image.length > OCR_MAX_ENCODED_LENGTH ||
+    base64Image.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(base64Image)
+  ) {
     throw new OCRFailure("image", "image", "invalid_image_encoding");
   }
   const bytes = Buffer.from(base64Image, "base64");
-  if (bytes.toString("base64") !== base64Image) throw new OCRFailure("image", "image", "invalid_image_encoding");
-  const recognized = mimeType === "image/png" ? bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-    : mimeType === "image/jpeg" ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
-      : mimeType === "image/webp" && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  if (bytes.toString("base64") !== base64Image)
+    throw new OCRFailure("image", "image", "invalid_image_encoding");
+  const recognized =
+    mimeType === "image/png"
+      ? bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      : mimeType === "image/jpeg"
+        ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
+        : mimeType === "image/webp" &&
+          bytes.toString("ascii", 0, 4) === "RIFF" &&
+          bytes.toString("ascii", 8, 12) === "WEBP";
   if (!recognized || bytes.length > OCR_MAX_IMAGE_BYTES) {
     throw new OCRFailure("image", "image", "invalid_image_signature");
   }

@@ -1,12 +1,6 @@
 import React from "react";
 
-export function Spinner({
-  size = 18,
-  label,
-}: {
-  size?: number;
-  label?: string;
-}) {
+export function Spinner({ size = 18, label }: { size?: number; label?: string }) {
   return (
     <span className="inline-flex items-center gap-2">
       <span

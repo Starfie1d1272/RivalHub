@@ -1,19 +1,16 @@
 import { z } from "zod";
 
 // 尽力将任意值转为 number，无法转换则返回 null
-const numOrNull = z.preprocess(
-  (v) => {
-    if (v === null || v === undefined) return null;
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    if (typeof v === "string") {
-      if (!v.trim()) return null;
-      const n = Number(v);
-      if (Number.isFinite(n)) return n;
-    }
-    return null;
-  },
-  z.number().nullable().default(null),
-);
+const numOrNull = z.preprocess((v) => {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    if (!v.trim()) return null;
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}, z.number().nullable().default(null));
 
 // 严格版（保留供参考）
 export const playerRowSchema = z.object({

@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createAnnouncement as telemetry_createAnnouncement, updateAnnouncement as telemetry_updateAnnouncement } from "@/actions/announcements";
+import {
+  createAnnouncement as telemetry_createAnnouncement,
+  updateAnnouncement as telemetry_updateAnnouncement,
+} from "@/actions/announcements";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,8 +16,14 @@ import { ANNOUNCEMENT_TYPE_LABELS } from "@/lib/announcements/presentation";
 import type { AnnouncementAdminRow } from "@/lib/announcements/read-model";
 import { observeAction } from "@/lib/telemetry/client";
 
-const createAnnouncement = observeAction("announcements.createAnnouncement", telemetry_createAnnouncement);
-const updateAnnouncement = observeAction("announcements.updateAnnouncement", telemetry_updateAnnouncement);
+const createAnnouncement = observeAction(
+  "announcements.createAnnouncement",
+  telemetry_createAnnouncement,
+);
+const updateAnnouncement = observeAction(
+  "announcements.updateAnnouncement",
+  telemetry_updateAnnouncement,
+);
 
 type SeasonOption = { id: string; name: string };
 
@@ -55,12 +64,14 @@ export function AnnouncementForm({
         title: initialData.title,
         body: initialData.body,
         requiresAttention: initialData.requiresAttention,
-        attentionUntil: initialData.attentionUntil ? toLocalDateTimeInput(initialData.attentionUntil) : null,
+        attentionUntil: initialData.attentionUntil
+          ? toLocalDateTimeInput(initialData.attentionUntil)
+          : null,
       };
     }
     return {
       scope: canManageSite ? "site" : "season",
-      seasonId: canManageSite ? null : seasons[0]?.id ?? null,
+      seasonId: canManageSite ? null : (seasons[0]?.id ?? null),
       type: "notice",
       title: "",
       body: "",
@@ -75,9 +86,10 @@ export function AnnouncementForm({
         ...form,
         attentionUntil: form.attentionUntil ? new Date(form.attentionUntil).toISOString() : null,
       };
-      const result = isEditing && announcementId
-        ? await updateAnnouncement(announcementId, payload)
-        : await createAnnouncement(payload);
+      const result =
+        isEditing && announcementId
+          ? await updateAnnouncement(announcementId, payload)
+          : await createAnnouncement(payload);
 
       if (!result.success) {
         toast.error(result.error.message);
@@ -90,7 +102,8 @@ export function AnnouncementForm({
     });
   }
 
-  const isValid = form.title.trim() && form.body.trim() && (form.scope === "site" || Boolean(form.seasonId));
+  const isValid =
+    form.title.trim() && form.body.trim() && (form.scope === "site" || Boolean(form.seasonId));
 
   return (
     <div className="max-w-3xl space-y-6 rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] p-6">
@@ -105,7 +118,8 @@ export function AnnouncementForm({
               setForm((value) => ({
                 ...value,
                 scope: event.target.value as "site" | "season",
-                seasonId: event.target.value === "site" ? null : value.seasonId ?? seasons[0]?.id ?? null,
+                seasonId:
+                  event.target.value === "site" ? null : (value.seasonId ?? seasons[0]?.id ?? null),
               }))
             }
             className="h-10 w-full border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)]"
@@ -121,7 +135,9 @@ export function AnnouncementForm({
             id="announcement-season"
             value={form.seasonId ?? ""}
             disabled={form.scope === "site" || isEditing}
-            onChange={(event) => setForm((value) => ({ ...value, seasonId: event.target.value || null }))}
+            onChange={(event) =>
+              setForm((value) => ({ ...value, seasonId: event.target.value || null }))
+            }
             className="h-10 w-full border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)]"
           >
             <option value="">请选择赛事</option>
@@ -139,7 +155,9 @@ export function AnnouncementForm({
         <select
           id="announcement-type"
           value={form.type}
-          onChange={(event) => setForm((value) => ({ ...value, type: event.target.value as typeof value.type }))}
+          onChange={(event) =>
+            setForm((value) => ({ ...value, type: event.target.value as typeof value.type }))
+          }
           className="h-10 w-full border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)]"
         >
           {Object.entries(ANNOUNCEMENT_TYPE_LABELS).map(([key, label]) => (
@@ -194,12 +212,16 @@ export function AnnouncementForm({
 
         {form.requiresAttention && (
           <div className="space-y-2 pt-2">
-            <Label htmlFor="announcement-attention-until">提醒截止时间（可选，留空则一直提醒直到手动收回）</Label>
+            <Label htmlFor="announcement-attention-until">
+              提醒截止时间（可选，留空则一直提醒直到手动收回）
+            </Label>
             <Input
               id="announcement-attention-until"
               type="datetime-local"
               value={form.attentionUntil ?? ""}
-              onChange={(event) => setForm((value) => ({ ...value, attentionUntil: event.target.value || null }))}
+              onChange={(event) =>
+                setForm((value) => ({ ...value, attentionUntil: event.target.value || null }))
+              }
             />
           </div>
         )}

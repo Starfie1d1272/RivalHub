@@ -5,6 +5,11 @@ import "server-only";
 // also used by the repository's explicit PostgreSQL CLI entrypoints.
 export { captureException, logEvent } from "./logger";
 export { getRuntimeHealthSnapshot } from "./runtime-health";
-export { recordLiveIngestOutcome, recordLiveIngestStage, flushLiveIngestOutcomes, type LiveIngestOutcome } from "./live-outcomes";
+export {
+  recordLiveIngestOutcome,
+  recordLiveIngestStage,
+  flushLiveIngestOutcomes,
+  type LiveIngestOutcome,
+} from "./live-outcomes";
 
 export { recordMizarReliableRejection } from "./mizar-rejections";

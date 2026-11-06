@@ -11,7 +11,12 @@ interface PaginationControlsProps {
   className?: string;
 }
 
-export function PaginationControls({ page, totalPages, onPageChange, className }: PaginationControlsProps) {
+export function PaginationControls({
+  page,
+  totalPages,
+  onPageChange,
+  className,
+}: PaginationControlsProps) {
   if (totalPages <= 1) return null;
 
   const currentPage = Math.min(Math.max(page, 1), totalPages);

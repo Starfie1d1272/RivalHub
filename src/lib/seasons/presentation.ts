@@ -1,7 +1,10 @@
 import type { SemanticTone, StatusPresentation } from "@/lib/presentation";
 import type { PlayerType, SeasonStatus, StageConfig, StageType } from "@/types/season";
 import type { CompetitionTemplate } from "@/lib/competition/templates";
-import { getRegistrationWindowState, type RegistrationWindowSeason } from "@/lib/registration/window";
+import {
+  getRegistrationWindowState,
+  type RegistrationWindowSeason,
+} from "@/lib/registration/window";
 import { formatCSTDateTime } from "@/lib/utils/date";
 
 export type SeasonLifecycleGroup = "active" | "upcoming" | "draft" | "recent" | "archived";
@@ -80,14 +83,20 @@ export function getSeasonLifecycleGroup(season: SeasonLifecycleInput): SeasonLif
   if (season.status === "archived") return "archived";
   if (season.status === "finished") return "recent";
   if (season.status === "draft") return "draft";
-  if (season.status === "registration" && !season.hasOfficialMatches && !isRegistrationActuallyOpen(season)) {
+  if (
+    season.status === "registration" &&
+    !season.hasOfficialMatches &&
+    !isRegistrationActuallyOpen(season)
+  ) {
     return "upcoming";
   }
   return "active";
 }
 
 export function presentSeasonLifecycle(season: SeasonLifecycleInput): StatusPresentation {
-  const group = SEASON_LIFECYCLE_GROUPS.find((definition) => definition.key === getSeasonLifecycleGroup(season));
+  const group = SEASON_LIFECYCLE_GROUPS.find(
+    (definition) => definition.key === getSeasonLifecycleGroup(season),
+  );
   if (!group) throw new Error("Unknown season lifecycle group");
   return { label: group.label, tone: group.tone };
 }
@@ -107,7 +116,8 @@ export function presentSeasonDirectoryActivity(
   season: Pick<SeasonLifecycleInput, "status">,
   nextStageName?: string | null,
 ): string | null {
-  if (nextStageName && !["draft", "finished", "archived"].includes(season.status)) return `赛程进行中 · ${nextStageName}`;
+  if (nextStageName && !["draft", "finished", "archived"].includes(season.status))
+    return `赛程进行中 · ${nextStageName}`;
   switch (season.status) {
     case "voting":
       return "队长投票正在进行";
@@ -139,7 +149,8 @@ export function groupSeasonsByLifecycle<T extends SeasonLifecycleInput>(
   // creation time is ingestion metadata and must not stand in for result time.
   for (const key of ["recent", "archived"] as const) {
     grouped[key].sort((a, b) => {
-      const completionDifference = getTimestamp(b.lastCompletedAt) - getTimestamp(a.lastCompletedAt);
+      const completionDifference =
+        getTimestamp(b.lastCompletedAt) - getTimestamp(a.lastCompletedAt);
       if (completionDifference) return completionDifference;
       const aId = "id" in a && typeof a.id === "string" ? a.id : "";
       const bId = "id" in b && typeof b.id === "string" ? b.id : "";
@@ -158,14 +169,22 @@ function getTimestamp(value: Date | string | null | undefined): number {
 
 /** Public participation label for a published Season; lifecycle status stays
  * separate so non-registration phases continue to use their canonical label. */
-export function presentSeasonParticipationState(season: RegistrationWindowSeason, now: Date = new Date()): StatusPresentation {
+export function presentSeasonParticipationState(
+  season: RegistrationWindowSeason,
+  now: Date = new Date(),
+): StatusPresentation {
   if (season.status !== "registration") return presentSeasonStatus(season.status);
   switch (getRegistrationWindowState(season, now).phase) {
-    case "unscheduled": return { label: "报名时间待定", tone: "neutral" };
-    case "upcoming": return { label: "即将开放", tone: "warn" };
-    case "open": return { label: "报名中", tone: "success" };
-    case "closed": return { label: "报名已截止", tone: "neutral" };
-    default: return presentSeasonStatus(season.status);
+    case "unscheduled":
+      return { label: "报名时间待定", tone: "neutral" };
+    case "upcoming":
+      return { label: "即将开放", tone: "warn" };
+    case "open":
+      return { label: "报名中", tone: "success" };
+    case "closed":
+      return { label: "报名已截止", tone: "neutral" };
+    default:
+      return presentSeasonStatus(season.status);
   }
 }
 
@@ -221,6 +240,11 @@ const MAJOR_STAGE_MARKERS: Record<string, string> = {
 };
 
 /** 首页阶段轨道使用独立的短标记，不将 stage key 直接作为 UI 文案。 */
-export function presentStageMarker(stage: Pick<StageConfig, "key" | "name">, competitionTemplate: CompetitionTemplate): string {
-  return competitionTemplate === "major" ? (MAJOR_STAGE_MARKERS[stage.key] ?? stage.name) : stage.name;
+export function presentStageMarker(
+  stage: Pick<StageConfig, "key" | "name">,
+  competitionTemplate: CompetitionTemplate,
+): string {
+  return competitionTemplate === "major"
+    ? (MAJOR_STAGE_MARKERS[stage.key] ?? stage.name)
+    : stage.name;
 }

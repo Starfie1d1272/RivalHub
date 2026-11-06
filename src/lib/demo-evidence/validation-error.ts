@@ -8,6 +8,8 @@ export class DemoEvidenceValidationError extends Error {
   }
 }
 
-export function isDemoEvidenceValidationError(error: unknown): error is z.ZodError | DemoEvidenceValidationError {
+export function isDemoEvidenceValidationError(
+  error: unknown,
+): error is z.ZodError | DemoEvidenceValidationError {
   return error instanceof z.ZodError || error instanceof DemoEvidenceValidationError;
 }

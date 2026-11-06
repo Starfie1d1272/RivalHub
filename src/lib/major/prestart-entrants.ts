@@ -3,7 +3,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
 import {
-    competitionEntries,
+  competitionEntries,
   competitionEntryRosterMembers,
   competitionQualificationRuns,
   eventRosterMembers,
@@ -18,9 +18,15 @@ import { validateApprovedCompetitionEntryRosterInTx } from "@/lib/competition-en
 import { getStandardMajorDefinition, type StandardMajorDefinition } from "@/lib/major/standard";
 import { getCompetitionQualificationFinalEntryIdsInTx } from "@/lib/competition-qualification/runtime";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { assertPrestartEntryCoherenceInTx, type PrestartEntryCoherence } from "@/lib/event-rosters/coherence";
+import {
+  assertPrestartEntryCoherenceInTx,
+  type PrestartEntryCoherence,
+} from "@/lib/event-rosters/coherence";
 import { syncApprovedRosterToEventRosterInTx } from "@/lib/event-rosters/owner";
-import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
+import {
+  assertMajorPrestartEntrantsMutable,
+  ensureMajorPrestartStateInTx,
+} from "@/lib/major/prestart-state";
 import {
   buildFrozenSetFingerprint,
   buildSeedRecommendationSnapshotPayload,
@@ -55,7 +61,11 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
   tx: TxDb,
   input: { seasonId: string; competitionEntryIds: readonly string[]; actorId: string },
 ): Promise<SelectMajorEntrantsResult> {
-  const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
+  const [season] = await tx
+    .select()
+    .from(seasons)
+    .where(eq(seasons.id, input.seasonId))
+    .for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
   const { entrantCapacity } = assertStandardMajorSeason(season);
   const state = await ensureMajorPrestartStateInTx(tx, season.id);
@@ -63,7 +73,10 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
 
   const selectedEntryIds = [...input.competitionEntryIds];
   if (selectedEntryIds.length > entrantCapacity) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `Major 最多只能选择 ${entrantCapacity} 支正式参赛队。 `);
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      `Major 最多只能选择 ${entrantCapacity} 支正式参赛队。 `,
+    );
   }
   if (new Set(selectedEntryIds).size !== selectedEntryIds.length) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "正式参赛队不能重复选择。 ");
@@ -72,12 +85,22 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
   // The season lock serializes review, roster-change, and prestart mutations;
   // locking all currently approved Entries makes the capacity decision and
   // the selected set one consistent fact.
-  const approvedEntries = await tx.select().from(competitionEntries)
-    .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "approved")))
+  const approvedEntries = await tx
+    .select()
+    .from(competitionEntries)
+    .where(
+      and(
+        eq(competitionEntries.competitionId, season.id),
+        eq(competitionEntries.registrationStatus, "approved"),
+      ),
+    )
     .orderBy(asc(competitionEntries.id))
     .for("update");
-  const [qualificationRun] = await tx.select().from(competitionQualificationRuns)
-    .where(eq(competitionQualificationRuns.seasonId, season.id)).for("update");
+  const [qualificationRun] = await tx
+    .select()
+    .from(competitionQualificationRuns)
+    .where(eq(competitionQualificationRuns.seasonId, season.id))
+    .for("update");
   // Below capacity, keep provisional roster preparation available; entrant locking enforces final capacity.
   let requiredEntryIds: string[] | undefined;
   if (qualificationRun) {
@@ -85,13 +108,21 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
   } else if (approvedEntries.length === entrantCapacity) {
     requiredEntryIds = approvedEntries.map((entry) => entry.id);
   } else if (approvedEntries.length > entrantCapacity) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "已批准队伍超过正赛容量，请先完成 Play-in 再确认正赛参赛队。 ");
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "已批准队伍超过正赛容量，请先完成 Play-in 再确认正赛参赛队。 ",
+    );
   }
   if (requiredEntryIds) {
     const requiredSet = new Set(requiredEntryIds);
-    if (selectedEntryIds.length !== requiredEntryIds.length ||
-        selectedEntryIds.some((entryId) => !requiredSet.has(entryId))) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "正赛参赛队必须与全部已批准队伍或 Play-in 晋级结果完全一致，不能手动替换。 ");
+    if (
+      selectedEntryIds.length !== requiredEntryIds.length ||
+      selectedEntryIds.some((entryId) => !requiredSet.has(entryId))
+    ) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        "正赛参赛队必须与全部已批准队伍或 Play-in 晋级结果完全一致，不能手动替换。 ",
+      );
     }
   }
   const approvedById = new Map(approvedEntries.map((entry) => [entry.id, entry]));
@@ -101,19 +132,28 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
     }
   }
 
-  const existingRefs = await tx.select({
-    id: majorTournamentEntrants.id,
-    competitionEntryId: majorTournamentEntrants.competitionEntryId,
-  }).from(majorTournamentEntrants)
+  const existingRefs = await tx
+    .select({
+      id: majorTournamentEntrants.id,
+      competitionEntryId: majorTournamentEntrants.competitionEntryId,
+    })
+    .from(majorTournamentEntrants)
     .where(eq(majorTournamentEntrants.seasonId, season.id))
     .orderBy(asc(majorTournamentEntrants.id));
-  const existingByEntryId = new Map(existingRefs.map((entrant) => [entrant.competitionEntryId, entrant]));
+  const existingByEntryId = new Map(
+    existingRefs.map((entrant) => [entrant.competitionEntryId, entrant]),
+  );
   const existingEntryIds = existingRefs.map((entrant) => entrant.competitionEntryId);
   const entryIdsToLock = [...new Set([...selectedEntryIds, ...existingEntryIds])].sort();
-  const lockedEntries = entryIdsToLock.length === 0 ? [] : await tx.select().from(competitionEntries)
-    .where(inArray(competitionEntries.id, entryIdsToLock))
-    .orderBy(asc(competitionEntries.id))
-    .for("update");
+  const lockedEntries =
+    entryIdsToLock.length === 0
+      ? []
+      : await tx
+          .select()
+          .from(competitionEntries)
+          .where(inArray(competitionEntries.id, entryIdsToLock))
+          .orderBy(asc(competitionEntries.id))
+          .for("update");
   const lockedEntryById = new Map(lockedEntries.map((entry) => [entry.id, entry]));
   if (lockedEntries.length !== entryIdsToLock.length) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队资料不完整，暂时无法保存。 ");
@@ -127,95 +167,162 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
     return entry;
   });
   if (selectedEntries.length > 0) {
-    const existingRosters = await tx.select({ entryId: eventRosters.entryId })
+    const existingRosters = await tx
+      .select({ entryId: eventRosters.entryId })
       .from(eventRosters)
       .where(inArray(eventRosters.entryId, selectedEntryIds))
       .for("update");
     const rosterEntryIds = new Set(existingRosters.map((roster) => roster.entryId));
     const missingRosters = selectedEntries.filter((entry) => !rosterEntryIds.has(entry.id));
     if (missingRosters.length > 0) {
-      await tx.insert(eventRosters).values(missingRosters.map((entry) => ({
-        entryId: entry.id,
-        sourceRosterRevisionId: entry.approvedRosterRevisionId!,
-        status: "preparing" as const,
-      }))).onConflictDoNothing({ target: eventRosters.entryId });
+      await tx
+        .insert(eventRosters)
+        .values(
+          missingRosters.map((entry) => ({
+            entryId: entry.id,
+            sourceRosterRevisionId: entry.approvedRosterRevisionId!,
+            status: "preparing" as const,
+          })),
+        )
+        .onConflictDoNothing({ target: eventRosters.entryId });
     }
   }
 
-  const coherent: PrestartEntryCoherence[] = selectedEntryIds.length === 0
-    ? []
-    : await assertPrestartEntryCoherenceInTx(
-      tx,
-      season.id,
-      selectedEntryIds.map((competitionEntryId) => ({ competitionEntryId })),
-      { requireEventRosterSync: false },
-    );
+  const coherent: PrestartEntryCoherence[] =
+    selectedEntryIds.length === 0
+      ? []
+      : await assertPrestartEntryCoherenceInTx(
+          tx,
+          season.id,
+          selectedEntryIds.map((competitionEntryId) => ({ competitionEntryId })),
+          { requireEventRosterSync: false },
+        );
   for (const row of coherent) {
     // Seat selection carries approved rosters forward; match lineups own the
     // current external strength check, including after the roster change window.
-    await validateApprovedCompetitionEntryRosterInTx(tx, row.entry, season, { recheckExternalStrength: false });
+    await validateApprovedCompetitionEntryRosterInTx(tx, row.entry, season, {
+      recheckExternalStrength: false,
+    });
   }
 
   const revisionIds = coherent.map((row) => row.approvedRevision.id);
   if (revisionIds.length > 0) {
-    const memberRows = await tx.select({
-      revisionId: competitionEntryRosterMembers.revisionId,
-      userId: competitionEntryRosterMembers.userId,
-    }).from(competitionEntryRosterMembers).where(inArray(competitionEntryRosterMembers.revisionId, revisionIds));
+    const memberRows = await tx
+      .select({
+        revisionId: competitionEntryRosterMembers.revisionId,
+        userId: competitionEntryRosterMembers.userId,
+      })
+      .from(competitionEntryRosterMembers)
+      .where(inArray(competitionEntryRosterMembers.revisionId, revisionIds));
     const seenUserIds = new Set<string>();
     for (const member of memberRows) {
       if (seenUserIds.has(member.userId)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "最终正式参赛队的已批准报名名单存在重复选手。 ");
+        throw new AppError(
+          ErrorCode.VALIDATION_FAILED,
+          "最终正式参赛队的已批准报名名单存在重复选手。 ",
+        );
       }
       seenUserIds.add(member.userId);
     }
   }
 
-  const existingEntrants = existingRefs.length === 0 ? [] : await tx.select().from(majorTournamentEntrants)
-    .where(inArray(majorTournamentEntrants.id, existingRefs.map((entrant) => entrant.id)))
-    .orderBy(asc(majorTournamentEntrants.id))
-    .for("update");
+  const existingEntrants =
+    existingRefs.length === 0
+      ? []
+      : await tx
+          .select()
+          .from(majorTournamentEntrants)
+          .where(
+            inArray(
+              majorTournamentEntrants.id,
+              existingRefs.map((entrant) => entrant.id),
+            ),
+          )
+          .orderBy(asc(majorTournamentEntrants.id))
+          .for("update");
   if (existingEntrants.length !== existingRefs.length) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队集合在选择期间发生变化，拒绝继续。 ");
   }
   const selectedSet = new Set(selectedEntryIds);
-  const removedEntrants = existingEntrants.filter((entrant) => !selectedSet.has(entrant.competitionEntryId));
+  const removedEntrants = existingEntrants.filter(
+    (entrant) => !selectedSet.has(entrant.competitionEntryId),
+  );
   if (removedEntrants.length > 0) {
-    const seeded = await tx.select({ id: majorTournamentSeeds.id }).from(majorTournamentSeeds)
-      .where(inArray(majorTournamentSeeds.tournamentEntrantId, removedEntrants.map((entrant) => entrant.id)));
+    const seeded = await tx
+      .select({ id: majorTournamentSeeds.id })
+      .from(majorTournamentSeeds)
+      .where(
+        inArray(
+          majorTournamentSeeds.tournamentEntrantId,
+          removedEntrants.map((entrant) => entrant.id),
+        ),
+      );
     if (seeded.length > 0) {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已有种子的正式参赛队不能在种子处理后被静默移出。 ");
+      throw new AppError(
+        ErrorCode.SEASON_INVALID_STATUS,
+        "已有种子的正式参赛队不能在种子处理后被静默移出。 ",
+      );
     }
-    const frozenRosters = await tx.select({ id: eventRosters.id }).from(eventRosters)
-      .where(and(
-        inArray(eventRosters.entryId, removedEntrants.map((entrant) => entrant.competitionEntryId)),
-        eq(eventRosters.status, "frozen"),
-      ));
+    const frozenRosters = await tx
+      .select({ id: eventRosters.id })
+      .from(eventRosters)
+      .where(
+        and(
+          inArray(
+            eventRosters.entryId,
+            removedEntrants.map((entrant) => entrant.competitionEntryId),
+          ),
+          eq(eventRosters.status, "frozen"),
+        ),
+      );
     if (frozenRosters.length > 0) {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已有冻结赛事名单的正式参赛队不能被静默移出最终集合。 ");
+      throw new AppError(
+        ErrorCode.SEASON_INVALID_STATUS,
+        "已有冻结赛事名单的正式参赛队不能被静默移出最终集合。 ",
+      );
     }
   }
 
   const missingEntrants = selectedEntries.filter((entry) => !existingByEntryId.has(entry.id));
   if (missingEntrants.length > 0) {
-    await tx.insert(majorTournamentEntrants).values(missingEntrants.map((entry) => ({
-      seasonId: season.id,
-      competitionEntryId: entry.id,
-    }))).onConflictDoNothing({ target: [majorTournamentEntrants.seasonId, majorTournamentEntrants.competitionEntryId] });
+    await tx
+      .insert(majorTournamentEntrants)
+      .values(
+        missingEntrants.map((entry) => ({
+          seasonId: season.id,
+          competitionEntryId: entry.id,
+        })),
+      )
+      .onConflictDoNothing({
+        target: [majorTournamentEntrants.seasonId, majorTournamentEntrants.competitionEntryId],
+      });
   }
-  const selectedEntrants = selectedEntryIds.length === 0 ? [] : await tx.select().from(majorTournamentEntrants)
-    .where(and(eq(majorTournamentEntrants.seasonId, season.id), inArray(majorTournamentEntrants.competitionEntryId, selectedEntryIds)))
-    .orderBy(asc(majorTournamentEntrants.competitionEntryId))
-    .for("update");
+  const selectedEntrants =
+    selectedEntryIds.length === 0
+      ? []
+      : await tx
+          .select()
+          .from(majorTournamentEntrants)
+          .where(
+            and(
+              eq(majorTournamentEntrants.seasonId, season.id),
+              inArray(majorTournamentEntrants.competitionEntryId, selectedEntryIds),
+            ),
+          )
+          .orderBy(asc(majorTournamentEntrants.competitionEntryId))
+          .for("update");
   if (selectedEntrants.length !== selectedEntryIds.length) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队保存失败，请刷新后重试。 ");
   }
-  const entrantByEntryId = new Map(selectedEntrants.map((entrant) => [entrant.competitionEntryId, entrant]));
+  const entrantByEntryId = new Map(
+    selectedEntrants.map((entrant) => [entrant.competitionEntryId, entrant]),
+  );
 
   let synchronizedRosterCount = 0;
   for (const row of coherent) {
     const entrant = entrantByEntryId.get(row.entry.id);
-    if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队资料不完整，暂时无法同步名单。 ");
+    if (!entrant)
+      throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队资料不完整，暂时无法同步名单。 ");
     const result = await syncApprovedRosterToEventRosterInTx(tx, {
       season,
       coherent: row,
@@ -225,11 +332,16 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
   }
 
   if (removedEntrants.length > 0) {
-    await tx.delete(majorTournamentEntrants)
-      .where(inArray(majorTournamentEntrants.id, removedEntrants.map((entrant) => entrant.id)));
+    await tx.delete(majorTournamentEntrants).where(
+      inArray(
+        majorTournamentEntrants.id,
+        removedEntrants.map((entrant) => entrant.id),
+      ),
+    );
   }
 
-  const selectionChanged = existingRefs.length !== selectedEntryIds.length ||
+  const selectionChanged =
+    existingRefs.length !== selectedEntryIds.length ||
     existingRefs.some((entrant) => !selectedSet.has(entrant.competitionEntryId));
   const changed = selectionChanged || synchronizedRosterCount > 0;
   if (changed) {
@@ -237,7 +349,8 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
       seasonId: season.id,
       action: "major_prestart.select_entrants",
       actorId: input.actorId,
-      targetId: state.id,meta: {
+      targetId: state.id,
+      meta: {
         entrantCount: selectedEntryIds.length,
         synchronizedRosterCount,
         selectionChanged,
@@ -262,16 +375,22 @@ export async function lockMajorPrestartEntrantsInTx(
   tx: TxDb,
   input: { seasonId: string; actorId: string },
 ): Promise<LockMajorEntrantsResult> {
-  const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
+  const [season] = await tx
+    .select()
+    .from(seasons)
+    .where(eq(seasons.id, input.seasonId))
+    .for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
   const { entrantCapacity, capabilities } = assertStandardMajorSeason(season);
   const state = await ensureMajorPrestartStateInTx(tx, season.id);
 
-  const entrantRefs = await tx.select({
-    id: majorTournamentEntrants.id,
-    seasonId: majorTournamentEntrants.seasonId,
-    competitionEntryId: majorTournamentEntrants.competitionEntryId,
-  }).from(majorTournamentEntrants)
+  const entrantRefs = await tx
+    .select({
+      id: majorTournamentEntrants.id,
+      seasonId: majorTournamentEntrants.seasonId,
+      competitionEntryId: majorTournamentEntrants.competitionEntryId,
+    })
+    .from(majorTournamentEntrants)
     .where(eq(majorTournamentEntrants.seasonId, season.id))
     .orderBy(asc(majorTournamentEntrants.id));
   const coherent = await assertPrestartEntryCoherenceInTx(
@@ -280,51 +399,93 @@ export async function lockMajorPrestartEntrantsInTx(
     entrantRefs.map((entrant) => ({ competitionEntryId: entrant.competitionEntryId })),
   );
   if (entrantRefs.length !== entrantCapacity) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `锁定前必须恰好选择 ${entrantCapacity} 支正式参赛队。 `);
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      `锁定前必须恰好选择 ${entrantCapacity} 支正式参赛队。 `,
+    );
   }
-  if (coherent.some((row) => row.eventRoster.status !== "confirmed" && row.eventRoster.status !== "frozen")) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "所有正式参赛队必须先由已批准报名名单同步并确认。 ");
+  if (
+    coherent.some(
+      (row) => row.eventRoster.status !== "confirmed" && row.eventRoster.status !== "frozen",
+    )
+  ) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "所有正式参赛队必须先由已批准报名名单同步并确认。 ",
+    );
   }
 
-  const entrantRows = await tx.select().from(majorTournamentEntrants)
-    .where(inArray(majorTournamentEntrants.id, entrantRefs.map((entrant) => entrant.id)))
+  const entrantRows = await tx
+    .select()
+    .from(majorTournamentEntrants)
+    .where(
+      inArray(
+        majorTournamentEntrants.id,
+        entrantRefs.map((entrant) => entrant.id),
+      ),
+    )
     .orderBy(asc(majorTournamentEntrants.id))
     .for("update");
   const refById = new Map(entrantRefs.map((entrant) => [entrant.id, entrant]));
-  if (entrantRows.length !== entrantRefs.length || entrantRows.some((entrant) => {
-    const ref = refById.get(entrant.id);
-    return !ref || ref.seasonId !== entrant.seasonId || ref.competitionEntryId !== entrant.competitionEntryId;
-  })) {
+  if (
+    entrantRows.length !== entrantRefs.length ||
+    entrantRows.some((entrant) => {
+      const ref = refById.get(entrant.id);
+      return (
+        !ref ||
+        ref.seasonId !== entrant.seasonId ||
+        ref.competitionEntryId !== entrant.competitionEntryId
+      );
+    })
+  ) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队集合在锁定期间发生变化，拒绝继续。 ");
   }
 
-  const rosterRows = await tx.select({
-    entrantId: majorTournamentEntrants.id,
-    eventRosterId: eventRosterMembers.eventRosterId,
-    userId: eventRosterMembers.userId,
-    participantId: eventRosterMembers.participantId,
-    educationVerificationId: eventRosterMembers.educationVerificationId,
-    primary: eventRosterMembers.isPrimaryStarter,
-  }).from(eventRosterMembers)
+  const rosterRows = await tx
+    .select({
+      entrantId: majorTournamentEntrants.id,
+      eventRosterId: eventRosterMembers.eventRosterId,
+      userId: eventRosterMembers.userId,
+      participantId: eventRosterMembers.participantId,
+      educationVerificationId: eventRosterMembers.educationVerificationId,
+      primary: eventRosterMembers.isPrimaryStarter,
+    })
+    .from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-    .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
-    .where(and(eq(majorTournamentEntrants.seasonId, season.id), eq(eventRosterMembers.isCurrent, true)));
+    .innerJoin(
+      majorTournamentEntrants,
+      eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId),
+    )
+    .where(
+      and(eq(majorTournamentEntrants.seasonId, season.id), eq(eventRosterMembers.isCurrent, true)),
+    );
   const rosterByEntrant = new Map<string, typeof rosterRows>();
-  for (const row of rosterRows) rosterByEntrant.set(row.entrantId, [...(rosterByEntrant.get(row.entrantId) ?? []), row]);
+  for (const row of rosterRows)
+    rosterByEntrant.set(row.entrantId, [...(rosterByEntrant.get(row.entrantId) ?? []), row]);
   const seenUsers = new Set<string>();
   for (const entrant of entrantRows) {
     const roster = rosterByEntrant.get(entrant.id) ?? [];
     if (roster.length < season.minTeamSize || roster.length > season.maxTeamSize) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "存在不符合人数规则的最终赛事名单。 ");
     }
-    if (season.starterCount > 0 && roster.filter((member) => member.primary).length !== season.starterCount) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `每支正式参赛队必须有恰好 ${season.starterCount} 名主力。 `);
+    if (
+      season.starterCount > 0 &&
+      roster.filter((member) => member.primary).length !== season.starterCount
+    ) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        `每支正式参赛队必须有恰好 ${season.starterCount} 名主力。 `,
+      );
     }
     if (roster.some((member) => !member.educationVerificationId)) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "最终赛事名单缺少已批准报名名单对应的教育认证依据。 ");
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        "最终赛事名单缺少已批准报名名单对应的教育认证依据。 ",
+      );
     }
     for (const member of roster) {
-      if (seenUsers.has(member.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "最终赛事名单存在重复选手。 ");
+      if (seenUsers.has(member.userId))
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "最终赛事名单存在重复选手。 ");
       seenUsers.add(member.userId);
     }
   }
@@ -333,7 +494,8 @@ export async function lockMajorPrestartEntrantsInTx(
   const frozenIdentities = frozenTeamsForSnapshot(
     entrantRows.map((entrant) => {
       const entryCoherence = coherenceByEntryId.get(entrant.competitionEntryId);
-      if (!entryCoherence) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。 ");
+      if (!entryCoherence)
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。 ");
       return {
         id: entrant.id,
         teamId: entrant.competitionEntryId,
@@ -357,7 +519,9 @@ export async function lockMajorPrestartEntrantsInTx(
     season.id,
     frozenTeamInputs.map((team) => team.identity),
   );
-  const [existingSnapshot] = await tx.select().from(majorSeedRecommendationSnapshots)
+  const [existingSnapshot] = await tx
+    .select()
+    .from(majorSeedRecommendationSnapshots)
     .where(eq(majorSeedRecommendationSnapshots.seasonId, season.id));
 
   // A retry after the unified freeze must validate the immutable snapshot
@@ -370,12 +534,16 @@ export async function lockMajorPrestartEntrantsInTx(
       frozenSetFingerprint,
     });
     if (snapshotStatus !== "ready") {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, "已锁定的正式名单缺少与当前冻结集合一致的种子建议快照。 ");
+      throw new AppError(
+        ErrorCode.INTERNAL_ERROR,
+        "已锁定的正式名单缺少与当前冻结集合一致的种子建议快照。 ",
+      );
     }
     return { seasonSlug: season.slug, entrantCount: entrantCapacity, alreadyLocked: true };
   }
 
-  const [qualificationRun] = await tx.select({ completedAt: competitionQualificationRuns.completedAt })
+  const [qualificationRun] = await tx
+    .select({ completedAt: competitionQualificationRuns.completedAt })
     .from(competitionQualificationRuns)
     .where(eq(competitionQualificationRuns.seasonId, season.id))
     .limit(1);
@@ -383,46 +551,77 @@ export async function lockMajorPrestartEntrantsInTx(
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Play-in 尚未完成，不能冻结正式名单。");
   }
   if (qualificationRun && !season.rosterChangeClosesAt) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先设置 Play-in 后的最终名单调整截止时间，再冻结正式名单。");
+    throw new AppError(
+      ErrorCode.SEASON_INVALID_STATUS,
+      "请先设置 Play-in 后的最终名单调整截止时间，再冻结正式名单。",
+    );
   }
-  if (qualificationRun?.completedAt && season.rosterChangeClosesAt &&
-      season.rosterChangeClosesAt.getTime() <= qualificationRun.completedAt.getTime()) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终名单调整截止必须晚于 Play-in 实际完成时间，请重新设置名单调整窗口。");
+  if (
+    qualificationRun?.completedAt &&
+    season.rosterChangeClosesAt &&
+    season.rosterChangeClosesAt.getTime() <= qualificationRun.completedAt.getTime()
+  ) {
+    throw new AppError(
+      ErrorCode.SEASON_INVALID_STATUS,
+      "最终名单调整截止必须晚于 Play-in 实际完成时间，请重新设置名单调整窗口。",
+    );
   }
   if (season.rosterChangeClosesAt && season.rosterChangeClosesAt.getTime() > Date.now()) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终名单调整截止时间尚未到达，不能提前冻结正式名单。");
+    throw new AppError(
+      ErrorCode.SEASON_INVALID_STATUS,
+      "最终名单调整截止时间尚未到达，不能提前冻结正式名单。",
+    );
   }
 
-  if (existingSnapshot && getSeedRecommendationSnapshotStatus({
-    snapshot: existingSnapshot,
-    seasonId: season.id,
-    frozenSetFingerprint,
-  }) !== "ready") {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "已有种子建议快照与本次冻结输入不一致，拒绝覆盖。 ");
+  if (
+    existingSnapshot &&
+    getSeedRecommendationSnapshotStatus({
+      snapshot: existingSnapshot,
+      seasonId: season.id,
+      frozenSetFingerprint,
+    }) !== "ready"
+  ) {
+    throw new AppError(
+      ErrorCode.INTERNAL_ERROR,
+      "已有种子建议快照与本次冻结输入不一致，拒绝覆盖。 ",
+    );
   }
 
-  const configuredCompetitiveProfile = capabilities.teamRegistrationConfig.competitiveProfile ?? null;
+  const configuredCompetitiveProfile =
+    capabilities.teamRegistrationConfig.competitiveProfile ?? null;
   const competitiveProfile = configuredCompetitiveProfile
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
   if (capabilities.teamRegistrationConfig.requireCompetitiveProfile && !competitiveProfile) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但当前冻结的竞技平台目录不完整，不能生成种子建议。 ");
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "本届赛事要求竞技资料，但当前冻结的竞技平台目录不完整，不能生成种子建议。 ",
+    );
   }
   if (!competitiveProfile) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "缺少生成种子建议所需的竞技上下文。 ");
   }
 
-  const primaryUserIds = rosterRows.filter((member) => member.primary).map((member) => member.userId);
-  const qualificationFacts: ReadonlyMap<string, ParticipantQualificationFacts> = await loadParticipantQualificationFacts(primaryUserIds, {
-    executor: tx,
-    platform: competitiveProfile.platform,
-    fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
-    includeCompetitiveFacts: true,
-  });
+  const primaryUserIds = rosterRows
+    .filter((member) => member.primary)
+    .map((member) => member.userId);
+  const qualificationFacts: ReadonlyMap<string, ParticipantQualificationFacts> =
+    await loadParticipantQualificationFacts(primaryUserIds, {
+      executor: tx,
+      platform: competitiveProfile.platform,
+      fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
+      includeCompetitiveFacts: true,
+    });
   const strengthInputFor = (userId: string): PlayerStrengthInput => {
     const fact = qualificationFacts.get(userId);
     if (!fact) {
-      return { userId, label: userId, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null };
+      return {
+        userId,
+        label: userId,
+        historicalPeak: null,
+        previousSeasonPeak: null,
+        currentSeasonPeak: null,
+      };
     }
     return toPlayerStrengthInput(fact, competitiveProfile);
   };
@@ -440,14 +639,18 @@ export async function lockMajorPrestartEntrantsInTx(
   if (snapshotPayload.context.frozenSetFingerprint !== frozenSetFingerprint) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "种子建议快照的冻结集合指纹计算不一致。 ");
   }
-  const unavailableTeam = snapshotPayload.recommendations.find((recommendation) =>
-    recommendation.teamSeedStrength === null ||
-    recommendation.starters.length !== season.starterCount ||
-    recommendation.starters.some((starter) => !starter.breakdown.available),
+  const unavailableTeam = snapshotPayload.recommendations.find(
+    (recommendation) =>
+      recommendation.teamSeedStrength === null ||
+      recommendation.starters.length !== season.starterCount ||
+      recommendation.starters.some((starter) => !starter.breakdown.available),
   );
   if (unavailableTeam) {
     const blocker = unavailableTeam.starters.flatMap((starter) => starter.breakdown.blockers)[0];
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `队伍「${unavailableTeam.teamName}」无法生成完整种子建议${blocker ? `：${blocker}` : ""}。`);
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      `队伍「${unavailableTeam.teamName}」无法生成完整种子建议${blocker ? `：${blocker}` : ""}。`,
+    );
   }
 
   let snapshotId = existingSnapshot?.id ?? null;
@@ -458,38 +661,56 @@ export async function lockMajorPrestartEntrantsInTx(
       frozenSetFingerprint,
     });
     if (snapshotStatus !== "ready" || !snapshotPayloadsEqual(existingSnapshot, snapshotPayload)) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, "已有种子建议快照与本次冻结输入不一致，拒绝覆盖。 ");
+      throw new AppError(
+        ErrorCode.INTERNAL_ERROR,
+        "已有种子建议快照与本次冻结输入不一致，拒绝覆盖。 ",
+      );
     }
   } else {
-    const [insertedSnapshot] = await tx.insert(majorSeedRecommendationSnapshots).values({
-      seasonId: season.id,
-      entrantSetFingerprint: frozenSetFingerprint,
-      context: snapshotPayload.context,
-      recommendations: snapshotPayload.recommendations,
-    }).returning({ id: majorSeedRecommendationSnapshots.id });
+    const [insertedSnapshot] = await tx
+      .insert(majorSeedRecommendationSnapshots)
+      .values({
+        seasonId: season.id,
+        entrantSetFingerprint: frozenSetFingerprint,
+        context: snapshotPayload.context,
+        recommendations: snapshotPayload.recommendations,
+      })
+      .returning({ id: majorSeedRecommendationSnapshots.id });
     snapshotId = insertedSnapshot?.id ?? null;
     if (!snapshotId) throw new AppError(ErrorCode.INTERNAL_ERROR, "种子建议快照创建失败。 ");
   }
 
   const now = new Date();
-  await tx.update(eventRosters).set({
-    status: "frozen",
-    confirmedAt: now,
-    confirmedBy: input.actorId,
-    frozenAt: now,
-    frozenBy: input.actorId,
-    updatedAt: now,
-  }).where(inArray(eventRosters.id, coherent.map((row) => row.eventRoster.id)));
-  await tx.update(majorPrestartStates).set({
-    entrantsLockedAt: now,
-    entrantsLockedBy: input.actorId,
-    updatedAt: now,
-  }).where(eq(majorPrestartStates.id, state.id));
+  await tx
+    .update(eventRosters)
+    .set({
+      status: "frozen",
+      confirmedAt: now,
+      confirmedBy: input.actorId,
+      frozenAt: now,
+      frozenBy: input.actorId,
+      updatedAt: now,
+    })
+    .where(
+      inArray(
+        eventRosters.id,
+        coherent.map((row) => row.eventRoster.id),
+      ),
+    );
+  await tx
+    .update(majorPrestartStates)
+    .set({
+      entrantsLockedAt: now,
+      entrantsLockedBy: input.actorId,
+      updatedAt: now,
+    })
+    .where(eq(majorPrestartStates.id, state.id));
   await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "major_prestart.lock_entrants",
     actorId: input.actorId,
-    targetId: state.id,meta: {
+    targetId: state.id,
+    meta: {
       entrantCount: entrantRows.length,
       seedRecommendationSnapshotId: snapshotId,
       seedRecommendationSnapshotVersion: snapshotPayload.context.version,

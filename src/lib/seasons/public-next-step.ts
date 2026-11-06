@@ -18,14 +18,23 @@ export async function getSeasonPersonalNextStep(season: PublicSeason) {
   if (!session?.userId) return null;
   if (season.status === "playing" || season.status === "registration") {
     const contexts = await loadMyCompetitionContexts(session.userId);
-    const task = contexts.find(context => context.season.id === season.id)?.nextMatch;
+    const task = contexts.find((context) => context.season.id === season.id)?.nextMatch;
     if (task) return task;
   }
   if (season.status !== "registration") return null;
   const readiness = await loadMyReadiness(session.userId);
-  const context = season.registrationMode === "team"
-    ? await loadCompetitionEntryParticipantContext({ competitionId: season.id, userId: session.userId }) : null;
-  const competition = readiness.competitions.find((entry) => entry.id === context?.primaryEntry?.id);
-  const items = competition ? [competition.entry, competition.qualification, readiness.profile, readiness.education] : [readiness.profile, readiness.education];
+  const context =
+    season.registrationMode === "team"
+      ? await loadCompetitionEntryParticipantContext({
+          competitionId: season.id,
+          userId: session.userId,
+        })
+      : null;
+  const competition = readiness.competitions.find(
+    (entry) => entry.id === context?.primaryEntry?.id,
+  );
+  const items = competition
+    ? [competition.entry, competition.qualification, readiness.profile, readiness.education]
+    : [readiness.profile, readiness.education];
   return presentPersonalNextStep(items);
 }

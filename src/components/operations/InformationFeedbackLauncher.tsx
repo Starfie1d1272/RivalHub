@@ -2,13 +2,29 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import { usePathname } from "next/navigation";
 import { Info, X } from "lucide-react";
 import { toast } from "sonner";
 import { submitFeedback as telemetry_submitFeedback } from "@/actions/feedback";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownDocument } from "@/components/content/MarkdownDocument";
 import type { PublicAnnouncement } from "@/lib/announcements/presentation";
@@ -31,7 +47,9 @@ export function InformationFeedbackLauncher(props: Props) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [attentionOpen, setAttentionOpen] = useState(false);
-  const [attentionAnnouncement, setAttentionAnnouncement] = useState<PublicAnnouncement | null>(props.attentionAnnouncement);
+  const [attentionAnnouncement, setAttentionAnnouncement] = useState<PublicAnnouncement | null>(
+    props.attentionAnnouncement,
+  );
   const [launcherPulse, setLauncherPulse] = useState(false);
   const [ackVersion, setAckVersion] = useState(0);
   const pathname = usePathname();
@@ -54,7 +72,7 @@ export function InformationFeedbackLauncher(props: Props) {
       if (!props.latestAnnouncement) return true;
       return isAcknowledged(props.latestAnnouncement);
     },
-    () => true // SSR snapshot defaults to true to avoid hydration mismatch
+    () => true, // SSR snapshot defaults to true to avoid hydration mismatch
   );
 
   useEffect(() => {
@@ -102,7 +120,10 @@ export function InformationFeedbackLauncher(props: Props) {
   const markLatestAcknowledged = () => {
     if (!props.latestAnnouncement) return;
     try {
-      window.localStorage.setItem(ACK_PREFIX + props.latestAnnouncement.id, props.latestAnnouncement.updatedAt);
+      window.localStorage.setItem(
+        ACK_PREFIX + props.latestAnnouncement.id,
+        props.latestAnnouncement.updatedAt,
+      );
     } catch {
       /* local storage is optional */
     }
@@ -146,7 +167,10 @@ export function InformationFeedbackLauncher(props: Props) {
         >
           <Info className="size-5" />
           {hasUnread && (
-            <span aria-hidden="true" className="absolute -right-1 -top-1 size-3 rounded-full bg-[var(--color-accent)] ring-2 ring-[var(--color-surface-floating)]" />
+            <span
+              aria-hidden="true"
+              className="absolute -right-1 -top-1 size-3 rounded-full bg-[var(--color-accent)] ring-2 ring-[var(--color-surface-floating)]"
+            />
           )}
         </button>
 
@@ -169,8 +193,15 @@ export function InformationFeedbackLauncher(props: Props) {
         >
           <div className="flex items-start justify-between border-b border-[var(--color-border)] pb-3">
             <div>
-              <h2 id={panelTitleId} className="text-base font-semibold text-[var(--color-fg-primary)]">信息与反馈</h2>
-              <p className="text-xs text-[var(--color-fg-secondary)]">找到最新信息，也可以告诉我们遇到的问题</p>
+              <h2
+                id={panelTitleId}
+                className="text-base font-semibold text-[var(--color-fg-primary)]"
+              >
+                信息与反馈
+              </h2>
+              <p className="text-xs text-[var(--color-fg-secondary)]">
+                找到最新信息，也可以告诉我们遇到的问题
+              </p>
             </div>
             <button
               type="button"
@@ -191,9 +222,12 @@ export function InformationFeedbackLauncher(props: Props) {
               <h3 className="font-medium text-[var(--color-fg-primary)]">最新公告</h3>
               {props.latestAnnouncement ? (
                 <>
-                  <p className="font-medium text-[var(--color-fg-primary)]">{props.latestAnnouncement.title}</p>
+                  <p className="font-medium text-[var(--color-fg-primary)]">
+                    {props.latestAnnouncement.title}
+                  </p>
                   <p className="text-xs text-[var(--color-fg-secondary)]">
-                    {props.latestAnnouncement.scopeLabel} · {new Date(props.latestAnnouncement.publishedAt).toLocaleDateString("zh-CN")}
+                    {props.latestAnnouncement.scopeLabel} ·{" "}
+                    {new Date(props.latestAnnouncement.publishedAt).toLocaleDateString("zh-CN")}
                   </p>
                   <Link
                     href={props.season ? `/${props.season.slug}/announcements` : "/announcements"}
@@ -220,13 +254,21 @@ export function InformationFeedbackLauncher(props: Props) {
                     const hasContacts = props.seasonInfo.contacts.length > 0;
                     return (
                       <div className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--color-fg-secondary)]">
-                        <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="text-[var(--color-accent)] hover:underline">
+                        <Link
+                          href={`/${props.season.slug}/info`}
+                          onClick={() => setPanelOpen(false)}
+                          className="text-[var(--color-accent)] hover:underline"
+                        >
                           {props.seasonInfo.rules.label}
                         </Link>
                         {groupCount > 0 && (
                           <>
                             <span>·</span>
-                            <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="text-[var(--color-accent)] hover:underline">
+                            <Link
+                              href={`/${props.season.slug}/info`}
+                              onClick={() => setPanelOpen(false)}
+                              className="text-[var(--color-accent)] hover:underline"
+                            >
                               交流群（{groupCount} 个）
                             </Link>
                           </>
@@ -234,7 +276,11 @@ export function InformationFeedbackLauncher(props: Props) {
                         {hasContacts && (
                           <>
                             <span>·</span>
-                            <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="text-[var(--color-accent)] hover:underline">
+                            <Link
+                              href={`/${props.season.slug}/info`}
+                              onClick={() => setPanelOpen(false)}
+                              className="text-[var(--color-accent)] hover:underline"
+                            >
                               联系方式
                             </Link>
                           </>
@@ -242,12 +288,20 @@ export function InformationFeedbackLauncher(props: Props) {
                       </div>
                     );
                   })()}
-                  <Link href={`/${props.season.slug}/info`} onClick={() => setPanelOpen(false)} className="inline-flex text-xs text-[var(--color-accent)] hover:underline">
+                  <Link
+                    href={`/${props.season.slug}/info`}
+                    onClick={() => setPanelOpen(false)}
+                    className="inline-flex text-xs text-[var(--color-accent)] hover:underline"
+                  >
                     查看完整赛事信息 →
                   </Link>
                 </>
               ) : (
-                <Link href="/seasons" onClick={() => setPanelOpen(false)} className="inline-flex text-xs text-[var(--color-accent)] hover:underline">
+                <Link
+                  href="/seasons"
+                  onClick={() => setPanelOpen(false)}
+                  className="inline-flex text-xs text-[var(--color-accent)] hover:underline"
+                >
                   浏览正在进行与历史赛事 →
                 </Link>
               )}
@@ -255,7 +309,9 @@ export function InformationFeedbackLauncher(props: Props) {
 
             <section className="space-y-1.5 border-t border-[var(--color-border)] pt-3">
               <h3 className="font-medium text-[var(--color-fg-primary)]">遇到问题？</h3>
-              <p className="text-xs text-[var(--color-fg-secondary)]">向 RivalHub 团队提交功能反馈或体验问题。</p>
+              <p className="text-xs text-[var(--color-fg-secondary)]">
+                向 RivalHub 团队提交功能反馈或体验问题。
+              </p>
               <Button
                 variant="outline"
                 size="sm"
@@ -278,20 +334,29 @@ export function InformationFeedbackLauncher(props: Props) {
       </Dialog>
 
       {/* Attention Announcement Modal */}
-      <Dialog open={attentionOpen} onOpenChange={(open) => { if (!open) handleAttentionAcknowledge(attentionAnnouncement); }}>
+      <Dialog
+        open={attentionOpen}
+        onOpenChange={(open) => {
+          if (!open) handleAttentionAcknowledge(attentionAnnouncement);
+        }}
+      >
         <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>重要提醒</DialogTitle>
             <DialogDescription>{attentionAnnouncement?.scopeLabel ?? "RivalHub"}</DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <p className="text-lg font-semibold text-[var(--color-fg-primary)]">{attentionAnnouncement?.title}</p>
+            <p className="text-lg font-semibold text-[var(--color-fg-primary)]">
+              {attentionAnnouncement?.title}
+            </p>
             <div className="mt-3 text-sm leading-7 text-[var(--color-fg-secondary)]">
               <MarkdownDocument>{attentionAnnouncement?.body ?? ""}</MarkdownDocument>
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button onClick={() => handleAttentionAcknowledge(attentionAnnouncement)}>知道了，收起提醒</Button>
+            <Button onClick={() => handleAttentionAcknowledge(attentionAnnouncement)}>
+              知道了，收起提醒
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -323,7 +388,10 @@ function FeedbackDialog({ pathname, seasonId }: { pathname: string; seasonId: st
     <DialogContent size="md">
       <DialogHeader>
         <DialogTitle>提交反馈</DialogTitle>
-        <DialogDescription>反馈会用于改进 RivalHub。若问题需要及时回复或赛事现场协助，请通过对应赛事交流群 / 联系方式联系赛委会。</DialogDescription>
+        <DialogDescription>
+          反馈会用于改进 RivalHub。若问题需要及时回复或赛事现场协助，请通过对应赛事交流群 /
+          联系方式联系赛委会。
+        </DialogDescription>
       </DialogHeader>
       <DialogBody className="space-y-4">
         {submitted ? (
@@ -333,7 +401,9 @@ function FeedbackDialog({ pathname, seasonId }: { pathname: string; seasonId: st
         ) : (
           <>
             <div className="space-y-2">
-              <label htmlFor="feedback-category" className="text-sm font-medium">反馈类型</label>
+              <label htmlFor="feedback-category" className="text-sm font-medium">
+                反馈类型
+              </label>
               <select
                 id="feedback-category"
                 value={category}
@@ -341,12 +411,16 @@ function FeedbackDialog({ pathname, seasonId }: { pathname: string; seasonId: st
                 className="h-10 w-full border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm"
               >
                 {Object.entries(FEEDBACK_CATEGORY_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
                 ))}
               </select>
             </div>
             <div className="space-y-2">
-              <label htmlFor="feedback-body" className="text-sm font-medium">反馈内容</label>
+              <label htmlFor="feedback-body" className="text-sm font-medium">
+                反馈内容
+              </label>
               <Textarea
                 id="feedback-body"
                 value={body}

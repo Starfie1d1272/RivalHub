@@ -86,7 +86,9 @@
     "db:production:scheduler:watchdog-plan": "tsx scripts/db/scheduler-watchdog-plan.ts",
     "postinstall": "node scripts/prepare-radar-assets.mjs",
     "telemetry:measure": "tsx scripts/telemetry/measure.mjs",
-    "telemetry:query": "tsx scripts/telemetry/query.ts"
+    "telemetry:query": "tsx scripts/telemetry/query.ts",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css}\" --ignore-unknown",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css}\" --ignore-unknown"
   },
   "dependencies": {
     "@cs2dak/tournament": "1.1.1",
@@ -146,6 +148,7 @@
     "miniflare": "4.20260730.0",
     "pg": "^8.23.1",
     "postcss": "^8.5.32",
+    "prettier": "^3.9.10",
     "supabase": "2.122.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",

@@ -15,7 +15,8 @@ import type { ActionResult } from "@/types/action";
 
 type ConfirmationFlow = "signup" | "reverify";
 
-const CONFIRMATION_FAILURE_MESSAGE = "邮箱验证未完成，链接可能已失效或已被使用。请返回登录后重新发送验证邮件。";
+const CONFIRMATION_FAILURE_MESSAGE =
+  "邮箱验证未完成，链接可能已失效或已被使用。请返回登录后重新发送验证邮件。";
 
 /**
  * Consume an email token only after the person on the confirmation page has

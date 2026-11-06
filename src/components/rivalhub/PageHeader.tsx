@@ -67,20 +67,19 @@ export function SectionHeader({
   level = "h2",
   className,
 }: SectionHeaderProps) {
-  const heading = level === "h3" ? (
-    <h3 className="text-base font-semibold text-[var(--color-fg-primary)]">{title}</h3>
-  ) : (
-    <h2 className="text-lg font-semibold text-[var(--color-fg-primary)]">{title}</h2>
-  );
+  const heading =
+    level === "h3" ? (
+      <h3 className="text-base font-semibold text-[var(--color-fg-primary)]">{title}</h3>
+    ) : (
+      <h2 className="text-lg font-semibold text-[var(--color-fg-primary)]">{title}</h2>
+    );
 
   return (
     <header className={cn("flex flex-wrap items-start justify-between gap-3", className)}>
       <div className="min-w-0">
         {heading}
         {description && (
-          <p className="mt-1 text-sm leading-6 text-[var(--color-fg-secondary)]">
-            {description}
-          </p>
+          <p className="mt-1 text-sm leading-6 text-[var(--color-fg-secondary)]">{description}</p>
         )}
       </div>
       {action && <div className="shrink-0">{action}</div>}

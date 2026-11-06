@@ -27,24 +27,37 @@ const SORT_OPTIONS: Array<{ value: TeamDirectorySort; label: string }> = [
   { value: "members_desc", label: "成员数从多到少" },
 ];
 
-const selectClassName = "h-10 min-w-0 max-w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
+const selectClassName =
+  "h-10 min-w-0 max-w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
 
 interface TeamDirectoryControlsProps {
   normalizedQuery: TeamDirectoryQuery;
 }
 
-function optionValue<T extends string>(value: string | null, options: readonly { value: T; label: string }[], fallback: T): T {
-  return options.some((option) => option.value === value) ? value as T : fallback;
+function optionValue<T extends string>(
+  value: string | null,
+  options: readonly { value: T; label: string }[],
+  fallback: T,
+): T {
+  return options.some((option) => option.value === value) ? (value as T) : fallback;
 }
 
 export function TeamDirectoryControls({ normalizedQuery }: TeamDirectoryControlsProps) {
-  const { searchParams, update } = useListQueryParams({ routeBase: "/teams", defaults: TEAM_DIRECTORY_DEFAULTS });
+  const { searchParams, update } = useListQueryParams({
+    routeBase: "/teams",
+    defaults: TEAM_DIRECTORY_DEFAULTS,
+  });
   const searchFieldRef = useRef<ListSearchFieldHandle>(null);
-  const currentStatus = optionValue(searchParams.get("status"), STATUS_OPTIONS, normalizedQuery.status);
+  const currentStatus = optionValue(
+    searchParams.get("status"),
+    STATUS_OPTIONS,
+    normalizedQuery.status,
+  );
   const currentSort = optionValue(searchParams.get("sort"), SORT_OPTIONS, normalizedQuery.sort);
-  const currentRecruiting = searchParams.get("recruiting") === "true"
-    || searchParams.get("recruiting") === "1"
-    || normalizedQuery.recruiting;
+  const currentRecruiting =
+    searchParams.get("recruiting") === "true" ||
+    searchParams.get("recruiting") === "1" ||
+    normalizedQuery.recruiting;
 
   return (
     <ListToolbar aria-label="队伍目录搜索与筛选" className="items-start">
@@ -65,7 +78,11 @@ export function TeamDirectoryControls({ normalizedQuery }: TeamDirectoryControls
           onChange={(event) => update({ status: event.target.value })}
           className={selectClassName}
         >
-          {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </label>
       <label className="flex min-h-10 min-w-0 flex-1 basis-full items-center gap-2 sm:basis-[calc(50%-0.75rem)] lg:basis-[18%] lg:pt-6">
@@ -85,7 +102,11 @@ export function TeamDirectoryControls({ normalizedQuery }: TeamDirectoryControls
           onChange={(event) => update({ sort: event.target.value })}
           className={selectClassName}
         >
-          {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {SORT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </label>
       <ClearFilters

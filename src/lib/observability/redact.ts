@@ -19,7 +19,54 @@ const MAX_STACK_LENGTH = 4_000;
 const MAX_CONTEXT_KEYS = 24;
 const MAX_ARRAY_ITEMS = 8;
 
-const RUNTIME_NUMERIC_KEYS = new Set(["returnedRows", "queryMs", "unsupported", "cgroupCurrentBytes", "cgroupPeakBytes", "cgroupOom", "cgroupOomKill", "requests", "status200", "status304", "other", "fullBuilds", "encodedResponses", "encodedBodyBytes", "sampledAt", "uptimeSeconds", "rssBytes", "heapUsedBytes", "heapTotalBytes", "externalBytes", "arrayBuffersBytes", "heapLimitBytes", "constrainedMemoryBytes", "eventLoopUtilization", "eventLoopDelayP99Ms", "eventLoopDelayMaxMs", "generation", "retiringTotal", "failures", "totalMs", "maxMs", "reuse", "connect", "queued", "waitingPeak", "waitingTotal", "bucketLe0", "bucketLe4", "bucketGt10", "bucketLe1", "bucketLe10", "bucketLe100", "bucketLe1000", "bucketGt1000", "inFlight", "peak"]);
+const RUNTIME_NUMERIC_KEYS = new Set([
+  "returnedRows",
+  "queryMs",
+  "unsupported",
+  "cgroupCurrentBytes",
+  "cgroupPeakBytes",
+  "cgroupOom",
+  "cgroupOomKill",
+  "requests",
+  "status200",
+  "status304",
+  "other",
+  "fullBuilds",
+  "encodedResponses",
+  "encodedBodyBytes",
+  "sampledAt",
+  "uptimeSeconds",
+  "rssBytes",
+  "heapUsedBytes",
+  "heapTotalBytes",
+  "externalBytes",
+  "arrayBuffersBytes",
+  "heapLimitBytes",
+  "constrainedMemoryBytes",
+  "eventLoopUtilization",
+  "eventLoopDelayP99Ms",
+  "eventLoopDelayMaxMs",
+  "generation",
+  "retiringTotal",
+  "failures",
+  "totalMs",
+  "maxMs",
+  "reuse",
+  "connect",
+  "queued",
+  "waitingPeak",
+  "waitingTotal",
+  "bucketLe0",
+  "bucketLe4",
+  "bucketGt10",
+  "bucketLe1",
+  "bucketLe10",
+  "bucketLe100",
+  "bucketLe1000",
+  "bucketGt1000",
+  "inFlight",
+  "peak",
+]);
 
 const SAFE_CONTEXT_KEYS = new Set([
   ...RUNTIME_NUMERIC_KEYS,
@@ -92,8 +139,10 @@ const SAFE_CONTEXT_KEYS = new Set([
   "workflow",
 ]);
 
-const SENSITIVE_TEXT_PATTERN = /(?:password|passwd|secret|token(?:_hash)?|api[_-]?key|authorization|cookie|set-cookie|session|jwt|bearer|turnstile|evidence|education|verification(?:[_\s-]?code)|cron_secret)/i;
-const SQL_TEXT_PATTERN = /(?:\$\d+|\b(?:select|insert|update|delete|alter|create|drop)\b(?:\s+|[(`])|(?:query|params?)\s*[:=])/i;
+const SENSITIVE_TEXT_PATTERN =
+  /(?:password|passwd|secret|token(?:_hash)?|api[_-]?key|authorization|cookie|set-cookie|session|jwt|bearer|turnstile|evidence|education|verification(?:[_\s-]?code)|cron_secret)/i;
+const SQL_TEXT_PATTERN =
+  /(?:\$\d+|\b(?:select|insert|update|delete|alter|create|drop)\b(?:\s+|[(`])|(?:query|params?)\s*[:=])/i;
 
 type ErrorObject = object | ((...args: never[]) => unknown);
 
@@ -115,28 +164,47 @@ function readString(value: ErrorObject, property: string): string | undefined {
 }
 
 export function redactText(value: string, maxLength = MAX_TEXT_LENGTH): string {
-  let safe = value.replace(/\bsb_secret_[A-Za-z0-9_-]+/g, "[REDACTED_KEY]").replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+  let safe = value
+    .replace(/\bsb_secret_[A-Za-z0-9_-]+/g, "[REDACTED_KEY]")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .trim();
   if (SQL_TEXT_PATTERN.test(safe)) return "[REDACTED]";
   safe = safe
     // URLs can carry credentials in their authority, path, query, or fragment.
     .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"']+/gi, (url) => {
       try {
         const parsed = new URL(url);
-        return /^https?:$/.test(parsed.protocol) ? `${parsed.origin}/[REDACTED_URL_DETAILS]` : "[REDACTED_URL]";
-      } catch { return "[REDACTED_URL]"; }
+        return /^https?:$/.test(parsed.protocol)
+          ? `${parsed.origin}/[REDACTED_URL_DETAILS]`
+          : "[REDACTED_URL]";
+      } catch {
+        return "[REDACTED_URL]";
+      }
     })
     .replace(/data:[^,;\s]+;base64,[A-Za-z0-9+/=]+/gi, "data:[REDACTED]")
-    .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, (match) => `${match.split(/\s+/, 1)[0]} [REDACTED]`)
-    .replace(/([?&](?:password|passwd|secret|token|token_hash|api[_-]?key|key|code)=[^&#\s]*)/gi, (match) => {
-      const separator = match.slice(0, match.indexOf("=") + 1);
-      return `${separator}[REDACTED]`;
-    })
+    .replace(
+      /\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi,
+      (match) => `${match.split(/\s+/, 1)[0]} [REDACTED]`,
+    )
+    .replace(
+      /([?&](?:password|passwd|secret|token|token_hash|api[_-]?key|key|code)=[^&#\s]*)/gi,
+      (match) => {
+        const separator = match.slice(0, match.indexOf("=") + 1);
+        return `${separator}[REDACTED]`;
+      },
+    )
     .replace(/\b(?:sk|rk|pk)_[A-Za-z0-9_-]{8,}\b/g, "[REDACTED_KEY]")
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[REDACTED_EMAIL]");
   if (SENSITIVE_TEXT_PATTERN.test(safe)) {
     safe = safe
-      .replace(/\b(?:education\s+)?(?:verification\s+code|evidence|code)\s*[:=]\s*[^,\s}]+/gi, "[REDACTED]")
-      .replace(/([A-Za-z_-]*(?:password|passwd|secret|token|api[_-]?key|authorization|cookie|session|jwt|turnstile|evidence|education(?:[_-]?(?:evidence|code|verification[_-]?code))?|verification[_-]?code)[A-Za-z_-]*\s*[:=]\s*)[^,\s}]+/gi, "$1[REDACTED]");
+      .replace(
+        /\b(?:education\s+)?(?:verification\s+code|evidence|code)\s*[:=]\s*[^,\s}]+/gi,
+        "[REDACTED]",
+      )
+      .replace(
+        /([A-Za-z_-]*(?:password|passwd|secret|token|api[_-]?key|authorization|cookie|session|jwt|turnstile|evidence|education(?:[_-]?(?:evidence|code|verification[_-]?code))?|verification[_-]?code)[A-Za-z_-]*\s*[:=]\s*)[^,\s}]+/gi,
+        "$1[REDACTED]",
+      );
   }
   return safe.slice(0, maxLength);
 }
@@ -148,7 +216,10 @@ export function safeCode(value: unknown): string | undefined {
   return /^[A-Za-z0-9_.:-]{1,100}$/.test(code) ? code : undefined;
 }
 
-export function extractSafeException(error: unknown, pgInfo: PgErrorInfo | null = extractPgError(error)): SafeException {
+export function extractSafeException(
+  error: unknown,
+  pgInfo: PgErrorInfo | null = extractPgError(error),
+): SafeException {
   if (pgInfo) {
     const result: SafeException = { name: "PostgreSQLError" };
     const code = safeCode(pgInfo.code);
@@ -191,7 +262,9 @@ export function extractSafeException(error: unknown, pgInfo: PgErrorInfo | null 
   return result;
 }
 
-export function sanitizeSafeContext(context: Record<string, unknown> | undefined): Record<string, unknown> {
+export function sanitizeSafeContext(
+  context: Record<string, unknown> | undefined,
+): Record<string, unknown> {
   if (!context || typeof context !== "object") return {};
   const result: Record<string, unknown> = {};
   let count = 0;
@@ -205,20 +278,45 @@ export function sanitizeSafeContext(context: Record<string, unknown> | undefined
       const value = descriptor.value;
       let safeValue: unknown;
       if (RUNTIME_NUMERIC_KEYS.has(key)) {
-        safeValue = typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+        safeValue =
+          typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
       } else if (key === "scopeHash") {
         safeValue = typeof value === "string" && /^[a-f0-9]{16}$/.test(value) ? value : undefined;
       } else if (["firstAt", "lastAt", "receivedCursor", "storedCursor"].includes(key)) {
-        safeValue = typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+        safeValue =
+          typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+            ? value
+            : undefined;
       } else if (key === "finishReason") {
-        safeValue = typeof value === "string" && ["stop", "eos", "length", "content_filter", "tool_calls", "unknown"].includes(value) ? value : undefined;
+        safeValue =
+          typeof value === "string" &&
+          ["stop", "eos", "length", "content_filter", "tool_calls", "unknown"].includes(value)
+            ? value
+            : undefined;
       } else if (key === "imageDigest" || key === "configDigest") {
         safeValue = typeof value === "string" && /^[a-f0-9]{64}$/.test(value) ? value : undefined;
       } else if (key === "providerTraceId") {
-        safeValue = typeof value === "string" && /^ti_[a-zA-Z0-9_-]{8,64}$/.test(value) ? value : undefined;
-      } else if (["completionTokens", "promptTokens", "outputChars", "outputWhitespacePercent", "outputRepeatedChunkPercent", "rowCount", "emptyNameRows"].includes(key)) {
-        const max = key === "outputWhitespacePercent" || key === "outputRepeatedChunkPercent" ? 100 : 1_000_000;
-        safeValue = typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= max ? value : undefined;
+        safeValue =
+          typeof value === "string" && /^ti_[a-zA-Z0-9_-]{8,64}$/.test(value) ? value : undefined;
+      } else if (
+        [
+          "completionTokens",
+          "promptTokens",
+          "outputChars",
+          "outputWhitespacePercent",
+          "outputRepeatedChunkPercent",
+          "rowCount",
+          "emptyNameRows",
+        ].includes(key)
+      ) {
+        const max =
+          key === "outputWhitespacePercent" || key === "outputRepeatedChunkPercent"
+            ? 100
+            : 1_000_000;
+        safeValue =
+          typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= max
+            ? value
+            : undefined;
       } else {
         safeValue = key === "errorDigest" ? safeErrorDigest(value) : sanitizeContextValue(value);
       }
@@ -238,7 +336,9 @@ function sanitizeContextValue(value: unknown): string | number | boolean | strin
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
   if (typeof value === "boolean") return value;
   if (Array.isArray(value)) {
-    const values = value.slice(0, MAX_ARRAY_ITEMS).map((item) => (typeof item === "string" ? redactText(item, 160) : undefined));
+    const values = value
+      .slice(0, MAX_ARRAY_ITEMS)
+      .map((item) => (typeof item === "string" ? redactText(item, 160) : undefined));
     return values.every((item): item is string => item !== undefined) ? values : undefined;
   }
   return undefined;

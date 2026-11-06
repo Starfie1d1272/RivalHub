@@ -6,7 +6,10 @@ import { loginWithPassword } from "@/actions/auth";
  * login, so Supabase Auth and the application session are both exercised.
  */
 export async function POST(request: Request): Promise<Response> {
-  if (process.env.NODE_ENV === "production" || (process.env.CI !== "true" && process.env.RIVALHUB_E2E_AUTH_BOOTSTRAP !== "1")) {
+  if (
+    process.env.NODE_ENV === "production" ||
+    (process.env.CI !== "true" && process.env.RIVALHUB_E2E_AUTH_BOOTSTRAP !== "1")
+  ) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -16,10 +19,12 @@ export async function POST(request: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
-  if (!isCredentials(input)) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  if (!isCredentials(input))
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
   const result = await loginWithPassword(input.email, input.password);
-  if (!result.success) return NextResponse.json({ error: "Authentication failed" }, { status: 401 });
+  if (!result.success)
+    return NextResponse.json({ error: "Authentication failed" }, { status: 401 });
   return NextResponse.json({ ok: true });
 }
 

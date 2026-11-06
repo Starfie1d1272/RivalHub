@@ -38,7 +38,15 @@ export function ClaimInviteForm({ initialCode }: Props) {
   }
 
   return (
-    <form onInputCapture={() => task.begin()} onInvalidCapture={() => { task.begin(); task.validation("form_invalid"); }} onSubmit={handleSubmit} className="space-y-4">
+    <form
+      onInputCapture={() => task.begin()}
+      onInvalidCapture={() => {
+        task.begin();
+        task.validation("form_invalid");
+      }}
+      onSubmit={handleSubmit}
+      className="space-y-4"
+    >
       <div className="space-y-2">
         <Label htmlFor="code">邀请码</Label>
         <Input

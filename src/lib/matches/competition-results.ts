@@ -4,7 +4,13 @@ import { eq } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { seasons, matches } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { advanceStageBracket, ensureResolvedBracketMatch, loadStageBracketState, saveStageBracketState, type ResolvedBracketMatch } from "@/lib/bracket";
+import {
+  advanceStageBracket,
+  ensureResolvedBracketMatch,
+  loadStageBracketState,
+  saveStageBracketState,
+  type ResolvedBracketMatch,
+} from "@/lib/bracket";
 import { resolveMatchFormat } from "@/lib/match-transitions";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { persistCompletedMatchInTx } from "./completion";
@@ -29,29 +35,52 @@ async function insertResolvedBracketMatches(
   }
 }
 
-
 /** Complete a validated series through the same lifecycle/progression owner.
  * Major stages keep their explicit round-finalization gate. */
-export async function finishCompetitionSeriesInTx(tx: TxDb, input: {
-  match: typeof matches.$inferSelect; scoreA: number; scoreB: number;
-  completedAt: Date; preserveMapPlans?: boolean; isForfeit?: boolean;
-}) {
+export async function finishCompetitionSeriesInTx(
+  tx: TxDb,
+  input: {
+    match: typeof matches.$inferSelect;
+    scoreA: number;
+    scoreB: number;
+    completedAt: Date;
+    preserveMapPlans?: boolean;
+    isForfeit?: boolean;
+  },
+) {
   const locked = input.match;
   assertCompetitionMatch(locked);
   if (locked.testConfig) {
     await persistCompletedMatchInTx(tx, input);
     return null;
   }
-  const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
+  const [lockedSeason] = await tx
+    .select()
+    .from(seasons)
+    .where(eq(seasons.id, locked.seasonId))
+    .for("update");
   if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-  const bracketState = locked.bracketNodeId ? await loadStageBracketState(tx, locked.seasonId, locked.stage) : null;
+  const bracketState = locked.bracketNodeId
+    ? await loadStageBracketState(tx, locked.seasonId, locked.stage)
+    : null;
   await persistCompletedMatchInTx(tx, input);
-  if (locked.qualificationRunId) await completeCompetitionQualificationIfReadyInTx(tx, locked.qualificationRunId);
+  if (locked.qualificationRunId)
+    await completeCompetitionQualificationIfReadyInTx(tx, locked.qualificationRunId);
   if (bracketState && locked.bracketNodeId) {
-    const { updatedData, newResolvedMatches } = await advanceStageBracket(locked.stage, locked.bracketNodeId, { scoreA: input.scoreA, scoreB: input.scoreB }, bracketState);
+    const { updatedData, newResolvedMatches } = await advanceStageBracket(
+      locked.stage,
+      locked.bracketNodeId,
+      { scoreA: input.scoreA, scoreB: input.scoreB },
+      bracketState,
+    );
     await saveStageBracketState(tx, locked.seasonId, locked.stage, updatedData);
-    await insertResolvedBracketMatches(tx, locked.seasonId, locked.stage, newResolvedMatches, normalizeStagePlan(lockedSeason.stagePlan));
+    await insertResolvedBracketMatches(
+      tx,
+      locked.seasonId,
+      locked.stage,
+      newResolvedMatches,
+      normalizeStagePlan(lockedSeason.stagePlan),
+    );
   }
   return maybeFinishSeason(tx, locked.seasonId);
 }
-

@@ -1,6 +1,19 @@
-import { getObservabilityContext, normalizeRequestId, normalizeRoute } from "@/lib/observability/context";
-import { classifyError, type ErrorClass, type ErrorClassificationOverrides } from "@/lib/observability/errors";
-import { extractSafeException, redactText, sanitizeSafeContext, type SafeException } from "@/lib/observability/redact";
+import {
+  getObservabilityContext,
+  normalizeRequestId,
+  normalizeRoute,
+} from "@/lib/observability/context";
+import {
+  classifyError,
+  type ErrorClass,
+  type ErrorClassificationOverrides,
+} from "@/lib/observability/errors";
+import {
+  extractSafeException,
+  redactText,
+  sanitizeSafeContext,
+  type SafeException,
+} from "@/lib/observability/redact";
 
 type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
 
@@ -52,14 +65,14 @@ export interface CaptureExceptionOptions extends ErrorClassificationOverrides {
   provider?: string;
 }
 
-
 function buildStructuredEvent(input: LogEventInput, now = new Date()): StructuredEvent {
   const requestContext = getObservabilityContext();
   const runtimeEnv = typeof process === "undefined" ? undefined : process.env;
   const environment = runtimeEnv?.VERCEL_ENV ?? runtimeEnv?.NODE_ENV ?? "unknown";
-  const release = runtimeEnv?.VERCEL_GIT_COMMIT_SHA?.trim()
-    || runtimeEnv?.GIT_COMMIT_SHA?.trim()
-    || runtimeEnv?.VERCEL_DEPLOYMENT_ID?.trim();
+  const release =
+    runtimeEnv?.VERCEL_GIT_COMMIT_SHA?.trim() ||
+    runtimeEnv?.GIT_COMMIT_SHA?.trim() ||
+    runtimeEnv?.VERCEL_DEPLOYMENT_ID?.trim();
   const deployment = runtimeEnv?.VERCEL_DEPLOYMENT_ID?.trim();
 
   const event: StructuredEvent = {
@@ -110,9 +123,8 @@ export function tryLogEvent(input: LogEventInput): boolean {
 function writeEvent(event: StructuredEvent, serialized: string): boolean {
   try {
     const streams = getRuntimeStreams();
-    const stream = event.level === "debug" || event.level === "info"
-      ? streams?.stdout
-      : streams?.stderr;
+    const stream =
+      event.level === "debug" || event.level === "info" ? streams?.stdout : streams?.stderr;
     if (!stream) return false;
     // A false return means backpressure, not a rejected write.
     stream.write(`${serialized}\n`);
@@ -130,13 +142,20 @@ interface RuntimeStreams {
 
 function getRuntimeStreams(): RuntimeStreams | undefined {
   const runtime = (globalThis as typeof globalThis & { process?: unknown }).process;
-  return runtime && typeof runtime === "object" ? runtime as RuntimeStreams : undefined;
+  return runtime && typeof runtime === "object" ? (runtime as RuntimeStreams) : undefined;
 }
 
-export function captureException(event: string, error: unknown, options: CaptureExceptionOptions): StructuredEvent | undefined {
+export function captureException(
+  event: string,
+  error: unknown,
+  options: CaptureExceptionOptions,
+): StructuredEvent | undefined {
   try {
     const pgInfo = options.pgInfo === undefined ? undefined : options.pgInfo;
-    const classification = classifyError(error, { ...options, ...(pgInfo !== undefined ? { pgInfo } : {}) });
+    const classification = classifyError(error, {
+      ...options,
+      ...(pgInfo !== undefined ? { pgInfo } : {}),
+    });
     const expected = classification.errorClass === "expected";
     const exception = expected ? undefined : extractSafeException(error, classification.pg ?? null);
     const safeContext = {
@@ -188,7 +207,9 @@ function levelFor(errorClass: ErrorClass): LogLevel {
 }
 
 function safeIdentifier(value: string, fallback: string): string {
-  const safe = redactText(value, 160).replace(/[^A-Za-z0-9_.:/-]/g, "_").slice(0, 160);
+  const safe = redactText(value, 160)
+    .replace(/[^A-Za-z0-9_.:/-]/g, "_")
+    .slice(0, 160);
   return safe || fallback;
 }
 

@@ -21,19 +21,32 @@ export async function takeOverMatchMap(matchId: string, expected: unknown) {
     const season = await getSeasonOrThrow(match.seasonId);
     revalidateMatchPaths(season.slug, id);
     return ok(undefined);
-  } catch (error) { return actionError("takeOverMatchMap", error); }
+  } catch (error) {
+    return actionError("takeOverMatchMap", error);
+  }
 }
 
-export async function revokeMatchInstallation(seasonId: string, installationId: string, reason = "") {
+export async function revokeMatchInstallation(
+  seasonId: string,
+  installationId: string,
+  reason = "",
+) {
   try {
     const id = z.uuid().parse(installationId);
     const competitionId = z.uuid().parse(seasonId);
     const session = await requireSeasonAdmin(competitionId);
-    await revokeMizarInstallation(id, competitionId, auditActorId(session), z.string().max(500).parse(reason));
+    await revokeMizarInstallation(
+      id,
+      competitionId,
+      auditActorId(session),
+      z.string().max(500).parse(reason),
+    );
     const season = await getSeasonOrThrow(competitionId);
     revalidatePath(`/admin/${season.slug}/matches`);
     return ok(undefined);
-  } catch (error) { return actionError("revokeMatchInstallation", error); }
+  } catch (error) {
+    return actionError("revokeMatchInstallation", error);
+  }
 }
 
 export async function closeCompletedSources(seasonId: string, raw: unknown) {
@@ -44,15 +57,30 @@ export async function closeCompletedSources(seasonId: string, raw: unknown) {
     const requestId = randomUUID();
     const results = [];
     for (const input of inputs) {
-      try { results.push({ sessionId: input.sessionId, ...await closeCompletedSource(competitionId, actor.userId, input, requestId) }); }
-      catch (error) {
-        if (error instanceof AppError && error.code !== ErrorCode.INTERNAL_ERROR) results.push({ sessionId: input.sessionId, status: "blocked" as const, reason: error.message });
+      try {
+        results.push({
+          sessionId: input.sessionId,
+          ...(await closeCompletedSource(competitionId, actor.userId, input, requestId)),
+        });
+      } catch (error) {
+        if (error instanceof AppError && error.code !== ErrorCode.INTERNAL_ERROR)
+          results.push({
+            sessionId: input.sessionId,
+            status: "blocked" as const,
+            reason: error.message,
+          });
         else {
           const failure = actionError("closeCompletedSources.row", error);
-          results.push({ sessionId: input.sessionId, status: "failed" as const, reason: failure.success ? "请刷新核对结果。" : failure.error.message });
+          results.push({
+            sessionId: input.sessionId,
+            status: "failed" as const,
+            reason: failure.success ? "请刷新核对结果。" : failure.error.message,
+          });
         }
       }
     }
     return ok(results);
-  } catch (error) { return actionError("closeCompletedSources", error); }
+  } catch (error) {
+    return actionError("closeCompletedSources", error);
+  }
 }

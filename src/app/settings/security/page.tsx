@@ -9,25 +9,54 @@ import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 import { IdentityManager } from "@/components/settings/IdentityManager";
 
 export default function AccountSecurityPage() {
-  return <Suspense fallback={<p role="status" aria-busy="true">正在读取账号资料…</p>}><AccountSecurityContent /></Suspense>;
+  return (
+    <Suspense
+      fallback={
+        <p role="status" aria-busy="true">
+          正在读取账号资料…
+        </p>
+      }
+    >
+      <AccountSecurityContent />
+    </Suspense>
+  );
 }
 
 async function AccountSecurityContent() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/settings/security");
 
-  return <div className="max-w-2xl space-y-6">
-    <PageHeader title="账号与安全" description="登录方式可以有多个；赛事历史、教育认证与竞技资料始终归属于同一个 RivalHub 用户。" />
-    <Suspense fallback={<Panel label="已验证的邮箱身份"><p role="status">正在读取邮箱身份…</p></Panel>}>
-      <VerifiedIdentities userId={session.userId} />
-    </Suspense>
-    <Panel label="登录密码" contentClassName="p-5">
-      <ContentReady module="account" phase="form" /><ChangePasswordForm />
-    </Panel>
-  </div>;
+  return (
+    <div className="max-w-2xl space-y-6">
+      <PageHeader
+        title="账号与安全"
+        description="登录方式可以有多个；赛事历史、教育认证与竞技资料始终归属于同一个 RivalHub 用户。"
+      />
+      <Suspense
+        fallback={
+          <Panel label="已验证的邮箱身份">
+            <p role="status">正在读取邮箱身份…</p>
+          </Panel>
+        }
+      >
+        <VerifiedIdentities userId={session.userId} />
+      </Suspense>
+      <Panel label="登录密码" contentClassName="p-5">
+        <ContentReady module="account" phase="form" />
+        <ChangePasswordForm />
+      </Panel>
+    </div>
+  );
 }
 
 async function VerifiedIdentities({ userId }: { userId: string }) {
   const identities = await listVerifiedEmailIdentities(db, userId);
-  return <IdentityManager identities={identities.map(identity => ({ ...identity, verifiedAt: identity.verifiedAt.toISOString() }))} />;
+  return (
+    <IdentityManager
+      identities={identities.map((identity) => ({
+        ...identity,
+        verifiedAt: identity.verifiedAt.toISOString(),
+      }))}
+    />
+  );
 }

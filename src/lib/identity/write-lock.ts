@@ -13,5 +13,7 @@ import type { TxDb } from "@/db/client";
  * every confirmation that committed before it acquired the gate.
  */
 export async function lockGameplayIdentityWriteInTx(tx: TxDb): Promise<void> {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended('gameplay-identity-write', 0))`);
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended('gameplay-identity-write', 0))`,
+  );
 }

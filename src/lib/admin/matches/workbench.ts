@@ -36,7 +36,11 @@ import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
-import type { AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
+import type {
+  AdminMatchWorkbenchData,
+  RosterData,
+  TeamMemberData,
+} from "@/lib/admin/matches/types";
 import { mapCompletedMaps, mapFinishedMaps, mapPendingMaps } from "@/lib/admin/matches/shared";
 import { projectOperatorCompletion } from "./operator-workflow";
 import { loadOperatorContext } from "./operator-context";
@@ -55,9 +59,14 @@ function projectRoster(roster: MatchRosterWithPlayers | undefined): RosterData |
   if (!roster) return null;
   return {
     rosterId: roster.id,
-    starters: roster.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId),
-    substitutes: roster.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId),
-    vetoRepresentativeEventRosterMemberId: roster.players.find((player) => player.isVetoRepresentative)?.eventRosterMemberId ?? null,
+    starters: roster.players
+      .filter((player) => player.isStarter)
+      .map((player) => player.eventRosterMemberId),
+    substitutes: roster.players
+      .filter((player) => !player.isStarter)
+      .map((player) => player.eventRosterMemberId),
+    vetoRepresentativeEventRosterMemberId:
+      roster.players.find((player) => player.isVetoRepresentative)?.eventRosterMemberId ?? null,
     status: roster.status,
   };
 }
@@ -105,11 +114,25 @@ export async function loadAdminMatchWorkbench({
 
   const entryIds = [match.entryAId, match.entryBId];
   const entries = await db.query.competitionEntries.findMany({
-    where: and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.id, entryIds)),
+    where: and(
+      eq(competitionEntries.competitionId, season.id),
+      inArray(competitionEntries.id, entryIds),
+    ),
   });
   if (entries.length !== 2) return null;
 
-  const [memberRows, rosterRows, mapRecords, commentatorRows, submission, seasonAdminRows, effectiveRosterRows, reopenedIds, vetoSession, commentary] = await Promise.all([
+  const [
+    memberRows,
+    rosterRows,
+    mapRecords,
+    commentatorRows,
+    submission,
+    seasonAdminRows,
+    effectiveRosterRows,
+    reopenedIds,
+    vetoSession,
+    commentary,
+  ] = await Promise.all([
     db
       .select({
         id: eventRosterMembers.id,
@@ -133,16 +156,22 @@ export async function loadAdminMatchWorkbench({
           eq(seasonRegistrations.seasonId, season.id),
         ),
       )
-      .where(and(
-        inArray(eventRosters.entryId, entryIds),
-        or(
-          eq(eventRosterMembers.isCurrent, true),
-          inArray(eventRosterMembers.id, db.select({ memberId: matchRosterPlayers.eventRosterMemberId })
-            .from(matchRosterPlayers)
-            .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
-            .where(eq(matchRosters.matchId, match.id))),
+      .where(
+        and(
+          inArray(eventRosters.entryId, entryIds),
+          or(
+            eq(eventRosterMembers.isCurrent, true),
+            inArray(
+              eventRosterMembers.id,
+              db
+                .select({ memberId: matchRosterPlayers.eventRosterMemberId })
+                .from(matchRosterPlayers)
+                .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
+                .where(eq(matchRosters.matchId, match.id)),
+            ),
+          ),
         ),
-      )),
+      ),
     loadMatchRosters(match.id, entryIds),
     db.query.matchMaps.findMany({
       where: eq(matchMaps.matchId, match.id),
@@ -185,14 +214,27 @@ export async function loadAdminMatchWorkbench({
       where: eq(matchVetoSessions.matchId, match.id),
       columns: { completedAt: true },
     }),
-    readAdminMatchCommentary(db, { seasonId: season.id, currentUserId: admin.userId, excludeMatchId: match.id, historicalMatchIds: [match.id] }),
+    readAdminMatchCommentary(db, {
+      seasonId: season.id,
+      currentUserId: admin.userId,
+      excludeMatchId: match.id,
+      historicalMatchIds: [match.id],
+    }),
   ]);
 
-  const demoImportRows = mapRecords.length > 0
-    ? await db.select(demoImportMetadataSelection).from(matchDemoImports)
-      .where(inArray(matchDemoImports.matchMapId, mapRecords.map((map) => map.id)))
-      .orderBy(desc(matchDemoImports.createdAt))
-    : [];
+  const demoImportRows =
+    mapRecords.length > 0
+      ? await db
+          .select(demoImportMetadataSelection)
+          .from(matchDemoImports)
+          .where(
+            inArray(
+              matchDemoImports.matchMapId,
+              mapRecords.map((map) => map.id),
+            ),
+          )
+          .orderBy(desc(matchDemoImports.createdAt))
+      : [];
 
   const members = memberRows.map(projectTeamMember);
   const membersByEntry = new Map<string, TeamMemberData[]>();
@@ -206,22 +248,30 @@ export async function loadAdminMatchWorkbench({
   let teamAPreflight = null;
   let teamBPreflight = null;
   if (match.status === "scheduled" && requiresCompetitionLineupPreflight(match)) {
-    const preflightRows = await Promise.all(entryIds.map(async (entryId) => {
-      const roster = rostersByEntry.get(entryId);
-      if (!roster) return { entryId, preflight: null };
-      try {
-        const result = await db.transaction((tx) => getStartingLineupPreflightInTx(tx, {
-          match,
-          entryId,
-          starterIds: roster.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId),
-          substituteIds: roster.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId),
-        }));
-        return { entryId, preflight: { valid: result.valid, blockers: result.blockers } };
-      } catch (error) {
-        if (!isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) throw error;
-        return { entryId, preflight: { valid: false, blockers: [error.message] } };
-      }
-    }));
+    const preflightRows = await Promise.all(
+      entryIds.map(async (entryId) => {
+        const roster = rostersByEntry.get(entryId);
+        if (!roster) return { entryId, preflight: null };
+        try {
+          const result = await db.transaction((tx) =>
+            getStartingLineupPreflightInTx(tx, {
+              match,
+              entryId,
+              starterIds: roster.players
+                .filter((player) => player.isStarter)
+                .map((player) => player.eventRosterMemberId),
+              substituteIds: roster.players
+                .filter((player) => !player.isStarter)
+                .map((player) => player.eventRosterMemberId),
+            }),
+          );
+          return { entryId, preflight: { valid: result.valid, blockers: result.blockers } };
+        } catch (error) {
+          if (!isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) throw error;
+          return { entryId, preflight: { valid: false, blockers: [error.message] } };
+        }
+      }),
+    );
     teamAPreflight = preflightRows.find((row) => row.entryId === match.entryAId)?.preflight ?? null;
     teamBPreflight = preflightRows.find((row) => row.entryId === match.entryBId)?.preflight ?? null;
   }
@@ -231,52 +281,84 @@ export async function loadAdminMatchWorkbench({
   const demoReviewSummaries: NonNullable<AdminMatchWorkbenchData["demoReviewSummaries"]> = [];
   const demoQualitySummaries: NonNullable<AdminMatchWorkbenchData["demoQualitySummaries"]> = [];
   for (const map of mapRecords) {
-    const current = selectCurrentDemoImport(demoImportRows.filter(row => row.matchMapId === map.id));
-    const summary = current ? { importId: current.id, matchMapId: map.id, mapOrder: map.mapOrder, mapName: map.mapName } : null;
+    const current = selectCurrentDemoImport(
+      demoImportRows.filter((row) => row.matchMapId === map.id),
+    );
+    const summary = current
+      ? { importId: current.id, matchMapId: map.id, mapOrder: map.mapOrder, mapName: map.mapName }
+      : null;
     if (current?.status === "needs_attention" && summary) demoReviewSummaries.push(summary);
     else if (current?.status === "confirmed" && summary) demoQualitySummaries.push(summary);
   }
   const submittedAt = submission?.submittedAt ?? null;
   const rosterReopened = reopenedIds.has(match.id) && !submission;
-  const postMatch = match.status === "cancelled"
-    ? null
-    : {
-        commentators: commentatorRows.map((row) => ({
-          userId: row.userId,
-          name: getDisplayName(row),
-          hasLiveStream: Boolean(row.liveStreamUrl),
-        })),
-        seasonAdmins: seasonAdminRows.map((row) => ({
-          userId: row.userId,
-          name: getDisplayName(row),
-          hasLiveStream: Boolean(row.liveStreamUrl),
-        })),
-        submittedAt,
-        submittedByUserId: submission?.submittedByUserId ?? null,
-        rosterReopened,
-        canConfirm: canConfirmCommentaryRoster({ status: match.status, commentatorCount: commentatorRows.length,
-          isCommentator: commentatorRows.some(row => row.userId === admin.userId), isSuperAdmin: admin.role === "super_admin", rosterReopened }),
-        videoUrl: match.videoUrl,
-        recordings: match.recordings,
-        completionLabel: commentatorRows.length ? POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submittedAt, hasMatchRecording(match), rosterReopened)] : "未登记解说，无需提交名单或录像",
-        canSubmit: match.status === "finished",
-      };
+  const postMatch =
+    match.status === "cancelled"
+      ? null
+      : {
+          commentators: commentatorRows.map((row) => ({
+            userId: row.userId,
+            name: getDisplayName(row),
+            hasLiveStream: Boolean(row.liveStreamUrl),
+          })),
+          seasonAdmins: seasonAdminRows.map((row) => ({
+            userId: row.userId,
+            name: getDisplayName(row),
+            hasLiveStream: Boolean(row.liveStreamUrl),
+          })),
+          submittedAt,
+          submittedByUserId: submission?.submittedByUserId ?? null,
+          rosterReopened,
+          canConfirm: canConfirmCommentaryRoster({
+            status: match.status,
+            commentatorCount: commentatorRows.length,
+            isCommentator: commentatorRows.some((row) => row.userId === admin.userId),
+            isSuperAdmin: admin.role === "super_admin",
+            rosterReopened,
+          }),
+          videoUrl: match.videoUrl,
+          recordings: match.recordings,
+          completionLabel: commentatorRows.length
+            ? POST_MATCH_COMPLETION_LABEL[
+                getPostMatchCompletion(submittedAt, hasMatchRecording(match), rosterReopened)
+              ]
+            : "未登记解说，无需提交名单或录像",
+          canSubmit: match.status === "finished",
+        };
 
   const stage = stagePlan.find((stage) => stage.key === match.stage);
   const teamAName = entryName.get(match.entryAId) ?? "未知队伍";
   const teamBName = entryName.get(match.entryBId) ?? "未知队伍";
-  const operator = await loadOperatorContext({ match, maps: mapRecords, imports: demoImportRows, roster: effectiveRosterRows,
-    seasonName: season.name, stageName: match.testConfig ? "测试赛" : stage?.name ?? null, isSwiss: stage?.type === "swiss",
-    teamAName, teamBName, vetoComplete: Boolean(vetoSession?.completedAt) });
+  const operator = await loadOperatorContext({
+    match,
+    maps: mapRecords,
+    imports: demoImportRows,
+    roster: effectiveRosterRows,
+    seasonName: season.name,
+    stageName: match.testConfig ? "测试赛" : (stage?.name ?? null),
+    isSwiss: stage?.type === "swiss",
+    teamAName,
+    teamBName,
+    vetoComplete: Boolean(vetoSession?.completedAt),
+  });
 
   return {
-    completion: projectOperatorCompletion({ status: match.status, isForfeit: match.isForfeit, maps: operator.workflow.completedMaps, commentatorCount: commentatorRows.length, submitted: Boolean(submittedAt), reopened: rosterReopened, hasVideo: hasMatchRecording(match) }),
+    completion: projectOperatorCompletion({
+      status: match.status,
+      isForfeit: match.isForfeit,
+      maps: operator.workflow.completedMaps,
+      commentatorCount: commentatorRows.length,
+      submitted: Boolean(submittedAt),
+      reopened: rosterReopened,
+      hasVideo: hasMatchRecording(match),
+    }),
     season: { id: season.id, slug: season.slug, name: season.name },
-    stageName: match.testConfig ? "测试赛" : stage?.name ?? null,
+    stageName: match.testConfig ? "测试赛" : (stage?.name ?? null),
     match,
     teamAName,
     teamBName,
-    mapPool: match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool,
+    mapPool:
+      match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool,
     teamAMembers: membersByEntry.get(match.entryAId) ?? [],
     teamBMembers: membersByEntry.get(match.entryBId) ?? [],
     teamARoster: projectRoster(rostersByEntry.get(match.entryAId)),
@@ -284,7 +366,12 @@ export async function loadAdminMatchWorkbench({
     teamAPreflight,
     teamBPreflight,
     completedMaps: mapCompletedMaps(mapRecords),
-    officialMapStart: (() => { const next = mapRecords.find(m => !m.completedAt); return match.status === "in_progress" && vetoSession?.completedAt && next && !next.startedAt ? { mapId: next.id, mapName: mapLabel(next.mapName) } : null; })(),
+    officialMapStart: (() => {
+      const next = mapRecords.find((m) => !m.completedAt);
+      return match.status === "in_progress" && vetoSession?.completedAt && next && !next.startedAt
+        ? { mapId: next.id, mapName: mapLabel(next.mapName) }
+        : null;
+    })(),
     pendingMaps: match.status === "finished" ? [] : mapPendingMaps(mapRecords),
     finishedMaps: mapFinishedMaps(mapRecords),
     vetoCompletedAt: vetoSession?.completedAt ?? null,

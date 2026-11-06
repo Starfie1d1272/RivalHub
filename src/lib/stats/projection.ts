@@ -1,6 +1,9 @@
 import "server-only";
 
-import { buildTournamentPerformanceAnalyticsFromProjections, collectTournamentPerformanceMapProjection } from "@cs2dak/tournament";
+import {
+  buildTournamentPerformanceAnalyticsFromProjections,
+  collectTournamentPerformanceMapProjection,
+} from "@cs2dak/tournament";
 import type { TxDb } from "@/db/client";
 import { matchDemoStatProjections, type StatisticsProjectionBinding } from "@/db/schema";
 import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
@@ -10,7 +13,10 @@ import type { GameplayUserResolution } from "@/lib/identity/gameplay-steam";
 import { encodePerformanceTransport, encodeTournamentTransport } from "./projection-transport";
 import { collectRecordFacts } from "./record-facts";
 import { adaptStatsEvidence } from "./evidence-adapter";
-import { PREVIOUS_STATISTICS_PROJECTION_VERSION, STATISTICS_PROJECTION_VERSION } from "./projection-version";
+import {
+  PREVIOUS_STATISTICS_PROJECTION_VERSION,
+  STATISTICS_PROJECTION_VERSION,
+} from "./projection-version";
 
 export { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 
@@ -23,24 +29,43 @@ export interface MaterializeStatisticsProjectionInput {
 }
 
 /** Run in the confirmation transaction: there is no confirmed-without-projection window. */
-export async function materializeStatisticsProjectionInTx(input: MaterializeStatisticsProjectionInput): Promise<void> {
+export async function materializeStatisticsProjectionInTx(
+  input: MaterializeStatisticsProjectionInput,
+): Promise<void> {
   const rosterByUser = new Map(input.target.roster.map((member) => [member.userId, member]));
-  const identityBindings: StatisticsProjectionBinding[] = input.evidence.participants.map((participant) => {
-    const resolution = input.resolutions.get(participant.steamId64);
-    const member = resolution ? rosterByUser.get(resolution.userId) : undefined;
-    if (!resolution || !member) throw new Error("Statistics projection identity unavailable");
-    return { steam64: participant.steamId64, userId: resolution.userId, entryId: member.entryId };
-  }).sort((a, b) => a.steam64.localeCompare(b.steam64));
-  const adapted = adaptStatsEvidence(input.evidence, new Map(identityBindings.map((binding) => [binding.steam64, binding])));
+  const identityBindings: StatisticsProjectionBinding[] = input.evidence.participants
+    .map((participant) => {
+      const resolution = input.resolutions.get(participant.steamId64);
+      const member = resolution ? rosterByUser.get(resolution.userId) : undefined;
+      if (!resolution || !member) throw new Error("Statistics projection identity unavailable");
+      return { steam64: participant.steamId64, userId: resolution.userId, entryId: member.entryId };
+    })
+    .sort((a, b) => a.steam64.localeCompare(b.steam64));
+  const adapted = adaptStatsEvidence(
+    input.evidence,
+    new Map(identityBindings.map((binding) => [binding.steam64, binding])),
+  );
   const performance = collectTournamentPerformanceMapProjection(adapted.performance);
   const performanceTransport = await encodePerformanceTransport(performance);
   let tournamentTransport: Awaited<ReturnType<typeof encodeTournamentTransport>> = null;
   try {
     const t = adapted.tournament;
-    if (t.mapKey === input.target.map.id && t.matchKey === input.target.match.id && t.mapName === input.target.map.mapName &&
-      t.semanticProfile === input.row.semanticProfile && t.analysisVersion === input.row.analysisVersion) tournamentTransport = await encodeTournamentTransport(t);
-  } catch { /* Transport is optional; preserve the full legacy projection. */ }
-  const records = collectRecordFacts(input.evidence, new Map(identityBindings.map((b) => [b.steam64, b])), buildTournamentPerformanceAnalyticsFromProjections([performance]));
+    if (
+      t.mapKey === input.target.map.id &&
+      t.matchKey === input.target.match.id &&
+      t.mapName === input.target.map.mapName &&
+      t.semanticProfile === input.row.semanticProfile &&
+      t.analysisVersion === input.row.analysisVersion
+    )
+      tournamentTransport = await encodeTournamentTransport(t);
+  } catch {
+    /* Transport is optional; preserve the full legacy projection. */
+  }
+  const records = collectRecordFacts(
+    input.evidence,
+    new Map(identityBindings.map((b) => [b.steam64, b])),
+    buildTournamentPerformanceAnalyticsFromProjections([performance]),
+  );
   const values = {
     importId: input.row.id,
     projectionVersion: STATISTICS_PROJECTION_VERSION,
@@ -61,12 +86,24 @@ export async function materializeStatisticsProjectionInTx(input: MaterializeStat
   // Rechecking an identity is allowed to rebuild the derived projection; the
   // source artifact/hash is never updated. Retries converge on the same key.
   const legacyKinds = new Set(["kills", "adr", "firstKills", "tradeKills", "clutch", "economy"]);
-  const legacy = { ...values, projectionVersion: PREVIOUS_STATISTICS_PROJECTION_VERSION, facts: {
-    ...values.facts, records: { equipmentSampling: records.equipmentSampling, economyKnownRounds: records.economyKnownRounds,
-      candidates: records.candidates.filter(candidate => legacyKinds.has(candidate.kind)) },
-  } };
-  for (const projection of [legacy, values]) await input.tx.insert(matchDemoStatProjections).values(projection).onConflictDoUpdate({
-    target: [matchDemoStatProjections.importId, matchDemoStatProjections.projectionVersion],
-    set: { ...projection, createdAt: new Date() },
-  });
+  const legacy = {
+    ...values,
+    projectionVersion: PREVIOUS_STATISTICS_PROJECTION_VERSION,
+    facts: {
+      ...values.facts,
+      records: {
+        equipmentSampling: records.equipmentSampling,
+        economyKnownRounds: records.economyKnownRounds,
+        candidates: records.candidates.filter((candidate) => legacyKinds.has(candidate.kind)),
+      },
+    },
+  };
+  for (const projection of [legacy, values])
+    await input.tx
+      .insert(matchDemoStatProjections)
+      .values(projection)
+      .onConflictDoUpdate({
+        target: [matchDemoStatProjections.importId, matchDemoStatProjections.projectionVersion],
+        set: { ...projection, createdAt: new Date() },
+      });
 }

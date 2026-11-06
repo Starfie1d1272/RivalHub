@@ -2,18 +2,16 @@ import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches } from "@/db/schema";
-import { createStageBracket, ensureResolvedBracketMatch, saveStageBracketState } from "@/lib/bracket";
+import {
+  createStageBracket,
+  ensureResolvedBracketMatch,
+  saveStageBracketState,
+} from "@/lib/bracket";
 import type { StageExecutor } from "./types";
 import type { QualifiedTeam } from "@/types/season";
 import { isStageComplete } from "./_shared";
 
-const ENTRY_ROUNDS = [
-  "round_of_32",
-  "round_of_16",
-  "quarterfinal",
-  "semifinal",
-  "final",
-] as const;
+const ENTRY_ROUNDS = ["round_of_32", "round_of_16", "quarterfinal", "semifinal", "final"] as const;
 
 function mapRoundToEntryRound(roundNumber: number, bracketSize: number): string | null {
   const totalRounds = Math.log2(bracketSize);
@@ -60,12 +58,19 @@ export const singleElimExecutor: StageExecutor = {
     if (stageMatches.length === 0) return [];
 
     const finalMatch = stageMatches.find((match) => match.entryRound === "final");
-    if (!finalMatch || finalMatch.scoreA === null || finalMatch.scoreB === null || finalMatch.scoreA === finalMatch.scoreB) {
+    if (
+      !finalMatch ||
+      finalMatch.scoreA === null ||
+      finalMatch.scoreB === null ||
+      finalMatch.scoreA === finalMatch.scoreB
+    ) {
       return [];
     }
     assertCompetitionMatch(finalMatch);
-    const winnerId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryAId : finalMatch.entryBId;
-    const loserId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryBId : finalMatch.entryAId;
+    const winnerId =
+      finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryAId : finalMatch.entryBId;
+    const loserId =
+      finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryBId : finalMatch.entryAId;
     const result: QualifiedTeam[] = [{ teamId: winnerId, placement: "1st" }];
     if (config.advanceTiers.some((tier) => tier.placement === "2nd")) {
       result.push({ teamId: loserId, placement: "2nd" });

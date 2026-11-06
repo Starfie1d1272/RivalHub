@@ -4,23 +4,28 @@ import { z } from "zod";
 import { providerFailureMetadata } from "@/lib/observability/provider-failure";
 import { captureException, logEvent } from "@/lib/observability/server";
 
-const httpsUrl = z.string().url().refine((value) => {
-  try {
-    return new URL(value).protocol === "https:";
-  } catch {
-    return false;
-  }
-}, "Steam 官方链接必须使用 HTTPS");
+const httpsUrl = z
+  .string()
+  .url()
+  .refine((value) => {
+    try {
+      return new URL(value).protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "Steam 官方链接必须使用 HTTPS");
 const optionalHttpsUrl = httpsUrl.nullish();
 
 const summaryResponse = z.object({
   response: z.object({
-    players: z.array(z.object({
-      steamid: z.string(),
-      personaname: z.string().min(1),
-      profileurl: httpsUrl,
-      avatarfull: optionalHttpsUrl,
-    })),
+    players: z.array(
+      z.object({
+        steamid: z.string(),
+        personaname: z.string().min(1),
+        profileurl: httpsUrl,
+        avatarfull: optionalHttpsUrl,
+      }),
+    ),
   }),
 });
 
@@ -36,7 +41,9 @@ export type SteamProfileLookup =
   | { status: "unconfigured" | "failed" };
 
 /** Safe projection only; GetPlayerSummaries accepts at most 100 SteamIDs. */
-export async function getSteamPlayerSummaries(steam64s: readonly string[]): Promise<SteamProfileLookup> {
+export async function getSteamPlayerSummaries(
+  steam64s: readonly string[],
+): Promise<SteamProfileLookup> {
   const key = process.env.STEAM_API_KEY;
   if (!key) {
     logEvent({
@@ -87,18 +94,14 @@ export async function getSteamPlayerSummaries(steam64s: readonly string[]): Prom
       }
     } catch (error) {
       // Provider exceptions may contain the credential-bearing request URL.
-      captureException(
-        "provider.steam.failure",
-        new Error("Steam profile lookup failed"),
-        {
-          scope: "provider",
-          operation: "steam.profile_lookup",
-          provider: "steam",
-          errorClass: "dependency",
-          retryable: true,
-          safeContext: providerFailureMetadata(error),
-        },
-      );
+      captureException("provider.steam.failure", new Error("Steam profile lookup failed"), {
+        scope: "provider",
+        operation: "steam.profile_lookup",
+        provider: "steam",
+        errorClass: "dependency",
+        retryable: true,
+        safeContext: providerFailureMetadata(error),
+      });
       return { status: "failed" };
     }
   }

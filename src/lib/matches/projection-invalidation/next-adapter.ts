@@ -8,8 +8,16 @@ export function revalidateMatchProjectionPaths(
   options: { mode?: "action" | "route"; statistics?: boolean } = {},
 ): void {
   if (!receipt.changed) return;
-  const plan = planMatchProjectionInvalidation(context, receipt.affectedFacts, options.statistics === true);
-  revalidateMatchPaths(context.slug, context.matchId, { mode: options.mode, statisticsReason: "veto", statistics: plan.statistics });
+  const plan = planMatchProjectionInvalidation(
+    context,
+    receipt.affectedFacts,
+    options.statistics === true,
+  );
+  revalidateMatchPaths(context.slug, context.matchId, {
+    mode: options.mode,
+    statisticsReason: "veto",
+    statistics: plan.statistics,
+  });
   if (options.mode === "route") revalidateTag(plan.immediateTag, { expire: 0 });
   else updateTag(plan.immediateTag);
 }

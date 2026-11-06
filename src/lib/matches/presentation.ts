@@ -8,19 +8,30 @@ import type { projectMatchScheduling } from "./time-rules";
 import { formatCST } from "@/lib/utils/date";
 
 export function presentMatchStage(stage: string, stagePlan?: StagePlan | null): string {
-  return stage === "play-in" ? "PLAY-IN" : stagePlan?.find(item => item.key === stage)?.name ?? MATCH_STAGE_LABELS[stage] ?? "比赛阶段";
+  return stage === "play-in"
+    ? "PLAY-IN"
+    : (stagePlan?.find((item) => item.key === stage)?.name ??
+        MATCH_STAGE_LABELS[stage] ??
+        "比赛阶段");
 }
 
-export function presentSchedulingAction(state: ReturnType<typeof projectMatchScheduling>["state"], pendingIsMine = false): string {
+export function presentSchedulingAction(
+  state: ReturnType<typeof projectMatchScheduling>["state"],
+  pendingIsMine = false,
+): string {
   switch (state) {
-    case "unproposed": return "发起比赛时间提议";
-    case "pending": return pendingIsMine ? "等待对方回应" : "确认比赛时间";
-    case "reschedule_pending": return pendingIsMine ? "改期待对方回应" : "回应改期提议";
-    case "confirmed": return "赛前准备";
-    case "inactive": return "查看比赛";
+    case "unproposed":
+      return "发起比赛时间提议";
+    case "pending":
+      return pendingIsMine ? "等待对方回应" : "确认比赛时间";
+    case "reschedule_pending":
+      return pendingIsMine ? "改期待对方回应" : "回应改期提议";
+    case "confirmed":
+      return "赛前准备";
+    case "inactive":
+      return "查看比赛";
   }
 }
-
 
 const MATCH_STATUS_PRESENTATIONS: Record<MatchStatus, StatusPresentation> = {
   scheduled: { label: "待进行", tone: "neutral" },
@@ -35,7 +46,10 @@ const MATCH_FORMAT_PRESENTATIONS: Record<MatchFormat, StatusPresentation> = {
   bo5: { label: "BO5", tone: "neutral" },
 };
 
-export function presentMatchStatus(status: MatchStatus, options?: { isForfeit?: boolean; scheduledAt?: Date | string | null }): StatusPresentation {
+export function presentMatchStatus(
+  status: MatchStatus,
+  options?: { isForfeit?: boolean; scheduledAt?: Date | string | null },
+): StatusPresentation {
   if (status === "finished" && options?.isForfeit) return { label: "弃赛", tone: "danger" };
   if (status === "scheduled" && !options?.scheduledAt) return { label: "待排期", tone: "neutral" };
   return MATCH_STATUS_PRESENTATIONS[status];
@@ -58,10 +72,19 @@ export function presentPersonalMatchTask(input: {
   pendingIsMine?: boolean;
 }): PersonalMatchTask {
   const scheduling = input.scheduling;
-  const scheduleDetail = scheduling?.state === "reschedule_pending" ? "改期待回应" :
-    input.scheduledAt ? formatCST(input.scheduledAt) : presentMatchStatus(input.status ?? "scheduled", { scheduledAt: input.scheduledAt }).label;
+  const scheduleDetail =
+    scheduling?.state === "reschedule_pending"
+      ? "改期待回应"
+      : input.scheduledAt
+        ? formatCST(input.scheduledAt)
+        : presentMatchStatus(input.status ?? "scheduled", { scheduledAt: input.scheduledAt }).label;
   return {
-    title: input.status === "in_progress" ? "你的当前比赛" : input.isRepresentative && scheduling ? presentSchedulingAction(scheduling.state, input.pendingIsMine) : "你的下一场",
+    title:
+      input.status === "in_progress"
+        ? "你的当前比赛"
+        : input.isRepresentative && scheduling
+          ? presentSchedulingAction(scheduling.state, input.pendingIsMine)
+          : "你的下一场",
     detail: `对阵 ${input.opponentName} · ${scheduling ? [scheduling.state === "reschedule_pending" && input.scheduledAt ? formatCST(input.scheduledAt) : null, scheduleDetail].filter(Boolean).join(" · ") : presentMatchStatus(input.status ?? "scheduled", { scheduledAt: input.scheduledAt }).label}`,
     href: `/${input.seasonSlug}/matches/${input.matchId}${input.isRepresentative && input.status !== "in_progress" && scheduling?.state !== "confirmed" ? "?scheduling=1" : ""}`,
   };
@@ -71,9 +94,18 @@ export function presentMatchFormat(format: MatchFormat): StatusPresentation {
   return MATCH_FORMAT_PRESENTATIONS[format];
 }
 
-export function presentMatchLabel(input: { stage: string; round?: number | null; entryRound?: string | null; teamAName: string; teamBName: string; stageName?: string | null }): string {
-  const phase = input.round != null ? `第 ${input.round} 轮` : input.entryRound ?? null;
-  return [input.stageName ?? input.stage, phase, `${input.teamAName} vs ${input.teamBName}`].filter(Boolean).join(" · ");
+export function presentMatchLabel(input: {
+  stage: string;
+  round?: number | null;
+  entryRound?: string | null;
+  teamAName: string;
+  teamBName: string;
+  stageName?: string | null;
+}): string {
+  const phase = input.round != null ? `第 ${input.round} 轮` : (input.entryRound ?? null);
+  return [input.stageName ?? input.stage, phase, `${input.teamAName} vs ${input.teamBName}`]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export function getPublicLiveCommentators<T extends { liveStreamUrl: string | null }>(

@@ -2,11 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
-import {
-    disciplinaryCases,
-  users,
-  type DisciplinaryCase,
-} from "@/db/schema";
+import { disciplinaryCases, users, type DisciplinaryCase } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { SANCTION_EFFECTS, type SanctionEffect } from "./contract";
 export { SANCTION_EFFECTS } from "./contract";
@@ -61,7 +57,15 @@ export function sanctionBlocks(
 export function serializeSanctionPublic(
   row: Pick<
     DisciplinaryCase,
-    "id" | "seasonId" | "subjectUserId" | "status" | "effects" | "publicExplanation" | "effectiveFrom" | "effectiveUntil" | "createdAt"
+    | "id"
+    | "seasonId"
+    | "subjectUserId"
+    | "status"
+    | "effects"
+    | "publicExplanation"
+    | "effectiveFrom"
+    | "effectiveUntil"
+    | "createdAt"
   >,
   now: Date,
 ): {
@@ -138,10 +142,7 @@ export async function loadActiveSanctionsInTx(
   const byUser = new Map<string, ActiveSanctionSummary[]>();
   for (const row of rows) {
     if (args.effect && !(row.effects as string[]).includes(args.effect)) continue;
-    if (
-      row.effectiveUntil !== null &&
-      row.effectiveUntil.getTime() <= now.getTime()
-    ) {
+    if (row.effectiveUntil !== null && row.effectiveUntil.getTime() <= now.getTime()) {
       // Window already passed: inert even without an explicit expire write.
       continue;
     }
@@ -184,10 +185,7 @@ export async function assertUsersNotBlockedInTx(
 
 // ── Sanction state transitions (idempotent, audited) ───────────────────────
 
-async function lockCaseInTx(
-  tx: TxDb,
-  caseId: string,
-): Promise<DisciplinaryCase> {
+async function lockCaseInTx(tx: TxDb, caseId: string): Promise<DisciplinaryCase> {
   const [locked] = await tx
     .select()
     .from(disciplinaryCases)
@@ -214,7 +212,10 @@ export async function issueSanctionInTx(
   if (effects.length === 0 || !effects.every((effect) => SANCTION_EFFECTS.includes(effect))) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "处罚效果不合法。");
   }
-  const [subject] = await tx.select({ id: users.id }).from(users).where(eq(users.id, args.subjectUserId));
+  const [subject] = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, args.subjectUserId));
   if (!subject) throw new AppError(ErrorCode.NOT_FOUND, "被处罚用户不存在。");
 
   const effectiveFrom = args.effectiveFrom ?? new Date();
@@ -241,7 +242,8 @@ export async function issueSanctionInTx(
     seasonId: args.seasonId,
     action: "sanction.issue",
     actorId: args.actorId,
-    targetId: created!.id,meta: { subjectUserId: args.subjectUserId, effects },
+    targetId: created!.id,
+    meta: { subjectUserId: args.subjectUserId, effects },
   });
   return { caseId: created!.id };
 }
@@ -276,7 +278,8 @@ export async function revokeSanctionInTx(
     seasonId: locked.seasonId,
     action: "sanction.revoke",
     actorId: args.actorId,
-    targetId: locked.id,meta: { subjectUserId: locked.subjectUserId, reason: args.reason.trim() || null },
+    targetId: locked.id,
+    meta: { subjectUserId: locked.subjectUserId, reason: args.reason.trim() || null },
   });
   return { alreadyRevoked: false, caseId: locked.id };
 }
@@ -304,7 +307,8 @@ export async function markSanctionExpiredInTx(
     seasonId: locked.seasonId,
     action: "sanction.expire",
     actorId: args.actorId,
-    targetId: locked.id,meta: { subjectUserId: locked.subjectUserId },
+    targetId: locked.id,
+    meta: { subjectUserId: locked.subjectUserId },
   });
   return { alreadyExpired: false, caseId: locked.id };
 }

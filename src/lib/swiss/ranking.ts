@@ -19,8 +19,10 @@ export function computeValveBuchholzScore(
 
 /** Shared deterministic Swiss order: W DESC, L ASC, BU DESC, initial seed ASC. */
 export function compareSwissRanking(a: SwissRankFacts, b: SwissRankFacts): number {
-  return b.wins - a.wins ||
+  return (
+    b.wins - a.wins ||
     a.losses - b.losses ||
     b.buchholz - a.buchholz ||
-    a.initialSeed - b.initialSeed;
+    a.initialSeed - b.initialSeed
+  );
 }

@@ -34,29 +34,38 @@ const qualificationFindingSnapshotSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-const frozenRestrictionOverrideSchema = z.object({
-  entryId: z.guid(),
-  rosterRevisionId: z.guid(),
-  restrictionCode: z.string().min(1),
-  findingSnapshot: qualificationFindingSnapshotSchema,
-  reason: z.string().min(1),
-  grantedBy: z.string().min(1),
-  grantedAt: z.string().min(1),
-}).superRefine((value, ctx) => {
-  if (value.restrictionCode !== value.findingSnapshot.code) {
-    ctx.addIssue({ code: "custom", message: "解除记录的 restrictionCode 必须与 finding snapshot code 一致" });
-  }
-  if (!value.findingSnapshot.waivable) {
-    ctx.addIssue({ code: "custom", message: "StageRun 只能冻结可解除的 qualification finding" });
-  }
-  if (!value.reason.trim()) {
-    ctx.addIssue({ code: "custom", message: "解除记录必须包含具体理由" });
-  }
-});
+const frozenRestrictionOverrideSchema = z
+  .object({
+    entryId: z.guid(),
+    rosterRevisionId: z.guid(),
+    restrictionCode: z.string().min(1),
+    findingSnapshot: qualificationFindingSnapshotSchema,
+    reason: z.string().min(1),
+    grantedBy: z.string().min(1),
+    grantedAt: z.string().min(1),
+  })
+  .superRefine((value, ctx) => {
+    if (value.restrictionCode !== value.findingSnapshot.code) {
+      ctx.addIssue({
+        code: "custom",
+        message: "解除记录的 restrictionCode 必须与 finding snapshot code 一致",
+      });
+    }
+    if (!value.findingSnapshot.waivable) {
+      ctx.addIssue({ code: "custom", message: "StageRun 只能冻结可解除的 qualification finding" });
+    }
+    if (!value.reason.trim()) {
+      ctx.addIssue({ code: "custom", message: "解除记录必须包含具体理由" });
+    }
+  });
 
 const smallInputObject = z.object({
   stagePlan: z.array(stageSchema).min(1),
-  rosterRules: z.object({ minTeamSize: z.number().int().positive(), maxTeamSize: z.number().int().positive(), starterCount: z.number().int().positive() }),
+  rosterRules: z.object({
+    minTeamSize: z.number().int().positive(),
+    maxTeamSize: z.number().int().positive(),
+    starterCount: z.number().int().positive(),
+  }),
   /** Explicit capability marker; absent means a legacy StageRun. */
   qualificationPolicy: qualificationPolicySchema.optional(),
   /** Active waivable restrictions frozen for the approved roster revisions. */
@@ -75,7 +84,10 @@ const smallInputSchema = smallInputObject.superRefine((value, ctx) => {
     if (keys.has(stage.key)) ctx.addIssue({ code: "custom", message: "重复的 StagePlan key" });
     keys.add(stage.key);
   }
-  if (value.rosterRules.starterCount > value.rosterRules.maxTeamSize || value.rosterRules.minTeamSize > value.rosterRules.maxTeamSize) {
+  if (
+    value.rosterRules.starterCount > value.rosterRules.maxTeamSize ||
+    value.rosterRules.minTeamSize > value.rosterRules.maxTeamSize
+  ) {
     ctx.addIssue({ code: "custom", message: "无效的 roster policy" });
   }
 });
@@ -120,7 +132,10 @@ export type MajorRunSnapshot = z.infer<typeof frozenInputSchema> & {
   hasThirdPlaceMatch?: boolean;
 };
 
-export type MajorRunPresentation = Pick<MajorRunSnapshot, "version" | "stagePlan" | "stage" | "hasThirdPlaceMatch">;
+export type MajorRunPresentation = Pick<
+  MajorRunSnapshot,
+  "version" | "stagePlan" | "stage" | "hasThirdPlaceMatch"
+>;
 
 function materializeStageConfig(stage: MajorRunStage): StageConfig {
   return {
@@ -131,13 +146,17 @@ function materializeStageConfig(stage: MajorRunStage): StageConfig {
     matchFormat: stage.matchFormat as StageConfig["matchFormat"],
     finalFormat: stage.finalFormat as StageConfig["finalFormat"],
     advanceTiers: stage.advanceTiers as AdvanceTier[],
-    ...(stage.entrySeeds === null || stage.entrySeeds === undefined ? {} : { entrySeeds: stage.entrySeeds }),
+    ...(stage.entrySeeds === null || stage.entrySeeds === undefined
+      ? {}
+      : { entrySeeds: stage.entrySeeds }),
     ...(stage.seeds === null || stage.seeds === undefined ? {} : { seeds: [...stage.seeds] }),
   };
 }
 
 /** Convert the persisted frozen definition into the shared presentation shape. */
-export function materializeMajorStagePlan(snapshot: Pick<MajorRunSnapshot, "stagePlan">): StagePlan {
+export function materializeMajorStagePlan(
+  snapshot: Pick<MajorRunSnapshot, "stagePlan">,
+): StagePlan {
   return snapshot.stagePlan.map(materializeStageConfig);
 }
 
@@ -146,9 +165,13 @@ export function resolveMajorStagePlan(
   liveStagePlan: StagePlan,
   stageRuns: readonly { stageKey: string; ruleSnapshot: unknown }[],
 ): StagePlan {
-  return resolveMajorStagePlanFromPresentations(liveStagePlan, stageRuns.map((run) => ({
-    stageKey: run.stageKey, presentation: parseMajorRunSnapshot(run.ruleSnapshot, run.stageKey),
-  })));
+  return resolveMajorStagePlanFromPresentations(
+    liveStagePlan,
+    stageRuns.map((run) => ({
+      stageKey: run.stageKey,
+      presentation: parseMajorRunSnapshot(run.ruleSnapshot, run.stageKey),
+    })),
+  );
 }
 
 export function resolveMajorStagePlanFromPresentations(
@@ -156,9 +179,12 @@ export function resolveMajorStagePlanFromPresentations(
   runs: readonly { stageKey: string; presentation: MajorRunPresentation }[],
 ): StagePlan {
   if (runs.length === 0) return liveStagePlan;
-  const frozenPlans = runs.map(({ stageKey, presentation }) => ({
-    presentation, order: presentation.stagePlan.findIndex((stage) => stage.key === stageKey),
-  })).sort((a, b) => a.order - b.order);
+  const frozenPlans = runs
+    .map(({ stageKey, presentation }) => ({
+      presentation,
+      order: presentation.stagePlan.findIndex((stage) => stage.key === stageKey),
+    }))
+    .sort((a, b) => a.order - b.order);
   const latest = frozenPlans.at(-1);
   if (!latest || latest.order < 0) throw new Error("StageRun snapshot 不包含当前阶段");
   return materializeMajorStagePlan(latest.presentation);
@@ -173,12 +199,23 @@ function validateEntrants(entrants: readonly z.infer<typeof frozenEntrantSchema>
   const entryIds = new Set<string>();
   const seeds = new Set<number>();
   for (const entrant of entrants) {
-    if (entrantIds.has(entrant.entrantId) || entryIds.has(entrant.competitionEntryId) || seeds.has(entrant.tournamentSeed)) fail("冻结赛事入口重复");
-    entrantIds.add(entrant.entrantId); entryIds.add(entrant.competitionEntryId); seeds.add(entrant.tournamentSeed);
+    if (
+      entrantIds.has(entrant.entrantId) ||
+      entryIds.has(entrant.competitionEntryId) ||
+      seeds.has(entrant.tournamentSeed)
+    )
+      fail("冻结赛事入口重复");
+    entrantIds.add(entrant.entrantId);
+    entryIds.add(entrant.competitionEntryId);
+    seeds.add(entrant.tournamentSeed);
   }
 }
 
-function normalizeRun(value: unknown, stageKey: string, projected: boolean): MajorRunSnapshot | MajorRunPresentation {
+function normalizeRun(
+  value: unknown,
+  stageKey: string,
+  projected: boolean,
+): MajorRunSnapshot | MajorRunPresentation {
   const v4 = (projected ? presentationV4Schema : v4Schema).safeParse(value);
   if (v4.success) {
     const stage = v4.data.stagePlan.find((candidate) => candidate.key === stageKey);
@@ -200,17 +237,29 @@ export function parseMajorRunSnapshot(value: unknown, stageKey: string): MajorRu
 
 /** Validate the SQL envelope before normalizing the retained frozen fields. */
 export function parseMajorRunPresentation(value: unknown, stageKey: string): MajorRunPresentation {
-  const envelope = z.object({ rootType: z.literal("object"), fields: z.unknown(),
-    affiliationRulesType: z.literal("array"), frozenCompetitiveFactsType: z.literal("array"),
-    competitiveProfilePresent: z.literal(true),
-  }).safeParse(value);
+  const envelope = z
+    .object({
+      rootType: z.literal("object"),
+      fields: z.unknown(),
+      affiliationRulesType: z.literal("array"),
+      frozenCompetitiveFactsType: z.literal("array"),
+      competitiveProfilePresent: z.literal(true),
+    })
+    .safeParse(value);
   if (!envelope.success) fail("不支持或结构损坏的版本");
   const parsed = normalizeRun(envelope.data.fields, stageKey, true);
-  return { version: parsed.version, stagePlan: parsed.stagePlan, stage: parsed.stage, hasThirdPlaceMatch: parsed.hasThirdPlaceMatch };
+  return {
+    version: parsed.version,
+    stagePlan: parsed.stagePlan,
+    stage: parsed.stage,
+    hasThirdPlaceMatch: parsed.hasThirdPlaceMatch,
+  };
 }
 
 /** v4 only freezes inputs; persisted membership/seeds/matches remain relational facts. */
-export function makeMajorRunSnapshotV4(input: z.input<typeof frozenInputSchema> & { hasThirdPlaceMatch?: boolean }) {
+export function makeMajorRunSnapshotV4(
+  input: z.input<typeof frozenInputSchema> & { hasThirdPlaceMatch?: boolean },
+) {
   const parsed = frozenInputSchema.safeParse(input);
   if (!parsed.success) fail("无法写入冻结输入");
   return {
@@ -220,8 +269,15 @@ export function makeMajorRunSnapshotV4(input: z.input<typeof frozenInputSchema> 
     affiliationRules: parsed.data.affiliationRules,
     competitiveProfile: parsed.data.competitiveProfile,
     frozenCompetitiveFacts: parsed.data.frozenCompetitiveFacts,
-    ...(parsed.data.qualificationPolicy ? { qualificationPolicy: parsed.data.qualificationPolicy } : {}),
-    ...(parsed.data.frozenRestrictionOverrides ? { frozenRestrictionOverrides: parsed.data.frozenRestrictionOverrides } : {}),
-    runOptions: input.hasThirdPlaceMatch === undefined ? {} : { hasThirdPlaceMatch: input.hasThirdPlaceMatch },
+    ...(parsed.data.qualificationPolicy
+      ? { qualificationPolicy: parsed.data.qualificationPolicy }
+      : {}),
+    ...(parsed.data.frozenRestrictionOverrides
+      ? { frozenRestrictionOverrides: parsed.data.frozenRestrictionOverrides }
+      : {}),
+    runOptions:
+      input.hasThirdPlaceMatch === undefined
+        ? {}
+        : { hasThirdPlaceMatch: input.hasThirdPlaceMatch },
   };
 }

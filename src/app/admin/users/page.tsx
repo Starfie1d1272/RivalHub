@@ -47,23 +47,31 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         .from(users)
         .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
         .leftJoin(seasonAdminGrants, eq(seasonAdminGrants.userId, users.id))
-        .where(and(eq(users.status, "active"), or(eq(users.role, "super_admin"), isNotNull(seasonAdminGrants.userId))))
+        .where(
+          and(
+            eq(users.status, "active"),
+            or(eq(users.role, "super_admin"), isNotNull(seasonAdminGrants.userId)),
+          ),
+        )
         .orderBy(asc(users.createdAt)),
       db.query.seasons.findMany({ columns: { id: true, name: true } }),
     ]);
     const seasonMap = Object.fromEntries(allSeasons.map((s) => [s.id, s.name]));
-    const adminById = new Map<string, {
-      id: string;
-      email: string;
-      personaName: string | null;
-      steam64: string | null;
-      liveStreamUrl: string | null;
-      displayName: string | null;
-      perfectName: string | null;
-      role: "user" | "super_admin";
-      seasonIds: string[];
-      createdAt: Date;
-    }>();
+    const adminById = new Map<
+      string,
+      {
+        id: string;
+        email: string;
+        personaName: string | null;
+        steam64: string | null;
+        liveStreamUrl: string | null;
+        displayName: string | null;
+        perfectName: string | null;
+        role: "user" | "super_admin";
+        seasonIds: string[];
+        createdAt: Date;
+      }
+    >();
     for (const row of adminRows) {
       const existing = adminById.get(row.id);
       if (existing) {
@@ -111,10 +119,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
 
   // ── 所有用户 Tab ────────────────────────────────────────────────────────
   const query = normalizeAdminUsersQuery(rawSearchParams);
-  const [userList, stats] = await Promise.all([
-    getAdminUsersList(query),
-    getAdminUserStats(),
-  ]);
+  const [userList, stats] = await Promise.all([getAdminUsersList(query), getAdminUserStats()]);
 
   return (
     <PageLayout variant="wide" className="space-y-6">
@@ -166,7 +171,10 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
               <tbody className="divide-y divide-[var(--color-border)]">
                 {userList.rows.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-fg-dim)] text-sm">
+                    <td
+                      colSpan={5}
+                      className="px-4 py-8 text-center text-[var(--color-fg-dim)] text-sm"
+                    >
                       {userList.hasAnyRecords ? "没有符合当前筛选条件的用户" : "暂无用户"}
                     </td>
                   </tr>
@@ -186,7 +194,10 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
                       className="hover:bg-[var(--color-surface-raised)] transition-colors"
                     >
                       <td className="px-4 py-2.5 font-medium text-[var(--color-fg)]">
-                        <PlayerProfileLink userId={r.id} className={hasParticipated ? undefined : "text-[var(--color-fg-mid)]"}>
+                        <PlayerProfileLink
+                          userId={r.id}
+                          className={hasParticipated ? undefined : "text-[var(--color-fg-mid)]"}
+                        >
                           {name}
                         </PlayerProfileLink>
                       </td>

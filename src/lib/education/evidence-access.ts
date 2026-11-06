@@ -24,7 +24,10 @@ export async function getManualEducationEvidenceSignedUrl(input: unknown): Promi
     throw new AppError(ErrorCode.VALIDATION_FAILED, "录取通知书材料当前不可查看。 ");
   }
   if (isEducationEvidenceExpired(verification)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "教育材料已过保留期，不能再查看；审核结论仍保留。如需核对认证结果，请查看教育认证记录。");
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "教育材料已过保留期，不能再查看；审核结论仍保留。如需核对认证结果，请查看教育认证记录。",
+    );
   }
   return educationEvidenceStorage.createSignedUrl(verification.evidenceObjectKey);
 }

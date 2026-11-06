@@ -1,6 +1,15 @@
-import type { SwissStageReadModel, StageSwissMatchRow, StageSwissRoundColumn } from "@/lib/matches/stage-read-model";
+import type {
+  SwissStageReadModel,
+  StageSwissMatchRow,
+  StageSwissRoundColumn,
+} from "@/lib/matches/stage-read-model";
 import { SHORT_SWISS_MAX_ROUNDS } from "./policy";
-import type { SwissCompletedMatch, SwissEntrant, SwissProjection, SwissRecord } from "@/lib/swiss/types";
+import type {
+  SwissCompletedMatch,
+  SwissEntrant,
+  SwissProjection,
+  SwissRecord,
+} from "@/lib/swiss/types";
 import { generateShortSwissRoundPairings, projectShortSwissStage } from "./swiss";
 
 export interface QualificationSwissEntrant {
@@ -45,17 +54,39 @@ function projectQualificationSwissFacts(input: QualificationSwissFacts) {
   if (ordered.some((entrant, index) => entrant.preliminarySeed !== index + 1)) return null;
   const entrants: SwissEntrant[] = ordered
     .filter((entrant) => entrant.preliminarySeed > input.directEntryCount)
-    .map((entrant) => ({ teamId: entrant.entryId, initialSeed: entrant.preliminarySeed - input.directEntryCount }));
-  if (entrants.length < 2 || entrants.some((entrant, index) => entrant.initialSeed !== index + 1)) return null;
+    .map((entrant) => ({
+      teamId: entrant.entryId,
+      initialSeed: entrant.preliminarySeed - input.directEntryCount,
+    }));
+  if (entrants.length < 2 || entrants.some((entrant, index) => entrant.initialSeed !== index + 1))
+    return null;
 
-  const matchRows = [...input.matches].sort((a, b) => (a.round ?? Infinity) - (b.round ?? Infinity) || a.id.localeCompare(b.id));
-  if (matchRows.some((match) => !Number.isInteger(match.round) || match.round! < 1 || match.round! > SHORT_SWISS_MAX_ROUNDS ||
-    match.format !== "bo1" || match.stage !== "play-in" || match.ownership !== "manual" ||
-    match.majorStageRunId !== null || match.managedKey !== null || match.bracketNodeId !== null ||
-    match.entryAId === match.entryBId || !entrants.some((entrant) => entrant.teamId === match.entryAId) ||
-    !entrants.some((entrant) => entrant.teamId === match.entryBId) ||
-    (match.status === "finished" && (match.scoreA === null || match.scoreB === null ||
-      Math.max(match.scoreA, match.scoreB) !== 1 || Math.min(match.scoreA, match.scoreB) !== 0)))) return null;
+  const matchRows = [...input.matches].sort(
+    (a, b) => (a.round ?? Infinity) - (b.round ?? Infinity) || a.id.localeCompare(b.id),
+  );
+  if (
+    matchRows.some(
+      (match) =>
+        !Number.isInteger(match.round) ||
+        match.round! < 1 ||
+        match.round! > SHORT_SWISS_MAX_ROUNDS ||
+        match.format !== "bo1" ||
+        match.stage !== "play-in" ||
+        match.ownership !== "manual" ||
+        match.majorStageRunId !== null ||
+        match.managedKey !== null ||
+        match.bracketNodeId !== null ||
+        match.entryAId === match.entryBId ||
+        !entrants.some((entrant) => entrant.teamId === match.entryAId) ||
+        !entrants.some((entrant) => entrant.teamId === match.entryBId) ||
+        (match.status === "finished" &&
+          (match.scoreA === null ||
+            match.scoreB === null ||
+            Math.max(match.scoreA, match.scoreB) !== 1 ||
+            Math.min(match.scoreA, match.scoreB) !== 0)),
+    )
+  )
+    return null;
 
   const facts: SwissCompletedMatch[] = [];
   const projections: SwissProjection[] = [];
@@ -66,14 +97,25 @@ function projectQualificationSwissFacts(input: QualificationSwissFacts) {
     for (let round = 1; round <= SHORT_SWISS_MAX_ROUNDS; round += 1) {
       const rows = matchRows.filter((match) => match.round === round);
       if (rows.length === 0) break;
-      const expected = generateShortSwissRoundPairings({ entrants, matches: facts, completedRound: round - 1 });
-      const expectedPairs = new Set(expected.map((pair) => pairKey(pair.higherSeedTeamId, pair.lowerSeedTeamId)));
+      const expected = generateShortSwissRoundPairings({
+        entrants,
+        matches: facts,
+        completedRound: round - 1,
+      });
+      const expectedPairs = new Set(
+        expected.map((pair) => pairKey(pair.higherSeedTeamId, pair.lowerSeedTeamId)),
+      );
       const actualPairs = rows.map((match) => pairKey(match.entryAId, match.entryBId));
-      if (actualPairs.length !== expectedPairs.size || new Set(actualPairs).size !== actualPairs.length ||
-        actualPairs.some((key) => !expectedPairs.has(key))) return null;
+      if (
+        actualPairs.length !== expectedPairs.size ||
+        new Set(actualPairs).size !== actualPairs.length ||
+        actualPairs.some((key) => !expectedPairs.has(key))
+      )
+        return null;
       if (rows.some((match) => match.status !== "finished")) break;
       for (const match of rows) {
-        if (match.scoreA === null || match.scoreB === null || match.scoreA === match.scoreB) return null;
+        if (match.scoreA === null || match.scoreB === null || match.scoreA === match.scoreB)
+          return null;
         facts.push({
           matchId: match.id,
           round,
@@ -93,7 +135,10 @@ function projectQualificationSwissFacts(input: QualificationSwissFacts) {
   return { entrants, matchRows, projection, projections };
 }
 
-function matchRecord(match: Pick<QualificationSwissMatch, "entryAId" | "entryBId">, states: ReadonlyMap<string, SwissRecord>) {
+function matchRecord(
+  match: Pick<QualificationSwissMatch, "entryAId" | "entryBId">,
+  states: ReadonlyMap<string, SwissRecord>,
+) {
   const teamA = states.get(match.entryAId);
   const teamB = states.get(match.entryBId);
   const recordA = teamA ? `${teamA.wins}:${teamA.losses}` : "待定";
@@ -102,13 +147,25 @@ function matchRecord(match: Pick<QualificationSwissMatch, "entryAId" | "entryBId
 }
 
 /** Validates the complete frozen run before projecting one pre-round record. */
-export function buildQualificationSwissMatchRecord(input: QualificationSwissFacts, matchId: string): { stageName: string; record: string } | null {
+export function buildQualificationSwissMatchRecord(
+  input: QualificationSwissFacts,
+  matchId: string,
+): { stageName: string; record: string } | null {
   const facts = projectQualificationSwissFacts(input);
   if (!facts) return null;
-  const match = facts.matchRows.find(row => row.id === matchId);
+  const match = facts.matchRows.find((row) => row.id === matchId);
   if (!match) return null;
-  const beforeRound = match.round! <= facts.projection.completedRound ? facts.projections[match.round! - 1] : facts.projection;
-  return { stageName, record: matchRecord(match, new Map(beforeRound?.teams.map(team => [team.teamId, team]) ?? [])) };
+  const beforeRound =
+    match.round! <= facts.projection.completedRound
+      ? facts.projections[match.round! - 1]
+      : facts.projection;
+  return {
+    stageName,
+    record: matchRecord(
+      match,
+      new Map(beforeRound?.teams.map((team) => [team.teamId, team]) ?? []),
+    ),
+  };
 }
 
 /** Build a public Swiss read model only when persisted Play-in facts match the canonical round rules. */
@@ -120,8 +177,12 @@ export function buildQualificationSwissReadModel(input: {
   const facts = projectQualificationSwissFacts(input);
   if (!facts) return null;
   const { entrants, matchRows, projection, projections } = facts;
-  const logoByEntryId = new Map(input.entrants.map(entrant => [entrant.entryId, entrant.logoUrl]));
-  const nameByEntryId = new Map(input.entrants.map((entrant) => [entrant.entryId, entrant.teamName]));
+  const logoByEntryId = new Map(
+    input.entrants.map((entrant) => [entrant.entryId, entrant.logoUrl]),
+  );
+  const nameByEntryId = new Map(
+    input.entrants.map((entrant) => [entrant.entryId, entrant.teamName]),
+  );
   const rows: StageSwissMatchRow[] = matchRows.map((match) => ({
     matchId: match.id,
     entryAId: match.entryAId,
@@ -151,7 +212,12 @@ export function buildQualificationSwissReadModel(input: {
     }
     rounds.push({
       round,
-      status: round <= projection.completedRound ? "finished" : round === projection.completedRound + 1 && roundRows.length > 0 ? "active" : "upcoming",
+      status:
+        round <= projection.completedRound
+          ? "finished"
+          : round === projection.completedRound + 1 && roundRows.length > 0
+            ? "active"
+            : "upcoming",
       groups: [...groups.entries()].map(([record, matchups]) => ({ record, matchups })),
     });
   }

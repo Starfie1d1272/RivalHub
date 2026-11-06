@@ -64,12 +64,21 @@ export async function saveVetoSteps(
 
     await db.transaction(async (tx) => {
       const locked = await lockMatchInTx(tx, matchId);
-      if (locked.status !== "finished") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束比赛可以补录历史 BP 步骤。");
-      const [onlineSession] = await tx.select({ startedAt: matchVetoSessions.startedAt })
+      if (locked.status !== "finished")
+        throw new AppError(
+          ErrorCode.MATCH_INVALID_TRANSITION,
+          "只有已结束比赛可以补录历史 BP 步骤。",
+        );
+      const [onlineSession] = await tx
+        .select({ startedAt: matchVetoSessions.startedAt })
         .from(matchVetoSessions)
         .where(eq(matchVetoSessions.matchId, matchId))
         .for("update");
-      if (onlineSession?.startedAt) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "本场已在 Veto Room 留下操作记录，不能再用赛后补录修改。");
+      if (onlineSession?.startedAt)
+        throw new AppError(
+          ErrorCode.MATCH_INVALID_TRANSITION,
+          "本场已在 Veto Room 留下操作记录，不能再用赛后补录修改。",
+        );
       const mapPlan = projectVetoMapPlan({
         steps: legacyVetoStepsToFacts(locked.format, steps, locked.entryAId, locked.entryBId),
         entryAId: locked.entryAId,
@@ -108,7 +117,12 @@ export async function saveVetoSteps(
         seasonId: locked.seasonId,
         action: "match.save_veto",
         actorId: auditActorId(session),
-        targetId: matchId,meta: { format: locked.format, stepCount: steps.length, postMatch: locked.status === "finished" },
+        targetId: matchId,
+        meta: {
+          format: locked.format,
+          stepCount: steps.length,
+          postMatch: locked.status === "finished",
+        },
       });
     });
 

@@ -27,7 +27,10 @@ export function tryAdmitLiveRequest(key: string): (() => void) | null {
   active.add(key);
   let released = false;
   return () => {
-    if (!released) { released = true; active.delete(key); }
+    if (!released) {
+      released = true;
+      active.delete(key);
+    }
   };
 }
 
@@ -41,9 +44,15 @@ const ingressWaiters = new Set<() => void>();
 export async function admitLiveIngress(): Promise<(() => void) | null> {
   if (ingressActive >= LIVE_REQUEST_LIMIT) {
     if (ingressWaiters.size >= INGRESS_WAIT_LIMIT) return null;
-    const admitted = await new Promise<boolean>(resolve => {
-      const enter = () => { clearTimeout(timer); resolve(true); };
-      const timer = setTimeout(() => { ingressWaiters.delete(enter); resolve(false); }, 500);
+    const admitted = await new Promise<boolean>((resolve) => {
+      const enter = () => {
+        clearTimeout(timer);
+        resolve(true);
+      };
+      const timer = setTimeout(() => {
+        ingressWaiters.delete(enter);
+        resolve(false);
+      }, 500);
       ingressWaiters.add(enter);
     });
     if (!admitted) return null;
@@ -53,8 +62,10 @@ export async function admitLiveIngress(): Promise<(() => void) | null> {
     if (released) return;
     released = true;
     const next = ingressWaiters.values().next().value;
-    if (next) { ingressWaiters.delete(next); next(); }
-    else ingressActive--;
+    if (next) {
+      ingressWaiters.delete(next);
+      next();
+    } else ingressActive--;
   };
 }
 
@@ -71,10 +82,7 @@ const recent = new Map<
   }
 >();
 /** Called only after fresh DB authorization, with the cross-instance LIVE lock held. */
-export function admitLiveDelivery(
-  snapshot: LiveSnapshotV1,
-  revision: number,
-): boolean {
+export function admitLiveDelivery(snapshot: LiveSnapshotV1, revision: number): boolean {
   const now = performance.now();
   for (const [key, value] of recent)
     if (now - value.attemptedAt >= RECENT_TTL_MS) recent.delete(key);
@@ -88,17 +96,12 @@ export function admitLiveDelivery(
   const old = recent.get(snapshot.matchId);
   const sequence = snapshot.cursor.runtimeSeq;
   const producedAt = Date.parse(snapshot.producedAt);
-  if (
-    old?.identity === identity &&
-    (sequence < old.sequence || producedAt <= old.producedAt)
-  )
+  if (old?.identity === identity && (sequence < old.sequence || producedAt <= old.producedAt))
     return false;
   // Two-token burst absorbs arrival jitter from a legitimate 2 Hz producer;
   // sustained refill remains 2/s. A rigid 500ms receipt gap drops healthy frames.
   const available =
-    old?.identity === identity
-      ? Math.min(2, old.tokens + (now - old.attemptedAt) / 500)
-      : 2;
+    old?.identity === identity ? Math.min(2, old.tokens + (now - old.attemptedAt) / 500) : 2;
   if (available < 1 || (!old && recent.size >= RECENT_LIMIT)) return false;
   recent.set(snapshot.matchId, {
     identity,

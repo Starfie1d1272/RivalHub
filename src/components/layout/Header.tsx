@@ -14,40 +14,42 @@ import { HeaderPublicNavigation } from "./HeaderPublicNavigation";
 import { HeaderViewerClient } from "./HeaderViewerClient";
 import type { HeaderSession } from "./Header.types";
 
-const getHeaderViewer = cache(async (): Promise<{
-  session: HeaderSession;
-  avatarUrl: string | null;
-  personaName: string | null;
-  displayName: string | null;
-  perfectName: string | null;
-} | null> => {
-  const authorization = await getCurrentUserAuthorization();
-  if (!authorization) return null;
+const getHeaderViewer = cache(
+  async (): Promise<{
+    session: HeaderSession;
+    avatarUrl: string | null;
+    personaName: string | null;
+    displayName: string | null;
+    perfectName: string | null;
+  } | null> => {
+    const authorization = await getCurrentUserAuthorization();
+    if (!authorization) return null;
 
-  const [user] = await db
-    .select({
-      avatarUrl: steamProfiles.avatarUrl,
-      personaName: steamProfiles.personaName,
-      displayName: users.displayName,
-      perfectName: users.perfectName,
-    })
-    .from(users)
-    .leftJoin(steamProfiles, eq(users.steam64, steamProfiles.steam64))
-    .where(eq(users.id, authorization.userId))
-    .limit(1);
+    const [user] = await db
+      .select({
+        avatarUrl: steamProfiles.avatarUrl,
+        personaName: steamProfiles.personaName,
+        displayName: users.displayName,
+        perfectName: users.perfectName,
+      })
+      .from(users)
+      .leftJoin(steamProfiles, eq(users.steam64, steamProfiles.steam64))
+      .where(eq(users.id, authorization.userId))
+      .limit(1);
 
-  return {
-    session: {
-      userId: authorization.userId,
-      isAdmin: authorization.role === "super_admin" || authorization.seasonIds.length > 0,
-      isSuperAdmin: authorization.role === "super_admin",
-    },
-    avatarUrl: user?.avatarUrl ?? null,
-    personaName: user?.personaName ?? null,
-    displayName: user?.displayName ?? null,
-    perfectName: user?.perfectName ?? null,
-  };
-});
+    return {
+      session: {
+        userId: authorization.userId,
+        isAdmin: authorization.role === "super_admin" || authorization.seasonIds.length > 0,
+        isSuperAdmin: authorization.role === "super_admin",
+      },
+      avatarUrl: user?.avatarUrl ?? null,
+      personaName: user?.personaName ?? null,
+      displayName: user?.displayName ?? null,
+      perfectName: user?.perfectName ?? null,
+    };
+  },
+);
 
 async function HeaderViewer({ variant }: { variant: "desktop" | "mobile" }) {
   // iron-session evaluates cookie expiry against the current time while unsealing.
@@ -55,7 +57,8 @@ async function HeaderViewer({ variant }: { variant: "desktop" | "mobile" }) {
   // public header shell and navigation remain eligible for prerender/prefetch.
   await connection();
   const viewer = await getHeaderViewer();
-  const telemetry = variant === "desktop" ? await telemetryBootstrap(viewer?.session ?? null) : null;
+  const telemetry =
+    variant === "desktop" ? await telemetryBootstrap(viewer?.session ?? null) : null;
   return (
     <>
       {variant === "desktop" && <ProductTelemetry config={telemetry} />}

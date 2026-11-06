@@ -5,7 +5,17 @@ import type { Season } from "@/db/schema/seasons";
 
 type SeasonWorkspaceOverviewSeason = Pick<
   Season,
-  "id" | "slug" | "name" | "status" | "competitionTemplate" | "registrationMode" | "registrationOpenedAt" | "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt" | "endAt"
+  | "id"
+  | "slug"
+  | "name"
+  | "status"
+  | "competitionTemplate"
+  | "registrationMode"
+  | "registrationOpenedAt"
+  | "registrationOpensAt"
+  | "registrationClosesAt"
+  | "rosterChangeClosesAt"
+  | "endAt"
 >;
 
 export interface SeasonWorkspaceOverviewSummary {
@@ -122,7 +132,10 @@ export interface MajorPrestartPageData {
     initialPreliminaryOrderEntryIds: string[];
     strengthPreview: MajorPrestartStrengthPreview;
     mainEventStrengthPreview: MajorPrestartStrengthPreview;
-    rankingRoster: Array<{ entryId: string; members: Array<MajorStrengthStarter & { isPrimaryStarter: boolean }> }>;
+    rankingRoster: Array<{
+      entryId: string;
+      members: Array<MajorStrengthStarter & { isPrimaryStarter: boolean }>;
+    }>;
     approvedCandidates: Array<{
       id: string;
       name: string;
@@ -143,11 +156,24 @@ export interface MajorPrestartPageData {
       teamId: string;
       teamName: string;
       rosterStatus: "preparing" | "confirmed" | "frozen";
-      roster: Array<{ userId: string; label: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
+      roster: Array<{
+        userId: string;
+        label: string;
+        isPrimaryStarter: boolean;
+        educationVerified: boolean;
+      }>;
       recentRosterChange: { added: string[]; removed: string[]; primaryChanged: string[] } | null;
     }>;
     qualification: {
-      draft: { order: string[]; format: "direct_bo3" | "short_swiss_2w2l"; targetEntrantCount: number; version: number; updatedBy: string; updatedAt: string; stale: boolean } | null;
+      draft: {
+        order: string[];
+        format: "direct_bo3" | "short_swiss_2w2l";
+        targetEntrantCount: number;
+        version: number;
+        updatedBy: string;
+        updatedAt: string;
+        stale: boolean;
+      } | null;
       run: {
         id: string;
         format: "direct_bo3" | "short_swiss_2w2l";
@@ -189,11 +215,13 @@ export interface MajorPrestartPageData {
       platform: string;
       conversionPolicyId: string | null;
       conversionPolicyVersion: string | null;
-      teams: Array<MajorStrengthRecommendationTeam & {
-        entrantId: string;
-        finalSeed: number | null;
-        finalOrderStatus: SeedOrderRowStatus;
-      }>;
+      teams: Array<
+        MajorStrengthRecommendationTeam & {
+          entrantId: string;
+          finalSeed: number | null;
+          finalOrderStatus: SeedOrderRowStatus;
+        }
+      >;
     } | null;
     firstRound: Array<{ higherSeed: number; lowerSeed: number; format: "bo1" | "bo3" }> | null;
   };
@@ -209,9 +237,36 @@ export interface PostEventPageData {
     matchCount: number;
     honorCount: number;
     activeAdjudicationCount: number;
-    finalResult: { id: string; status: "pending_confirmation" | "confirmed"; championEntryId: string; placementGroups: Array<{ from: number; to: number; entryIds: string[] }> } | null;
+    finalResult: {
+      id: string;
+      status: "pending_confirmation" | "confirmed";
+      championEntryId: string;
+      placementGroups: Array<{ from: number; to: number; entryIds: string[] }>;
+    } | null;
     teams: Array<{ id: string; name: string }>;
-    honors: Array<{ id: string; honorKey: string; type: string; label: string; state: string; entryId: string | null; userId: string | null; placementFrom: number | null; placementTo: number | null }>;
-    adjudications: Array<{ id: string; status: string; kind: string; target: string; impacts: string[]; targetEntryId: string | null; targetUserId: string | null; targetMatchId: string | null; reason: string; explanation: string; createdAt: Date }>;
+    honors: Array<{
+      id: string;
+      honorKey: string;
+      type: string;
+      label: string;
+      state: string;
+      entryId: string | null;
+      userId: string | null;
+      placementFrom: number | null;
+      placementTo: number | null;
+    }>;
+    adjudications: Array<{
+      id: string;
+      status: string;
+      kind: string;
+      target: string;
+      impacts: string[];
+      targetEntryId: string | null;
+      targetUserId: string | null;
+      targetMatchId: string | null;
+      reason: string;
+      explanation: string;
+      createdAt: Date;
+    }>;
   };
 }

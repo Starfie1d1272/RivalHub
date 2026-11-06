@@ -11,5 +11,10 @@ export const instant = false;
 export default async function MyPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/my");
-  return <><ContentReady module="account" phase="primary" /><MyReadinessDashboard model={await loadMyWorkspace(session.userId)} /></>;
+  return (
+    <>
+      <ContentReady module="account" phase="primary" />
+      <MyReadinessDashboard model={await loadMyWorkspace(session.userId)} />
+    </>
+  );
 }

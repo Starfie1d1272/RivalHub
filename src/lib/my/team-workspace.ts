@@ -74,7 +74,13 @@ export type MyTeamWorkspaceModel =
       outgoingInvitations: MyTeamInvitation[];
       recruitment: MyTeamRecruitment;
       targetSeasons: Array<{ id: string; name: string }>;
-      recruitmentInterests: Array<{ userId: string; name: string; positions: Cs2Position[]; currentTeamName: string | null; qq: string | null }>;
+      recruitmentInterests: Array<{
+        userId: string;
+        name: string;
+        positions: Cs2Position[];
+        currentTeamName: string | null;
+        qq: string | null;
+      }>;
     });
 
 export type MembershipPeriod = {
@@ -88,7 +94,13 @@ export type MembershipPeriod = {
   team: LongLivedTeamDto & { status: "active" | "disbanded" };
 };
 
-function presentInvitation(row: { id: string; teamId: string; teamName: string; email?: string | null; expiresAt: Date }): MyTeamInvitation {
+function presentInvitation(row: {
+  id: string;
+  teamId: string;
+  teamName: string;
+  email?: string | null;
+  expiresAt: Date;
+}): MyTeamInvitation {
   return { ...row, expiresAt: row.expiresAt.toISOString() };
 }
 
@@ -116,7 +128,13 @@ export const loadMyCurrentTeam = cache(async (userId: string): Promise<MyCurrent
     })
     .from(teamMemberships)
     .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
-    .where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active")))
+    .where(
+      and(
+        eq(teamMemberships.userId, userId),
+        isNull(teamMemberships.endedAt),
+        eq(teams.status, "active"),
+      ),
+    )
     .limit(1);
   if (!row) return null;
   return { ...row, viewerRole: row.captainUserId === userId ? "captain" : "member" };
@@ -147,7 +165,9 @@ export const loadMyTeamWorkspace = cache(async (userId: string): Promise<MyTeamW
     .where(eq(teamMemberships.userId, userId))
     .orderBy(desc(teamMemberships.startedAt));
 
-  const current = periods.find((row) => row.membership.endedAt === null && row.team.status === "active") as MembershipPeriod | undefined;
+  const current = periods.find(
+    (row) => row.membership.endedAt === null && row.team.status === "active",
+  ) as MembershipPeriod | undefined;
   const history = periods.map((row) => presentMyTeamHistory(row as MembershipPeriod));
   if (!current) {
     const pendingInvitations = await getPendingDirectTeamInvitations(userId);
@@ -158,28 +178,49 @@ export const loadMyTeamWorkspace = cache(async (userId: string): Promise<MyTeamW
     };
   }
 
-  const team = { ...toLongLivedTeamDto(current.team), viewerRole: current.team.captainUserId === userId ? "captain" as const : "member" as const };
+  const team = {
+    ...toLongLivedTeamDto(current.team),
+    viewerRole: current.team.captainUserId === userId ? ("captain" as const) : ("member" as const),
+  };
   const isCaptain = team.viewerRole === "captain";
   const [memberRows, competitions, recruitmentWorkspace, outgoing] = await Promise.all([
-    db.select({
-      id: teamMemberships.id,
-      userId: teamMemberships.userId,
-      displayName: users.displayName,
-      perfectName: users.perfectName,
-      personaName: steamProfiles.personaName,
-      qq: users.qq,
-      status: teamMemberships.status,
-    }).from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(eq(teamMemberships.teamId, team.id), isNull(teamMemberships.endedAt))),
+    db
+      .select({
+        id: teamMemberships.id,
+        userId: teamMemberships.userId,
+        displayName: users.displayName,
+        perfectName: users.perfectName,
+        personaName: steamProfiles.personaName,
+        qq: users.qq,
+        status: teamMemberships.status,
+      })
+      .from(teamMemberships)
+      .innerJoin(users, eq(users.id, teamMemberships.userId))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .where(and(eq(teamMemberships.teamId, team.id), isNull(teamMemberships.endedAt))),
     loadTeamCompetitionContexts(team.id, userId),
     isCaptain
       ? getTeamRecruitmentWorkspace(team.id, userId)
       : Promise.resolve({ recruitment: null, targetSeasons: [], interests: [] }),
     isCaptain
-      ? db.select({ id: teamInvitations.id, teamId: teams.id, teamName: teams.name, email: users.email, expiresAt: teamInvitations.expiresAt })
-        .from(teamInvitations)
-        .innerJoin(teams, eq(teams.id, teamInvitations.teamId))
-        .leftJoin(users, eq(users.id, teamInvitations.invitedUserId))
-        .where(and(eq(teamInvitations.teamId, team.id), eq(teamInvitations.status, "pending"), gt(teamInvitations.expiresAt, new Date())))
+      ? db
+          .select({
+            id: teamInvitations.id,
+            teamId: teams.id,
+            teamName: teams.name,
+            email: users.email,
+            expiresAt: teamInvitations.expiresAt,
+          })
+          .from(teamInvitations)
+          .innerJoin(teams, eq(teams.id, teamInvitations.teamId))
+          .leftJoin(users, eq(users.id, teamInvitations.invitedUserId))
+          .where(
+            and(
+              eq(teamInvitations.teamId, team.id),
+              eq(teamInvitations.status, "pending"),
+              gt(teamInvitations.expiresAt, new Date()),
+            ),
+          )
       : Promise.resolve([]),
   ]);
 
@@ -198,7 +239,10 @@ export const loadMyTeamWorkspace = cache(async (userId: string): Promise<MyTeamW
     incomingInvitations: [],
     outgoingInvitations: outgoing.map((row) => presentInvitation(row)),
     recruitment: recruitmentWorkspace.recruitment
-      ? { ...recruitmentWorkspace.recruitment, expiresAt: recruitmentWorkspace.recruitment.expiresAt.toISOString() }
+      ? {
+          ...recruitmentWorkspace.recruitment,
+          expiresAt: recruitmentWorkspace.recruitment.expiresAt.toISOString(),
+        }
       : null,
     targetSeasons: recruitmentWorkspace.targetSeasons,
     recruitmentInterests: recruitmentWorkspace.interests,

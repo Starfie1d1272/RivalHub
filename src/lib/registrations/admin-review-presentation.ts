@@ -28,35 +28,72 @@ export function presentTeamQualificationFindings(
     ]),
   );
 
-  return entry.qualificationFindings.filter((finding) =>
-    finding.waivable || (!memberFindingKeys.has(findingKey(finding)) && !memberFindingKeys.has(`message\u0000${finding.message}`)),
+  return entry.qualificationFindings.filter(
+    (finding) =>
+      finding.waivable ||
+      (!memberFindingKeys.has(findingKey(finding)) &&
+        !memberFindingKeys.has(`message\u0000${finding.message}`)),
   );
 }
 
 export function presentTeamRegistrationSummary(
-  entry: Pick<TeamRegistrationReviewRow, "members" | "minRoster" | "maxRoster" | "starterCount" | "qualificationFindings" | "activeRestrictionOverrides">,
+  entry: Pick<
+    TeamRegistrationReviewRow,
+    | "members"
+    | "minRoster"
+    | "maxRoster"
+    | "starterCount"
+    | "qualificationFindings"
+    | "activeRestrictionOverrides"
+  >,
 ): TeamRegistrationSummaryItem[] {
   const confirmed = entry.members.filter((member) => member.status === "confirmed").length;
   const starters = entry.members.filter((member) => member.primary).length;
-  const rosterReady = entry.members.length >= entry.minRoster && entry.members.length <= entry.maxRoster;
+  const rosterReady =
+    entry.members.length >= entry.minRoster && entry.members.length <= entry.maxRoster;
   const confirmationsReady = entry.members.length > 0 && confirmed === entry.members.length;
   const startersReady = starters === entry.starterCount;
-  const qualificationReady = entry.qualificationFindings.every((finding) =>
-    finding.waivable && entry.activeRestrictionOverrides.some((override) =>
-      override.restrictionCode === finding.code && override.snapshotMatches,
-    ),
+  const qualificationReady = entry.qualificationFindings.every(
+    (finding) =>
+      finding.waivable &&
+      entry.activeRestrictionOverrides.some(
+        (override) => override.restrictionCode === finding.code && override.snapshotMatches,
+      ),
   );
 
   return [
-    { label: "名单", value: `${entry.members.length}/${entry.minRoster}–${entry.maxRoster}`, state: rosterReady ? "ready" : "pending" },
-    { label: "已确认", value: `${confirmed}/${entry.members.length}`, state: confirmationsReady ? "ready" : "pending" },
-    { label: "主力", value: `${starters}/${entry.starterCount}`, state: startersReady ? "ready" : "pending" },
-    { label: "资格", value: qualificationReady ? "已通过" : "待处理", state: qualificationReady ? "ready" : "pending" },
+    {
+      label: "名单",
+      value: `${entry.members.length}/${entry.minRoster}–${entry.maxRoster}`,
+      state: rosterReady ? "ready" : "pending",
+    },
+    {
+      label: "已确认",
+      value: `${confirmed}/${entry.members.length}`,
+      state: confirmationsReady ? "ready" : "pending",
+    },
+    {
+      label: "主力",
+      value: `${starters}/${entry.starterCount}`,
+      state: startersReady ? "ready" : "pending",
+    },
+    {
+      label: "资格",
+      value: qualificationReady ? "已通过" : "待处理",
+      state: qualificationReady ? "ready" : "pending",
+    },
   ];
 }
 
 /** Shared operator classification for the current revision. */
-export function teamReviewCategory(entry: { status: string; revisionOrigin: string | null; revisionStatus: string | null }): string {
-  return entry.status === "changes_requested" && entry.revisionOrigin === "self_roster_change" && entry.revisionStatus === "draft"
-    ? "self_change_draft" : entry.status;
+export function teamReviewCategory(entry: {
+  status: string;
+  revisionOrigin: string | null;
+  revisionStatus: string | null;
+}): string {
+  return entry.status === "changes_requested" &&
+    entry.revisionOrigin === "self_roster_change" &&
+    entry.revisionStatus === "draft"
+    ? "self_change_draft"
+    : entry.status;
 }

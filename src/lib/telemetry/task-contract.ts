@@ -1,10 +1,43 @@
 import { OPERATIONS } from "./operations";
 
-export const TASK_STEPS = ["start", "edit", "submit", "recognize", "review", "confirm", "ready", "result", "validation"] as const;
-export const TASK_VALIDATION_REASONS = ["required", "password_policy", "password_mismatch", "form_invalid", "file_type", "file_size", "server_validation"] as const;
-export type TaskValidationReason = typeof TASK_VALIDATION_REASONS[number];
-export type TaskStep = typeof TASK_STEPS[number];
-const steps = TASK_STEPS.map(key => ({ key, label: ({ start: "开始", edit: "填写与选择", submit: "提交", recognize: "截图识别", review: "核对与修改", confirm: "确认", ready: "内容可用", result: "结果已呈现", validation: "检查输入" } satisfies Record<TaskStep, string>)[key] }));
+export const TASK_STEPS = [
+  "start",
+  "edit",
+  "submit",
+  "recognize",
+  "review",
+  "confirm",
+  "ready",
+  "result",
+  "validation",
+] as const;
+export const TASK_VALIDATION_REASONS = [
+  "required",
+  "password_policy",
+  "password_mismatch",
+  "form_invalid",
+  "file_type",
+  "file_size",
+  "server_validation",
+] as const;
+export type TaskValidationReason = (typeof TASK_VALIDATION_REASONS)[number];
+export type TaskStep = (typeof TASK_STEPS)[number];
+const steps = TASK_STEPS.map((key) => ({
+  key,
+  label: (
+    {
+      start: "开始",
+      edit: "填写与选择",
+      submit: "提交",
+      recognize: "截图识别",
+      review: "核对与修改",
+      confirm: "确认",
+      ready: "内容可用",
+      result: "结果已呈现",
+      validation: "检查输入",
+    } satisfies Record<TaskStep, string>
+  )[key],
+}));
 const definition = (label: string, windowMs = 30 * 60_000) => ({ label, steps, windowMs });
 export const TASKS = {
   content: definition("查阅赛事内容"),
@@ -45,10 +78,27 @@ export interface TaskMeasurement {
 }
 const registered = new Set<string>(OPERATIONS);
 const families: Record<string, TaskName> = {
-  account: "account", auth: "account", "auth-confirmation": "account", identity: "account", "password-recovery": "account", "session-management": "account", "user-merge": "account",
-  "competitive-profile": "profile", "education-verifications": "education", teams: "teams", register: "registration", "competition-entries": "team_registration",
-  "player-stats": "score_entry", postmatch: "postmatch", "demo-integration": "postmatch", predictions: "predictions", "free-predictions": "predictions", bet: "bet",
-  "community-awards": "awards", captains: "awards", recruitment: "recruitment",
+  account: "account",
+  auth: "account",
+  "auth-confirmation": "account",
+  identity: "account",
+  "password-recovery": "account",
+  "session-management": "account",
+  "user-merge": "account",
+  "competitive-profile": "profile",
+  "education-verifications": "education",
+  teams: "teams",
+  register: "registration",
+  "competition-entries": "team_registration",
+  "player-stats": "score_entry",
+  postmatch: "postmatch",
+  "demo-integration": "postmatch",
+  predictions: "predictions",
+  "free-predictions": "predictions",
+  bet: "bet",
+  "community-awards": "awards",
+  captains: "awards",
+  recruitment: "recruitment",
 };
 export function taskForOperation(operation: string): TaskName | undefined {
   if (!registered.has(operation)) return undefined;
@@ -56,7 +106,8 @@ export function taskForOperation(operation: string): TaskName | undefined {
   if (operation === "account.updateProfile") return "profile";
   if (operation === "player-stats.castMatchMvpVote") return "awards";
   if (operation.startsWith("matches.veto")) return "veto";
-  if (operation.startsWith("matches.scheduling.") || operation === "matches.updateMatchScheduledAt") return "scheduling";
+  if (operation.startsWith("matches.scheduling.") || operation === "matches.updateMatchScheduledAt")
+    return "scheduling";
   if (operation.startsWith("matches.roster.")) return "roster";
   return families[operation.split(".")[0]] ?? "administration";
 }
@@ -65,7 +116,8 @@ export function taskForRoute(route: string): TaskName | undefined {
   if (route === "/login") return "login";
   if (route.startsWith("/settings/education")) return "education";
   if (route.startsWith("/settings/competitive") || route === "/settings") return "profile";
-  if (route.startsWith("/settings/") || route.startsWith("/auth/") || route.includes("password")) return "account";
+  if (route.startsWith("/settings/") || route.startsWith("/auth/") || route.includes("password"))
+    return "account";
   if (route.endsWith("/register")) return "registration";
   if (route.endsWith("/veto")) return "veto";
   if (route.endsWith("/predictions")) return "predictions";

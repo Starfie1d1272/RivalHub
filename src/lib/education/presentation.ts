@@ -61,7 +61,11 @@ export function presentPublicEducationIdentities(
   }
 
   return [...latestApprovedByInstitution.values()]
-    .sort((left, right) => compareText(left.institutionName, right.institutionName) || compareText(left.institutionId, right.institutionId))
+    .sort(
+      (left, right) =>
+        compareText(left.institutionName, right.institutionName) ||
+        compareText(left.institutionId, right.institutionId),
+    )
     .map((verification) => ({
       institutionName: verification.institutionName,
       academicStatus: ACADEMIC_STATUS_LABELS[verification.academicStatus],

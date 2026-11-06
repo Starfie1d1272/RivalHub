@@ -24,14 +24,24 @@ export function deriveCompetitionQualificationPlan(
   candidateCount: number,
   targetEntrantCount: number,
 ): CompetitionQualificationPlan {
-  if (!Number.isInteger(candidateCount) || !Number.isInteger(targetEntrantCount) || targetEntrantCount < 1) {
+  if (
+    !Number.isInteger(candidateCount) ||
+    !Number.isInteger(targetEntrantCount) ||
+    targetEntrantCount < 1
+  ) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "报名人数或正赛规模无效。");
   }
   if (candidateCount <= targetEntrantCount) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "已批准报名队伍数未超过正赛容量，无需配置 Play-in。");
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "已批准报名队伍数未超过正赛容量，无需配置 Play-in。",
+    );
   }
   if (candidateCount > targetEntrantCount * 2) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "当前报名规模无法通过单层 Play-in 收敛到目标正赛规模。");
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "当前报名规模无法通过单层 Play-in 收敛到目标正赛规模。",
+    );
   }
   const qualifierCount = candidateCount - targetEntrantCount;
   const playInEntryCount = qualifierCount * 2;
@@ -72,11 +82,17 @@ export function swapQualificationPreliminaryRank(
   entryId: string,
   nextRank: number,
 ): string[] {
-  if (new Set(orderedEntryIds).size !== orderedEntryIds.length || !orderedEntryIds.includes(entryId)) {
+  if (
+    new Set(orderedEntryIds).size !== orderedEntryIds.length ||
+    !orderedEntryIds.includes(entryId)
+  ) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "报名候选队伍集合已变化，请刷新后重试。");
   }
   if (!Number.isInteger(nextRank) || nextRank < 1 || nextRank > orderedEntryIds.length) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `预排名必须在 1..${orderedEntryIds.length} 之间。`);
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      `预排名必须在 1..${orderedEntryIds.length} 之间。`,
+    );
   }
   const currentRank = orderedEntryIds.indexOf(entryId) + 1;
   if (currentRank === nextRank) return [...orderedEntryIds];

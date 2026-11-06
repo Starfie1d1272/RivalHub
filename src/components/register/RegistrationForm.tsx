@@ -18,7 +18,11 @@ import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { RegistrationConfig, PlayerType } from "@/types/season";
 import { type MapPreferenceLevel } from "@/types/season";
 
-import { loadRegistrationDraft, saveRegistrationDraft as telemetry_saveRegistrationDraft, submitRegistration as telemetry_submitRegistration } from "@/actions/register";
+import {
+  loadRegistrationDraft,
+  saveRegistrationDraft as telemetry_saveRegistrationDraft,
+  submitRegistration as telemetry_submitRegistration,
+} from "@/actions/register";
 import type { RegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
@@ -48,8 +52,14 @@ import {
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
-const saveRegistrationDraft = observeAction("register.saveRegistrationDraft", telemetry_saveRegistrationDraft);
-const submitRegistration = observeAction("register.submitRegistration", telemetry_submitRegistration);
+const saveRegistrationDraft = observeAction(
+  "register.saveRegistrationDraft",
+  telemetry_saveRegistrationDraft,
+);
+const submitRegistration = observeAction(
+  "register.submitRegistration",
+  telemetry_submitRegistration,
+);
 
 interface RegistrationFormProps {
   seasonId: string;
@@ -109,7 +119,9 @@ export function RegistrationForm({
       email: initialValues?.email ?? currentUserEmail ?? "",
       willingToBeCaptain: initialValues?.willingToBeCaptain ?? false,
       playerType: initialValues?.playerType ?? registrationConfig.allowedPlayerTypes[0],
-      screenshotUrls: initialValues?.screenshotUrls ?? Array.from({ length: registrationConfig.screenshotCount }, () => ""),
+      screenshotUrls:
+        initialValues?.screenshotUrls ??
+        Array.from({ length: registrationConfig.screenshotCount }, () => ""),
       mapPreferences: projectMapPreferences(
         initialValues?.mapPreferences,
         registrationConfig.mapPool,
@@ -240,12 +252,11 @@ export function RegistrationForm({
       err && typeof err === "object" && "message" in err
         ? String((err as { message?: unknown }).message)
         : "";
-    return message ? (
-      <p className="text-xs text-[var(--color-danger)] mt-1">{message}</p>
-    ) : null;
+    return message ? <p className="text-xs text-[var(--color-danger)] mt-1">{message}</p> : null;
   };
 
-  const positionFull = (pos: string) => isPositionFull(pos, positionCounts, registrationConfig.maxPerPosition);
+  const positionFull = (pos: string) =>
+    isPositionFull(pos, positionCounts, registrationConfig.maxPerPosition);
 
   const positionLabel = (pos: string) =>
     buildPositionLabel(pos, positionCounts, registrationConfig.maxPerPosition);
@@ -257,10 +268,8 @@ export function RegistrationForm({
   const numRegister = (name: keyof RegistrationInput) =>
     register(name, {
       setValueAs: (v: string) =>
-        v === "" || v === undefined || v === null
-          ? undefined
-          : parseFloat(String(v)),
-        });
+        v === "" || v === undefined || v === null ? undefined : parseFloat(String(v)),
+    });
 
   const setMapLevel = (map: string, level: MapPreferenceLevel | null) => {
     // React Hook Form's watch callback is intentionally read at the event boundary.
@@ -268,18 +277,29 @@ export function RegistrationForm({
     const current = watch("mapPreferences") ?? defaultMapPreferences(registrationConfig.mapPool);
     const next = registrationConfig.mapPool.map((item) => ({
       map: item,
-      level: item === map
-        ? level
-        : current.find((preference) => preference.map === item)?.level ?? null,
+      level:
+        item === map
+          ? level
+          : (current.find((preference) => preference.map === item)?.level ?? null),
     }));
     setValue("mapPreferences", next, { shouldValidate: true });
   };
 
-  const mapPreferences = watch("mapPreferences") ?? defaultMapPreferences(registrationConfig.mapPool);
+  const mapPreferences =
+    watch("mapPreferences") ?? defaultMapPreferences(registrationConfig.mapPool);
   const { playableCount, strongCount } = countMapPreferenceLevels(mapPreferences);
 
   return (
-    <form onInputCapture={() => task.begin()} onPointerDownCapture={task.activity} onKeyDownCapture={task.activity} onSubmit={handleSubmit(onSubmit, () => { task.begin(); task.validation("form_invalid"); })} className="space-y-8">
+    <form
+      onInputCapture={() => task.begin()}
+      onPointerDownCapture={task.activity}
+      onKeyDownCapture={task.activity}
+      onSubmit={handleSubmit(onSubmit, () => {
+        task.begin();
+        task.validation("form_invalid");
+      })}
+      className="space-y-8"
+    >
       <input type="hidden" {...register("seasonId")} />
 
       {/* ═══════════════════════════════════════ 基础信息 ═══ */}
@@ -301,7 +321,10 @@ export function RegistrationForm({
                 {...emailField}
               />
               {loadedDraftEmail && (
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded" style={{ background: "var(--color-ok)22", color: "var(--color-ok)" }}>
+                <span
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded"
+                  style={{ background: "var(--color-ok)22", color: "var(--color-ok)" }}
+                >
                   草稿已恢复
                 </span>
               )}
@@ -321,7 +344,12 @@ export function RegistrationForm({
               <Label htmlFor="studentId" className="text-[var(--color-fg-mid)] mb-1.5 block">
                 学号 <Required />
               </Label>
-              <Input id="studentId" placeholder="毕业生填「毕业年份+学院」" className={inputCls} {...register("studentId")} />
+              <Input
+                id="studentId"
+                placeholder="毕业生填「毕业年份+学院」"
+                className={inputCls}
+                {...register("studentId")}
+              />
               <FieldError name="studentId" />
             </div>
             <div>
@@ -366,7 +394,12 @@ export function RegistrationForm({
             <Label htmlFor="perfectName" className="text-[var(--color-fg-mid)] mb-1.5 block">
               完美平台昵称 <Required />
             </Label>
-            <Input id="perfectName" placeholder="完美对战平台昵称" className={inputCls} {...register("perfectName")} />
+            <Input
+              id="perfectName"
+              placeholder="完美对战平台昵称"
+              className={inputCls}
+              {...register("perfectName")}
+            />
             <FieldError name="perfectName" />
           </div>
 
@@ -382,7 +415,9 @@ export function RegistrationForm({
               {...register("steam64")}
             />
             <FieldError name="steam64" />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">昵称、头像和个人资料链接将在 Steam 官方资料可用时自动展示。</p>
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">
+              昵称、头像和个人资料链接将在 Steam 官方资料可用时自动展示。
+            </p>
           </div>
         </div>
       </section>
@@ -503,7 +538,7 @@ export function RegistrationForm({
                 type="number"
                 placeholder="如 1.48"
                 min={0.01}
-                max={3.00}
+                max={3.0}
                 step={0.01}
                 className={inputCls}
                 {...numRegister("peakRating")}
@@ -541,9 +576,13 @@ export function RegistrationForm({
             <Select
               value={watch("currentSeasonPeakRank") ?? ""}
               onValueChange={(v) =>
-                setValue("currentSeasonPeakRank", v as RegistrationFormData["currentSeasonPeakRank"], {
-                  shouldValidate: true,
-                })
+                setValue(
+                  "currentSeasonPeakRank",
+                  v as RegistrationFormData["currentSeasonPeakRank"],
+                  {
+                    shouldValidate: true,
+                  },
+                )
               }
             >
               <SelectTrigger className={inputCls}>
@@ -570,7 +609,7 @@ export function RegistrationForm({
                 type="number"
                 placeholder="如 1.35"
                 min={0.01}
-                max={3.00}
+                max={3.0}
                 step={0.01}
                 className={inputCls}
                 {...numRegister("currentRating")}
@@ -644,7 +683,7 @@ export function RegistrationForm({
         canSubmit={canSubmit}
         isSubmitting={isSubmitting}
         savingDraft={savingDraft}
-        submitText={canSubmit ? submitLabel ?? "提交报名" : windowMessage ?? "报名提交暂未开放"}
+        submitText={canSubmit ? (submitLabel ?? "提交报名") : (windowMessage ?? "报名提交暂未开放")}
         onSaveDraft={handleSaveDraft}
       />
     </form>

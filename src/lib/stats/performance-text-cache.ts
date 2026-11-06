@@ -15,7 +15,9 @@ export function getPerformanceText(key: string): string | undefined {
     entries.delete(key);
     entries.set(key, entry);
     return entry.text;
-  } catch { return undefined; }
+  } catch {
+    return undefined;
+  }
 }
 
 export function putPerformanceText(key: string, text: string): void {
@@ -23,7 +25,10 @@ export function putPerformanceText(key: string, text: string): void {
     const bytes = Buffer.byteLength(key, "utf8") + Buffer.byteLength(text, "utf8");
     if (bytes > MAX_ENTRY_BYTES || bytes > MAX_BYTES) return;
     const previous = entries.get(key);
-    if (previous) { entries.delete(key); totalBytes -= previous.bytes; }
+    if (previous) {
+      entries.delete(key);
+      totalBytes -= previous.bytes;
+    }
     while (entries.size >= MAX_ENTRIES || totalBytes + bytes > MAX_BYTES) {
       const oldest = entries.keys().next().value;
       if (oldest === undefined) break;
@@ -32,5 +37,7 @@ export function putPerformanceText(key: string, text: string): void {
     }
     entries.set(key, { text, bytes });
     totalBytes += bytes;
-  } catch { /* Cache failures must not affect the database read. */ }
+  } catch {
+    /* Cache failures must not affect the database read. */
+  }
 }

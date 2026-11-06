@@ -1,4 +1,17 @@
-import { pgTable, uuid, integer, text, timestamp, pgEnum, check, boolean, uniqueIndex, index, foreignKey, jsonb } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  uuid,
+  integer,
+  text,
+  timestamp,
+  pgEnum,
+  check,
+  boolean,
+  uniqueIndex,
+  index,
+  foreignKey,
+  jsonb,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { majorStageRuns } from "./major-stage";
 import { seasons } from "./seasons";
@@ -16,105 +29,159 @@ export const matchStatusEnum = pgEnum("match_status", [
 export const matchFormatEnum = pgEnum("match_format", ["bo1", "bo3", "bo5"]);
 export const matchOwnershipEnum = pgEnum("match_ownership", ["manual", "major_stage"]);
 
-export const matches = pgTable("matches", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  seasonId: uuid("season_id").references(() => seasons.id),
-  entryAId: uuid("entry_a_id").references(() => competitionEntries.id),
-  entryBId: uuid("entry_b_id").references(() => competitionEntries.id),
+export const matches = pgTable(
+  "matches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seasonId: uuid("season_id").references(() => seasons.id),
+    entryAId: uuid("entry_a_id").references(() => competitionEntries.id),
+    entryBId: uuid("entry_b_id").references(() => competitionEntries.id),
 
-  /** Self-contained sides and rules for matches with no competition association. */
-  executionContext: jsonb("execution_context").$type<{
-    version: 1;
-    sides: { a: { name: string; logoUrl: string | null }; b: { name: string; logoUrl: string | null } };
-    mapPool: string[];
-  }>(),
-  resultDisposition: text("result_disposition").$type<"pending" | "recorded" | "omitted">(),
-  /** Test execution uses event participants/policies but never contributes official facts. */
-  testConfig: jsonb("test_config").$type<{
-    mapPool: string[];
-    operatorAId: string;
-    operatorBId: string;
-    eligibility?: { a: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility; b: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility };
-  }>(),
+    /** Self-contained sides and rules for matches with no competition association. */
+    executionContext: jsonb("execution_context").$type<{
+      version: 1;
+      sides: {
+        a: { name: string; logoUrl: string | null };
+        b: { name: string; logoUrl: string | null };
+      };
+      mapPool: string[];
+    }>(),
+    resultDisposition: text("result_disposition").$type<"pending" | "recorded" | "omitted">(),
+    /** Test execution uses event participants/policies but never contributes official facts. */
+    testConfig: jsonb("test_config").$type<{
+      mapPool: string[];
+      operatorAId: string;
+      operatorBId: string;
+      eligibility?: {
+        a: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility;
+        b: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility;
+      };
+    }>(),
 
-  // ── 比赛元数据 ────────────────────────────────────────────────────────
-  stage: text("stage"),                                        // StageConfig.key
-  round: integer("round"),                                               // swiss round; null for round_robin / elim
-  format: matchFormatEnum("format").notNull().default("bo1"),            // bo1 | bo3 | bo5
-  entryRound: text("entry_round"),                                       // bracket entry round; null for non-elimination stages
-  // ──────────────────────────────────────────────────────────────────────
+    // ── 比赛元数据 ────────────────────────────────────────────────────────
+    stage: text("stage"), // StageConfig.key
+    round: integer("round"), // swiss round; null for round_robin / elim
+    format: matchFormatEnum("format").notNull().default("bo1"), // bo1 | bo3 | bo5
+    entryRound: text("entry_round"), // bracket entry round; null for non-elimination stages
+    // ──────────────────────────────────────────────────────────────────────
 
-  // 官方系列赛比分（所有 format；BO1 为 1:0 / 0:1）
-  // 实际单图回合比分见 match_maps 表
-  scoreA: integer("score_a"),
-  scoreB: integer("score_b"),
+    // 官方系列赛比分（所有 format；BO1 为 1:0 / 0:1）
+    // 实际单图回合比分见 match_maps 表
+    scoreA: integer("score_a"),
+    scoreB: integer("score_b"),
 
-  status: matchStatusEnum("status").notNull().default("scheduled"),
-  isForfeit: boolean("is_forfeit").notNull().default(false),
-  bracketNodeId: text("bracket_node_id"),  // brackets-manager 节点引用
-  /** Manual matches never carry a run/key; generated Major matches always do. */
-  ownership: matchOwnershipEnum("ownership").notNull().default("manual"),
-  majorStageRunId: uuid("major_stage_run_id").references(() => majorStageRuns.id),
-  qualificationRunId: uuid("qualification_run_id"),
-  managedKey: text("managed_key"),
+    status: matchStatusEnum("status").notNull().default("scheduled"),
+    isForfeit: boolean("is_forfeit").notNull().default(false),
+    bracketNodeId: text("bracket_node_id"), // brackets-manager 节点引用
+    /** Manual matches never carry a run/key; generated Major matches always do. */
+    ownership: matchOwnershipEnum("ownership").notNull().default("manual"),
+    majorStageRunId: uuid("major_stage_run_id").references(() => majorStageRuns.id),
+    qualificationRunId: uuid("qualification_run_id"),
+    managedKey: text("managed_key"),
 
-  gameplayStartedAt: timestamp("gameplay_started_at", { withTimezone: true }),
-  startedAt: timestamp("started_at", { withTimezone: true }),
-  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
-  completionDeadline: timestamp("completion_deadline", { withTimezone: true }),
-  completedAt: timestamp("completed_at", { withTimezone: true }),
-  // 赛后公开录像链接；赛果、地图和玩家数据仍由各自的 canonical table 持有。
-  videoUrl: text("video_url"),
-  /** Per-commentator public recordings; legacy videoUrl remains unattributed. */
-  recordings: jsonb("recordings").$type<import("@/lib/postmatch/recording-types").MatchRecording[]>().notNull().default([]),
-  mvpWinnerUserId: uuid("mvp_winner_user_id"), // 投票截止后锁定的 MVP 胜者
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  recordingsShape: check("matches_recordings_array", sql`jsonb_typeof(${t.recordings}) = 'array'`),
-  testShape: check("matches_test_shape", sql`${t.testConfig} IS NULL OR (${t.seasonId} IS NOT NULL AND ${t.stage} = 'test' AND ${t.ownership} = 'manual' AND ${t.majorStageRunId} IS NULL AND ${t.qualificationRunId} IS NULL AND ${t.bracketNodeId} IS NULL AND ${t.managedKey} IS NULL AND jsonb_typeof(${t.testConfig}) = 'object' AND jsonb_typeof(${t.testConfig}->'mapPool') = 'array' AND jsonb_array_length(${t.testConfig}->'mapPool') = 7 AND jsonb_typeof(${t.testConfig}->'operatorAId') = 'string' AND jsonb_typeof(${t.testConfig}->'operatorBId') = 'string' AND ${t.testConfig}->>'operatorAId' <> ${t.testConfig}->>'operatorBId') IS TRUE`),
-  contextShape: check("matches_execution_context_shape", sql`(${t.seasonId} IS NOT NULL AND ${t.entryAId} IS NOT NULL AND ${t.entryBId} IS NOT NULL AND ${t.stage} IS NOT NULL AND ${t.executionContext} IS NULL) OR (${t.seasonId} IS NULL AND ${t.entryAId} IS NULL AND ${t.entryBId} IS NULL AND ${t.stage} IS NULL AND ${t.executionContext} IS NOT NULL AND ${t.majorStageRunId} IS NULL AND ${t.qualificationRunId} IS NULL AND ${t.bracketNodeId} IS NULL)`),
-  resultDispositionShape: check("matches_result_disposition_shape", sql`${t.resultDisposition} IS NULL OR (${t.resultDisposition} IN ('pending', 'recorded', 'omitted') AND ${t.status} = 'finished' AND ((${t.resultDisposition} = 'recorded' AND ${t.scoreA} IS NOT NULL AND ${t.scoreB} IS NOT NULL) OR (${t.resultDisposition} IN ('pending', 'omitted') AND ${t.scoreA} IS NULL AND ${t.scoreB} IS NULL)))`),
-  independentResultShape: check("matches_independent_result_shape", sql`${t.seasonId} IS NOT NULL OR ((${t.status} != 'finished' AND ${t.resultDisposition} IS NULL AND ${t.scoreA} IS NULL AND ${t.scoreB} IS NULL) OR (${t.status} = 'finished' AND ${t.resultDisposition} IS NOT NULL))`),
-  // 双方不能是同一支队
-  entriesAreDifferent: check("matches_entries_different", sql`${t.entryAId} != ${t.entryBId}`),
-  entryASeasonScope: foreignKey({ columns: [t.entryAId, t.seasonId], foreignColumns: [competitionEntries.id, competitionEntries.competitionId], name: "matches_entry_a_season_scope_fk" }),
-  entryBSeasonScope: foreignKey({ columns: [t.entryBId, t.seasonId], foreignColumns: [competitionEntries.id, competitionEntries.competitionId], name: "matches_entry_b_season_scope_fk" }),
-  majorRunSeasonStageScope: foreignKey({ columns: [t.majorStageRunId, t.seasonId, t.stage], foreignColumns: [majorStageRuns.id, majorStageRuns.seasonId, majorStageRuns.stageKey], name: "matches_major_stage_run_season_stage_scope_fk" }),
-  qualificationRunSeasonScope: foreignKey({ columns: [t.qualificationRunId, t.seasonId], foreignColumns: [competitionQualificationRuns.id, competitionQualificationRuns.seasonId], name: "matches_qualification_run_season_scope_fk" }),
-  // 系列赛比分非负
-  scoreANonNegative: check("matches_score_a_nonneg", sql`${t.scoreA} IS NULL OR ${t.scoreA} >= 0`),
-  scoreBNonNegative: check("matches_score_b_nonneg", sql`${t.scoreB} IS NULL OR ${t.scoreB} >= 0`),
-  scorePairComplete: check(
-    "matches_score_pair_complete",
-    sql`(${t.scoreA} IS NULL AND ${t.scoreB} IS NULL) OR (${t.scoreA} IS NOT NULL AND ${t.scoreB} IS NOT NULL)`,
-  ),
-  seriesScoreShape: check(
-    "matches_series_score_shape",
-    sql`(${t.scoreA} IS NULL AND ${t.scoreB} IS NULL)
+    gameplayStartedAt: timestamp("gameplay_started_at", { withTimezone: true }),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    completionDeadline: timestamp("completion_deadline", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    // 赛后公开录像链接；赛果、地图和玩家数据仍由各自的 canonical table 持有。
+    videoUrl: text("video_url"),
+    /** Per-commentator public recordings; legacy videoUrl remains unattributed. */
+    recordings: jsonb("recordings")
+      .$type<import("@/lib/postmatch/recording-types").MatchRecording[]>()
+      .notNull()
+      .default([]),
+    mvpWinnerUserId: uuid("mvp_winner_user_id"), // 投票截止后锁定的 MVP 胜者
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    recordingsShape: check(
+      "matches_recordings_array",
+      sql`jsonb_typeof(${t.recordings}) = 'array'`,
+    ),
+    testShape: check(
+      "matches_test_shape",
+      sql`${t.testConfig} IS NULL OR (${t.seasonId} IS NOT NULL AND ${t.stage} = 'test' AND ${t.ownership} = 'manual' AND ${t.majorStageRunId} IS NULL AND ${t.qualificationRunId} IS NULL AND ${t.bracketNodeId} IS NULL AND ${t.managedKey} IS NULL AND jsonb_typeof(${t.testConfig}) = 'object' AND jsonb_typeof(${t.testConfig}->'mapPool') = 'array' AND jsonb_array_length(${t.testConfig}->'mapPool') = 7 AND jsonb_typeof(${t.testConfig}->'operatorAId') = 'string' AND jsonb_typeof(${t.testConfig}->'operatorBId') = 'string' AND ${t.testConfig}->>'operatorAId' <> ${t.testConfig}->>'operatorBId') IS TRUE`,
+    ),
+    contextShape: check(
+      "matches_execution_context_shape",
+      sql`(${t.seasonId} IS NOT NULL AND ${t.entryAId} IS NOT NULL AND ${t.entryBId} IS NOT NULL AND ${t.stage} IS NOT NULL AND ${t.executionContext} IS NULL) OR (${t.seasonId} IS NULL AND ${t.entryAId} IS NULL AND ${t.entryBId} IS NULL AND ${t.stage} IS NULL AND ${t.executionContext} IS NOT NULL AND ${t.majorStageRunId} IS NULL AND ${t.qualificationRunId} IS NULL AND ${t.bracketNodeId} IS NULL)`,
+    ),
+    resultDispositionShape: check(
+      "matches_result_disposition_shape",
+      sql`${t.resultDisposition} IS NULL OR (${t.resultDisposition} IN ('pending', 'recorded', 'omitted') AND ${t.status} = 'finished' AND ((${t.resultDisposition} = 'recorded' AND ${t.scoreA} IS NOT NULL AND ${t.scoreB} IS NOT NULL) OR (${t.resultDisposition} IN ('pending', 'omitted') AND ${t.scoreA} IS NULL AND ${t.scoreB} IS NULL)))`,
+    ),
+    independentResultShape: check(
+      "matches_independent_result_shape",
+      sql`${t.seasonId} IS NOT NULL OR ((${t.status} != 'finished' AND ${t.resultDisposition} IS NULL AND ${t.scoreA} IS NULL AND ${t.scoreB} IS NULL) OR (${t.status} = 'finished' AND ${t.resultDisposition} IS NOT NULL))`,
+    ),
+    // 双方不能是同一支队
+    entriesAreDifferent: check("matches_entries_different", sql`${t.entryAId} != ${t.entryBId}`),
+    entryASeasonScope: foreignKey({
+      columns: [t.entryAId, t.seasonId],
+      foreignColumns: [competitionEntries.id, competitionEntries.competitionId],
+      name: "matches_entry_a_season_scope_fk",
+    }),
+    entryBSeasonScope: foreignKey({
+      columns: [t.entryBId, t.seasonId],
+      foreignColumns: [competitionEntries.id, competitionEntries.competitionId],
+      name: "matches_entry_b_season_scope_fk",
+    }),
+    majorRunSeasonStageScope: foreignKey({
+      columns: [t.majorStageRunId, t.seasonId, t.stage],
+      foreignColumns: [majorStageRuns.id, majorStageRuns.seasonId, majorStageRuns.stageKey],
+      name: "matches_major_stage_run_season_stage_scope_fk",
+    }),
+    qualificationRunSeasonScope: foreignKey({
+      columns: [t.qualificationRunId, t.seasonId],
+      foreignColumns: [competitionQualificationRuns.id, competitionQualificationRuns.seasonId],
+      name: "matches_qualification_run_season_scope_fk",
+    }),
+    // 系列赛比分非负
+    scoreANonNegative: check(
+      "matches_score_a_nonneg",
+      sql`${t.scoreA} IS NULL OR ${t.scoreA} >= 0`,
+    ),
+    scoreBNonNegative: check(
+      "matches_score_b_nonneg",
+      sql`${t.scoreB} IS NULL OR ${t.scoreB} >= 0`,
+    ),
+    scorePairComplete: check(
+      "matches_score_pair_complete",
+      sql`(${t.scoreA} IS NULL AND ${t.scoreB} IS NULL) OR (${t.scoreA} IS NOT NULL AND ${t.scoreB} IS NOT NULL)`,
+    ),
+    seriesScoreShape: check(
+      "matches_series_score_shape",
+      sql`(${t.scoreA} IS NULL AND ${t.scoreB} IS NULL)
       OR (${t.format} = 'bo1' AND GREATEST(${t.scoreA}, ${t.scoreB}) = 1 AND LEAST(${t.scoreA}, ${t.scoreB}) = 0)
       OR (${t.format} = 'bo3' AND GREATEST(${t.scoreA}, ${t.scoreB}) = 2 AND LEAST(${t.scoreA}, ${t.scoreB}) BETWEEN 0 AND 1)
       OR (${t.format} = 'bo5' AND GREATEST(${t.scoreA}, ${t.scoreB}) = 3 AND LEAST(${t.scoreA}, ${t.scoreB}) BETWEEN 0 AND 2)`,
-  ),
-  managedMajorMatchShape: check(
-    "matches_managed_major_match_shape",
-    sql`(${t.ownership} = 'manual' AND ${t.majorStageRunId} IS NULL AND ${t.managedKey} IS NULL)
+    ),
+    managedMajorMatchShape: check(
+      "matches_managed_major_match_shape",
+      sql`(${t.ownership} = 'manual' AND ${t.majorStageRunId} IS NULL AND ${t.managedKey} IS NULL)
       OR (${t.ownership} = 'major_stage' AND ${t.majorStageRunId} IS NOT NULL AND ${t.managedKey} IS NOT NULL)`,
-  ),
-  qualificationMatchShape: check(
-    "matches_qualification_match_shape",
-    sql`${t.qualificationRunId} IS NULL OR (${t.ownership} = 'manual' AND ${t.stage} = 'play-in' AND ${t.majorStageRunId} IS NULL AND ${t.managedKey} IS NULL AND ${t.bracketNodeId} IS NULL)`,
-  ),
-  uniqueManagedMajorMatch: uniqueIndex("matches_major_stage_run_managed_key_unique")
-    .on(t.majorStageRunId, t.managedKey)
-    .where(sql`${t.ownership} = 'major_stage'`),
-  uniqueBracketNode: uniqueIndex("matches_season_stage_bracket_node_unique")
-    .on(t.seasonId, t.stage, t.bracketNodeId)
-    .where(sql`${t.bracketNodeId} IS NOT NULL`),
-  seasonStatusScheduleIndex: index("matches_season_status_scheduled_at_idx").on(t.seasonId, t.status, t.scheduledAt),
-  entryAIndex: index("matches_entry_a_id_idx").on(t.entryAId),
-  entryBIndex: index("matches_entry_b_id_idx").on(t.entryBId),
-}));
+    ),
+    qualificationMatchShape: check(
+      "matches_qualification_match_shape",
+      sql`${t.qualificationRunId} IS NULL OR (${t.ownership} = 'manual' AND ${t.stage} = 'play-in' AND ${t.majorStageRunId} IS NULL AND ${t.managedKey} IS NULL AND ${t.bracketNodeId} IS NULL)`,
+    ),
+    uniqueManagedMajorMatch: uniqueIndex("matches_major_stage_run_managed_key_unique")
+      .on(t.majorStageRunId, t.managedKey)
+      .where(sql`${t.ownership} = 'major_stage'`),
+    uniqueBracketNode: uniqueIndex("matches_season_stage_bracket_node_unique")
+      .on(t.seasonId, t.stage, t.bracketNodeId)
+      .where(sql`${t.bracketNodeId} IS NOT NULL`),
+    seasonStatusScheduleIndex: index("matches_season_status_scheduled_at_idx").on(
+      t.seasonId,
+      t.status,
+      t.scheduledAt,
+    ),
+    entryAIndex: index("matches_entry_a_id_idx").on(t.entryAId),
+    entryBIndex: index("matches_entry_b_id_idx").on(t.entryBId),
+  }),
+);
 
 export type Match = typeof matches.$inferSelect;
 export type NewMatch = typeof matches.$inferInsert;

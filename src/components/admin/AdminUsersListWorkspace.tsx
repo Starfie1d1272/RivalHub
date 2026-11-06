@@ -37,12 +37,21 @@ export function AdminUsersListWorkspace({
 
   return (
     <>
-      <UserSearchBar filter={filter} education={education} team={team} activity={activity} searchParams={searchParams} update={update} />
+      <UserSearchBar
+        filter={filter}
+        education={education}
+        team={team}
+        activity={activity}
+        searchParams={searchParams}
+        update={update}
+      />
       {children}
       <PaginationControls
         page={page}
         totalPages={totalPages}
-        onPageChange={(nextPage) => update({ page: nextPage }, { defaults: { page: 1 }, history: "push" })}
+        onPageChange={(nextPage) =>
+          update({ page: nextPage }, { defaults: { page: 1 }, history: "push" })
+        }
       />
     </>
   );

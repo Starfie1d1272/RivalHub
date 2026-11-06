@@ -24,9 +24,12 @@ import { fail, ok, type ActionResult } from "@/types/action";
 const emailSchema = z.email().max(320);
 const uuidSchema = z.uuid();
 
-export async function requestSecondaryEmailIdentity(emailInput: string): Promise<ActionResult<void>> {
+export async function requestSecondaryEmailIdentity(
+  emailInput: string,
+): Promise<ActionResult<void>> {
   const parsed = emailSchema.safeParse(emailInput.trim());
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址。" });
+  if (!parsed.success)
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址。" });
   let deliveryStarted = false;
   try {
     const session = await requireAuth();
@@ -35,32 +38,58 @@ export async function requestSecondaryEmailIdentity(emailInput: string): Promise
     const request = await db.transaction(async (tx) => {
       // Match confirmation/merge's user -> request order. The gate ends before
       // provider IO; a competing call sees the durable pending request.
-      const [owner] = await tx.select({ status: users.status }).from(users).where(eq(users.id, session.userId)).for("update");
-      if (owner?.status !== "active") throw new AppError(ErrorCode.UNAUTHORIZED, "账号状态已变化，请重新登录。");
+      const [owner] = await tx
+        .select({ status: users.status })
+        .from(users)
+        .where(eq(users.id, session.userId))
+        .for("update");
+      if (owner?.status !== "active")
+        throw new AppError(ErrorCode.UNAUTHORIZED, "账号状态已变化，请重新登录。");
       const clock = await tx.execute<{ now: string }>(sql`select clock_timestamp()::text as now`);
       const now = new Date(clock.rows[0]!.now);
-      const [pending] = await tx.select({ id: identityLinkRequests.id }).from(identityLinkRequests).where(and(
-        eq(identityLinkRequests.userId, session.userId), eq(identityLinkRequests.normalizedEmail, email),
-        eq(identityLinkRequests.status, "pending"), gt(identityLinkRequests.expiresAt, now),
-      )).limit(1);
+      const [pending] = await tx
+        .select({ id: identityLinkRequests.id })
+        .from(identityLinkRequests)
+        .where(
+          and(
+            eq(identityLinkRequests.userId, session.userId),
+            eq(identityLinkRequests.normalizedEmail, email),
+            eq(identityLinkRequests.status, "pending"),
+            gt(identityLinkRequests.expiresAt, now),
+          ),
+        )
+        .limit(1);
       // A provider timeout does not prove rejection. Preserve the original URL
       // through its expiry, including across page reloads and concurrent calls.
       if (pending) return null;
-      await tx.update(identityLinkRequests).set({ status: "cancelled", completedAt: now }).where(and(
-        eq(identityLinkRequests.userId, session.userId),
-        eq(identityLinkRequests.normalizedEmail, email),
-        eq(identityLinkRequests.status, "pending"),
-      ));
-      const [created] = await tx.insert(identityLinkRequests).values({
-        userId: session.userId,
-        normalizedEmail: email,
-        stateTokenHash: hashIdentityLinkState(stateToken),
-        expiresAt: new Date(now.getTime() + 30 * 60 * 1000),
-      }).returning({ id: identityLinkRequests.id });
+      await tx
+        .update(identityLinkRequests)
+        .set({ status: "cancelled", completedAt: now })
+        .where(
+          and(
+            eq(identityLinkRequests.userId, session.userId),
+            eq(identityLinkRequests.normalizedEmail, email),
+            eq(identityLinkRequests.status, "pending"),
+          ),
+        );
+      const [created] = await tx
+        .insert(identityLinkRequests)
+        .values({
+          userId: session.userId,
+          normalizedEmail: email,
+          stateTokenHash: hashIdentityLinkState(stateToken),
+          expiresAt: new Date(now.getTime() + 30 * 60 * 1000),
+        })
+        .returning({ id: identityLinkRequests.id });
       if (!created) throw new Error("无法创建邮箱绑定请求");
       return created;
     });
-    if (!request) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "已有有效的邮箱绑定请求，请检查邮箱；原链接到期后再重新发起。", meta: { outcome: "unknown" } });
+    if (!request)
+      return fail({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "已有有效的邮箱绑定请求，请检查邮箱；原链接到期后再重新发起。",
+        meta: { outcome: "unknown" },
+      });
 
     deliveryStarted = true;
     const { error } = await createPublicAuthClient().auth.signInWithOtp({
@@ -73,18 +102,46 @@ export async function requestSecondaryEmailIdentity(emailInput: string): Promise
     if (error) {
       // SDK 5xx/transport failures do not prove that no mail was accepted.
       // Retain the pending request and its token so a late email remains valid.
-      if (typeof error.status !== "number" || error.status < 400 || error.status >= 500 || error.status === 408) {
-        logEvent({ level: "warn", event: "identity.link_email.unknown", scope: "provider", operation: "identity.link_email", errorClass: "dependency", retryable: false,
-          safeContext: { provider: "supabase-auth", outcome: "unknown", httpStatus: error.status } });
-        return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证邮件请求结果尚未确认，请先检查邮箱，不要立即重新发起绑定。", meta: { outcome: "unknown" } });
+      if (
+        typeof error.status !== "number" ||
+        error.status < 400 ||
+        error.status >= 500 ||
+        error.status === 408
+      ) {
+        logEvent({
+          level: "warn",
+          event: "identity.link_email.unknown",
+          scope: "provider",
+          operation: "identity.link_email",
+          errorClass: "dependency",
+          retryable: false,
+          safeContext: { provider: "supabase-auth", outcome: "unknown", httpStatus: error.status },
+        });
+        return fail({
+          code: ErrorCode.INTERNAL_ERROR,
+          message: "验证邮件请求结果尚未确认，请先检查邮箱，不要立即重新发起绑定。",
+          meta: { outcome: "unknown" },
+        });
       }
-      await db.update(identityLinkRequests).set({ status: "cancelled", completedAt: new Date() })
-        .where(and(eq(identityLinkRequests.id, request.id), eq(identityLinkRequests.status, "pending")));
-      return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证邮件暂时无法发送，请稍后重试。" });
+      await db
+        .update(identityLinkRequests)
+        .set({ status: "cancelled", completedAt: new Date() })
+        .where(
+          and(eq(identityLinkRequests.id, request.id), eq(identityLinkRequests.status, "pending")),
+        );
+      return fail({
+        code: ErrorCode.INTERNAL_ERROR,
+        message: "验证邮件暂时无法发送，请稍后重试。",
+      });
     }
     return ok(undefined);
   } catch (error) {
-    if (deliveryStarted) return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证邮件请求结果尚未确认，请先检查邮箱，不要立即重新发起绑定。", meta: { outcome: "unknown" } });
+    if (deliveryStarted)
+      return fail({
+        code: ErrorCode.INTERNAL_ERROR,
+        message: "验证邮件请求结果尚未确认，请先检查邮箱，不要立即重新发起绑定。",
+        meta: { outcome: "unknown" },
+      });
     return actionError("requestSecondaryEmailIdentity", error);
   }
 }
@@ -95,13 +152,16 @@ export async function confirmSecondaryEmailIdentity(input: {
   tokenHash: string;
   otpType: string;
 }): Promise<ActionResult<CompleteIdentityLinkOutcome & { redirectTo: string }>> {
-  const parsed = z.object({
-    requestId: uuidSchema,
-    stateToken: z.string().min(20).max(200),
-    tokenHash: z.string().min(1),
-    otpType: z.string().refine(isSecondaryEmailOtpType),
-  }).safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "邮箱绑定链接无效，请重新发起。" });
+  const parsed = z
+    .object({
+      requestId: uuidSchema,
+      stateToken: z.string().min(20).max(200),
+      tokenHash: z.string().min(1),
+      otpType: z.string().refine(isSecondaryEmailOtpType),
+    })
+    .safeParse(input);
+  if (!parsed.success)
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "邮箱绑定链接无效，请重新发起。" });
   try {
     const session = await requireAuth();
     const { data, error } = await createPublicAuthClient().auth.verifyOtp({
@@ -109,35 +169,47 @@ export async function confirmSecondaryEmailIdentity(input: {
       type: parsed.data.otpType,
     });
     if (error || !data.user?.email || !data.user.email_confirmed_at) {
-      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "无法验证这个邮箱绑定链接。链接可能已过期、已完成验证或验证信息不匹配，请重新发起绑定。" });
+      return fail({
+        code: ErrorCode.VALIDATION_FAILED,
+        message:
+          "无法验证这个邮箱绑定链接。链接可能已过期、已完成验证或验证信息不匹配，请重新发起绑定。",
+      });
     }
-    const outcome = await db.transaction((tx) => completeSecondaryIdentityLinkInTx(tx, {
-      requestId: parsed.data.requestId,
-      stateToken: parsed.data.stateToken,
-      currentUserId: session.userId,
-      authId: data.user!.id,
-      email: data.user!.email!,
-      verifiedAt: new Date(data.user!.email_confirmed_at!),
-    }));
+    const outcome = await db.transaction((tx) =>
+      completeSecondaryIdentityLinkInTx(tx, {
+        requestId: parsed.data.requestId,
+        stateToken: parsed.data.stateToken,
+        currentUserId: session.userId,
+        authId: data.user!.id,
+        email: data.user!.email!,
+        verifiedAt: new Date(data.user!.email_confirmed_at!),
+      }),
+    );
     revalidatePath("/settings/education");
     revalidatePath("/settings/security");
     return ok({
       ...outcome,
-      redirectTo: outcome.kind === "merge_required"
-        ? `/settings/security/merge?authorization=${outcome.authorizationId}`
-        : "/settings/education",
+      redirectTo:
+        outcome.kind === "merge_required"
+          ? `/settings/security/merge?authorization=${outcome.authorizationId}`
+          : "/settings/education",
     });
   } catch (error) {
     return actionError("confirmSecondaryEmailIdentity", error);
   }
 }
 
-export async function revokeSecondaryEmailIdentity(identityId: string): Promise<ActionResult<void>> {
+export async function revokeSecondaryEmailIdentity(
+  identityId: string,
+): Promise<ActionResult<void>> {
   const parsed = uuidSchema.safeParse(identityId);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "credential id 无效。" });
+  if (!parsed.success)
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "credential id 无效。" });
   try {
     const session = await requireAuth();
-    await db.transaction((tx) => revokeSecondaryEmailIdentityInTx(tx, { userId: session.userId, identityId: parsed.data }));
+    await db.transaction((tx) =>
+      revokeSecondaryEmailIdentityInTx(tx, { userId: session.userId, identityId: parsed.data }),
+    );
     await destroyUserSession();
     revalidatePath("/settings/security");
     revalidatePath("/settings/education");

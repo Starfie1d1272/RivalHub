@@ -44,7 +44,8 @@ export interface MyCompetitionSource {
   seasonCreatedAt: Date;
   entryUpdatedAt: Date;
   registrationStatus: CompetitionEntryRegistrationStatus;
-  revisionOrigin?: import("@/lib/competition-entries/remediation").CompetitionEntryRosterRevisionOrigin | null;
+  revisionOrigin?:
+    import("@/lib/competition-entries/remediation").CompetitionEntryRosterRevisionOrigin | null;
   participantStatus: CompetitionEntryParticipantStatus | null;
   representativeUserId: string;
   teamRegistrationConfig: Parameters<typeof normalizeTeamRegistrationConfig>[0];
@@ -109,9 +110,11 @@ export function selectCanonicalMyCompetitionSources(
   const canonical: MyCompetitionSource[] = [];
   for (const seasonRows of rowsBySeason.values()) {
     const selection = selectCompetitionEntryParticipantContext({
-      participantRows: seasonRows.flatMap((row) => row.participantStatus === null
-        ? []
-        : [{ entry: selectionEntry(row), participantStatus: row.participantStatus }]),
+      participantRows: seasonRows.flatMap((row) =>
+        row.participantStatus === null
+          ? []
+          : [{ entry: selectionEntry(row), participantStatus: row.participantStatus }],
+      ),
       representativeEntries: seasonRows
         .filter((row) => row.representativeUserId === userId)
         .map(selectionEntry),
@@ -131,181 +134,247 @@ export function selectCanonicalMyCompetitionSources(
   return canonical;
 }
 
-export const loadMyCompetitionSources = cache(async (userId: string): Promise<MyCompetitionSource[]> => {
-  const rows = await db
-    .select({
-      id: competitionEntries.id,
-      name: competitionEntries.name,
-      teamId: competitionEntries.teamId,
-      seasonId: seasons.id,
-      seasonName: seasons.name,
-      seasonSlug: seasons.slug,
-      seasonStatus: seasons.status,
-      seasonCreatedAt: seasons.createdAt,
-      entryUpdatedAt: competitionEntries.updatedAt,
-      registrationStatus: competitionEntries.registrationStatus,
-      revisionOrigin: competitionEntryRosterRevisions.origin,
-      participantStatus: currentRosterParticipantStatus(),
-      representativeUserId: competitionEntries.representativeUserId,
-      teamRegistrationConfig: seasons.teamRegistrationConfig,
-      activeClaimEntryId: competitionEntryActiveClaims.entryId,
-    })
-    .from(competitionEntries)
-    .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
-    .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
-    .leftJoin(
-      competitionEntryParticipants,
-      and(eq(competitionEntryParticipants.entryId, competitionEntries.id), eq(competitionEntryParticipants.userId, userId)),
-    )
-    .leftJoin(
-      competitionEntryActiveClaims,
-      and(
-        eq(competitionEntryActiveClaims.entryId, competitionEntries.id),
-        eq(competitionEntryActiveClaims.competitionId, competitionEntries.competitionId),
-        eq(competitionEntryActiveClaims.userId, userId),
-      ),
-    )
-    .where(or(
-      eq(competitionEntries.representativeUserId, userId),
-      eq(competitionEntryParticipants.userId, userId),
-      eq(competitionEntryActiveClaims.userId, userId),
-    ))
-    .orderBy(desc(seasons.createdAt), desc(competitionEntries.updatedAt), asc(competitionEntries.id));
-  return selectCanonicalMyCompetitionSources(rows, userId);
-});
+export const loadMyCompetitionSources = cache(
+  async (userId: string): Promise<MyCompetitionSource[]> => {
+    const rows = await db
+      .select({
+        id: competitionEntries.id,
+        name: competitionEntries.name,
+        teamId: competitionEntries.teamId,
+        seasonId: seasons.id,
+        seasonName: seasons.name,
+        seasonSlug: seasons.slug,
+        seasonStatus: seasons.status,
+        seasonCreatedAt: seasons.createdAt,
+        entryUpdatedAt: competitionEntries.updatedAt,
+        registrationStatus: competitionEntries.registrationStatus,
+        revisionOrigin: competitionEntryRosterRevisions.origin,
+        participantStatus: currentRosterParticipantStatus(),
+        representativeUserId: competitionEntries.representativeUserId,
+        teamRegistrationConfig: seasons.teamRegistrationConfig,
+        activeClaimEntryId: competitionEntryActiveClaims.entryId,
+      })
+      .from(competitionEntries)
+      .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
+      .leftJoin(
+        competitionEntryRosterRevisions,
+        eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId),
+      )
+      .leftJoin(
+        competitionEntryParticipants,
+        and(
+          eq(competitionEntryParticipants.entryId, competitionEntries.id),
+          eq(competitionEntryParticipants.userId, userId),
+        ),
+      )
+      .leftJoin(
+        competitionEntryActiveClaims,
+        and(
+          eq(competitionEntryActiveClaims.entryId, competitionEntries.id),
+          eq(competitionEntryActiveClaims.competitionId, competitionEntries.competitionId),
+          eq(competitionEntryActiveClaims.userId, userId),
+        ),
+      )
+      .where(
+        or(
+          eq(competitionEntries.representativeUserId, userId),
+          eq(competitionEntryParticipants.userId, userId),
+          eq(competitionEntryActiveClaims.userId, userId),
+        ),
+      )
+      .orderBy(
+        desc(seasons.createdAt),
+        desc(competitionEntries.updatedAt),
+        asc(competitionEntries.id),
+      );
+    return selectCanonicalMyCompetitionSources(rows, userId);
+  },
+);
 
-export const loadTeamCompetitionSources = cache(async (teamId: string, userId: string): Promise<MyCompetitionSource[]> => {
-  return db
-    .select({
-      id: competitionEntries.id,
-      name: competitionEntries.name,
-      teamId: competitionEntries.teamId,
-      seasonId: seasons.id,
-      seasonName: seasons.name,
-      seasonSlug: seasons.slug,
-      seasonStatus: seasons.status,
-      seasonCreatedAt: seasons.createdAt,
-      entryUpdatedAt: competitionEntries.updatedAt,
-      registrationStatus: competitionEntries.registrationStatus,
-      revisionOrigin: competitionEntryRosterRevisions.origin,
-      participantStatus: currentRosterParticipantStatus(),
-      representativeUserId: competitionEntries.representativeUserId,
-      teamRegistrationConfig: seasons.teamRegistrationConfig,
-    })
-    .from(competitionEntries)
-    .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
-    .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
-    .leftJoin(
-      competitionEntryParticipants,
-      and(eq(competitionEntryParticipants.entryId, competitionEntries.id), eq(competitionEntryParticipants.userId, userId)),
-    )
-    .where(eq(competitionEntries.teamId, teamId))
-    .orderBy(desc(seasons.createdAt), desc(competitionEntries.updatedAt), asc(competitionEntries.id));
-});
+export const loadTeamCompetitionSources = cache(
+  async (teamId: string, userId: string): Promise<MyCompetitionSource[]> => {
+    return db
+      .select({
+        id: competitionEntries.id,
+        name: competitionEntries.name,
+        teamId: competitionEntries.teamId,
+        seasonId: seasons.id,
+        seasonName: seasons.name,
+        seasonSlug: seasons.slug,
+        seasonStatus: seasons.status,
+        seasonCreatedAt: seasons.createdAt,
+        entryUpdatedAt: competitionEntries.updatedAt,
+        registrationStatus: competitionEntries.registrationStatus,
+        revisionOrigin: competitionEntryRosterRevisions.origin,
+        participantStatus: currentRosterParticipantStatus(),
+        representativeUserId: competitionEntries.representativeUserId,
+        teamRegistrationConfig: seasons.teamRegistrationConfig,
+      })
+      .from(competitionEntries)
+      .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
+      .leftJoin(
+        competitionEntryRosterRevisions,
+        eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId),
+      )
+      .leftJoin(
+        competitionEntryParticipants,
+        and(
+          eq(competitionEntryParticipants.entryId, competitionEntries.id),
+          eq(competitionEntryParticipants.userId, userId),
+        ),
+      )
+      .where(eq(competitionEntries.teamId, teamId))
+      .orderBy(
+        desc(seasons.createdAt),
+        desc(competitionEntries.updatedAt),
+        asc(competitionEntries.id),
+      );
+  },
+);
 
-export const loadMyCompetitionNextMatches = cache(async (userId: string): Promise<Map<string, MyCompetitionNextMatch>> => {
-  const rosterRows = await db
-    .select({ seasonId: seasons.id, seasonSlug: seasons.slug, entryId: competitionEntries.id })
-    .from(eventRosterMembers)
-    .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-    .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
-    .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
-    .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, eventRosterMembers.participantId))
-    .where(and(
-      eq(eventRosterMembers.userId, userId),
-      eq(eventRosterMembers.isCurrent, true),
-      inArray(seasons.status, ["registration", "voting", "drafting", "playing"]),
-      eq(competitionEntryParticipants.status, "confirmed"),
-      inArray(eventRosters.status, ["confirmed", "frozen"]),
-    ));
+export const loadMyCompetitionNextMatches = cache(
+  async (userId: string): Promise<Map<string, MyCompetitionNextMatch>> => {
+    const rosterRows = await db
+      .select({ seasonId: seasons.id, seasonSlug: seasons.slug, entryId: competitionEntries.id })
+      .from(eventRosterMembers)
+      .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+      .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
+      .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
+      .innerJoin(
+        competitionEntryParticipants,
+        eq(competitionEntryParticipants.id, eventRosterMembers.participantId),
+      )
+      .where(
+        and(
+          eq(eventRosterMembers.userId, userId),
+          eq(eventRosterMembers.isCurrent, true),
+          inArray(seasons.status, ["registration", "voting", "drafting", "playing"]),
+          eq(competitionEntryParticipants.status, "confirmed"),
+          inArray(eventRosters.status, ["confirmed", "frozen"]),
+        ),
+      );
 
-  const representatives = await db.select({
-    entryId: competitionEntries.id, seasonId: seasons.id, seasonSlug: seasons.slug,
-  }).from(competitionEntries).innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
-    .where(and(eq(competitionEntries.representativeUserId, userId),
-      inArray(seasons.status, ["registration", "voting", "drafting", "playing"])));
-  const representativeIds = new Set(representatives.map(row => row.entryId));
-  const entryContexts = new Map<string, { seasonId: string; seasonSlug: string }>();
-  for (const row of [...rosterRows, ...representatives]) {
-    entryContexts.set(row.entryId, { seasonId: row.seasonId, seasonSlug: row.seasonSlug });
-  }
-  if (entryContexts.size === 0) return new Map();
+    const representatives = await db
+      .select({
+        entryId: competitionEntries.id,
+        seasonId: seasons.id,
+        seasonSlug: seasons.slug,
+      })
+      .from(competitionEntries)
+      .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
+      .where(
+        and(
+          eq(competitionEntries.representativeUserId, userId),
+          inArray(seasons.status, ["registration", "voting", "drafting", "playing"]),
+        ),
+      );
+    const representativeIds = new Set(representatives.map((row) => row.entryId));
+    const entryContexts = new Map<string, { seasonId: string; seasonSlug: string }>();
+    for (const row of [...rosterRows, ...representatives]) {
+      entryContexts.set(row.entryId, { seasonId: row.seasonId, seasonSlug: row.seasonSlug });
+    }
+    if (entryContexts.size === 0) return new Map();
 
-  const entryIds = [...entryContexts.keys()];
-  const seasonIds = [...new Set([...entryContexts.values()].map((context) => context.seasonId))];
+    const entryIds = [...entryContexts.keys()];
+    const seasonIds = [...new Set([...entryContexts.values()].map((context) => context.seasonId))];
 
-  const upcoming = await db
-    .select({
-      id: matches.id,
-      seasonId: matches.seasonId,
-      status: matches.status,
-      entryAId: matches.entryAId,
-      entryBId: matches.entryBId,
-      scheduledAt: matches.scheduledAt,
-      completionDeadline: matches.completionDeadline,
-    })
-    .from(matches)
-    .where(and(officialMatchCondition(), and(
-      inArray(matches.seasonId, seasonIds),
-      inArray(matches.status, ["scheduled", "in_progress"]),
-      or(
-        inArray(matches.entryAId, entryIds),
-        inArray(matches.entryBId, entryIds),
-      ),
-    )))
-    .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 else 1 end`, asc(matches.scheduledAt), asc(matches.id));
+    const upcoming = await db
+      .select({
+        id: matches.id,
+        seasonId: matches.seasonId,
+        status: matches.status,
+        entryAId: matches.entryAId,
+        entryBId: matches.entryBId,
+        scheduledAt: matches.scheduledAt,
+        completionDeadline: matches.completionDeadline,
+      })
+      .from(matches)
+      .where(
+        and(
+          officialMatchCondition(),
+          and(
+            inArray(matches.seasonId, seasonIds),
+            inArray(matches.status, ["scheduled", "in_progress"]),
+            or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
+          ),
+        ),
+      )
+      .orderBy(
+        sql`case when ${matches.status} = 'in_progress' then 0 else 1 end`,
+        asc(matches.scheduledAt),
+        asc(matches.id),
+      );
 
-  const seenEntries = new Set<string>();
-  const validMatches = upcoming.map(requireCompetitionFields).flatMap((match) => {
-    const ownA = entryContexts.get(match.entryAId);
-    const ownB = entryContexts.get(match.entryBId);
-    if ((ownA && ownB) || (!ownA && !ownB)) return [];
-    const own = ownA ?? ownB;
-    if (!own || own.seasonId !== match.seasonId) return [];
-    const ownEntryId = ownA ? match.entryAId : match.entryBId;
-    if (seenEntries.has(ownEntryId)) return [];
-    seenEntries.add(ownEntryId);
-    return [{
-      match,
-      ownEntryId: ownA ? match.entryAId : match.entryBId,
-      own,
-      opponentId: ownA ? match.entryBId : match.entryAId,
-    }];
-  });
-  const opponentIds = [...new Set(validMatches.map(({ opponentId }) => opponentId))];
-  if (opponentIds.length === 0) return new Map();
-
-  const opponents = await db
-    .select({ id: competitionEntries.id, name: competitionEntries.name })
-    .from(competitionEntries)
-    .where(inArray(competitionEntries.id, opponentIds));
-  const opponentNames = new Map(opponents.map((opponent) => [opponent.id, opponent.name]));
-  const proposalRows = await db.select({ matchId: matchTimeProposals.matchId, proposedByEntryId: proposingEntryId(),
-    createdAt: matchTimeProposals.createdAt, proposedTime: matchTimeProposals.proposedTime,
-  }).from(matchTimeProposals).innerJoin(matches, eq(matches.id, matchTimeProposals.matchId)).where(and(
-    inArray(matchTimeProposals.matchId, validMatches.map(({ match }) => match.id)),
-    eq(matchTimeProposals.status, "pending"),
-  ));
-  const proposals = new Map(proposalRows.map(row => [row.matchId, row]));
-  const result = new Map<string, MyCompetitionNextMatch>();
-  for (const candidate of validMatches) {
-    if (result.has(candidate.ownEntryId)) continue;
-    const opponentName = opponentNames.get(candidate.opponentId);
-    if (!opponentName) continue;
-    result.set(candidate.ownEntryId, {
-      matchId: candidate.match.id,
-      seasonId: candidate.match.seasonId,
-      seasonSlug: candidate.own.seasonSlug,
-      opponentName,
-      scheduledAt: candidate.match.scheduledAt,
-      status: candidate.match.status === "in_progress" ? "in_progress" : "scheduled",
-      scheduling: projectMatchScheduling(candidate.match, proposals.get(candidate.match.id) ?? null),
-      isRepresentative: representativeIds.has(candidate.ownEntryId),
-      pendingIsMine: proposals.get(candidate.match.id)?.proposedByEntryId === candidate.ownEntryId,
+    const seenEntries = new Set<string>();
+    const validMatches = upcoming.map(requireCompetitionFields).flatMap((match) => {
+      const ownA = entryContexts.get(match.entryAId);
+      const ownB = entryContexts.get(match.entryBId);
+      if ((ownA && ownB) || (!ownA && !ownB)) return [];
+      const own = ownA ?? ownB;
+      if (!own || own.seasonId !== match.seasonId) return [];
+      const ownEntryId = ownA ? match.entryAId : match.entryBId;
+      if (seenEntries.has(ownEntryId)) return [];
+      seenEntries.add(ownEntryId);
+      return [
+        {
+          match,
+          ownEntryId: ownA ? match.entryAId : match.entryBId,
+          own,
+          opponentId: ownA ? match.entryBId : match.entryAId,
+        },
+      ];
     });
-  }
-  return result;
-});
+    const opponentIds = [...new Set(validMatches.map(({ opponentId }) => opponentId))];
+    if (opponentIds.length === 0) return new Map();
+
+    const opponents = await db
+      .select({ id: competitionEntries.id, name: competitionEntries.name })
+      .from(competitionEntries)
+      .where(inArray(competitionEntries.id, opponentIds));
+    const opponentNames = new Map(opponents.map((opponent) => [opponent.id, opponent.name]));
+    const proposalRows = await db
+      .select({
+        matchId: matchTimeProposals.matchId,
+        proposedByEntryId: proposingEntryId(),
+        createdAt: matchTimeProposals.createdAt,
+        proposedTime: matchTimeProposals.proposedTime,
+      })
+      .from(matchTimeProposals)
+      .innerJoin(matches, eq(matches.id, matchTimeProposals.matchId))
+      .where(
+        and(
+          inArray(
+            matchTimeProposals.matchId,
+            validMatches.map(({ match }) => match.id),
+          ),
+          eq(matchTimeProposals.status, "pending"),
+        ),
+      );
+    const proposals = new Map(proposalRows.map((row) => [row.matchId, row]));
+    const result = new Map<string, MyCompetitionNextMatch>();
+    for (const candidate of validMatches) {
+      if (result.has(candidate.ownEntryId)) continue;
+      const opponentName = opponentNames.get(candidate.opponentId);
+      if (!opponentName) continue;
+      result.set(candidate.ownEntryId, {
+        matchId: candidate.match.id,
+        seasonId: candidate.match.seasonId,
+        seasonSlug: candidate.own.seasonSlug,
+        opponentName,
+        scheduledAt: candidate.match.scheduledAt,
+        status: candidate.match.status === "in_progress" ? "in_progress" : "scheduled",
+        scheduling: projectMatchScheduling(
+          candidate.match,
+          proposals.get(candidate.match.id) ?? null,
+        ),
+        isRepresentative: representativeIds.has(candidate.ownEntryId),
+        pendingIsMine:
+          proposals.get(candidate.match.id)?.proposedByEntryId === candidate.ownEntryId,
+      });
+    }
+    return result;
+  },
+);
 
 export function projectMyCompetitionContext(
   source: MyCompetitionSource,
@@ -318,44 +387,65 @@ export function projectMyCompetitionContext(
     : source.participantStatus !== null
       ? "participant"
       : "team_member";
-  const registration = presentCompetitionEntryRegistration(source.registrationStatus, source.revisionOrigin);
-  const participation = viewerRole === "team_member"
-    ? null
-    : presentCompetitionEntryParticipation(source.participantStatus, source.registrationStatus);
+  const registration = presentCompetitionEntryRegistration(
+    source.registrationStatus,
+    source.revisionOrigin,
+  );
+  const participation =
+    viewerRole === "team_member"
+      ? null
+      : presentCompetitionEntryParticipation(source.participantStatus, source.registrationStatus);
   const seasonHref = `/${source.seasonSlug}`;
   const registrationHref = `${seasonHref}/register`;
-  const matchTask = viewerRole !== "team_member" && nextMatch
-    ? presentPersonalMatchTask({
-        matchId: nextMatch.matchId,
-        seasonSlug: nextMatch.seasonSlug,
-        opponentName: nextMatch.opponentName,
-        scheduledAt: nextMatch.scheduledAt,
-        status: nextMatch.status,
-        scheduling: nextMatch.scheduling,
-        isRepresentative: nextMatch.isRepresentative,
-        pendingIsMine: nextMatch.pendingIsMine,
-      })
-    : undefined;
+  const matchTask =
+    viewerRole !== "team_member" && nextMatch
+      ? presentPersonalMatchTask({
+          matchId: nextMatch.matchId,
+          seasonSlug: nextMatch.seasonSlug,
+          opponentName: nextMatch.opponentName,
+          scheduledAt: nextMatch.scheduledAt,
+          status: nextMatch.status,
+          scheduling: nextMatch.scheduling,
+          isRepresentative: nextMatch.isRepresentative,
+          pendingIsMine: nextMatch.pendingIsMine,
+        })
+      : undefined;
 
   let primaryAction: MyCompetitionAction;
   if (source.seasonStatus === "finished" || source.seasonStatus === "archived") {
     primaryAction = { href: seasonHref, label: "赛事回顾" };
   } else if (matchTask) {
     primaryAction = { href: matchTask.href, label: matchTask.title };
-  } else if (source.seasonStatus === "registration" && isRepresentative && source.registrationStatus === "draft") {
+  } else if (
+    source.seasonStatus === "registration" &&
+    isRepresentative &&
+    source.registrationStatus === "draft"
+  ) {
     primaryAction = { href: registrationHref, label: "继续报名" };
-  } else if (source.seasonStatus === "registration" && isRepresentative && source.registrationStatus === "changes_requested") {
+  } else if (
+    source.seasonStatus === "registration" &&
+    isRepresentative &&
+    source.registrationStatus === "changes_requested"
+  ) {
     primaryAction = {
       href: registrationHref,
       label: source.revisionOrigin === "self_roster_change" ? "继续调整名单" : "处理补正",
     };
-  } else if (source.seasonStatus === "registration" && viewerRole === "participant" && source.participantStatus === "invited") {
+  } else if (
+    source.seasonStatus === "registration" &&
+    viewerRole === "participant" &&
+    source.participantStatus === "invited"
+  ) {
     primaryAction = { href: registrationHref, label: "确认是否参赛" };
   } else if (source.seasonStatus === "playing") {
     primaryAction = { href: seasonHref, label: "查看赛事" };
   } else if (viewerRole === "team_member") {
     primaryAction = { href: seasonHref, label: "查看赛事" };
-  } else if (source.seasonStatus === "draft" || source.seasonStatus === "voting" || source.seasonStatus === "drafting") {
+  } else if (
+    source.seasonStatus === "draft" ||
+    source.seasonStatus === "voting" ||
+    source.seasonStatus === "drafting"
+  ) {
     primaryAction = { href: seasonHref, label: "查看赛事" };
   } else if (source.seasonStatus === "registration") {
     primaryAction = { href: registrationHref, label: "查看本届报名" };
@@ -363,15 +453,21 @@ export function projectMyCompetitionContext(
     primaryAction = { href: seasonHref, label: "查看赛事" };
   }
 
-  const secondaryAction = viewerRole !== "team_member" && primaryAction.href !== registrationHref
-    ? { href: registrationHref, label: "查看本届报名" }
-    : undefined;
+  const secondaryAction =
+    viewerRole !== "team_member" && primaryAction.href !== registrationHref
+      ? { href: registrationHref, label: "查看本届报名" }
+      : undefined;
 
   return {
     entryId: source.id,
     entryName: source.name,
     teamId: source.teamId,
-    season: { id: source.seasonId, name: source.seasonName, slug: source.seasonSlug, status: source.seasonStatus },
+    season: {
+      id: source.seasonId,
+      name: source.seasonName,
+      slug: source.seasonSlug,
+      status: source.seasonStatus,
+    },
     viewerRole,
     registration,
     participation,
@@ -383,24 +479,47 @@ export function projectMyCompetitionContext(
   };
 }
 
-export const loadMyCompetitionContexts = cache(async (userId: string): Promise<MyCompetitionContext[]> => {
-  const [sources, nextMatches] = await Promise.all([loadMyCompetitionSources(userId), loadMyCompetitionNextMatches(userId)]);
-  return sources.map((source) => projectMyCompetitionContext(source, userId, nextMatches.get(source.id)));
-});
+export const loadMyCompetitionContexts = cache(
+  async (userId: string): Promise<MyCompetitionContext[]> => {
+    const [sources, nextMatches] = await Promise.all([
+      loadMyCompetitionSources(userId),
+      loadMyCompetitionNextMatches(userId),
+    ]);
+    return sources.map((source) =>
+      projectMyCompetitionContext(source, userId, nextMatches.get(source.id)),
+    );
+  },
+);
 
-export const loadTeamCompetitionContexts = cache(async (teamId: string, userId: string): Promise<MyCompetitionContext[]> => {
-  const [sources, nextMatches] = await Promise.all([loadTeamCompetitionSources(teamId, userId), loadMyCompetitionNextMatches(userId)]);
-  return sources.map((source) => {
-    const hasPersonalEntryContext = source.representativeUserId === userId || source.participantStatus !== null;
-    return projectMyCompetitionContext(source, userId, hasPersonalEntryContext ? nextMatches.get(source.id) : undefined);
-  });
-});
+export const loadTeamCompetitionContexts = cache(
+  async (teamId: string, userId: string): Promise<MyCompetitionContext[]> => {
+    const [sources, nextMatches] = await Promise.all([
+      loadTeamCompetitionSources(teamId, userId),
+      loadMyCompetitionNextMatches(userId),
+    ]);
+    return sources.map((source) => {
+      const hasPersonalEntryContext =
+        source.representativeUserId === userId || source.participantStatus !== null;
+      return projectMyCompetitionContext(
+        source,
+        userId,
+        hasPersonalEntryContext ? nextMatches.get(source.id) : undefined,
+      );
+    });
+  },
+);
 
-export function groupMyCompetitionContexts(contexts: readonly MyCompetitionContext[]): { current: MyCompetitionContext[]; history: MyCompetitionContext[] } {
+export function groupMyCompetitionContexts(contexts: readonly MyCompetitionContext[]): {
+  current: MyCompetitionContext[];
+  history: MyCompetitionContext[];
+} {
   const current: MyCompetitionContext[] = [];
   const history: MyCompetitionContext[] = [];
   for (const context of contexts) {
-    (context.season.status === "finished" || context.season.status === "archived" ? history : current).push(context);
+    (context.season.status === "finished" || context.season.status === "archived"
+      ? history
+      : current
+    ).push(context);
   }
   const sort = (a: MyCompetitionContext, b: MyCompetitionContext) => {
     const seasonDifference = b.seasonCreatedAt.getTime() - a.seasonCreatedAt.getTime();

@@ -3,7 +3,10 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 import type { InputHTMLAttributes } from "react";
 
-interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "className" | "value" | "type"> {
+interface FieldProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "onChange" | "className" | "value" | "type"
+> {
   label?: string;
   value: string;
   onChange: (value: string) => void;

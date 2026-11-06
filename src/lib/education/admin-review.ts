@@ -23,7 +23,7 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 }
 
 function readParam(input: EducationReviewSearchParams, key: string): string | undefined {
-  return input instanceof URLSearchParams ? input.get(key) ?? undefined : firstValue(input[key]);
+  return input instanceof URLSearchParams ? (input.get(key) ?? undefined) : firstValue(input[key]);
 }
 
 function isUuid(value: string): boolean {
@@ -35,22 +35,30 @@ function positivePage(value: string | undefined): number {
   return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : 1;
 }
 
-export function normalizeEducationReviewQuery(input: EducationReviewSearchParams): EducationReviewQuery {
+export function normalizeEducationReviewQuery(
+  input: EducationReviewSearchParams,
+): EducationReviewQuery {
   const q = readParam(input, "q")?.trim() || undefined;
   const statusValue = readParam(input, "status");
   const academicValue = readParam(input, "academic");
   const sortValue = readParam(input, "sort");
   const institutionValue = readParam(input, "institution");
 
-  const status: EducationReviewFilterStatus = statusValue === "pending" || statusValue === "approved" || statusValue === "rejected" || statusValue === "all"
-    ? statusValue
-    : EDUCATION_REVIEW_DEFAULTS.status;
-  const academic: EducationReviewAcademic = academicValue === "all" || academicValue === "enrolled" || academicValue === "graduated"
-    ? academicValue
-    : EDUCATION_REVIEW_DEFAULTS.academic;
-  const sort: EducationReviewSort = sortValue === "oldest" || sortValue === "newest" || sortValue === "recently_reviewed"
-    ? sortValue
-    : EDUCATION_REVIEW_DEFAULTS.sort;
+  const status: EducationReviewFilterStatus =
+    statusValue === "pending" ||
+    statusValue === "approved" ||
+    statusValue === "rejected" ||
+    statusValue === "all"
+      ? statusValue
+      : EDUCATION_REVIEW_DEFAULTS.status;
+  const academic: EducationReviewAcademic =
+    academicValue === "all" || academicValue === "enrolled" || academicValue === "graduated"
+      ? academicValue
+      : EDUCATION_REVIEW_DEFAULTS.academic;
+  const sort: EducationReviewSort =
+    sortValue === "oldest" || sortValue === "newest" || sortValue === "recently_reviewed"
+      ? sortValue
+      : EDUCATION_REVIEW_DEFAULTS.sort;
 
   return {
     q,
@@ -64,82 +72,109 @@ export function normalizeEducationReviewQuery(input: EducationReviewSearchParams
 }
 
 /** Compatibility composition; view consumers can skip the unrelated reader. */
-export async function getEducationReviewQueue(query: EducationReviewQuery): Promise<EducationReviewQueue> {
-  const [page, overview] = await Promise.all([getEducationReviewPage(query), getEducationReviewOverview()]);
+export async function getEducationReviewQueue(
+  query: EducationReviewQuery,
+): Promise<EducationReviewQueue> {
+  const [page, overview] = await Promise.all([
+    getEducationReviewPage(query),
+    getEducationReviewOverview(),
+  ]);
   return { ...page, overview };
 }
 
 /** Queue, filter options and pagination only; evidence lifetime gates remain here. */
-export async function getEducationReviewPage(query: EducationReviewQuery): Promise<Omit<EducationReviewQueue, "overview">> {
+export async function getEducationReviewPage(
+  query: EducationReviewQuery,
+): Promise<Omit<EducationReviewQueue, "overview">> {
   const now = new Date();
   const conditions = [eq(users.status, "active")];
   if (query.q) {
     const pattern = `%${escapeLikePattern(query.q)}%`;
-    conditions.push(or(
-      ilike(users.displayName, pattern),
-      ilike(users.perfectName, pattern),
-      ilike(steamProfiles.personaName, pattern),
-      ilike(users.email, pattern),
-      ilike(institutions.name, pattern),
-      and(
-        or(
-          eq(educationVerifications.status, "pending"),
-          isNull(educationVerifications.reviewedAt),
-          gt(educationVerifications.reviewedAt, educationEvidenceReviewCutoff(now)),
+    conditions.push(
+      or(
+        ilike(users.displayName, pattern),
+        ilike(users.perfectName, pattern),
+        ilike(steamProfiles.personaName, pattern),
+        ilike(users.email, pattern),
+        ilike(institutions.name, pattern),
+        and(
+          or(
+            eq(educationVerifications.status, "pending"),
+            isNull(educationVerifications.reviewedAt),
+            gt(educationVerifications.reviewedAt, educationEvidenceReviewCutoff(now)),
+          ),
+          ilike(educationVerifications.evidenceCode, pattern),
         ),
-        ilike(educationVerifications.evidenceCode, pattern),
-      ),
-    )!);
+      )!,
+    );
   }
   if (query.status !== "all") conditions.push(eq(educationVerifications.status, query.status));
-  if (query.institution) conditions.push(eq(educationVerifications.institutionId, query.institution));
-  if (query.academic !== "all") conditions.push(eq(educationVerifications.academicStatus, query.academic));
+  if (query.institution)
+    conditions.push(eq(educationVerifications.institutionId, query.institution));
+  if (query.academic !== "all")
+    conditions.push(eq(educationVerifications.academicStatus, query.academic));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [[totalRow], institutionOptionRows, [datasetRow]] = await Promise.all([
-    db.select({ count: count() })
+    db
+      .select({ count: count() })
       .from(educationVerifications)
       .innerJoin(users, eq(educationVerifications.userId, users.id))
       .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(where),
-    db.select({ id: institutions.id, name: institutions.name, userCount: countDistinct(users.id) })
+    db
+      .select({ id: institutions.id, name: institutions.name, userCount: countDistinct(users.id) })
       .from(educationVerifications)
-      .innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active")))
+      .innerJoin(
+        users,
+        and(eq(educationVerifications.userId, users.id), eq(users.status, "active")),
+      )
       .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
       .groupBy(institutions.id, institutions.name)
       .orderBy(desc(countDistinct(users.id)), asc(institutions.name), asc(institutions.id)),
-    db.select({ count: count() }).from(educationVerifications).innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active"))),
-
+    db
+      .select({ count: count() })
+      .from(educationVerifications)
+      .innerJoin(
+        users,
+        and(eq(educationVerifications.userId, users.id), eq(users.status, "active")),
+      ),
   ]);
 
   const total = Number(totalRow?.count ?? 0);
   const totalPages = Math.ceil(total / EDUCATION_REVIEW_PAGE_SIZE);
   const page = totalPages > 0 ? Math.min(query.page, totalPages) : 1;
-  const orderBy = query.sort === "oldest"
-    ? [asc(educationVerifications.submittedAt), asc(educationVerifications.id)]
-    : query.sort === "newest"
-      ? [desc(educationVerifications.submittedAt), desc(educationVerifications.id)]
-      : [sql`${educationVerifications.reviewedAt} DESC NULLS LAST`, desc(educationVerifications.submittedAt), desc(educationVerifications.id)];
+  const orderBy =
+    query.sort === "oldest"
+      ? [asc(educationVerifications.submittedAt), asc(educationVerifications.id)]
+      : query.sort === "newest"
+        ? [desc(educationVerifications.submittedAt), desc(educationVerifications.id)]
+        : [
+            sql`${educationVerifications.reviewedAt} DESC NULLS LAST`,
+            desc(educationVerifications.submittedAt),
+            desc(educationVerifications.id),
+          ];
 
-  const rows = await db.select({
-    id: educationVerifications.id,
-    userId: users.id,
-    email: users.email,
-    displayName: users.displayName,
-    perfectName: users.perfectName,
-    personaName: steamProfiles.personaName,
-    institution: institutions.name,
-    code: institutions.moeInstitutionCode,
-    academicStatus: educationVerifications.academicStatus,
-    evidenceType: educationVerifications.evidenceType,
-    evidenceCode: educationVerifications.evidenceCode,
-    evidenceObjectKey: educationVerifications.evidenceObjectKey,
-    status: educationVerifications.status,
-    submittedAt: educationVerifications.submittedAt,
-    reviewedAt: educationVerifications.reviewedAt,
-    reviewNote: educationVerifications.reviewNote,
-  })
+  const rows = await db
+    .select({
+      id: educationVerifications.id,
+      userId: users.id,
+      email: users.email,
+      displayName: users.displayName,
+      perfectName: users.perfectName,
+      personaName: steamProfiles.personaName,
+      institution: institutions.name,
+      code: institutions.moeInstitutionCode,
+      academicStatus: educationVerifications.academicStatus,
+      evidenceType: educationVerifications.evidenceType,
+      evidenceCode: educationVerifications.evidenceCode,
+      evidenceObjectKey: educationVerifications.evidenceObjectKey,
+      status: educationVerifications.status,
+      submittedAt: educationVerifications.submittedAt,
+      reviewedAt: educationVerifications.reviewedAt,
+      reviewNote: educationVerifications.reviewNote,
+    })
     .from(educationVerifications)
     .innerJoin(users, eq(educationVerifications.userId, users.id))
     .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
@@ -150,19 +185,39 @@ export async function getEducationReviewPage(query: EducationReviewQuery): Promi
     .offset((page - 1) * EDUCATION_REVIEW_PAGE_SIZE);
 
   return {
-    rows: rows.map(({ perfectName, personaName, evidenceType, evidenceCode, evidenceObjectKey, reviewedAt, ...row }) => ({
-      ...row,
-      displayName: getDisplayName({ ...row, perfectName, personaName }),
-      evidenceLabel: educationEvidenceLabel(evidenceType),
-      chsiEvidenceCode: !isEducationEvidenceExpired({ status: row.status, reviewedAt }, now) && isChsiEvidenceType(evidenceType) ? evidenceCode : null,
-      manualEvidenceAvailable: !isEducationEvidenceExpired({ status: row.status, reviewedAt }, now) && evidenceType === "manual_other" && Boolean(evidenceObjectKey),
-      submittedAt: row.submittedAt.toISOString(),
-    })),
+    rows: rows.map(
+      ({
+        perfectName,
+        personaName,
+        evidenceType,
+        evidenceCode,
+        evidenceObjectKey,
+        reviewedAt,
+        ...row
+      }) => ({
+        ...row,
+        displayName: getDisplayName({ ...row, perfectName, personaName }),
+        evidenceLabel: educationEvidenceLabel(evidenceType),
+        chsiEvidenceCode:
+          !isEducationEvidenceExpired({ status: row.status, reviewedAt }, now) &&
+          isChsiEvidenceType(evidenceType)
+            ? evidenceCode
+            : null,
+        manualEvidenceAvailable:
+          !isEducationEvidenceExpired({ status: row.status, reviewedAt }, now) &&
+          evidenceType === "manual_other" &&
+          Boolean(evidenceObjectKey),
+        submittedAt: row.submittedAt.toISOString(),
+      }),
+    ),
     total,
     page,
     pageSize: EDUCATION_REVIEW_PAGE_SIZE,
     totalPages,
-    institutionOptions: institutionOptionRows.map((row) => ({ ...row, userCount: Number(row.userCount) })),
+    institutionOptions: institutionOptionRows.map((row) => ({
+      ...row,
+      userCount: Number(row.userCount),
+    })),
     normalizedQuery: { ...query, page },
     hasAnyRecords: Number(datasetRow?.count ?? 0) > 0,
   };
@@ -172,19 +227,28 @@ export async function getEducationReviewPage(query: EducationReviewQuery): Promi
 export async function getEducationReviewOverview(): Promise<EducationReviewQueue["overview"]> {
   const [[activeUserRow], approvedIdentityRows] = await Promise.all([
     db.select({ count: count() }).from(users).where(eq(users.status, "active")),
-    db.selectDistinctOn([educationVerifications.userId, educationVerifications.institutionId], {
-      userId: educationVerifications.userId,
-      institutionId: educationVerifications.institutionId,
-      institutionName: institutions.name,
-      academicStatus: educationVerifications.academicStatus,
-      submittedAt: educationVerifications.submittedAt,
-      id: educationVerifications.id,
-    })
+    db
+      .selectDistinctOn([educationVerifications.userId, educationVerifications.institutionId], {
+        userId: educationVerifications.userId,
+        institutionId: educationVerifications.institutionId,
+        institutionName: institutions.name,
+        academicStatus: educationVerifications.academicStatus,
+        submittedAt: educationVerifications.submittedAt,
+        id: educationVerifications.id,
+      })
       .from(educationVerifications)
-      .innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active")))
+      .innerJoin(
+        users,
+        and(eq(educationVerifications.userId, users.id), eq(users.status, "active")),
+      )
       .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
       .where(eq(educationVerifications.status, "approved"))
-      .orderBy(educationVerifications.userId, educationVerifications.institutionId, desc(educationVerifications.submittedAt), desc(educationVerifications.id)),
+      .orderBy(
+        educationVerifications.userId,
+        educationVerifications.institutionId,
+        desc(educationVerifications.submittedAt),
+        desc(educationVerifications.id),
+      ),
   ]);
   return buildEducationOverview(Number(activeUserRow?.count ?? 0), approvedIdentityRows);
 }
@@ -195,17 +259,27 @@ function isChsiEvidenceType(evidenceType: string): boolean {
 
 function educationEvidenceLabel(evidenceType: string): EducationEvidenceLabel {
   switch (evidenceType) {
-    case "chsi_enrollment_report": return "学信网学籍在线验证报告";
-    case "chsi_education_report": return "学信网学历材料";
-    case "institutional_email": return "学校邮箱";
-    case "manual_other": return "录取通知书材料";
-    default: return "录取通知书材料";
+    case "chsi_enrollment_report":
+      return "学信网学籍在线验证报告";
+    case "chsi_education_report":
+      return "学信网学历材料";
+    case "institutional_email":
+      return "学校邮箱";
+    case "manual_other":
+      return "录取通知书材料";
+    default:
+      return "录取通知书材料";
   }
 }
 
 function buildEducationOverview(
   activeUserCount: number,
-  identities: Array<{ userId: string; institutionId: string; institutionName: string; academicStatus: "enrolled" | "graduated" }>,
+  identities: Array<{
+    userId: string;
+    institutionId: string;
+    institutionName: string;
+    academicStatus: "enrolled" | "graduated";
+  }>,
 ): EducationReviewQueue["overview"] {
   const institutionCounts = new Map<string, { id: string; name: string; identityCount: number }>();
   const academicDistribution = { enrolled: 0, graduated: 0 };
@@ -222,8 +296,11 @@ function buildEducationOverview(
   return {
     activeUserCount,
     approvedUserCount: new Set(identities.map((identity) => identity.userId)).size,
-    institutionDistribution: [...institutionCounts.values()].sort((left, right) =>
-      right.identityCount - left.identityCount || left.name.localeCompare(right.name, "zh-CN") || left.id.localeCompare(right.id),
+    institutionDistribution: [...institutionCounts.values()].sort(
+      (left, right) =>
+        right.identityCount - left.identityCount ||
+        left.name.localeCompare(right.name, "zh-CN") ||
+        left.id.localeCompare(right.id),
     ),
     academicDistribution,
   };

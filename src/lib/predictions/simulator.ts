@@ -1,12 +1,6 @@
-import {
-  playoffDescendants,
-  type PlayoffManagedKey,
-} from "@/lib/major/playoff-dependencies";
+import { playoffDescendants, type PlayoffManagedKey } from "@/lib/major/playoff-dependencies";
 import { orderedPredictionStages } from "./stage-projection";
-import {
-  seedMajorStageOneEntrants,
-  seedMajorLaterStageEntrants,
-} from "@/lib/major/seeding";
+import { seedMajorStageOneEntrants, seedMajorLaterStageEntrants } from "@/lib/major/seeding";
 import {
   MAJOR_SWISS_WIN_THRESHOLD,
   MAJOR_SWISS_LOSS_THRESHOLD,
@@ -16,10 +10,7 @@ import {
   type MajorSwissEntrant,
   type MajorSwissMatchFact,
 } from "@/lib/major/swiss";
-import {
-  generateMajorPlayoffNextRound,
-  type MajorPlayoffMatchFact,
-} from "@/lib/major/playoff";
+import { generateMajorPlayoffNextRound, type MajorPlayoffMatchFact } from "@/lib/major/playoff";
 import {
   SIMULATION_VERSION,
   type Baseline,
@@ -28,13 +19,8 @@ import {
   type SimStage,
 } from "./types";
 
-export function simulateMajor(
-  base: Baseline,
-  choices: Choices,
-  preview = false,
-): SimStage[] {
-  if (base.version !== SIMULATION_VERSION)
-    throw new Error("赛事规则已变化，请刷新赛况");
+export function simulateMajor(base: Baseline, choices: Choices, preview = false): SimStage[] {
+  if (base.version !== SIMULATION_VERSION) throw new Error("赛事规则已变化，请刷新赛况");
   const ordered = orderedPredictionStages(base.stages);
   const first = ordered.find((stage) => stage.previousKey === null);
   if (!first || base.teams.length !== first.directSeeds[1]) return [];
@@ -65,9 +51,7 @@ export function simulateMajor(
     else {
       const [lo, hi] = stage.directSeeds;
       entrants = seedMajorLaterStageEntrants({
-        directEntrants: base.teams.filter(
-          (e) => e.tournamentSeed >= lo && e.tournamentSeed <= hi,
-        ),
+        directEntrants: base.teams.filter((e) => e.tournamentSeed >= lo && e.tournamentSeed <= hi),
         advancingEntrants: qualifiers.map((e) => ({
           teamId: e.teamId,
           previousStageFinalSeed: e.finalStageSeed,
@@ -80,13 +64,7 @@ export function simulateMajor(
     const stageOfficial = !hypothetical;
     const upstreamPreview = result.some((s) => !s.complete);
     let roundOfficial = !hypothetical;
-    const select = (
-      key: string,
-      round: number,
-      a: string,
-      b: string,
-      format: string,
-    ): SimMatch => {
+    const select = (key: string, round: number, a: string, b: string, format: string): SimMatch => {
       const choice = choices[`${stage.key}/${key}`];
       const compatible =
         choice &&
@@ -94,9 +72,7 @@ export function simulateMajor(
         [choice.a, choice.b].includes(b) &&
         [a, b].includes(choice.winner);
       const official = (
-        stage.type === "single_elim"
-          ? stageOfficial && !invalidated.has(key)
-          : roundOfficial
+        stage.type === "single_elim" ? stageOfficial && !invalidated.has(key) : roundOfficial
       )
         ? base.matches.find(
             (m) =>
@@ -107,14 +83,11 @@ export function simulateMajor(
           )
         : undefined;
       const predicted = !compatible && !official?.winner && preview;
-      const winner = compatible
-        ? choice.winner
-        : (official?.winner ?? (predicted ? a : null));
+      const winner = compatible ? choice.winner : (official?.winner ?? (predicted ? a : null));
       if (predicted || (compatible && winner !== official?.winner)) {
         hypothetical = true;
         if (stage.type === "single_elim")
-          for (const child of playoffDescendants(key as PlayoffManagedKey))
-            invalidated.add(child);
+          for (const child of playoffDescendants(key as PlayoffManagedKey)) invalidated.add(child);
       }
       return {
         officialMatchId: official?.id,
@@ -124,16 +97,17 @@ export function simulateMajor(
         b,
         winner,
         format,
-        source: compatible
-          ? "assumption"
-          : predicted
-            ? "preview"
-            : winner
-              ? "official"
-              : "pending",
-        displayScore: !compatible && official?.winner && official.displayScore ? { ...official.displayScore,
-          scoreA: official.a === a ? official.displayScore.scoreA : official.displayScore.scoreB,
-          scoreB: official.a === a ? official.displayScore.scoreB : official.displayScore.scoreA } : undefined,
+        source: compatible ? "assumption" : predicted ? "preview" : winner ? "official" : "pending",
+        displayScore:
+          !compatible && official?.winner && official.displayScore
+            ? {
+                ...official.displayScore,
+                scoreA:
+                  official.a === a ? official.displayScore.scoreA : official.displayScore.scoreB,
+                scoreB:
+                  official.a === a ? official.displayScore.scoreB : official.displayScore.scoreA,
+              }
+            : undefined,
         scoreA:
           !compatible && official?.winner
             ? official.a === a
@@ -165,13 +139,7 @@ export function simulateMajor(
           stageMatchFormat: stage.matchFormat,
         });
         const roundRows = pairs.map((p, i) =>
-          select(
-            `r${r}-${i + 1}`,
-            r,
-            p.higherSeedTeamId,
-            p.lowerSeedTeamId,
-            p.format,
-          ),
+          select(`r${r}-${i + 1}`, r, p.higherSeedTeamId, p.lowerSeedTeamId, p.format),
         );
         const prior = projectMajorSwissStage({
           entrants: seeded,
@@ -200,23 +168,31 @@ export function simulateMajor(
         matches: facts,
         finalizedRound: finalized,
       });
-      qualifiers =
-        finalized === 5 ? [...getMajorSwissQualifiers(projection)] : [];
-      const resultPick = finalized === 5 ? {
-        perfect: projection.teams.filter((t) => t.wins === 3 && t.losses === 0).map((t) => t.teamId),
-        advance: projection.teams.filter((t) => t.wins === 3 && t.losses > 0).map((t) => t.teamId),
-        eliminated: projection.teams.filter((t) => t.losses === 3 && t.wins === 0).map((t) => t.teamId),
-      } : null;
+      qualifiers = finalized === 5 ? [...getMajorSwissQualifiers(projection)] : [];
+      const resultPick =
+        finalized === 5
+          ? {
+              perfect: projection.teams
+                .filter((t) => t.wins === 3 && t.losses === 0)
+                .map((t) => t.teamId),
+              advance: projection.teams
+                .filter((t) => t.wins === 3 && t.losses > 0)
+                .map((t) => t.teamId),
+              eliminated: projection.teams
+                .filter((t) => t.losses === 3 && t.wins === 0)
+                .map((t) => t.teamId),
+            }
+          : null;
       result.push({
-        swissPolicy: { winThreshold: MAJOR_SWISS_WIN_THRESHOLD, lossThreshold: MAJOR_SWISS_LOSS_THRESHOLD },
+        swissPolicy: {
+          winThreshold: MAJOR_SWISS_WIN_THRESHOLD,
+          lossThreshold: MAJOR_SWISS_LOSS_THRESHOLD,
+        },
         key: stage.key,
         entrants,
         officialEntrants,
         matches: rows,
-        complete:
-          finalized === 5 &&
-          !upstreamPreview &&
-          !rows.some((m) => m.source === "preview"),
+        complete: finalized === 5 && !upstreamPreview && !rows.some((m) => m.source === "preview"),
         standings: projection.teams.map((t) => ({
           teamId: t.teamId,
           wins: t.wins,
@@ -266,9 +242,7 @@ export function simulateMajor(
         officialEntrants,
         matches: rows,
         complete:
-          facts.length === 7 &&
-          !upstreamPreview &&
-          !rows.some((m) => m.source === "preview"),
+          facts.length === 7 && !upstreamPreview && !rows.some((m) => m.source === "preview"),
         standings: [],
         resultPick,
         pick: !upstreamPreview && !rows.some((m) => m.source === "preview") ? resultPick : null,
@@ -297,16 +271,12 @@ export function replaceSimulationChoice(
   for (const [key, value] of Object.entries(choices)) {
     const [s, k] = key.split("/");
     const si = stages.findIndex((stage) => stage.key === s);
-    const previous = projected
-      .find((stage) => stage.key === s)
-      ?.matches.find((m) => m.key === k);
+    const previous = projected.find((stage) => stage.key === s)?.matches.find((m) => m.key === k);
     if (
       si < index ||
       (si === index &&
         previous &&
-        (descendants
-          ? !descendants.has(k as PlayoffManagedKey)
-          : previous.round <= match.round) &&
+        (descendants ? !descendants.has(k as PlayoffManagedKey) : previous.round <= match.round) &&
         k !== match.key)
     )
       next[key] = value;

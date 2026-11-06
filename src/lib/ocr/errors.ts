@@ -5,7 +5,8 @@ import { ErrorCode } from "@/lib/errors";
 import type { ActionError } from "@/types/action";
 import type { OCRDiagnostic } from "./diagnostics";
 
-type OCRFailureKind = "configuration" | "authentication" | "rate_limit" | "network" | "timeout" | "upstream" | "image";
+type OCRFailureKind =
+  "configuration" | "authentication" | "rate_limit" | "network" | "timeout" | "upstream" | "image";
 type OCRPhase = "configuration" | "image" | "request" | "response" | "json_parse" | "shape";
 
 export interface OCRResponseSummary {
@@ -48,7 +49,12 @@ export class OCRFailure extends Error {
     readonly phase: OCRPhase,
     readonly reason: string,
     readonly httpStatus?: number,
-    options?: { requestId?: string; cause?: Error; diagnostics?: readonly OCRDiagnostic[]; responseSummary?: Partial<OCRResponseSummary> },
+    options?: {
+      requestId?: string;
+      cause?: Error;
+      diagnostics?: readonly OCRDiagnostic[];
+      responseSummary?: Partial<OCRResponseSummary>;
+    },
   ) {
     super(`ocr.${phase}.${reason}`, { cause: options?.cause });
     this.name = "OCRFailure";
@@ -68,9 +74,11 @@ export class OCRFailure extends Error {
 export function presentOCRFailure(error: OCRFailure): ActionError {
   return {
     code: error.kind === "image" ? ErrorCode.VALIDATION_FAILED : ErrorCode.OCR_UNAVAILABLE,
-    message: (error.reason === "output_truncated"
-      ? "OCR 识别结果未完整生成，请稍后重试；持续失败时请联系管理员并提供排查编号。"
-      : MESSAGES[error.kind]) + (error.httpStatus && error.httpStatus >= 400 ? `（HTTP ${error.httpStatus}）` : ""),
+    message:
+      (error.reason === "output_truncated"
+        ? "OCR 识别结果未完整生成，请稍后重试；持续失败时请联系管理员并提供排查编号。"
+        : MESSAGES[error.kind]) +
+      (error.httpStatus && error.httpStatus >= 400 ? `（HTTP ${error.httpStatus}）` : ""),
     requestId: error.requestId,
     meta: {
       requestId: error.requestId,

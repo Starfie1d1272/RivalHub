@@ -15,18 +15,43 @@ async function getCareerAttributes(playerIds: string[]) {
   "use cache: remote";
   cacheTag(PUBLIC_STATS_TAG);
   cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
-  return observeStatsCacheFill("lineup.style", () => observePublicStatsFill("stats.lineup", () => preservePublicStatsDependencyFailure(async () => {
-  const [careers, benchmark] = await Promise.all([getPlayerCareerPerformances(playerIds), getPlayerAttributeBenchmark()]);
-  return careers.map(({ playerId, maps, rounds, performance }) => ({
-    userId: playerId, maps, rounds,
-    attributes: performance ? projectPlayerAttributeProfile(performance, benchmark).attributes.map(({ key, score, status }) => ({ key, score, status })) : [],
-  }));
-  })));
+  return observeStatsCacheFill("lineup.style", () =>
+    observePublicStatsFill("stats.lineup", () =>
+      preservePublicStatsDependencyFailure(async () => {
+        const [careers, benchmark] = await Promise.all([
+          getPlayerCareerPerformances(playerIds),
+          getPlayerAttributeBenchmark(),
+        ]);
+        return careers.map(({ playerId, maps, rounds, performance }) => ({
+          userId: playerId,
+          maps,
+          rounds,
+          attributes: performance
+            ? projectPlayerAttributeProfile(performance, benchmark).attributes.map(
+                ({ key, score, status }) => ({ key, score, status }),
+              )
+            : [],
+        }));
+      }),
+    ),
+  );
 }
 
-export async function getPublicLineupStyle(members: readonly PublicPlayerIdentity[]): Promise<LineupStyleMember[]> {
+export async function getPublicLineupStyle(
+  members: readonly PublicPlayerIdentity[],
+): Promise<LineupStyleMember[]> {
   if (!members.length) return [];
   recordStatsCache("lineup.style", "readCalls");
-  const careers = new Map((await getCareerAttributes([...new Set(members.map((member) => member.userId))].sort())).map((career) => [career.userId, career]));
-  return members.map((member) => ({ ...careers.get(member.userId)!, userId: member.userId, name: member.name, avatarUrl: member.avatarUrl, hasActivePublicSanction: member.hasActivePublicSanction }));
+  const careers = new Map(
+    (await getCareerAttributes([...new Set(members.map((member) => member.userId))].sort())).map(
+      (career) => [career.userId, career],
+    ),
+  );
+  return members.map((member) => ({
+    ...careers.get(member.userId)!,
+    userId: member.userId,
+    name: member.name,
+    avatarUrl: member.avatarUrl,
+    hasActivePublicSanction: member.hasActivePublicSanction,
+  }));
 }

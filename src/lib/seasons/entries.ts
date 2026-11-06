@@ -1,7 +1,18 @@
 import { statsEntryHref } from "@/lib/stats/view-state";
 import type { SeasonStatus } from "@/types/season";
 
-export type SeasonEntryKey = "overview" | "captains" | "draft" | "matches" | "teams" | "players" | "stats" | "bet" | "predictions" | "awards" | "info";
+export type SeasonEntryKey =
+  | "overview"
+  | "captains"
+  | "draft"
+  | "matches"
+  | "teams"
+  | "players"
+  | "stats"
+  | "bet"
+  | "predictions"
+  | "awards"
+  | "info";
 export interface SeasonEntry {
   key: SeasonEntryKey;
   label: string;
@@ -27,7 +38,13 @@ export function seasonEntries(input: SeasonEntryInput): SeasonEntry[] {
   const { slug, status } = input;
   const rows: [SeasonEntryKey, string, string, boolean, number][] = [
     ["overview", "总览", `/${slug}`, true, 9],
-    ["captains", "队长投票", `/${slug}/captains`, input.hasCaptainVoting, status === "voting" ? 0 : 5],
+    [
+      "captains",
+      "队长投票",
+      `/${slug}/captains`,
+      input.hasCaptainVoting,
+      status === "voting" ? 0 : 5,
+    ],
     ["draft", "选秀", `/${slug}/draft`, input.hasDraft, status === "drafting" ? 0 : 5],
     ["matches", "赛程", `/${slug}/matches`, input.hasMatches, 1],
     ["teams", "参赛阵容", `/${slug}/teams`, true, 4],
@@ -38,12 +55,23 @@ export function seasonEntries(input: SeasonEntryInput): SeasonEntry[] {
     ["info", "赛事信息", `/${slug}/info`, true, 8],
   ];
   return rows.map(([key, label, href, canRead, featuredPriority]) => ({
-    key, label, href, canRead, featuredPriority,
+    key,
+    label,
+    href,
+    canRead,
+    featuredPriority,
     scope: key === "stats" ? "platform" : "event",
-    canAct: key === "captains" ? status === "voting" : key === "draft" ? status === "drafting" : false,
-    matches: (pathname: string) => key === "overview" ? pathname === href
-      : key === "teams" ? pathname === href || pathname.startsWith(`${href}/`) || pathname === `/${slug}/players`
-      : key === "info" ? pathname === href || pathname.startsWith(`${href}/`) || pathname === `/${slug}/announcements`
-      : pathname === href || pathname.startsWith(`${href}/`),
+    canAct:
+      key === "captains" ? status === "voting" : key === "draft" ? status === "drafting" : false,
+    matches: (pathname: string) =>
+      key === "overview"
+        ? pathname === href
+        : key === "teams"
+          ? pathname === href || pathname.startsWith(`${href}/`) || pathname === `/${slug}/players`
+          : key === "info"
+            ? pathname === href ||
+              pathname.startsWith(`${href}/`) ||
+              pathname === `/${slug}/announcements`
+            : pathname === href || pathname.startsWith(`${href}/`),
   }));
 }

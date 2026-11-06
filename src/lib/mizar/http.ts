@@ -11,40 +11,74 @@ import { classifyError } from "@/lib/observability/errors";
 import { recordMizarHttpResult, recordMizarEncodedBody } from "@/lib/observability/read-budget";
 
 type MizarPhase = "auth" | "read" | "validate" | "domain" | "revalidation";
-interface MizarDiagnostics { operation: string; phase: MizarPhase; requestId: string; route?: string }
+interface MizarDiagnostics {
+  operation: string;
+  phase: MizarPhase;
+  requestId: string;
+  route?: string;
+}
 
 /** One capture owner for handled route failures; LIVE expected outcomes stay quiet. */
-export function withMizarRequest(request: Request, route: string, operation: string, handler: (diagnostics: MizarDiagnostics) => Promise<Response>): Promise<Response> {
-  return withDbTrafficSource("mizar", () => withRouteObservability(request, route, async (requestContext) => {
-    const diagnostics: MizarDiagnostics = { operation, phase: "auth", requestId: ensureRequestId(requestContext.requestId), route };
-    let response: Response | undefined;
-    try {
-      response = await handler(diagnostics);
-      return response;
-    } catch (error) {
-      response = mizarHttpError(error, diagnostics);
-      return response;
-    } finally {
-      if (request.method === "GET" && (diagnostics.operation === "match" || diagnostics.operation === "schedule")) {
-        recordMizarHttpResult(diagnostics.operation, response?.status);
-      }
-    }
-  }, { captureServerErrorResponse: false }));
+export function withMizarRequest(
+  request: Request,
+  route: string,
+  operation: string,
+  handler: (diagnostics: MizarDiagnostics) => Promise<Response>,
+): Promise<Response> {
+  return withDbTrafficSource("mizar", () =>
+    withRouteObservability(
+      request,
+      route,
+      async (requestContext) => {
+        const diagnostics: MizarDiagnostics = {
+          operation,
+          phase: "auth",
+          requestId: ensureRequestId(requestContext.requestId),
+          route,
+        };
+        let response: Response | undefined;
+        try {
+          response = await handler(diagnostics);
+          return response;
+        } catch (error) {
+          response = mizarHttpError(error, diagnostics);
+          return response;
+        } finally {
+          if (
+            request.method === "GET" &&
+            (diagnostics.operation === "match" || diagnostics.operation === "schedule")
+          ) {
+            recordMizarHttpResult(diagnostics.operation, response?.status);
+          }
+        }
+      },
+      { captureServerErrorResponse: false },
+    ),
+  );
 }
 
 class MizarBodyError extends Error {
-  constructor(public readonly code: "invalid_body" | "body_timeout" | "payload_too_large") { super(code); }
+  constructor(public readonly code: "invalid_body" | "body_timeout" | "payload_too_large") {
+    super(code);
+  }
 }
 
 /** Bound bytes while streaming; Content-Length is untrusted. */
-export async function readBoundedMizarJson(request: Request, maxBytes: number, timeoutMs?: number): Promise<unknown> {
+export async function readBoundedMizarJson(
+  request: Request,
+  maxBytes: number,
+  timeoutMs?: number,
+): Promise<unknown> {
   const reader = request.body?.getReader();
   if (!reader) throw new MizarBodyError("invalid_body");
   let timedOut = false;
-  const timer = timeoutMs === undefined ? undefined : setTimeout(() => {
-    timedOut = true;
-    void reader.cancel().catch(() => {});
-  }, timeoutMs);
+  const timer =
+    timeoutMs === undefined
+      ? undefined
+      : setTimeout(() => {
+          timedOut = true;
+          void reader.cancel().catch(() => {});
+        }, timeoutMs);
   const chunks: Uint8Array[] = [];
   let size = 0;
   try {
@@ -53,19 +87,28 @@ export async function readBoundedMizarJson(request: Request, maxBytes: number, t
       if (timedOut) throw new MizarBodyError("body_timeout");
       if (done) break;
       size += value.byteLength;
-      if (size > maxBytes) { await reader.cancel(); throw new MizarBodyError("payload_too_large"); }
+      if (size > maxBytes) {
+        await reader.cancel();
+        throw new MizarBodyError("payload_too_large");
+      }
       chunks.push(value);
     }
     const buffer = new Uint8Array(size);
     let offset = 0;
-    for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.length; }
+    for (const chunk of chunks) {
+      buffer.set(chunk, offset);
+      offset += chunk.length;
+    }
     try {
       return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer));
     } catch {
       // Malformed JSON/UTF-8 is client input; never retain its parser message/body.
       throw new MizarBodyError("invalid_body");
     }
-  } finally { clearTimeout(timer); reader.releaseLock(); }
+  } finally {
+    clearTimeout(timer);
+    reader.releaseLock();
+  }
 }
 
 export function mizarHttpError(error: unknown, diagnostics?: MizarDiagnostics) {
@@ -75,57 +118,140 @@ export function mizarHttpError(error: unknown, diagnostics?: MizarDiagnostics) {
   if (reliable) diagnostics.requestId = crypto.randomUUID();
   let reason: ReliableReason | undefined;
   if (reliable && error instanceof ReliableRejection) reason = error.reason;
-  else if (reliable && (error instanceof ZodError && diagnostics.phase === "validate" || error instanceof MizarBodyError && error.code === "invalid_body")) reason = "invalid_schema";
+  else if (
+    reliable &&
+    ((error instanceof ZodError && diagnostics.phase === "validate") ||
+      (error instanceof MizarBodyError && error.code === "invalid_body"))
+  )
+    reason = "invalid_schema";
   let logged = false;
-  if (reliable && (error instanceof AppError && error.code !== "INTERNAL_ERROR" || error instanceof MizarBodyError || error instanceof ZodError && (diagnostics.phase === "validate" || diagnostics.phase === "domain"))) {
-    logged = recordMizarReliableRejection(reason ?? (diagnostics.phase === "auth" ? "auth_failed" : "other"), diagnostics.phase, diagnostics.requestId, error instanceof ReliableRejection ? error.details : undefined);
+  if (
+    reliable &&
+    ((error instanceof AppError && error.code !== "INTERNAL_ERROR") ||
+      error instanceof MizarBodyError ||
+      (error instanceof ZodError &&
+        (diagnostics.phase === "validate" || diagnostics.phase === "domain")))
+  ) {
+    logged = recordMizarReliableRejection(
+      reason ?? (diagnostics.phase === "auth" ? "auth_failed" : "other"),
+      diagnostics.phase,
+      diagnostics.requestId,
+      error instanceof ReliableRejection ? error.details : undefined,
+    );
   }
-  const extras = reason ? { reason, ...(logged ? { requestId: diagnostics!.requestId } : {}), recovery: reliableRecovery(reason) } : {};
+  const extras = reason
+    ? {
+        reason,
+        ...(logged ? { requestId: diagnostics!.requestId } : {}),
+        recovery: reliableRecovery(reason),
+      }
+    : {};
   if (error instanceof AppError && error.code !== "INTERNAL_ERROR") {
-    const status = error.code === "UNAUTHORIZED" ? 401 : error.code === "FORBIDDEN" ? 403 : ["NOT_FOUND", "MATCH_NOT_FOUND", "SEASON_NOT_FOUND"].includes(error.code) ? 404 : 400;
-    return Response.json({ error: error.presentation?.message ?? error.message, code: error.code, ...extras }, { status, headers });
+    const status =
+      error.code === "UNAUTHORIZED"
+        ? 401
+        : error.code === "FORBIDDEN"
+          ? 403
+          : ["NOT_FOUND", "MATCH_NOT_FOUND", "SEASON_NOT_FOUND"].includes(error.code)
+            ? 404
+            : 400;
+    return Response.json(
+      { error: error.presentation?.message ?? error.message, code: error.code, ...extras },
+      { status, headers },
+    );
   }
   if (error instanceof MizarBodyError) {
-    const status = error.code === "payload_too_large" ? 413 : error.code === "body_timeout" ? 408 : 400;
-    const message = error.code === "payload_too_large" ? "制播数据过大，请更新 Mizar 后重试。" : error.code === "body_timeout" ? "读取制播数据超时，请检查网络后重试。" : "制播数据格式无效，请更新 Mizar 后重试。";
+    const status =
+      error.code === "payload_too_large" ? 413 : error.code === "body_timeout" ? 408 : 400;
+    const message =
+      error.code === "payload_too_large"
+        ? "制播数据过大，请更新 Mizar 后重试。"
+        : error.code === "body_timeout"
+          ? "读取制播数据超时，请检查网络后重试。"
+          : "制播数据格式无效，请更新 Mizar 后重试。";
     return Response.json({ error: message, code: error.code, ...extras }, { status, headers });
   }
-  if (error instanceof ZodError && (!diagnostics || diagnostics.phase === "validate" || diagnostics.phase === "domain")) {
-    return Response.json({ error: "制播数据格式无效，请刷新比赛资料并更新 Mizar 后重试。", code: "VALIDATION_FAILED", ...extras }, { status: 400, headers });
+  if (
+    error instanceof ZodError &&
+    (!diagnostics || diagnostics.phase === "validate" || diagnostics.phase === "domain")
+  ) {
+    return Response.json(
+      {
+        error: "制播数据格式无效，请刷新比赛资料并更新 Mizar 后重试。",
+        code: "VALIDATION_FAILED",
+        ...extras,
+      },
+      { status: 400, headers },
+    );
   }
   const requestId = ensureRequestId(diagnostics?.requestId);
   const classification = classifyError(error);
   captureException("mizar.request.failure", error, {
-    scope: "mizar", operation: diagnostics?.operation ?? "request", requestId, route: diagnostics?.route,
+    scope: "mizar",
+    operation: diagnostics?.operation ?? "request",
+    requestId,
+    route: diagnostics?.route,
     errorCode: classification.errorCode ?? "INTERNAL_ERROR",
     safeContext: { phase: diagnostics?.phase ?? "domain", httpStatus: 500 },
   });
-  const hint = diagnostics?.phase === "revalidation" ? "数据可能已保存，请先刷新核对结果。" : "请先刷新比赛资料并核对操作结果，稍后重试。";
-  return Response.json({ error: `制播连接暂时不可用。${hint}如仍有问题，请向管理员提供排查编号：${requestId}`, code: "INTERNAL_ERROR", requestId }, { status: 500, headers: { ...headers, "X-Request-Id": requestId } });
+  const hint =
+    diagnostics?.phase === "revalidation"
+      ? "数据可能已保存，请先刷新核对结果。"
+      : "请先刷新比赛资料并核对操作结果，稍后重试。";
+  return Response.json(
+    {
+      error: `制播连接暂时不可用。${hint}如仍有问题，请向管理员提供排查编号：${requestId}`,
+      code: "INTERNAL_ERROR",
+      requestId,
+    },
+    { status: 500, headers: { ...headers, "X-Request-Id": requestId } },
+  );
 }
 
 /** Pairing endpoints accept desktop WebView origins but never browser cookies. */
 export function mizarPairingHeaders(request: Request): Headers {
-  const headers = new Headers({ "Cache-Control": "no-store", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" });
+  const headers = new Headers({
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  });
   const origin = request.headers.get("origin");
-  const configured = process.env.MIZAR_ALLOWED_ORIGINS?.split(",").map(value => value.trim()).filter(Boolean) ?? [];
-  if (origin && (configured.includes(origin) || origin === "null" || origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:"))) {
+  const configured =
+    process.env.MIZAR_ALLOWED_ORIGINS?.split(",")
+      .map((value) => value.trim())
+      .filter(Boolean) ?? [];
+  if (
+    origin &&
+    (configured.includes(origin) ||
+      origin === "null" ||
+      origin.startsWith("http://localhost:") ||
+      origin.startsWith("http://127.0.0.1:"))
+  ) {
     headers.set("Access-Control-Allow-Origin", origin);
     headers.set("Vary", "Origin");
   }
   return headers;
 }
 
-export function mizarContextResponse(request: Request, document: { revision: string; schemaVersion?: string }) {
+export function mizarContextResponse(
+  request: Request,
+  document: { revision: string; schemaVersion?: string },
+) {
   const encoded = JSON.stringify(document);
   const bytes = Buffer.byteLength(encoded, "utf8");
   if (bytes > 256 * 1024) throw new Error("context_payload_too_large");
   const etag = `"${document.revision}"`;
   const headers = { ETag: etag, "Cache-Control": "private, no-cache", Vary: "Authorization" };
   const unchanged = request.headers.get("if-none-match") === etag;
-  const family = document.schemaVersion === "rivalhub.broadcast-schedule-window.v1" ? "schedule"
-    : document.schemaVersion === "rivalhub.broadcast-manifest.v1" || document.schemaVersion === "rivalhub.broadcast-manifest.v2" ? "match" : undefined;
+  const family =
+    document.schemaVersion === "rivalhub.broadcast-schedule-window.v1"
+      ? "schedule"
+      : document.schemaVersion === "rivalhub.broadcast-manifest.v1" ||
+          document.schemaVersion === "rivalhub.broadcast-manifest.v2"
+        ? "match"
+        : undefined;
   if (family) recordMizarEncodedBody(family, unchanged ? 0 : bytes);
-  return unchanged ? new Response(null, { status: 304, headers })
+  return unchanged
+    ? new Response(null, { status: 304, headers })
     : new Response(encoded, { headers: { ...headers, "Content-Type": "application/json" } });
 }

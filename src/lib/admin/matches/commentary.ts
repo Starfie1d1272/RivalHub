@@ -4,7 +4,15 @@ import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db, type DB, type TxDb } from "@/db/client";
-import { competitionEntries, matchCommentators, matchLiveSessions, matchVetoSessions, matches, steamProfiles, users } from "@/db/schema";
+import {
+  competitionEntries,
+  matchCommentators,
+  matchLiveSessions,
+  matchVetoSessions,
+  matches,
+  steamProfiles,
+  users,
+} from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
@@ -41,15 +49,23 @@ export interface AdminMatchCommentaryData {
 }
 
 /** Server-authorized, season-scoped facts; deliberately independent of list filters. */
-export async function loadAdminMatchCommentary(seasonId: string, options: { excludeMatchId?: string; historicalMatchIds?: readonly string[] } = {}): Promise<AdminMatchCommentaryData> {
+export async function loadAdminMatchCommentary(
+  seasonId: string,
+  options: { excludeMatchId?: string; historicalMatchIds?: readonly string[] } = {},
+): Promise<AdminMatchCommentaryData> {
   const admin = await requireSeasonAdmin(seasonId);
   return readAdminMatchCommentary(db, { seasonId, currentUserId: admin.userId, ...options });
 }
 
-export async function readAdminMatchPanelFacts(database: DB | TxDb, seasonId: string, historicalMatchIds?: readonly string[]) {
+export async function readAdminMatchPanelFacts(
+  database: DB | TxDb,
+  seasonId: string,
+  historicalMatchIds?: readonly string[],
+) {
   const teamA = alias(competitionEntries, "commentary_team_a");
   const teamB = alias(competitionEntries, "commentary_team_b");
-  return database.select({
+  return database
+    .select({
       id: matches.id,
       stage: matches.stage,
       round: matches.round,
@@ -65,48 +81,92 @@ export async function readAdminMatchPanelFacts(database: DB | TxDb, seasonId: st
       completedAt: matches.completedAt,
       vetoStartedAt: matchVetoSessions.startedAt,
       activeSourceId: matchLiveSessions.id,
-    }).from(matches)
-      .leftJoin(matchVetoSessions, eq(matchVetoSessions.matchId, matches.id))
-      .leftJoin(matchLiveSessions, and(eq(matchLiveSessions.matchId, matches.id), isNull(matchLiveSessions.closedAt)))
-      .leftJoin(teamA, eq(teamA.id, matches.entryAId))
-      .leftJoin(teamB, eq(teamB.id, matches.entryBId))
-      .where(and(eq(matches.seasonId, seasonId), historicalMatchIds ? or(
-        inArray(matches.status, ["scheduled", "in_progress"]),
-        historicalMatchIds.length ? inArray(matches.id, [...historicalMatchIds]) : undefined,
-      ) : undefined))
-      .orderBy(asc(matches.id));
+    })
+    .from(matches)
+    .leftJoin(matchVetoSessions, eq(matchVetoSessions.matchId, matches.id))
+    .leftJoin(
+      matchLiveSessions,
+      and(eq(matchLiveSessions.matchId, matches.id), isNull(matchLiveSessions.closedAt)),
+    )
+    .leftJoin(teamA, eq(teamA.id, matches.entryAId))
+    .leftJoin(teamB, eq(teamB.id, matches.entryBId))
+    .where(
+      and(
+        eq(matches.seasonId, seasonId),
+        historicalMatchIds
+          ? or(
+              inArray(matches.status, ["scheduled", "in_progress"]),
+              historicalMatchIds.length ? inArray(matches.id, [...historicalMatchIds]) : undefined,
+            )
+          : undefined,
+      ),
+    )
+    .orderBy(asc(matches.id));
 }
 export type AdminMatchPanelFact = Awaited<ReturnType<typeof readAdminMatchPanelFacts>>[number];
 
 /** Database read owner. Callers must authorize the season before projecting it. */
 export async function readAdminMatchCommentary(
   database: DB | TxDb,
-  { seasonId, currentUserId, excludeMatchId, historicalMatchIds }: { seasonId: string; currentUserId: string; excludeMatchId?: string; historicalMatchIds?: readonly string[] },
+  {
+    seasonId,
+    currentUserId,
+    excludeMatchId,
+    historicalMatchIds,
+  }: {
+    seasonId: string;
+    currentUserId: string;
+    excludeMatchId?: string;
+    historicalMatchIds?: readonly string[];
+  },
   preloaded?: readonly AdminMatchPanelFact[],
 ): Promise<AdminMatchCommentaryData> {
   const [rawMatches, eligibleUsers] = await Promise.all([
     preloaded ?? readAdminMatchPanelFacts(database, seasonId, historicalMatchIds),
-    database.select({ userId: users.id }).from(users)
+    database
+      .select({ userId: users.id })
+      .from(users)
       .where(and(eq(users.id, currentUserId), commentaryAdminEligibility(seasonId))),
   ]);
-  const matchRows = rawMatches.flatMap(row => row.teamAName !== null && row.teamBName !== null ? [{ ...row, teamAName: row.teamAName, teamBName: row.teamBName }] : []);
-  const commentatorRows = matchRows.length === 0 ? [] : await database.select({
-    matchId: matchCommentators.matchId,
-    userId: users.id,
-    email: users.email,
-    displayName: users.displayName,
-    personaName: steamProfiles.personaName,
-    perfectName: users.perfectName,
-  }).from(matchCommentators)
-    .innerJoin(users, eq(users.id, matchCommentators.userId))
-    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-    .where(inArray(matchCommentators.matchId, matchRows.map((match) => match.id)))
-    .orderBy(asc(matchCommentators.userId));
-  const playerIds = await getPublicPlayerIdentityIds(database, commentatorRows.map(row => row.userId));
+  const matchRows = rawMatches.flatMap((row) =>
+    row.teamAName !== null && row.teamBName !== null
+      ? [{ ...row, teamAName: row.teamAName, teamBName: row.teamBName }]
+      : [],
+  );
+  const commentatorRows =
+    matchRows.length === 0
+      ? []
+      : await database
+          .select({
+            matchId: matchCommentators.matchId,
+            userId: users.id,
+            email: users.email,
+            displayName: users.displayName,
+            personaName: steamProfiles.personaName,
+            perfectName: users.perfectName,
+          })
+          .from(matchCommentators)
+          .innerJoin(users, eq(users.id, matchCommentators.userId))
+          .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+          .where(
+            inArray(
+              matchCommentators.matchId,
+              matchRows.map((match) => match.id),
+            ),
+          )
+          .orderBy(asc(matchCommentators.userId));
+  const playerIds = await getPublicPlayerIdentityIds(
+    database,
+    commentatorRows.map((row) => row.userId),
+  );
   const commentatorsByMatch = new Map<string, AdminMatchCommentaryAssignment["commentators"]>();
   for (const row of commentatorRows) {
     const commentators = commentatorsByMatch.get(row.matchId) ?? [];
-    commentators.push({ userId: row.userId, name: getDisplayName(row), playerUserId: playerIds.has(row.userId) ? row.userId : null });
+    commentators.push({
+      userId: row.userId,
+      name: getDisplayName(row),
+      playerUserId: playerIds.has(row.userId) ? row.userId : null,
+    });
     commentatorsByMatch.set(row.matchId, commentators);
   }
 
@@ -118,15 +178,38 @@ export async function readAdminMatchCommentary(
     const isMine = commentators.some((person) => person.userId === currentUserId);
     const active = match.status === "scheduled" || match.status === "in_progress";
     const cancellationBlockedReason = isMine ? commentaryCancellationBlocker(match) : null;
-    byMatchId[match.id] = { commentators, isMine, canClaim: canCommentate && active && !isMine && commentators.length < 2, canCancel: canCommentate && isMine && cancellationBlockedReason === null, cancellationBlockedReason };
-    if ((match.status === "scheduled" || match.status === "in_progress") && match.id !== excludeMatchId) {
-      activeMatches.push({ id: match.id, stage: match.stage, isTest: Boolean(match.testConfig), entryAId: match.entryAId, entryBId: match.entryBId, teamAName: match.teamAName, teamBName: match.teamBName, status: match.status, scheduledAt: match.scheduledAt });
+    byMatchId[match.id] = {
+      commentators,
+      isMine,
+      canClaim: canCommentate && active && !isMine && commentators.length < 2,
+      canCancel: canCommentate && isMine && cancellationBlockedReason === null,
+      cancellationBlockedReason,
+    };
+    if (
+      (match.status === "scheduled" || match.status === "in_progress") &&
+      match.id !== excludeMatchId
+    ) {
+      activeMatches.push({
+        id: match.id,
+        stage: match.stage,
+        isTest: Boolean(match.testConfig),
+        entryAId: match.entryAId,
+        entryBId: match.entryBId,
+        teamAName: match.teamAName,
+        teamBName: match.teamBName,
+        status: match.status,
+        scheduledAt: match.scheduledAt,
+      });
     }
   }
   const claimable = activeMatches.filter((match) => byMatchId[match.id]!.canClaim);
   return {
-    currentMatches: activeMatches.filter((match) => match.status === "in_progress" && byMatchId[match.id]!.isMine),
-    nextMatch: activeMatches.find((match) => match.status === "scheduled" && byMatchId[match.id]!.isMine) ?? null,
+    currentMatches: activeMatches.filter(
+      (match) => match.status === "in_progress" && byMatchId[match.id]!.isMine,
+    ),
+    nextMatch:
+      activeMatches.find((match) => match.status === "scheduled" && byMatchId[match.id]!.isMine) ??
+      null,
     claimableMatches: claimable,
     claimableCount: claimable.length,
     byMatchId,

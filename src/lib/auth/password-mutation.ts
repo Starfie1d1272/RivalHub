@@ -13,7 +13,12 @@ export async function mutatePassword(
 ): Promise<void> {
   const mutationId = await db.transaction(async (tx) => {
     const id = await beginPasswordMutationInTx(tx, userId, startedAt);
-    await writeAuditInTx(tx, { action: "user.password_update_started", actorId: userId, targetId: userId, meta: { operation: action, mutationId: id } });
+    await writeAuditInTx(tx, {
+      action: "user.password_update_started",
+      actorId: userId,
+      targetId: userId,
+      meta: { operation: action, mutationId: id },
+    });
     return id;
   });
   // Thrown/unknown provider outcomes deliberately retain the block for operator reconciliation.
@@ -33,14 +38,21 @@ export async function mutatePassword(
     await db.transaction(async (tx) => {
       await finishPasswordMutationInTx(tx, userId, mutationId);
       await writeAuditInTx(tx, {
-        seasonId: null, action: result.error ? "user.password_update_failed" : action,
-        actorId: userId, targetId: userId, meta: { mutationId },
+        seasonId: null,
+        action: result.error ? "user.password_update_failed" : action,
+        actorId: userId,
+        targetId: userId,
+        meta: { mutationId },
       });
     });
   } catch (cause) {
     // A rollback keeps the fence; a lost COMMIT acknowledgement is ambiguous.
     // Never retry Auth, clear the fence, or report the known provider result as unknown.
-    throw new PasswordMutationError("finalization_unknown", cause, result.error ? "rejected" : "succeeded");
+    throw new PasswordMutationError(
+      "finalization_unknown",
+      cause,
+      result.error ? "rejected" : "succeeded",
+    );
   }
   if (result.error) throw new PasswordMutationError("rejected", result.error);
 }

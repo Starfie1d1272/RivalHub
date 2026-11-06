@@ -17,7 +17,7 @@ export const MATCH_TIME_PROPOSAL_STATUS_LABELS = {
 
 export function normalizeMatchTimeProposalStatus(status: string): MatchTimeProposalStatus {
   return (MATCH_TIME_PROPOSAL_STATUSES as readonly string[]).includes(status)
-    ? status as Exclude<MatchTimeProposalStatus, "unknown">
+    ? (status as Exclude<MatchTimeProposalStatus, "unknown">)
     : "unknown";
 }
 
@@ -68,9 +68,22 @@ export async function getMatchTimeProposalViews(
   viewerUserId?: string,
 ): Promise<MatchTimeProposalView[]> {
   const rows = await loadMatchTimeProposalRows(matchId);
-  const [viewerEntry] = viewerUserId ? await db.select({ id: competitionEntries.id }).from(competitionEntries)
-    .innerJoin(matches, and(eq(matches.id, matchId), or(eq(competitionEntries.id, matches.entryAId), eq(competitionEntries.id, matches.entryBId))))
-    .where(eq(competitionEntries.representativeUserId, viewerUserId)) : [];
+  const [viewerEntry] = viewerUserId
+    ? await db
+        .select({ id: competitionEntries.id })
+        .from(competitionEntries)
+        .innerJoin(
+          matches,
+          and(
+            eq(matches.id, matchId),
+            or(
+              eq(competitionEntries.id, matches.entryAId),
+              eq(competitionEntries.id, matches.entryBId),
+            ),
+          ),
+        )
+        .where(eq(competitionEntries.representativeUserId, viewerUserId))
+    : [];
   return rows.map((row) => serializePublicMatchTimeProposal(row, viewerUserId, viewerEntry?.id));
 }
 
@@ -88,6 +101,9 @@ export function serializePublicMatchTimeProposal(
     resolution: row.resolution ?? null,
     rejectReason: row.rejectReason,
     createdAt: row.createdAt,
-    isMine: Boolean((viewerEntryId && viewerEntryId === row.proposedByEntryId) || (viewerUserId && viewerUserId === row.proposedBy)),
+    isMine: Boolean(
+      (viewerEntryId && viewerEntryId === row.proposedByEntryId) ||
+      (viewerUserId && viewerUserId === row.proposedBy),
+    ),
   };
 }

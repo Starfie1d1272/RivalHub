@@ -4,7 +4,10 @@ import type { RegistrationInput } from "@/lib/validators/registration";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { COMPETITION_HISTORY_MAX_LENGTH, GAMEPLAY_STYLE_MAX_LENGTH } from "@/lib/player-declared-profile";
+import {
+  COMPETITION_HISTORY_MAX_LENGTH,
+  GAMEPLAY_STYLE_MAX_LENGTH,
+} from "@/lib/player-declared-profile";
 import { RegistrationSectionTitle } from "./RegistrationSectionTitle";
 
 interface RegistrationExperienceSectionProps {

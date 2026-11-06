@@ -13,8 +13,14 @@ export interface MatchPhaseFacts {
 }
 
 export type MatchPresentationPhase =
-  | "preparation" | "awaiting_veto" | "veto" | "awaiting_gameplay"
-  | "gameplay" | "inter_map" | "post" | "cancelled";
+  | "preparation"
+  | "awaiting_veto"
+  | "veto"
+  | "awaiting_gameplay"
+  | "gameplay"
+  | "inter_map"
+  | "post"
+  | "cancelled";
 
 /** Pure projection; no persisted phase, credentials, health, or private admin DTO. */
 export function projectMatchPresentationPhase(facts: MatchPhaseFacts): MatchPresentationPhase {
@@ -23,16 +29,22 @@ export function projectMatchPresentationPhase(facts: MatchPhaseFacts): MatchPres
   if (facts.veto === "in_progress") return "veto";
   if (facts.veto !== "completed") return facts.scheduledAt ? "awaiting_veto" : "preparation";
   const maps = [...facts.maps].sort((a, b) => a.order - b.order);
-  const current = maps.find(map => map.completedAt === null);
+  const current = maps.find((map) => map.completedAt === null);
   if (current && current.id === facts.gameplayMapId) return "gameplay";
-  return maps.some(map => map.completedAt !== null) ? "inter_map" : "awaiting_gameplay";
+  return maps.some((map) => map.completedAt !== null) ? "inter_map" : "awaiting_gameplay";
 }
 
 /** An unfinished map with an official start takes precedence over live observation. */
 export function resolveGameplayMapId(
-  maps: readonly { id: string; startedAt: Date | string | null; completedAt: Date | string | null }[],
+  maps: readonly {
+    id: string;
+    startedAt: Date | string | null;
+    completedAt: Date | string | null;
+  }[],
   session: { currentMapId: string | null; mapExecutionPhase: string } | null | undefined,
 ): string | null {
-  return maps.find(map => map.startedAt && !map.completedAt)?.id
-    ?? (session?.mapExecutionPhase === "gameplay" ? session.currentMapId : null);
+  return (
+    maps.find((map) => map.startedAt && !map.completedAt)?.id ??
+    (session?.mapExecutionPhase === "gameplay" ? session.currentMapId : null)
+  );
 }

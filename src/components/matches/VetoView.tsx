@@ -33,7 +33,14 @@ export async function VetoView({
   entryBId,
 }: Props) {
   const steps = await db
-    .select({ id: matchVetoSteps.id, stepOrder: matchVetoSteps.stepOrder, actionType: matchVetoSteps.actionType, mapName: matchVetoSteps.mapName, entryId: matchVetoSteps.entryId, side: matchVetoSteps.side })
+    .select({
+      id: matchVetoSteps.id,
+      stepOrder: matchVetoSteps.stepOrder,
+      actionType: matchVetoSteps.actionType,
+      mapName: matchVetoSteps.mapName,
+      entryId: matchVetoSteps.entryId,
+      side: matchVetoSteps.side,
+    })
     .from(matchVetoSteps)
     .where(eq(matchVetoSteps.matchId, matchId))
     .orderBy(asc(matchVetoSteps.stepOrder));
@@ -63,20 +70,79 @@ export async function VetoView({
             const side = step.side === "ct" ? "CT" : step.side === "t" ? "T" : null;
             const sideTeam = step.actionType === "pick" ? opponentName(step.entryId) : team;
             return (
-              <li key={step.id} className="grid grid-cols-[1rem_4rem_minmax(0,1fr)] items-baseline gap-x-2 text-sm sm:gap-x-3">
-                <span className="text-right text-xs tabular-nums text-[var(--color-fg-dim)]">{step.stepOrder}.</span>
+              <li
+                key={step.id}
+                className="grid grid-cols-[1rem_4rem_minmax(0,1fr)] items-baseline gap-x-2 text-sm sm:gap-x-3"
+              >
+                <span className="text-right text-xs tabular-nums text-[var(--color-fg-dim)]">
+                  {step.stepOrder}.
+                </span>
                 <span className="justify-self-start font-mono text-xs" style={{ color }}>
                   {VETO_ACTION_LABELS[step.actionType as keyof typeof VETO_ACTION_LABELS] ?? "BP"}
                 </span>
                 <div className="min-w-0 break-words leading-6">
-                  {step.actionType === "decider" ? <><span className="font-medium">{map}</span> <span className="text-[var(--color-fg-mid)]">was left over</span></>
-                    : step.actionType === "ban" || step.actionType === "pick" ? <><TeamProfileLink seasonSlug={seasonSlug} entryId={team ? step.entryId : null} className="font-semibold">{team || "—"}</TeamProfileLink> <span className="text-[var(--color-fg-mid)]">{step.actionType === "ban" ? "removed" : "picked"}</span> <span className="font-medium">{map}</span></>
-                    : step.actionType === "side_pick" ? <><TeamProfileLink seasonSlug={seasonSlug} entryId={team ? step.entryId : null} className="font-semibold">{team || "—"}</TeamProfileLink> <span className="text-[var(--color-fg-mid)]">chose</span> <span className="font-medium">{side ?? "—"}</span> <span className="text-[var(--color-fg-mid)]">on</span> <span className="font-medium">{map}</span></>
-                    : <span className="text-[var(--color-fg-dim)]">记录暂不可用</span>}
-                  {side && ["pick", "decider"].includes(step.actionType) && <span className="ml-3 inline-flex items-center gap-1 text-xs text-[var(--color-fg-dim)]">
-                    {sideTeam && <span><TeamProfileLink seasonSlug={seasonSlug} entryId={step.actionType === "pick" ? step.entryId === entryAId ? entryBId : entryAId : step.entryId}>{sideTeam}</TeamProfileLink> ·</span>} {side}
-                    <HelpTooltip label={`${map} 起始方说明`} content={`${sideTeam || "该队"}选择以 ${side} 开局。`} />
-                  </span>}
+                  {step.actionType === "decider" ? (
+                    <>
+                      <span className="font-medium">{map}</span>{" "}
+                      <span className="text-[var(--color-fg-mid)]">was left over</span>
+                    </>
+                  ) : step.actionType === "ban" || step.actionType === "pick" ? (
+                    <>
+                      <TeamProfileLink
+                        seasonSlug={seasonSlug}
+                        entryId={team ? step.entryId : null}
+                        className="font-semibold"
+                      >
+                        {team || "—"}
+                      </TeamProfileLink>{" "}
+                      <span className="text-[var(--color-fg-mid)]">
+                        {step.actionType === "ban" ? "removed" : "picked"}
+                      </span>{" "}
+                      <span className="font-medium">{map}</span>
+                    </>
+                  ) : step.actionType === "side_pick" ? (
+                    <>
+                      <TeamProfileLink
+                        seasonSlug={seasonSlug}
+                        entryId={team ? step.entryId : null}
+                        className="font-semibold"
+                      >
+                        {team || "—"}
+                      </TeamProfileLink>{" "}
+                      <span className="text-[var(--color-fg-mid)]">chose</span>{" "}
+                      <span className="font-medium">{side ?? "—"}</span>{" "}
+                      <span className="text-[var(--color-fg-mid)]">on</span>{" "}
+                      <span className="font-medium">{map}</span>
+                    </>
+                  ) : (
+                    <span className="text-[var(--color-fg-dim)]">记录暂不可用</span>
+                  )}
+                  {side && ["pick", "decider"].includes(step.actionType) && (
+                    <span className="ml-3 inline-flex items-center gap-1 text-xs text-[var(--color-fg-dim)]">
+                      {sideTeam && (
+                        <span>
+                          <TeamProfileLink
+                            seasonSlug={seasonSlug}
+                            entryId={
+                              step.actionType === "pick"
+                                ? step.entryId === entryAId
+                                  ? entryBId
+                                  : entryAId
+                                : step.entryId
+                            }
+                          >
+                            {sideTeam}
+                          </TeamProfileLink>{" "}
+                          ·
+                        </span>
+                      )}{" "}
+                      {side}
+                      <HelpTooltip
+                        label={`${map} 起始方说明`}
+                        content={`${sideTeam || "该队"}选择以 ${side} 开局。`}
+                      />
+                    </span>
+                  )}
                 </div>
               </li>
             );

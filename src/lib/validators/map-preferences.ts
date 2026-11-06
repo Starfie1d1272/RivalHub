@@ -19,10 +19,7 @@ const eventMapPreferenceEntrySchema = z.object({
   level: mapPreferenceLevelSchema.nullable(),
 });
 
-function rejectDuplicateMaps(
-  preferences: readonly { map: string }[],
-  ctx: z.RefinementCtx,
-): void {
+function rejectDuplicateMaps(preferences: readonly { map: string }[], ctx: z.RefinementCtx): void {
   const seen = new Set<string>();
   for (const preference of preferences) {
     if (seen.has(preference.map)) {
@@ -35,7 +32,8 @@ function rejectDuplicateMaps(
 /** Long-term user facts: sparse, catalog-bound, and free of event quotas. */
 export function longTermMapPreferencesSchema() {
   const knownMaps = new Set<string>(SUPPORTED_CS2_MAP_KEYS);
-  return z.array(persistedMapPreferenceEntrySchema)
+  return z
+    .array(persistedMapPreferenceEntrySchema)
     .max(SUPPORTED_CS2_MAP_KEYS.length, "地图资料超过稳定地图目录范围")
     .superRefine((preferences, ctx) => {
       rejectDuplicateMaps(preferences, ctx);
@@ -49,7 +47,8 @@ export function longTermMapPreferencesSchema() {
 
 /** Solo/event registration facts: complete event pool plus legacy quotas. */
 export function eventMapPreferencesSchema(mapPool: readonly string[]) {
-  return z.array(eventMapPreferenceEntrySchema)
+  return z
+    .array(eventMapPreferenceEntrySchema)
     .length(mapPool.length, "请为图池中的每张地图选择熟练度")
     .superRefine((preferences, ctx) => {
       rejectDuplicateMaps(preferences, ctx);

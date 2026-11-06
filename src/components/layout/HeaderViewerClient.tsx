@@ -63,27 +63,41 @@ export function HeaderViewerClient({
         {session ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button aria-label="账号菜单" className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] rounded-full">
+              <button
+                aria-label="账号菜单"
+                className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] rounded-full"
+              >
                 <PlayerAvatar
-                  name={userLabel} size="sm"
+                  name={userLabel}
+                  size="sm"
                   avatarUrl={avatarUrl}
                   failed={avatarFailed}
                   onError={markAvatarFailed}
                 />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44 bg-[var(--color-panel)] border-[var(--color-border)]">
+            <DropdownMenuContent
+              align="end"
+              className="w-44 bg-[var(--color-panel)] border-[var(--color-border)]"
+            >
               {session.isAdmin && (
                 <DropdownMenuItem asChild>
-                  <Link href="/admin" className="cursor-pointer">管理后台</Link>
+                  <Link href="/admin" className="cursor-pointer">
+                    管理后台
+                  </Link>
                 </DropdownMenuItem>
               )}
               {session.isAdmin && <DropdownMenuSeparator />}
               {getAccountNavigationLinks(session.userId, !displayName).map((link) => (
                 <DropdownMenuItem key={link.href} asChild>
-                  <Link href={link.href as never} className="cursor-pointer flex items-center gap-1.5">
+                  <Link
+                    href={link.href as never}
+                    className="cursor-pointer flex items-center gap-1.5"
+                  >
                     {link.label}
-                    {link.needsProfile && <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />}
+                    {link.needsProfile && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />
+                    )}
                   </Link>
                 </DropdownMenuItem>
               ))}
@@ -91,7 +105,9 @@ export function HeaderViewerClient({
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/invite" className="cursor-pointer">使用邀请码</Link>
+                    <Link href="/invite" className="cursor-pointer">
+                      使用邀请码
+                    </Link>
                   </DropdownMenuItem>
                 </>
               )}
@@ -121,25 +137,44 @@ export function HeaderViewerClient({
     <>
       <div className="flex items-center gap-2 px-3 py-1.5">
         <PlayerAvatar
-          name={userLabel} size="sm"
+          name={userLabel}
+          size="sm"
           avatarUrl={avatarUrl}
           failed={avatarFailed}
           onError={markAvatarFailed}
         />
         <span className="text-sm text-[var(--color-fg-dim)] truncate">{userLabel}</span>
       </div>
-      {session.isAdmin && <Link href="/admin" className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]">管理后台</Link>}
+      {session.isAdmin && (
+        <Link
+          href="/admin"
+          className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
+        >
+          管理后台
+        </Link>
+      )}
       {session.isAdmin && <div className="my-1 border-t border-[var(--color-border)]" />}
       {getAccountNavigationLinks(session.userId, !displayName).map((link) => (
-        <Link key={link.href} href={link.href as never} className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] flex items-center gap-1.5">
+        <Link
+          key={link.href}
+          href={link.href as never}
+          className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] flex items-center gap-1.5"
+        >
           {link.label}
-          {link.needsProfile && <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />}
+          {link.needsProfile && (
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />
+          )}
         </Link>
       ))}
       {!session.isSuperAdmin && (
         <>
           <div className="my-1 border-t border-[var(--color-border)]" />
-          <Link href="/invite" className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]">使用邀请码</Link>
+          <Link
+            href="/invite"
+            className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
+          >
+            使用邀请码
+          </Link>
         </>
       )}
       <div className="my-1 border-t border-[var(--color-border)]" />

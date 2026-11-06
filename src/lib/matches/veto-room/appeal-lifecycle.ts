@@ -5,33 +5,73 @@ import { matches, matchMaps, matchVetoAppeals, matchVetoTimeoutIncidents } from 
 import { writeAuditInTx } from "@/lib/audit/write";
 import { canPublishVetoAppealClosure } from "./lifecycle-publication";
 
-export const VETO_APPEAL_CLOSURE_NOTE = "正式对局已开始，BP 恢复窗口已结束；原超时记录与申诉原因保留，超时责任未作裁定。如需进一步赛务处理，请联系赛事管理员并提供超时记录。";
+export const VETO_APPEAL_CLOSURE_NOTE =
+  "正式对局已开始，BP 恢复窗口已结束；原超时记录与申诉原因保留，超时责任未作裁定。如需进一步赛务处理，请联系赛事管理员并提供超时记录。";
 
 /** Operational start and BP completion are not evidence of actual gameplay. */
 export function vetoGameplayExists(matchId: string | SQLWrapper) {
   return sql<boolean>`exists (select 1 from ${matches} where ${matches.id} = ${matchId} and ${matches.gameplayStartedAt} is not null)
-    or exists (select 1 from ${matchMaps} where ${and(eq(matchMaps.matchId, matchId),
-      or(isNotNull(matchMaps.startedAt), isNotNull(matchMaps.scoreA), isNotNull(matchMaps.scoreB), isNotNull(matchMaps.completedAt)))})`;
+    or exists (select 1 from ${matchMaps} where ${and(
+      eq(matchMaps.matchId, matchId),
+      or(
+        isNotNull(matchMaps.startedAt),
+        isNotNull(matchMaps.scoreA),
+        isNotNull(matchMaps.scoreB),
+        isNotNull(matchMaps.completedAt),
+      ),
+    )})`;
 }
 
-export async function hasVetoGameplayInTx(tx: Pick<TxDb, "select">, matchId: string): Promise<boolean> {
-  const [row] = await tx.select({ started: vetoGameplayExists(matchId) }).from(matches).where(eq(matches.id, matchId)).limit(1);
+export async function hasVetoGameplayInTx(
+  tx: Pick<TxDb, "select">,
+  matchId: string,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ started: vetoGameplayExists(matchId) })
+    .from(matches)
+    .where(eq(matches.id, matchId))
+    .limit(1);
   return row?.started ?? false;
 }
 
 /** Caller holds the canonical match lock, shared with appeal submission and resolution. */
-export async function closeVetoAppealsAfterGameplayInTx(tx: TxDb, matchId: string): Promise<boolean> {
+export async function closeVetoAppealsAfterGameplayInTx(
+  tx: TxDb,
+  matchId: string,
+): Promise<boolean> {
   if (!canPublishVetoAppealClosure()) return false;
-  if (!await hasVetoGameplayInTx(tx, matchId)) return false;
-  const pending = await tx.select({ id: matchVetoAppeals.id }).from(matchVetoAppeals)
-    .innerJoin(matchVetoTimeoutIncidents, eq(matchVetoTimeoutIncidents.id, matchVetoAppeals.timeoutIncidentId))
-    .where(and(eq(matchVetoTimeoutIncidents.matchId, matchId), eq(matchVetoAppeals.status, "pending")));
+  if (!(await hasVetoGameplayInTx(tx, matchId))) return false;
+  const pending = await tx
+    .select({ id: matchVetoAppeals.id })
+    .from(matchVetoAppeals)
+    .innerJoin(
+      matchVetoTimeoutIncidents,
+      eq(matchVetoTimeoutIncidents.id, matchVetoAppeals.timeoutIncidentId),
+    )
+    .where(
+      and(eq(matchVetoTimeoutIncidents.matchId, matchId), eq(matchVetoAppeals.status, "pending")),
+    );
   if (!pending.length) return false;
-  const match = await tx.query.matches.findFirst({ where: eq(matches.id, matchId), columns: { seasonId: true } });
+  const match = await tx.query.matches.findFirst({
+    where: eq(matches.id, matchId),
+    columns: { seasonId: true },
+  });
   for (const appeal of pending) {
-    await tx.update(matchVetoAppeals).set({ status: "closed", resolvedAt: sql`clock_timestamp()`, resolutionNote: VETO_APPEAL_CLOSURE_NOTE })
+    await tx
+      .update(matchVetoAppeals)
+      .set({
+        status: "closed",
+        resolvedAt: sql`clock_timestamp()`,
+        resolutionNote: VETO_APPEAL_CLOSURE_NOTE,
+      })
       .where(and(eq(matchVetoAppeals.id, appeal.id), eq(matchVetoAppeals.status, "pending")));
-    await writeAuditInTx(tx, { seasonId: match?.seasonId ?? null, actorId: "system:veto-appeal-lifecycle", action: "match.veto.appeal_close", targetId: matchId, meta: { appealId: appeal.id, reason: "gameplay_started" } });
+    await writeAuditInTx(tx, {
+      seasonId: match?.seasonId ?? null,
+      actorId: "system:veto-appeal-lifecycle",
+      action: "match.veto.appeal_close",
+      targetId: matchId,
+      meta: { appealId: appeal.id, reason: "gameplay_started" },
+    });
   }
   return true;
 }

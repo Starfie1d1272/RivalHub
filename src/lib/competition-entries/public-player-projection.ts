@@ -4,10 +4,19 @@ import "server-only";
 import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { competitionEntries, eventRosterMembers, eventRosters, steamProfiles, users } from "@/db/schema";
+import {
+  competitionEntries,
+  eventRosterMembers,
+  eventRosters,
+  steamProfiles,
+  users,
+} from "@/db/schema";
 import { publicEventRosterPlayerCondition } from "@/lib/competition-entries/public-visibility";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { getVerifiedPlayerStatsBySeason, type VerifiedPlayerSeasonStats } from "@/lib/stats/public-query";
+import {
+  getVerifiedPlayerStatsBySeason,
+  type VerifiedPlayerSeasonStats,
+} from "@/lib/stats/public-query";
 
 /** Generic public participant projection for event models with confirmed rosters.
  * Rivals-specific registration snapshots intentionally do not participate here. */
@@ -43,12 +52,16 @@ export async function getPublicEventRosterPlayerProjection(seasonId: string): Pr
     .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(and(publicEventRosterPlayerCondition(seasonId), eq(eventRosterMembers.isCurrent, true)))
     .orderBy(asc(competitionEntries.name), asc(users.id));
-  const statsByUserId = await getVerifiedPlayerStatsBySeason(seasonId, rows.map((row) => row.userId));
+  const statsByUserId = await getVerifiedPlayerStatsBySeason(
+    seasonId,
+    rows.map((row) => row.userId),
+  );
 
   return {
     players: rows.map((row) => ({
       userId: row.userId,
-      avatarUrl: row.avatarUrl, hasActivePublicSanction: row.hasActivePublicSanction,
+      avatarUrl: row.avatarUrl,
+      hasActivePublicSanction: row.hasActivePublicSanction,
       entryId: row.entryId,
       entryName: row.entryName,
       name: getPublicDisplayName(row),

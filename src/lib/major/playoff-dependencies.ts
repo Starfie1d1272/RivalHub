@@ -1,12 +1,5 @@
 export type PlayoffManagedKey =
-  | "qf-1"
-  | "qf-2"
-  | "qf-3"
-  | "qf-4"
-  | "sf-1"
-  | "sf-2"
-  | "third-1"
-  | "final-1";
+  "qf-1" | "qf-2" | "qf-3" | "qf-4" | "sf-1" | "sf-2" | "third-1" | "final-1";
 
 export const PLAYOFF_PICK_KEYS = [
   "qf-1",
@@ -18,9 +11,7 @@ export const PLAYOFF_PICK_KEYS = [
   "final-1",
 ] as const;
 
-export function playoffDescendants(
-  source: PlayoffManagedKey,
-): ReadonlySet<PlayoffManagedKey> {
+export function playoffDescendants(source: PlayoffManagedKey): ReadonlySet<PlayoffManagedKey> {
   switch (source) {
     case "qf-1":
     case "qf-2":

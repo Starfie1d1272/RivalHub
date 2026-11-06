@@ -18,28 +18,18 @@ export function DraftCountdown({ deadline, isActive }: DraftCountdownProps) {
   }, [deadline, isActive]);
 
   if (!deadline || now === 0) {
-    return (
-      <span className="text-sm text-[var(--color-fg-dim)] tabular">
-        --:--
-      </span>
-    );
+    return <span className="text-sm text-[var(--color-fg-dim)] tabular">--:--</span>;
   }
 
   if (!isActive) {
     const remaining = getCountdownSeconds(deadline, now);
     return (
-      <span className="text-sm text-[var(--color-fg-dim)] tabular">
-        {formatTime(remaining)}
-      </span>
+      <span className="text-sm text-[var(--color-fg-dim)] tabular">{formatTime(remaining)}</span>
     );
   }
 
   if (isDeadlinePassed(deadline, now)) {
-    return (
-      <span className="text-sm text-[var(--color-danger)] font-medium tabular">
-        已超时
-      </span>
-    );
+    return <span className="text-sm text-[var(--color-danger)] font-medium tabular">已超时</span>;
   }
 
   const remaining = getCountdownSeconds(deadline, now);

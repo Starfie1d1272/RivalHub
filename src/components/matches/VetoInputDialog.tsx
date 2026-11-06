@@ -21,7 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { saveVetoSteps as telemetry_saveVetoSteps, getMatchVetoSteps, type VetoStepInput } from "@/actions/matches/veto";
+import {
+  saveVetoSteps as telemetry_saveVetoSteps,
+  getMatchVetoSteps,
+  type VetoStepInput,
+} from "@/actions/matches/veto";
 import { mapLabel } from "@/lib/maps";
 import type { VetoActionType } from "@/types/match";
 import { SIDE_LABELS } from "@/types/match";
@@ -74,13 +78,13 @@ function SideSelect({
 }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:flex-nowrap">
-      <span className="min-w-0 flex-1 break-words text-[11px] leading-4 text-[var(--color-fg-mid)]">{label}</span>
+      <span className="min-w-0 flex-1 break-words text-[11px] leading-4 text-[var(--color-fg-mid)]">
+        {label}
+      </span>
       <div className="w-20 shrink-0">
         <Select
           value={side ?? "_none"}
-          onValueChange={(v) =>
-            onSideChange(v === "_none" ? null : (v as "t" | "ct"))
-          }
+          onValueChange={(v) => onSideChange(v === "_none" ? null : (v as "t" | "ct"))}
         >
           <SelectTrigger className="h-8 text-xs">
             <SelectValue placeholder="边" />
@@ -151,9 +155,7 @@ export function VetoInputDialog({
   matchStatus,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [steps, setSteps] = useState<StepEdit[]>(() =>
-    buildTemplate(format, entryAId, entryBId),
-  );
+  const [steps, setSteps] = useState<StepEdit[]>(() => buildTemplate(format, entryAId, entryBId));
   const [loadState, setLoadState] = useState<VetoLoadState>({ status: "loading" });
   const loadAttemptRef = useRef(0);
   const [isPending, startTransition] = useTransition();
@@ -268,11 +270,17 @@ export function VetoInputDialog({
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle className="min-w-0 break-words">
-            BP 选图 · <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> vs <TeamProfileLink entryId={entryBId}>{teamBName}</TeamProfileLink>（{format.toUpperCase()}）
+            BP 选图 · <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> vs{" "}
+            <TeamProfileLink entryId={entryBId}>{teamBName}</TeamProfileLink>（
+            {format.toUpperCase()}）
           </DialogTitle>
         </DialogHeader>
 
-        <DialogBody data-testid="veto-load-state" data-veto-load-state={loadState.status} className="min-w-0 space-y-3 overflow-x-hidden">
+        <DialogBody
+          data-testid="veto-load-state"
+          data-veto-load-state={loadState.status}
+          className="min-w-0 space-y-3 overflow-x-hidden"
+        >
           {matchStatus === "finished" && (
             <p className="break-words rounded-md bg-[var(--color-panel-low)] px-3 py-2 text-xs text-[var(--color-fg-mid)]">
               赛后补录：仅更新 BP 步骤，不重建地图记录（已有比分行不受影响）
@@ -286,27 +294,41 @@ export function VetoInputDialog({
           )}
 
           {loadState.status === "load-error" && (
-            <div role="alert" className="space-y-3 rounded-md border border-[var(--color-border-danger)] bg-[var(--color-danger-soft)] px-3 py-3">
+            <div
+              role="alert"
+              className="space-y-3 rounded-md border border-[var(--color-border-danger)] bg-[var(--color-danger-soft)] px-3 py-3"
+            >
               <div className="space-y-1">
                 <p className="font-medium">BP 读取失败</p>
                 <p className="break-words text-sm leading-5 text-[var(--color-fg-mid)]">
                   {loadState.message} 为避免覆盖未知服务器状态，请先成功读取。
                 </p>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={() => void loadVetoSteps()}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void loadVetoSteps()}
+              >
                 重试读取
               </Button>
             </div>
           )}
 
           {loadState.status === "loaded-empty" && (
-            <p role="status" className="break-words rounded-md bg-[var(--color-panel-low)] px-3 py-2 text-xs text-[var(--color-fg-mid)]">
+            <p
+              role="status"
+              className="break-words rounded-md bg-[var(--color-panel-low)] px-3 py-2 text-xs text-[var(--color-fg-mid)]"
+            >
               尚未录入 BP，可按模板开始。
             </p>
           )}
 
           {loadState.status === "loaded-existing" && (
-            <p role="status" className="break-words rounded-md bg-[var(--color-panel-low)] px-3 py-2 text-xs text-[var(--color-fg-mid)]">
+            <p
+              role="status"
+              className="break-words rounded-md bg-[var(--color-panel-low)] px-3 py-2 text-xs text-[var(--color-fg-mid)]"
+            >
               已加载已保存的 BP，可直接编辑。
             </p>
           )}
@@ -329,36 +351,64 @@ export function VetoInputDialog({
                     <div className="flex min-w-0 items-center gap-2">
                       {/* 操作类型 */}
                       <span className="w-16 shrink-0 rounded-sm bg-[var(--color-panel-low)] px-1.5 py-0.5 text-center font-mono text-xs uppercase text-[var(--color-fg-mid)]">
-                        {format === "bo5" && step.actionType === "decider" ? "刀赛" : ACTION_LABELS[step.actionType]}
+                        {format === "bo5" && step.actionType === "decider"
+                          ? "刀赛"
+                          : ACTION_LABELS[step.actionType]}
                       </span>
 
                       {/* 执行队伍与独立资料入口 */}
-                      {!(format === "bo5" && step.actionType === "decider") && <div className="flex shrink-0 gap-1">
-                        <button
-                          type="button"
-                          onClick={() => updateStep(i, { entryId: step.entryId === entryAId ? null : entryAId, side: step.entryId === entryAId ? null : step.side })}
-                          className={cn(
-                            "rounded border px-2.5 py-1 text-xs transition-colors",
-                            step.entryId === entryAId
-                              ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-accent-fg)]"
-                              : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]",
-                          )}
-                        >
-                          A
-                        </button><TeamProfileLink entryId={entryAId} variant="dense" aria-label={`查看 ${teamAName} 队伍资料`}>↗</TeamProfileLink>
-                        <button
-                          type="button"
-                          onClick={() => updateStep(i, { entryId: step.entryId === entryBId ? null : entryBId, side: step.entryId === entryBId ? null : step.side })}
-                          className={cn(
-                            "rounded border px-2.5 py-1 text-xs transition-colors",
-                            step.entryId === entryBId
-                              ? "border-[var(--color-accent-b)] bg-[var(--color-accent-b)] text-[var(--color-accent-b-fg)]"
-                              : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]",
-                          )}
-                        >
-                          B
-                        </button><TeamProfileLink entryId={entryBId} variant="dense" aria-label={`查看 ${teamBName} 队伍资料`}>↗</TeamProfileLink>
-                      </div>}
+                      {!(format === "bo5" && step.actionType === "decider") && (
+                        <div className="flex shrink-0 gap-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateStep(i, {
+                                entryId: step.entryId === entryAId ? null : entryAId,
+                                side: step.entryId === entryAId ? null : step.side,
+                              })
+                            }
+                            className={cn(
+                              "rounded border px-2.5 py-1 text-xs transition-colors",
+                              step.entryId === entryAId
+                                ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-accent-fg)]"
+                                : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]",
+                            )}
+                          >
+                            A
+                          </button>
+                          <TeamProfileLink
+                            entryId={entryAId}
+                            variant="dense"
+                            aria-label={`查看 ${teamAName} 队伍资料`}
+                          >
+                            ↗
+                          </TeamProfileLink>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateStep(i, {
+                                entryId: step.entryId === entryBId ? null : entryBId,
+                                side: step.entryId === entryBId ? null : step.side,
+                              })
+                            }
+                            className={cn(
+                              "rounded border px-2.5 py-1 text-xs transition-colors",
+                              step.entryId === entryBId
+                                ? "border-[var(--color-accent-b)] bg-[var(--color-accent-b)] text-[var(--color-accent-b-fg)]"
+                                : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]",
+                            )}
+                          >
+                            B
+                          </button>
+                          <TeamProfileLink
+                            entryId={entryBId}
+                            variant="dense"
+                            aria-label={`查看 ${teamBName} 队伍资料`}
+                          >
+                            ↗
+                          </TeamProfileLink>
+                        </div>
+                      )}
                     </div>
 
                     {/* 地图 */}
@@ -383,7 +433,17 @@ export function VetoInputDialog({
                     {/* 选边（pick: 对手选边；decider: 选中队伍选边）*/}
                     {step.actionType === "pick" && step.entryId && (
                       <SideSelect
-                        label={<>→ <TeamProfileLink entryId={step.entryId === entryAId ? entryBId : entryAId}>{teamName(step.entryId === entryAId ? entryBId : entryAId)}</TeamProfileLink>选边</>}
+                        label={
+                          <>
+                            →{" "}
+                            <TeamProfileLink
+                              entryId={step.entryId === entryAId ? entryBId : entryAId}
+                            >
+                              {teamName(step.entryId === entryAId ? entryBId : entryAId)}
+                            </TeamProfileLink>
+                            选边
+                          </>
+                        }
                         side={step.side}
                         onSideChange={(side) => updateStep(i, { side })}
                       />

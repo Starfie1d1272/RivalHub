@@ -6,7 +6,9 @@ export const registrationDrafts = pgTable(
   "registration_drafts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    seasonId: uuid("season_id").notNull().references(() => seasons.id, { onDelete: "cascade" }),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
     payload: json("payload")
       .$type<Record<string, unknown>>()

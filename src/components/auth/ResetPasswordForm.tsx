@@ -7,11 +7,18 @@ import { toast } from "sonner";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { createBrowserClient } from "@/lib/auth/supabase";
-import { isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
+import {
+  isPasswordPolicySatisfied,
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_POLICY_MESSAGE,
+} from "@/lib/config/auth-config";
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
-const resetUserPassword = observeAction("password-recovery.resetUserPassword", telemetry_resetUserPassword);
+const resetUserPassword = observeAction(
+  "password-recovery.resetUserPassword",
+  telemetry_resetUserPassword,
+);
 
 export function ResetPasswordForm() {
   const task = useTelemetryTask("account", "password-reset");
@@ -37,37 +44,75 @@ export function ResetPasswordForm() {
       let submitted = false;
       let committed = false;
       try {
-      const supabase = createBrowserClient();
-      const { data } = await supabase.auth.getSession();
-      submitted = true;
-      const result = await resetUserPassword(data.session?.access_token ?? "", password);
-      if (!result.success) {
-        if (result.error.code === "PASSWORD_UPDATE_OUTCOME_UNKNOWN") setRecoveryGuidance(result.error.message);
-        toast.error(result.error.message);
-      } else {
-        task.complete(taskToken);
-        committed = true;
-        await supabase.auth.signOut({ scope: "local" });
-        toast.success("密码已重置，所有旧登录已退出，请用新密码登录");
-        router.replace("/login");
-        router.refresh();
-      }
+        const supabase = createBrowserClient();
+        const { data } = await supabase.auth.getSession();
+        submitted = true;
+        const result = await resetUserPassword(data.session?.access_token ?? "", password);
+        if (!result.success) {
+          if (result.error.code === "PASSWORD_UPDATE_OUTCOME_UNKNOWN")
+            setRecoveryGuidance(result.error.message);
+          toast.error(result.error.message);
+        } else {
+          task.complete(taskToken);
+          committed = true;
+          await supabase.auth.signOut({ scope: "local" });
+          toast.success("密码已重置，所有旧登录已退出，请用新密码登录");
+          router.replace("/login");
+          router.refresh();
+        }
       } catch {
-        if (submitted) setRecoveryGuidance(committed
-          ? "密码更新已确认，本地退出或导航未完成。请停止提交并关闭此页面；如登录受阻，请联系平台管理员。"
-          : "密码更新结果尚未确认。请停止提交，勿重复重置或尝试新旧密码；联系平台管理员核查账号服务与安全状态。");
+        if (submitted)
+          setRecoveryGuidance(
+            committed
+              ? "密码更新已确认，本地退出或导航未完成。请停止提交并关闭此页面；如登录受阻，请联系平台管理员。"
+              : "密码更新结果尚未确认。请停止提交，勿重复重置或尝试新旧密码；联系平台管理员核查账号服务与安全状态。",
+          );
         else toast.error("无法读取密码恢复会话，请检查网络后重新打开恢复链接。");
       }
     });
   };
 
   return (
-    <form onInputCapture={() => task.begin()} onInvalidCapture={() => { task.begin(); task.validation("form_invalid"); }} onSubmit={handleSubmit} className="space-y-4">
-      <Field id="password" label="新密码" type="password" placeholder={`至少 ${MIN_PASSWORD_LENGTH} 位，含大小写/数字/特殊字符`} value={password} onChange={setPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
-      <Field id="confirm-password" label="确认新密码" type="password" placeholder="再次输入密码" value={confirmPassword} onChange={setConfirmPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
+    <form
+      onInputCapture={() => task.begin()}
+      onInvalidCapture={() => {
+        task.begin();
+        task.validation("form_invalid");
+      }}
+      onSubmit={handleSubmit}
+      className="space-y-4"
+    >
+      <Field
+        id="password"
+        label="新密码"
+        type="password"
+        placeholder={`至少 ${MIN_PASSWORD_LENGTH} 位，含大小写/数字/特殊字符`}
+        value={password}
+        onChange={setPassword}
+        required
+        minLength={MIN_PASSWORD_LENGTH}
+        autoComplete="new-password"
+      />
+      <Field
+        id="confirm-password"
+        label="确认新密码"
+        type="password"
+        placeholder="再次输入密码"
+        value={confirmPassword}
+        onChange={setConfirmPassword}
+        required
+        minLength={MIN_PASSWORD_LENGTH}
+        autoComplete="new-password"
+      />
       <p className="text-xs text-[var(--color-fg-mid)]">{PASSWORD_POLICY_MESSAGE}。</p>
-      {recoveryGuidance && <p role="alert" className="text-sm text-[var(--color-danger)]">{recoveryGuidance}</p>}
-      <Button type="submit" className="w-full" disabled={isPending || recoveryGuidance !== null}>{isPending ? "设置中…" : "设置新密码"}</Button>
+      {recoveryGuidance && (
+        <p role="alert" className="text-sm text-[var(--color-danger)]">
+          {recoveryGuidance}
+        </p>
+      )}
+      <Button type="submit" className="w-full" disabled={isPending || recoveryGuidance !== null}>
+        {isPending ? "设置中…" : "设置新密码"}
+      </Button>
     </form>
   );
 }

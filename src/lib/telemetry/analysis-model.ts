@@ -13,7 +13,14 @@ import {
 } from "./analysis-query";
 import type { TelemetryEvent } from "./protocol";
 import { TASKS, TASK_NAMES } from "./task-contract";
-import { analyzeProduct, bucketStart, eventRelease, operationCalls, operationKey, selectProductEvents } from "./product-analysis";
+import {
+  analyzeProduct,
+  bucketStart,
+  eventRelease,
+  operationCalls,
+  operationKey,
+  selectProductEvents,
+} from "./product-analysis";
 export interface EventRow {
   /** Receiver-internal correlation for raw/aggregate overlap; never projected to the app. */
   historyKey?: string;
@@ -64,8 +71,7 @@ export interface AnalysisSnapshot {
   ticketReleases?: string[];
   releaseDirectoryTruncated?: boolean;
 }
-const uniq = (v: (string | null | undefined)[]) =>
-  new Set(v.filter(Boolean)).size;
+const uniq = (v: (string | null | undefined)[]) => new Set(v.filter(Boolean)).size;
 const pct = (a: number, b: number) => (b ? (a / b) * 100 : 0);
 function quantile(xs: number[], q: number) {
   if (!xs.length) return null;
@@ -93,11 +99,7 @@ function groups<T>(rows: T[], key: (r: T) => string) {
   return [...m.entries()];
 }
 const opKey = operationKey;
-export function analyzeTelemetry(
-  snapshot: AnalysisSnapshot,
-  input: Filters,
-  session = "",
-) {
+export function analyzeTelemetry(snapshot: AnalysisSnapshot, input: Filters, session = "") {
   const capturedAt = snapshot.capturedAt,
     all = snapshot.events,
     usage = snapshot.usage;
@@ -110,11 +112,7 @@ export function analyzeTelemetry(
     if (e.received > window.to && e.kind !== "operation" && e.kind !== "task") continue;
     const key = `${e.account ?? ""}:${e.session}:${e.kind === "performance" ? e.metricName : ""}:${e.id}`;
     const old = latest.get(key);
-    if (
-      !old ||
-      e.at > old.at ||
-      (e.at === old.at && e.received >= old.received)
-    )
+    if (!old || e.at > old.at || (e.at === old.at && e.received >= old.received))
       latest.set(key, e);
   }
   const events = [...latest.values()];
@@ -128,17 +126,12 @@ export function analyzeTelemetry(
   const pv = rows.filter((e) => e.kind === "page");
   const filter = rows.filter((e) => e.kind === "filter");
   const errors = rows.filter((e) => e.kind === "error");
-  const unknown = rows.filter(
-    (e) => e.kind === "operation" && e.phase === "unknown",
-  );
-  const rejects = rows.filter(
-    (e) => e.kind === "operation" && e.phase === "rejected",
-  );
+  const unknown = rows.filter((e) => e.kind === "operation" && e.phase === "unknown");
+  const rejects = rows.filter((e) => e.kind === "operation" && e.phase === "rejected");
   const calls = operationCalls(events, rows);
-  const starts = calls.map(c => c.start);
+  const starts = calls.map((c) => c.start);
   const startedKeys = new Set(starts.map(opKey));
-  const phase = (s: string) =>
-    calls.filter((c) => (c.result?.phase ?? "pending") === s).length;
+  const phase = (s: string) => calls.filter((c) => (c.result?.phase ?? "pending") === s).length;
   const { from, step } = window;
   const buckets = [];
   for (let at = bucketStart(from, step); at <= window.to; at += step) {
@@ -147,12 +140,9 @@ export function analyzeTelemetry(
       at,
       views: rr.filter((e) => e.kind === "page").length,
       sessions: uniq(rr.map((e) => e.session)),
-      operations: rr.filter(
-        (e) => e.kind === "operation" && e.phase === "start",
-      ).length,
+      operations: rr.filter((e) => e.kind === "operation" && e.phase === "start").length,
       filters: rr.filter((e) => e.kind === "filter").length,
-      errors: rr.filter((e) => e.kind === "error" || e.phase === "unknown")
-        .length,
+      errors: rr.filter((e) => e.kind === "error" || e.phase === "unknown").length,
     });
   }
   const routes = groups(rows, (e) => e.route)
@@ -161,8 +151,7 @@ export function analyzeTelemetry(
       label: routeName(key),
       views: rr.filter((e) => e.kind === "page").length,
       sessions: uniq(rr.map((e) => e.session)),
-      errors: rr.filter((e) => e.kind === "error" || e.phase === "unknown")
-        .length,
+      errors: rr.filter((e) => e.kind === "error" || e.phase === "unknown").length,
       share: pct(rr.filter((e) => e.kind === "page").length, pv.length),
     }))
     .sort((a, b) => b.views - a.views);
@@ -186,9 +175,7 @@ export function analyzeTelemetry(
       e.kind === "performance" &&
       validMetricIds.has(e.id) &&
       e.metricName &&
-      (e.metricName === "CLS"
-        ? typeof e.score === "number"
-        : typeof e.durationMs === "number"),
+      (e.metricName === "CLS" ? typeof e.score === "number" : typeof e.durationMs === "number"),
   );
   const metricStats = (rr: EventRow[]) =>
     stats(rr.map((e) => (e.metricName === "CLS" ? e.score! : e.durationMs!)));
@@ -197,15 +184,14 @@ export function analyzeTelemetry(
     label: metricLabels[key],
     ...metricStats(performance.filter((e) => e.metricName === key)),
   }));
-  const performanceRoutes = groups(
-    performance,
-    (e) => `${e.route}|${e.metricName}`,
-  ).map(([, rr]) => ({
-    route: rr[0].route,
-    label: routeName(rr[0].route),
-    metric: rr[0].metricName!,
-    ...metricStats(rr),
-  }));
+  const performanceRoutes = groups(performance, (e) => `${e.route}|${e.metricName}`).map(
+    ([, rr]) => ({
+      route: rr[0].route,
+      label: routeName(rr[0].route),
+      metric: rr[0].metricName!,
+      ...metricStats(rr),
+    }),
+  );
   const metricSegments = groups(
     performance,
     (e) => `${e.metricName}|${e.client?.device ?? "missing"}|${eventRelease(e, f.releaseBasis)}`,
@@ -229,10 +215,7 @@ export function analyzeTelemetry(
       metric,
       bounds,
       counts: bounds
-        .map(
-          (n, i) =>
-            vals.filter((v) => v <= n && (i === 0 || v > bounds[i - 1])).length,
-        )
+        .map((n, i) => vals.filter((v) => v <= n && (i === 0 || v > bounds[i - 1])).length)
         .concat(vals.filter((v) => v > bounds.at(-1)!).length),
     };
   });
@@ -290,12 +273,7 @@ export function analyzeTelemetry(
   )
     .map(([key, rr]) => ({
       key,
-      type:
-        rr[0].kind === "error"
-          ? "client"
-          : rr[0].phase === "rejected"
-            ? "rejected"
-            : "unknown",
+      type: rr[0].kind === "error" ? "client" : rr[0].phase === "rejected" ? "rejected" : "unknown",
       route: rr[0].route,
       label: routeName(rr[0].route),
       operation: rr[0].operation ?? "",
@@ -327,10 +305,8 @@ export function analyzeTelemetry(
       label: sessionNames.get(key)!,
       role: cat(rr[0].role),
       pages: rr.filter((e) => e.kind === "page").length,
-      actions: rr.filter((e) => e.kind === "operation" && e.phase === "start")
-        .length,
-      errors: rr.filter((e) => e.kind === "error" || e.phase === "unknown")
-        .length,
+      actions: rr.filter((e) => e.kind === "operation" && e.phase === "start").length,
+      errors: rr.filter((e) => e.kind === "error" || e.phase === "unknown").length,
       first: Math.min(...rr.map((e) => e.at)),
       last: Math.max(...rr.map((e) => e.at)),
     }))
@@ -361,10 +337,7 @@ export function analyzeTelemetry(
           ? cat(e.navigation ?? "missing")
           : e.kind === "filter"
             ? Object.entries(e.filters ?? {})
-                .map(
-                  ([k, v]) =>
-                    `${filterNames[k] ?? "筛选"}：${filterValues[v] ?? "已使用"}`,
-                )
+                .map(([k, v]) => `${filterNames[k] ?? "筛选"}：${filterValues[v] ?? "已使用"}`)
                 .join(" · ")
             : e.errorCode
               ? cat(e.errorCode)
@@ -373,12 +346,18 @@ export function analyzeTelemetry(
       requestId: e.requestId ?? null,
     }));
   const option = (values: string[], label: (v: string) => string) =>
-    [...new Set(values)]
-      .sort()
-      .map((value) => ({ value, label: label(value) }));
+    [...new Set(values)].sort().map((value) => ({ value, label: label(value) }));
   return {
     filters: f,
-    product: analyzeProduct(events, rows, validMetricIds, f, window, capturedAt, snapshot.releaseDirectoryTruncated),
+    product: analyzeProduct(
+      events,
+      rows,
+      validMetricIds,
+      f,
+      window,
+      capturedAt,
+      snapshot.releaseDirectoryTruncated,
+    ),
     meta: {
       capturedAt,
       from,
@@ -409,16 +388,12 @@ export function analyzeTelemetry(
       errors: errors.length,
       affectedSessions: uniq([...errors, ...unknown].map((e) => e.session)),
       performance: performance.length,
-      legacyPerformance: rows.filter(
-        (e) => e.kind === "performance" && !validMetricIds.has(e.id),
-      ).length,
+      legacyPerformance: rows.filter((e) => e.kind === "performance" && !validMetricIds.has(e.id))
+        .length,
       clientCoverage: pv.filter((e) => e.client).length,
       clientCoveragePct: pct(pv.filter((e) => e.client).length, pv.length),
       resultOnly: rows.filter(
-        (e) =>
-          e.kind === "operation" &&
-          e.phase !== "start" &&
-          !startedKeys.has(opKey(e)),
+        (e) => e.kind === "operation" && e.phase !== "start" && !startedKeys.has(opKey(e)),
       ).length,
     },
     buckets,
@@ -446,14 +421,12 @@ export function analyzeTelemetry(
     operations,
     variants,
     filterRows,
-    navigation: groups(pv, (e) => e.navigation ?? "missing").map(
-      ([key, rr]) => ({
-        key,
-        label: cat(key),
-        n: rr.length,
-        share: pct(rr.length, pv.length),
-      }),
-    ),
+    navigation: groups(pv, (e) => e.navigation ?? "missing").map(([key, rr]) => ({
+      key,
+      label: cat(key),
+      n: rr.length,
+      share: pct(rr.length, pv.length),
+    })),
     errorGroups: errorGroups.slice(0, 100),
     sessions: sessions.slice(0, 100),
     timeline,
@@ -484,15 +457,42 @@ export function analyzeTelemetry(
         cat,
       ),
       release: option(
-        f.releaseBasis === "ticket" ? snapshot.ticketReleases ?? events.map(e => e.release) : events.map(e => eventRelease(e, "client")),
-        (v) => v === "missing" ? "未采集客户端版本" : v === "unknown" ? "版本未知" :
-          events.find(e => e.measurement?.clientRelease === v && e.measurement.clientVersion)?.measurement?.clientVersion ?? "提交 " + v.slice(0, 7),
+        f.releaseBasis === "ticket"
+          ? (snapshot.ticketReleases ?? events.map((e) => e.release))
+          : events.map((e) => eventRelease(e, "client")),
+        (v) =>
+          v === "missing"
+            ? "未采集客户端版本"
+            : v === "unknown"
+              ? "版本未知"
+              : (events.find(
+                  (e) => e.measurement?.clientRelease === v && e.measurement.clientVersion,
+                )?.measurement?.clientVersion ?? "提交 " + v.slice(0, 7)),
       ),
-      eventId: option(events.map(e => e.eventId ?? "missing"), v => v === "missing" ? "未关联赛事" : "赛事 " + ([...new Set(events.flatMap(e => e.eventId ? [e.eventId] : []))].sort().indexOf(v) + 1)),
-      task: TASK_NAMES.map(value => ({ value, label: TASKS[value].label })),
-      operation: option(events.flatMap(e => e.operation ? [e.operation] : []), opName),
-      navigationType: option(events.map(e => e.measurement?.lifecycle?.navigationType ?? "missing"), cat),
-      visibility: option(events.map(e => e.measurement?.visibility ?? "missing"), cat),
+      eventId: option(
+        events.map((e) => e.eventId ?? "missing"),
+        (v) =>
+          v === "missing"
+            ? "未关联赛事"
+            : "赛事 " +
+              ([...new Set(events.flatMap((e) => (e.eventId ? [e.eventId] : [])))]
+                .sort()
+                .indexOf(v) +
+                1),
+      ),
+      task: TASK_NAMES.map((value) => ({ value, label: TASKS[value].label })),
+      operation: option(
+        events.flatMap((e) => (e.operation ? [e.operation] : [])),
+        opName,
+      ),
+      navigationType: option(
+        events.map((e) => e.measurement?.lifecycle?.navigationType ?? "missing"),
+        cat,
+      ),
+      visibility: option(
+        events.map((e) => e.measurement?.visibility ?? "missing"),
+        cat,
+      ),
     },
   };
 }

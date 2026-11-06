@@ -34,7 +34,11 @@ export interface EvidenceRevisionInput {
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue);
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, stableValue(item)]));
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => [key, stableValue(item)]),
+    );
   }
   return value;
 }
@@ -43,15 +47,25 @@ function stableValue(value: unknown): unknown {
 export function buildEvidenceRevision(input: EvidenceRevisionInput): string {
   const roster = [...input.roster]
     .map((member) => ({ ...member }))
-    .sort((a, b) => a.entryId.localeCompare(b.entryId) || a.eventRosterMemberId.localeCompare(b.eventRosterMemberId));
+    .sort(
+      (a, b) =>
+        a.entryId.localeCompare(b.entryId) ||
+        a.eventRosterMemberId.localeCompare(b.eventRosterMemberId),
+    );
   const payload = stableValue({ ...input, roster });
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
 export function buildEvidenceRevisionForTarget(input: {
-  match: Pick<Match, "id" | "seasonId" | "stage" | "majorStageRunId" | "status" | "entryAId" | "entryBId">;
+  match: Pick<
+    Match,
+    "id" | "seasonId" | "stage" | "majorStageRunId" | "status" | "entryAId" | "entryBId"
+  >;
   map: Pick<MatchMap, "id" | "mapOrder" | "mapName" | "scoreA" | "scoreB" | "completedAt">;
-  roster: readonly Pick<EffectiveMatchRosterPlayer, "entryId" | "eventRosterMemberId" | "userId" | "steam64" | "isStarter">[];
+  roster: readonly Pick<
+    EffectiveMatchRosterPlayer,
+    "entryId" | "eventRosterMemberId" | "userId" | "steam64" | "isStarter"
+  >[];
 }): string {
   assertCompetitionMatch(input.match);
   return buildEvidenceRevision({
@@ -67,21 +81,27 @@ export function buildEvidenceRevisionForTarget(input: {
     mapCompletedAt: input.map.completedAt?.toISOString() ?? null,
     // A completed map keeps its evidence valid when the series later finishes.
     // Preserve the historical "finished" revision value for existing imports.
-    matchStatus: input.map.completedAt && input.map.scoreA !== null && input.map.scoreB !== null
-      ? "finished" : input.match.status,
+    matchStatus:
+      input.map.completedAt && input.map.scoreA !== null && input.map.scoreB !== null
+        ? "finished"
+        : input.match.status,
     entryAId: input.match.entryAId,
     entryBId: input.match.entryBId,
     // Evidence binds the actual lineup; catalog/workbench reads may also include reserves.
-    roster: input.roster.filter((member) => member.isStarter).map((member) => ({
-      entryId: member.entryId,
-      eventRosterMemberId: member.eventRosterMemberId,
-      userId: member.userId,
-      steam64: member.steam64,
-      isStarter: member.isStarter,
-    })),
+    roster: input.roster
+      .filter((member) => member.isStarter)
+      .map((member) => ({
+        entryId: member.entryId,
+        eventRosterMemberId: member.eventRosterMemberId,
+        userId: member.userId,
+        steam64: member.steam64,
+        isStarter: member.isStarter,
+      })),
   });
 }
 
 export function sha256Json(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(stableValue(value))).digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(stableValue(value)))
+    .digest("hex");
 }

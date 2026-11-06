@@ -6,10 +6,13 @@ const NO_STORE_HEADERS = {
 
 export function GET(): Response {
   try {
-    const identity = assertReleaseIdentity({
-      releaseTag: process.env.RIVALHUB_RELEASE_TAG,
-      releaseCommit: process.env.RIVALHUB_RELEASE_COMMIT,
-    }, "production release identity");
+    const identity = assertReleaseIdentity(
+      {
+        releaseTag: process.env.RIVALHUB_RELEASE_TAG,
+        releaseCommit: process.env.RIVALHUB_RELEASE_COMMIT,
+      },
+      "production release identity",
+    );
     return Response.json(identity, { headers: NO_STORE_HEADERS });
   } catch {
     return Response.json(

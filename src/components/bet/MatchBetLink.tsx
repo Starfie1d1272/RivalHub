@@ -3,7 +3,14 @@ import { readFreeMatchSupport } from "@/lib/free-predictions/data";
 import { readMatchSupport } from "@/lib/bet/match-support";
 import { MatchSupport, type MatchSupportTeam } from "./MatchSupport";
 
-export async function MatchBetLink({ seasonId, matchId, slug, teamA, teamB, returnTo }: {
+export async function MatchBetLink({
+  seasonId,
+  matchId,
+  slug,
+  teamA,
+  teamB,
+  returnTo,
+}: {
   returnTo?: string | null;
   seasonId: string;
   matchId: string;
@@ -11,11 +18,31 @@ export async function MatchBetLink({ seasonId, matchId, slug, teamA, teamB, retu
   teamA: MatchSupportTeam;
   teamB: MatchSupportTeam;
 }) {
-  const support = await db.transaction(async tx => {
-    const amounts = await readMatchSupport(tx, seasonId, matchId);
-    const predictions = await readFreeMatchSupport(tx, seasonId, matchId);
-    return { amounts, predictions };
-  }, { accessMode: "read only", isolationLevel: "repeatable read" });
+  const support = await db.transaction(
+    async (tx) => {
+      const amounts = await readMatchSupport(tx, seasonId, matchId);
+      const predictions = await readFreeMatchSupport(tx, seasonId, matchId);
+      return { amounts, predictions };
+    },
+    { accessMode: "read only", isolationLevel: "repeatable read" },
+  );
   if (!support.amounts && !support.predictions) return null;
-  return <MatchSupport returnTo={returnTo} slug={slug} matchId={matchId} teamA={teamA} teamB={teamB} amounts={support.amounts ?? []} predictions={support.predictions ? [{ entryId: teamA.entryId, count: support.predictions.counts[0] }, { entryId: teamB.entryId, count: support.predictions.counts[1] }] : undefined} />;
+  return (
+    <MatchSupport
+      returnTo={returnTo}
+      slug={slug}
+      matchId={matchId}
+      teamA={teamA}
+      teamB={teamB}
+      amounts={support.amounts ?? []}
+      predictions={
+        support.predictions
+          ? [
+              { entryId: teamA.entryId, count: support.predictions.counts[0] },
+              { entryId: teamB.entryId, count: support.predictions.counts[1] },
+            ]
+          : undefined
+      }
+    />
+  );
 }

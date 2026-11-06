@@ -7,8 +7,16 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionQualificationRuns, majorStageRuns, matches } from "@/db/schema";
 import type { CompetitionQualificationRun } from "@/db/schema/competition-qualification";
-import { buildOfficialStageDirectory, type OfficialStage, type QualificationStageFact } from "./official-stages";
-import { parseMajorRunPresentation, resolveMajorStagePlanFromPresentations, type MajorRunPresentation } from "@/lib/major/run-snapshot";
+import {
+  buildOfficialStageDirectory,
+  type OfficialStage,
+  type QualificationStageFact,
+} from "./official-stages";
+import {
+  parseMajorRunPresentation,
+  resolveMajorStagePlanFromPresentations,
+  type MajorRunPresentation,
+} from "@/lib/major/run-snapshot";
 import { majorRunPresentationSelection } from "@/lib/major/run-snapshot-query";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { presentStageMarker } from "@/lib/seasons/presentation";
@@ -24,9 +32,19 @@ export interface PublicStagePresentation {
   initializedStageKeys: readonly string[];
   currentStageKey: string | null;
   currentStageLabel: string | null;
-  qualificationRun?: Pick<CompetitionQualificationRun,
-    "id" | "seasonId" | "format" | "targetEntrantCount" | "candidateCount" | "directEntryCount" | "playInEntryCount" |
-    "qualifierCount" | "startedAt" | "completedAt"> | null;
+  qualificationRun?: Pick<
+    CompetitionQualificationRun,
+    | "id"
+    | "seasonId"
+    | "format"
+    | "targetEntrantCount"
+    | "candidateCount"
+    | "directEntryCount"
+    | "playInEntryCount"
+    | "qualifierCount"
+    | "startedAt"
+    | "completedAt"
+  > | null;
 }
 
 /** The public Stage plan is the event plan, or the frozen Major StageRun plan
@@ -34,7 +52,11 @@ export interface PublicStagePresentation {
  * for a Stage identity. */
 export function resolvePublicStagePlan(
   season: PublicStageSeason,
-  stageRuns: readonly { stageKey: string; presentation: MajorRunPresentation; startedAt?: Date }[] = [],
+  stageRuns: readonly {
+    stageKey: string;
+    presentation: MajorRunPresentation;
+    startedAt?: Date;
+  }[] = [],
 ): StagePlan {
   return season.competitionTemplate === "major"
     ? resolveMajorStagePlanFromPresentations(normalizeStagePlan(season.stagePlan), stageRuns)
@@ -43,64 +65,111 @@ export function resolvePublicStagePlan(
 
 export function buildPublicStagePresentation(
   season: PublicStageSeason,
-  stageRuns: readonly { stageKey: string; presentation: MajorRunPresentation; startedAt?: Date }[] = [],
+  stageRuns: readonly {
+    stageKey: string;
+    presentation: MajorRunPresentation;
+    startedAt?: Date;
+  }[] = [],
   initializedStageKeys: readonly string[] = [],
   qualification: QualificationStageFact | null = null,
 ): PublicStagePresentation {
   const stagePlan = resolvePublicStagePlan(season, stageRuns);
-  const officialStages = buildOfficialStageDirectory(stagePlan, qualification, initializedStageKeys, normalizeStagePlan(season.stagePlan));
+  const officialStages = buildOfficialStageDirectory(
+    stagePlan,
+    qualification,
+    initializedStageKeys,
+    normalizeStagePlan(season.stagePlan),
+  );
   const initialized = new Set(initializedStageKeys);
   const runKeys = new Set(stageRuns.map((run) => run.stageKey));
-  const latestRun = [...stageRuns].filter((run) => run.startedAt).sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0];
-  const currentStage = (latestRun ? stagePlan.find((stage) => stage.key === latestRun.stageKey) : null) ?? [...stagePlan].reverse().find((stage) =>
-    season.competitionTemplate === "major" && runKeys.size > 0
-      ? runKeys.has(stage.key)
-      : initialized.has(stage.key),
-  ) ?? null;
+  const latestRun = [...stageRuns]
+    .filter((run) => run.startedAt)
+    .sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0];
+  const currentStage =
+    (latestRun ? stagePlan.find((stage) => stage.key === latestRun.stageKey) : null) ??
+    [...stagePlan]
+      .reverse()
+      .find((stage) =>
+        season.competitionTemplate === "major" && runKeys.size > 0
+          ? runKeys.has(stage.key)
+          : initialized.has(stage.key),
+      ) ??
+    null;
   return {
     stagePlan,
     officialStages,
     labels: Object.fromEntries(
-      officialStages.map((stage) => [stage.key, stage.config ? presentStageMarker(stage.config, season.competitionTemplate) : stage.name]),
+      officialStages.map((stage) => [
+        stage.key,
+        stage.config ? presentStageMarker(stage.config, season.competitionTemplate) : stage.name,
+      ]),
     ),
     initializedStageKeys: [...initializedStageKeys],
-    currentStageKey: currentStage?.key ?? (qualification?.startedAt || initialized.has("play-in") ? "play-in" : null),
-    currentStageLabel: currentStage ? presentStageMarker(currentStage, season.competitionTemplate) : qualification?.startedAt || initialized.has("play-in") ? "Play-in" : null,
+    currentStageKey:
+      currentStage?.key ??
+      (qualification?.startedAt || initialized.has("play-in") ? "play-in" : null),
+    currentStageLabel: currentStage
+      ? presentStageMarker(currentStage, season.competitionTemplate)
+      : qualification?.startedAt || initialized.has("play-in")
+        ? "Play-in"
+        : null,
   };
 }
 
 // Primitive keys let layout and page share reads even with distinct season objects.
-const loadPublicStageFacts = cache(async (seasonId: string, template: PublicStageSeason["competitionTemplate"]) => {
-  return withDbTrafficSource("season.stage.read", async () => {
-    return Promise.all([
-      template === "major"
-        ? db
-          .select({ stageKey: majorStageRuns.stageKey, presentationInput: majorRunPresentationSelection(majorStageRuns.ruleSnapshot), startedAt: majorStageRuns.startedAt })
-          .from(majorStageRuns)
-          .where(eq(majorStageRuns.seasonId, seasonId))
-        : Promise.resolve([] as { stageKey: string; presentationInput: unknown; startedAt: Date }[]),
-      loadOfficialMatchStages(eq(matches.seasonId, seasonId)),
-      db.select({ id: competitionQualificationRuns.id, seasonId: competitionQualificationRuns.seasonId, format: competitionQualificationRuns.format,
-        targetEntrantCount: competitionQualificationRuns.targetEntrantCount,
-        candidateCount: competitionQualificationRuns.candidateCount,
-        directEntryCount: competitionQualificationRuns.directEntryCount,
-        playInEntryCount: competitionQualificationRuns.playInEntryCount,
-        qualifierCount: competitionQualificationRuns.qualifierCount, startedAt: competitionQualificationRuns.startedAt,
-        completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns)
-        .where(eq(competitionQualificationRuns.seasonId, seasonId)).limit(1),
-    ]);
-  });
-});
+const loadPublicStageFacts = cache(
+  async (seasonId: string, template: PublicStageSeason["competitionTemplate"]) => {
+    return withDbTrafficSource("season.stage.read", async () => {
+      return Promise.all([
+        template === "major"
+          ? db
+              .select({
+                stageKey: majorStageRuns.stageKey,
+                presentationInput: majorRunPresentationSelection(majorStageRuns.ruleSnapshot),
+                startedAt: majorStageRuns.startedAt,
+              })
+              .from(majorStageRuns)
+              .where(eq(majorStageRuns.seasonId, seasonId))
+          : Promise.resolve(
+              [] as { stageKey: string; presentationInput: unknown; startedAt: Date }[],
+            ),
+        loadOfficialMatchStages(eq(matches.seasonId, seasonId)),
+        db
+          .select({
+            id: competitionQualificationRuns.id,
+            seasonId: competitionQualificationRuns.seasonId,
+            format: competitionQualificationRuns.format,
+            targetEntrantCount: competitionQualificationRuns.targetEntrantCount,
+            candidateCount: competitionQualificationRuns.candidateCount,
+            directEntryCount: competitionQualificationRuns.directEntryCount,
+            playInEntryCount: competitionQualificationRuns.playInEntryCount,
+            qualifierCount: competitionQualificationRuns.qualifierCount,
+            startedAt: competitionQualificationRuns.startedAt,
+            completedAt: competitionQualificationRuns.completedAt,
+          })
+          .from(competitionQualificationRuns)
+          .where(eq(competitionQualificationRuns.seasonId, seasonId))
+          .limit(1),
+      ]);
+    });
+  },
+);
 
 export async function getPublicSeasonStagePresentation(
   season: PublicStageSeason,
 ): Promise<PublicStagePresentation> {
-  const [stageRuns, matchStageRows, qualificationRows] = await loadPublicStageFacts(season.id, season.competitionTemplate);
+  const [stageRuns, matchStageRows, qualificationRows] = await loadPublicStageFacts(
+    season.id,
+    season.competitionTemplate,
+  );
   return {
     ...buildPublicStagePresentation(
       season,
-      stageRuns.map((run) => ({ ...run, presentation: parseMajorRunPresentation(run.presentationInput, run.stageKey) })),
-      matchStageRows.flatMap((row) => row.stage === null ? [] : [row.stage]),
+      stageRuns.map((run) => ({
+        ...run,
+        presentation: parseMajorRunPresentation(run.presentationInput, run.stageKey),
+      })),
+      matchStageRows.flatMap((row) => (row.stage === null ? [] : [row.stage])),
       qualificationRows[0] ?? null,
     ),
     qualificationRun: qualificationRows[0] ?? null,

@@ -92,9 +92,17 @@ export async function skipDraftTurn(
       }
 
       const seasonTeams = await tx
-        .select({ id: competitionEntries.id, draftOrder: sql<number>`${competitionEntries.formationOrder}`.as("draft_order") })
+        .select({
+          id: competitionEntries.id,
+          draftOrder: sql<number>`${competitionEntries.formationOrder}`.as("draft_order"),
+        })
         .from(competitionEntries)
-        .where(and(eq(competitionEntries.competitionId, parsed.data.seasonId), isNotNull(competitionEntries.formationOrder)))
+        .where(
+          and(
+            eq(competitionEntries.competitionId, parsed.data.seasonId),
+            isNotNull(competitionEntries.formationOrder),
+          ),
+        )
         .orderBy(asc(competitionEntries.formationOrder));
 
       const skippedEntryId = ds.currentEntryId;
@@ -114,7 +122,13 @@ export async function skipDraftTurn(
           seasonId: parsed.data.seasonId,
           action: "draft.skip_turn",
           actorId: auditActorId(admin),
-          targetId: ds.id,meta: { skippedEntryId, round: skippedRound, draftCompleted: true, actorEmail: admin.email },
+          targetId: ds.id,
+          meta: {
+            skippedEntryId,
+            round: skippedRound,
+            draftCompleted: true,
+            actorEmail: admin.email,
+          },
         });
 
         return { slug: season.slug, completed: true };
@@ -136,7 +150,8 @@ export async function skipDraftTurn(
         seasonId: parsed.data.seasonId,
         action: "draft.skip_turn",
         actorId: auditActorId(admin),
-        targetId: ds.id,meta: {
+        targetId: ds.id,
+        meta: {
           skippedEntryId,
           round: skippedRound,
           nextEntryId: next.entryId,

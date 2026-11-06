@@ -3,65 +3,442 @@ import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import { Bars, Heading, MetricCard, Empty } from "@/components/telemetry/analysis/Elements";
 import { getDbTraffic } from "@/lib/telemetry/dashboard";
 
-const displayTime = (at: number) => new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(at);
+const displayTime = (at: number) =>
+  new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(at);
 const count = (n: number) => n.toLocaleString("zh-CN");
-const supplied = (n: number, complete: boolean) => complete ? count(n) : n ? `部分提供 ${count(n)}` : "未提供";
+const supplied = (n: number, complete: boolean) =>
+  complete ? count(n) : n ? `部分提供 ${count(n)}` : "未提供";
 
 type Selection = { hour?: string; release?: string; deployment?: string; source?: string };
-export async function DatabaseTraffic({ hours, sort, selection }: { hours: 24 | 72; sort: "queries" | "time" | "rows" | "bytes"; selection: Selection }) {
+export async function DatabaseTraffic({
+  hours,
+  sort,
+  selection,
+}: {
+  hours: 24 | 72;
+  sort: "queries" | "time" | "rows" | "bytes";
+  selection: Selection;
+}) {
   const result = await getDbTraffic(hours, selection);
-  if (result.status !== "ready") return <PageLayout variant="workbench" className="space-y-6"><PageHeader title="数据库流量来源" /><Link href="/admin/telemetry">返回产品遥测</Link><Panel>{result.status === "unconfigured" ? "尚未配置遥测查询。" : "遥测读取失败，请稍后重试。"}</Panel></PageLayout>;
+  if (result.status !== "ready")
+    return (
+      <PageLayout variant="workbench" className="space-y-6">
+        <PageHeader title="数据库流量来源" />
+        <Link href="/admin/telemetry">返回产品遥测</Link>
+        <Panel>
+          {result.status === "unconfigured" ? "尚未配置遥测查询。" : "遥测读取失败，请稍后重试。"}
+        </Panel>
+      </PageLayout>
+    );
   const data = result.data;
   const windows = data.windows ?? [];
   const quality = data.quality ?? [];
   const gapLost = quality.reduce((n, row) => n + (row.lostBatches ?? 0), 0);
   const gapLostBytes = quality.reduce((n, row) => n + (row.lostBytes ?? 0), 0);
   const gapUnconfirmed = quality.reduce((n, row) => n + (row.unconfirmedBatches ?? 0), 0);
-  const qualityIncomplete = data.quality === undefined || !!data.qualityPending || !!data.qualityTruncated || quality.some(row => row.truncated);
-  const unknownCoverage = quality.filter(row => row.coverageUnknownSince != null);
-  const requestedQuality = quality.find(row => String(row.hour) === selection.hour && row.release === selection.release && row.deployment === selection.deployment);
-  const selected = windows.find(row => String(row.hour) === selection.hour && row.release === selection.release && row.deployment === selection.deployment) ?? (requestedQuality ? undefined : windows[0]);
-  const selectedQuality = requestedQuality ?? (!selected ? quality[0] : quality.find(row => row.hour === selected.hour && row.release === selected.release && row.deployment === selected.deployment));
-  const field = sort === "time" ? "queryMs" : sort === "rows" ? "rows" : sort === "queries" ? "queries" : "rxBytes";
-  const href = (hour: number, release: string, deployment: string, order = sort, source = selection.source) => ({ pathname: "/admin/telemetry" as const, query: { view: "database", hours: String(hours), sort: order, hour: String(hour), release, deployment, ...(source ? { source } : {}) } });
+  const qualityIncomplete =
+    data.quality === undefined ||
+    !!data.qualityPending ||
+    !!data.qualityTruncated ||
+    quality.some((row) => row.truncated);
+  const unknownCoverage = quality.filter((row) => row.coverageUnknownSince != null);
+  const requestedQuality = quality.find(
+    (row) =>
+      String(row.hour) === selection.hour &&
+      row.release === selection.release &&
+      row.deployment === selection.deployment,
+  );
+  const selected =
+    windows.find(
+      (row) =>
+        String(row.hour) === selection.hour &&
+        row.release === selection.release &&
+        row.deployment === selection.deployment,
+    ) ?? (requestedQuality ? undefined : windows[0]);
+  const selectedQuality =
+    requestedQuality ??
+    (!selected
+      ? quality[0]
+      : quality.find(
+          (row) =>
+            row.hour === selected.hour &&
+            row.release === selected.release &&
+            row.deployment === selected.deployment,
+        ));
+  const field =
+    sort === "time"
+      ? "queryMs"
+      : sort === "rows"
+        ? "rows"
+        : sort === "queries"
+          ? "queries"
+          : "rxBytes";
+  const href = (
+    hour: number,
+    release: string,
+    deployment: string,
+    order = sort,
+    source = selection.source,
+  ) => ({
+    pathname: "/admin/telemetry" as const,
+    query: {
+      view: "database",
+      hours: String(hours),
+      sort: order,
+      hour: String(hour),
+      release,
+      deployment,
+      ...(source ? { source } : {}),
+    },
+  });
   const sources = selected ? [...selected.sources].sort((a, b) => b[field] - a[field]) : [];
-  const sourceFilter = selected?.sources.some(row => row.source === selection.source) ? selection.source : undefined;
-  const retainedShapes = selected ? selected.shapes.filter(row => !sourceFilter || row.source === sourceFilter) : [];
-  const shapes = [...retainedShapes].sort((a, b) => b[field] - a[field]).slice(0, sourceFilter ? undefined : 20);
-  const scopedSources = sources.filter(row => !sourceFilter || row.source === sourceFilter);
+  const sourceFilter = selected?.sources.some((row) => row.source === selection.source)
+    ? selection.source
+    : undefined;
+  const retainedShapes = selected
+    ? selected.shapes.filter((row) => !sourceFilter || row.source === sourceFilter)
+    : [];
+  const shapes = [...retainedShapes]
+    .sort((a, b) => b[field] - a[field])
+    .slice(0, sourceFilter ? undefined : 20);
+  const scopedSources = sources.filter((row) => !sourceFilter || row.source === sourceFilter);
   const retainedBytes = retainedShapes.reduce((sum, row) => sum + row.rxBytes, 0);
   const sourceBytes = scopedSources.reduce((sum, row) => sum + row.rxBytes, 0);
-  const shapesComplete = !!selected?.rxComplete && !!selected.scopedComplete && scopedSources.every(row => row.rxComplete) && retainedShapes.every(row => row.rxComplete);
-  const overflowBytes = retainedShapes.filter(row => row.template === "overflow").reduce((sum, row) => sum + row.rxBytes, 0);
+  const shapesComplete =
+    !!selected?.rxComplete &&
+    !!selected.scopedComplete &&
+    scopedSources.every((row) => row.rxComplete) &&
+    retainedShapes.every((row) => row.rxComplete);
+  const overflowBytes = retainedShapes
+    .filter((row) => row.template === "overflow")
+    .reduce((sum, row) => sum + row.rxBytes, 0);
   const attributed = sources.reduce((sum, row) => sum + row.rxBytes, 0);
   const complete = !!selected && selected.rxComplete && selected.scopedComplete;
-  const difference = selected && complete && selected.observedConnections > 0 ? selected.receivedBytes - attributed - selected.remainingRxBytes : null;
-  return <PageLayout variant="workbench" className="space-y-6">
-    <PageHeader title="数据库流量来源" description={`${displayTime(data.start)} 至 ${displayTime(data.generatedAt)}（北京时间，按小时起点对齐）`} />
-    <div className="flex gap-4 text-sm"><Link href="/admin/telemetry">返回产品遥测</Link><Link href="/admin/telemetry?view=database&hours=24">24 小时</Link><Link href="/admin/telemetry?view=database&hours=72">72 小时</Link></div>
-    <div className="grid gap-3 sm:grid-cols-3">
-      <MetricCard label="全部已观测协议字节" value={count(data.receivedBytes)} note="包含所选范围内所有版本和进程；未观测连接的字节未知，不是供应商账单。" />
-      <MetricCard label="已报告丢失批次与旧窗口" value={supplied(data.dropped + gapLost, !qualityIncomplete && !!data.lossComplete)} note={`缺口已知丢失 ${count(gapLost)} 批 / ${count(gapLostBytes)} 字节；旧窗口 ${count(data.dropped)}。缺口未确认 ${count(gapUnconfirmed)} 批，可能与已接收数据重叠；未知覆盖及未送达尾窗无法计数。`} />
-      <MetricCard label="待汇总批次" value={data.pending >= 513 ? "≥513" : count(data.pending)} note="待汇总批次未计入排行。" />
-    </div>
-    <Panel><p className="font-medium">所选范围的覆盖未知记录</p><p className="mt-2 text-sm text-muted-foreground">按报告小时列出历史记录；未知起点可能早于报告小时。历史记录不表示当前仍有故障，未报告丢失也不能证明覆盖完整。{qualityIncomplete ? "质量记录待汇总或已截断，列表可能不完整。" : ""}</p>
-      {data.quality === undefined ? <p className="mt-2 text-sm">当前 Worker 未提供质量记录。</p> : !unknownCoverage.length ? <p className="mt-2 text-sm">此范围暂无已汇总的覆盖未知记录。</p> : <div className="mt-2 space-y-1 text-sm">{unknownCoverage.slice(0, 10).map(row => <p key={`${row.hour}:${row.release}:${row.deployment}`}>报告小时 {displayTime(row.hour)} · {row.release} / {row.deployment} · 未知始于 {displayTime(row.coverageUnknownSince!)}</p>)}{unknownCoverage.length > 10 && <p>仅显示前 10 条记录。</p>}</div>}
-    </Panel>
-    {!!data.qualityPending && <Panel>有 {data.qualityPending >= 513 ? "至少 513" : count(data.qualityPending)} 批质量或缺口记录待汇总，当前信息可能不完整。</Panel>}
-    {data.qualityTruncated && <Panel>质量分窗已截断。</Panel>}
-    {!!data.unscopedHours?.length && <Panel>历史汇总有 {count(data.unscopedHours.length)} 个小时无法拆分到版本；这些数据不进入同窗来源排行。</Panel>}
-    <Panel contentClassName="p-0"><Heading title="选择小时与版本" note="来源和形态排行仅使用选中的小时、release 和 deployment。" />
-      {!windows.length && !quality.length ? <Empty>{data.windows === undefined ? "当前 Worker 未提供按版本拆分的来源排行。" : data.unscopedHours?.length ? "历史数据未提供版本分窗。" : data.pending ? "暂无已汇总分窗数据，仍有批次待汇总。" : "暂无已接收分窗数据；采集和投递状态未知。"}</Empty> : <div className="max-h-64 overflow-auto divide-y divide-border">{windows.map(row => <Link className="block p-3 text-sm" key={`${row.hour}:${row.release}:${row.deployment}`} href={href(row.hour, row.release, row.deployment)} aria-current={selected === row ? "page" : undefined}>{displayTime(row.hour)} · {row.release} / {row.deployment} · {count(row.receivedBytes)} 已观测字节{!row.scopedComplete ? " · 历史数据未拆分" : ""}</Link>)}{quality.filter(row => !windows.some(window => window.hour === row.hour && window.release === row.release && window.deployment === row.deployment)).map(row => <Link className="block p-3 text-sm" key={`quality:${row.hour}:${row.release}:${row.deployment}`} href={href(row.hour, row.release, row.deployment)} aria-current={selectedQuality === row ? "page" : undefined}>{displayTime(row.hour)} · {row.release} / {row.deployment} · {count(row.batches)} 批质量异常 · 丢失 {count(row.lostBatches ?? 0)} / 未确认 {count(row.unconfirmedBatches ?? 0)} 批</Link>)}</div>}
-    </Panel>
-    {selectedQuality && <Panel><p className="font-medium">{displayTime(selectedQuality.hour)} · {selectedQuality.release} / {selectedQuality.deployment} · {count(selectedQuality.batches)} 批质量异常</p><p className="mt-2 text-sm">异常数据未计入可信流量汇总。已知丢失 {count(selectedQuality.lostBatches ?? 0)} 批 / {count(selectedQuality.lostBytes ?? 0)} 字节；未确认 {count(selectedQuality.unconfirmedBatches ?? 0)} 批 / {count(selectedQuality.unconfirmedBytes ?? 0)} 字节，可能与已接收数据重叠。{selectedQuality.coverageUnknownSince != null ? `覆盖未知始于 ${displayTime(selectedQuality.coverageUnknownSince)}。` : ""}{selectedQuality.truncated ? "质量汇总已截断。" : ""}</p><details className="mt-2 text-sm"><summary>查看安全诊断</summary>{data.qualityDetails?.map((row, i) => <pre key={`${row.at}:${i}`} className="overflow-auto whitespace-pre-wrap">{JSON.stringify(row, null, 2)}</pre>)}{data.qualityDetailsTruncated && <p>详情已截断。</p>}</details></Panel>}
-    {selected && <>
-      <Panel><p className="font-medium">{displayTime(selected.hour)} · App release {selected.release} · deployment {selected.deployment}</p><p className="mt-2 text-sm">已观测接收 {count(selected.receivedBytes)} · 来源 {supplied(attributed, complete)} · 未归属 {supplied(selected.remainingRxBytes, complete)} · 已观测差额 {difference === null ? "未提供" : count(difference)} 字节</p><p className="mt-2 text-sm text-muted-foreground">连接采样时可观测 {count(selected.observedConnections)} / 总数 {count(selected.connections)}；未观测连接的字节未知，不能推断字节覆盖率。</p><p className="mt-2 text-sm text-muted-foreground">异步 {supplied(selected.remaining.async, complete)} · 无查询 {supplied(selected.remaining.no_owner, complete)} · 未完成帧 {supplied(selected.remaining.partial, complete)} · 不支持 {supplied(selected.remaining.unsupported, complete)} · 计量异常 {supplied(selected.remaining.instrumentation, complete)}</p><p className="mt-2 text-sm text-muted-foreground">{selected.batches} 批 · {selected.processes} 进程 · 已报告丢失 {selected.dropped} 窗口 / {selected.droppedReceivedBytes === undefined ? "未提供" : supplied(selected.droppedReceivedBytes, !!selected.lossComplete)} 字节 · 未确认 {selected.unconfirmedBatches === undefined ? "未提供" : supplied(selected.unconfirmedBatches, !!selected.lossComplete)} 批 / {selected.unconfirmedReceivedBytes === undefined ? "未提供" : supplied(selected.unconfirmedReceivedBytes, !!selected.lossComplete)} 字节{selected.truncated ? " · 数据已截断（原因可能不同）" : ""}{!selected.scopedComplete ? " · 此小时有旧数据无法拆分到版本" : ""}</p></Panel>
-      <Panel contentClassName="p-0"><Heading title="来源排行" note="按当前窗口排序；协议字节按接收时间计入，查询次数按完成时间计入。" /><div className="flex flex-wrap gap-4 p-4 text-sm">{([ ["bytes", "协议字节"], ["queries", "次数"], ["time", "耗时"], ["rows", "行数"] ] as const).map(([key, label]) => <Link key={key} href={href(selected.hour, selected.release, selected.deployment, key)}>按{label}</Link>)}</div><div className="p-4"><Bars wrapDetails rows={sources.map(row => ({ key: row.source, label: row.source, value: row[field], displayValue: `${supplied(row.rxBytes, row.rxComplete && selected.scopedComplete)} 协议字节 · ${count(row.queries)} 次 · 失败 ${count(row.failures)} · overflow ${count(row.overflow)} 次 · ${supplied(row.logicalRowJsonBytes, row.logicalComplete)} 逻辑字节 · 已测 ${supplied(row.logicalMeasuredQueries, row.logicalComplete)} · 未测原因 ${row.skipReasonsComplete ? `预算 ${count(row.skipReasons.budget)} / 值不支持 ${count(row.skipReasons.unsupported_value)} / 错误 ${count(row.skipReasons.error)}` : "未提供或部分提供"}` }))} unit="" /></div></Panel>
-      <Panel contentClassName="p-0"><Heading title="查询形态排行" note={sourceFilter ? "所选来源的全部保留形态。" : "当前窗口保留形态的前 20 项；选择来源可查看其全部保留形态。"} />
-        <div className="flex flex-wrap gap-4 p-4 text-sm"><Link href={href(selected.hour, selected.release, selected.deployment, sort, "")}>全部来源</Link>{sources.map(row => <Link className="min-w-0 [overflow-wrap:anywhere]" key={row.source} aria-current={sourceFilter === row.source ? "page" : undefined} href={href(selected.hour, selected.release, selected.deployment, sort, row.source)}>{row.source}</Link>)}</div>
-        <p className="px-4 pb-4 text-sm text-muted-foreground">保留形态 {supplied(retainedBytes, shapesComplete)} 字节（其中保留的 overflow {supplied(overflowBytes, shapesComplete)}）；来源总量与保留形态的差额 {shapesComplete ? count(sourceBytes - retainedBytes) : "未提供"} 字节。overflow 查询 {count(scopedSources.reduce((sum, row) => sum + row.overflow, 0))} 次；其内部形态不可恢复。Worker 裁剪后保留形态可能仅含部分时间片，差额包含未保留片段；truncated 也可能由其他限制触发。</p><div className="divide-y divide-border">{shapes.map(row => <div className="flex flex-wrap justify-between gap-2 p-4 text-sm" key={`${row.source}:${row.template}`}><span className="min-w-0 [overflow-wrap:anywhere]">{row.source} · {row.template}</span><span>{supplied(row.rxBytes, row.rxComplete && selected.scopedComplete)} 协议字节 · {count(row.queries)} 次 · 失败 {count(row.failures)} · {supplied(row.logicalRowJsonBytes, row.logicalComplete)} 逻辑字节 · {count(row.rows)} rowCount</span></div>)}</div></Panel>
-    </>}
-    <Panel contentClassName="p-0"><Heading title="离线消费者" note="制品字节和逻辑字节不是数据库网络字节。" />{!data.offline.length ? <Empty>窗口内暂无已接收的离线摘要。</Empty> : <div className="divide-y divide-border">{data.offline.map(row => <div key={`${row.consumer}:${row.run}`} className="space-y-1 p-4 text-sm"><p>{row.consumer} · {row.run} · {row.release} · {row.status}</p><p className="text-muted-foreground">{displayTime(row.started)} – {displayTime(row.ended)} · 行 {row.rows == null ? "未知" : count(row.rows)} · 逻辑字节 {row.logicalBytes == null ? "未知" : count(row.logicalBytes)} · dump {row.dumpBytes == null ? "未知" : count(row.dumpBytes)} · snapshot {row.snapshotBytes == null ? "未知" : count(row.snapshotBytes)} · artifact {row.artifactBytes == null ? "未知" : count(row.artifactBytes)} · Storage {row.storageBytes == null ? "未知" : count(row.storageBytes)}</p></div>)}</div>}{data.offlineTruncated && <p className="p-4">离线摘要已截断。</p>}</Panel>
-    <details className="text-sm text-muted-foreground"><summary className="cursor-pointer">统计口径与覆盖缺口</summary><p className="mt-3">协议字节是已接入连接建连后的 PostgreSQL 下行；TLS 连接计量解密后的内容，不含握手及 TLS 开销，也不覆盖其他消费者。供应商账单范围更广。旧批次缺失的字段显示未提供，未送达的窗口及进程强制退出损失无法由已送达数据推断。rowCount 包含写入影响行数。指纹仅供在对应 release 的隔离环境比对，不输出 SQL 或参数。</p></details>
-  </PageLayout>;
+  const difference =
+    selected && complete && selected.observedConnections > 0
+      ? selected.receivedBytes - attributed - selected.remainingRxBytes
+      : null;
+  return (
+    <PageLayout variant="workbench" className="space-y-6">
+      <PageHeader
+        title="数据库流量来源"
+        description={`${displayTime(data.start)} 至 ${displayTime(data.generatedAt)}（北京时间，按小时起点对齐）`}
+      />
+      <div className="flex gap-4 text-sm">
+        <Link href="/admin/telemetry">返回产品遥测</Link>
+        <Link href="/admin/telemetry?view=database&hours=24">24 小时</Link>
+        <Link href="/admin/telemetry?view=database&hours=72">72 小时</Link>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MetricCard
+          label="全部已观测协议字节"
+          value={count(data.receivedBytes)}
+          note="包含所选范围内所有版本和进程；未观测连接的字节未知，不是供应商账单。"
+        />
+        <MetricCard
+          label="已报告丢失批次与旧窗口"
+          value={supplied(data.dropped + gapLost, !qualityIncomplete && !!data.lossComplete)}
+          note={`缺口已知丢失 ${count(gapLost)} 批 / ${count(gapLostBytes)} 字节；旧窗口 ${count(data.dropped)}。缺口未确认 ${count(gapUnconfirmed)} 批，可能与已接收数据重叠；未知覆盖及未送达尾窗无法计数。`}
+        />
+        <MetricCard
+          label="待汇总批次"
+          value={data.pending >= 513 ? "≥513" : count(data.pending)}
+          note="待汇总批次未计入排行。"
+        />
+      </div>
+      <Panel>
+        <p className="font-medium">所选范围的覆盖未知记录</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          按报告小时列出历史记录；未知起点可能早于报告小时。历史记录不表示当前仍有故障，未报告丢失也不能证明覆盖完整。
+          {qualityIncomplete ? "质量记录待汇总或已截断，列表可能不完整。" : ""}
+        </p>
+        {data.quality === undefined ? (
+          <p className="mt-2 text-sm">当前 Worker 未提供质量记录。</p>
+        ) : !unknownCoverage.length ? (
+          <p className="mt-2 text-sm">此范围暂无已汇总的覆盖未知记录。</p>
+        ) : (
+          <div className="mt-2 space-y-1 text-sm">
+            {unknownCoverage.slice(0, 10).map((row) => (
+              <p key={`${row.hour}:${row.release}:${row.deployment}`}>
+                报告小时 {displayTime(row.hour)} · {row.release} / {row.deployment} · 未知始于{" "}
+                {displayTime(row.coverageUnknownSince!)}
+              </p>
+            ))}
+            {unknownCoverage.length > 10 && <p>仅显示前 10 条记录。</p>}
+          </div>
+        )}
+      </Panel>
+      {!!data.qualityPending && (
+        <Panel>
+          有 {data.qualityPending >= 513 ? "至少 513" : count(data.qualityPending)}{" "}
+          批质量或缺口记录待汇总，当前信息可能不完整。
+        </Panel>
+      )}
+      {data.qualityTruncated && <Panel>质量分窗已截断。</Panel>}
+      {!!data.unscopedHours?.length && (
+        <Panel>
+          历史汇总有 {count(data.unscopedHours.length)}{" "}
+          个小时无法拆分到版本；这些数据不进入同窗来源排行。
+        </Panel>
+      )}
+      <Panel contentClassName="p-0">
+        <Heading
+          title="选择小时与版本"
+          note="来源和形态排行仅使用选中的小时、release 和 deployment。"
+        />
+        {!windows.length && !quality.length ? (
+          <Empty>
+            {data.windows === undefined
+              ? "当前 Worker 未提供按版本拆分的来源排行。"
+              : data.unscopedHours?.length
+                ? "历史数据未提供版本分窗。"
+                : data.pending
+                  ? "暂无已汇总分窗数据，仍有批次待汇总。"
+                  : "暂无已接收分窗数据；采集和投递状态未知。"}
+          </Empty>
+        ) : (
+          <div className="max-h-64 overflow-auto divide-y divide-border">
+            {windows.map((row) => (
+              <Link
+                className="block p-3 text-sm"
+                key={`${row.hour}:${row.release}:${row.deployment}`}
+                href={href(row.hour, row.release, row.deployment)}
+                aria-current={selected === row ? "page" : undefined}
+              >
+                {displayTime(row.hour)} · {row.release} / {row.deployment} ·{" "}
+                {count(row.receivedBytes)} 已观测字节
+                {!row.scopedComplete ? " · 历史数据未拆分" : ""}
+              </Link>
+            ))}
+            {quality
+              .filter(
+                (row) =>
+                  !windows.some(
+                    (window) =>
+                      window.hour === row.hour &&
+                      window.release === row.release &&
+                      window.deployment === row.deployment,
+                  ),
+              )
+              .map((row) => (
+                <Link
+                  className="block p-3 text-sm"
+                  key={`quality:${row.hour}:${row.release}:${row.deployment}`}
+                  href={href(row.hour, row.release, row.deployment)}
+                  aria-current={selectedQuality === row ? "page" : undefined}
+                >
+                  {displayTime(row.hour)} · {row.release} / {row.deployment} · {count(row.batches)}{" "}
+                  批质量异常 · 丢失 {count(row.lostBatches ?? 0)} / 未确认{" "}
+                  {count(row.unconfirmedBatches ?? 0)} 批
+                </Link>
+              ))}
+          </div>
+        )}
+      </Panel>
+      {selectedQuality && (
+        <Panel>
+          <p className="font-medium">
+            {displayTime(selectedQuality.hour)} · {selectedQuality.release} /{" "}
+            {selectedQuality.deployment} · {count(selectedQuality.batches)} 批质量异常
+          </p>
+          <p className="mt-2 text-sm">
+            异常数据未计入可信流量汇总。已知丢失 {count(selectedQuality.lostBatches ?? 0)} 批 /{" "}
+            {count(selectedQuality.lostBytes ?? 0)} 字节；未确认{" "}
+            {count(selectedQuality.unconfirmedBatches ?? 0)} 批 /{" "}
+            {count(selectedQuality.unconfirmedBytes ?? 0)} 字节，可能与已接收数据重叠。
+            {selectedQuality.coverageUnknownSince != null
+              ? `覆盖未知始于 ${displayTime(selectedQuality.coverageUnknownSince)}。`
+              : ""}
+            {selectedQuality.truncated ? "质量汇总已截断。" : ""}
+          </p>
+          <details className="mt-2 text-sm">
+            <summary>查看安全诊断</summary>
+            {data.qualityDetails?.map((row, i) => (
+              <pre key={`${row.at}:${i}`} className="overflow-auto whitespace-pre-wrap">
+                {JSON.stringify(row, null, 2)}
+              </pre>
+            ))}
+            {data.qualityDetailsTruncated && <p>详情已截断。</p>}
+          </details>
+        </Panel>
+      )}
+      {selected && (
+        <>
+          <Panel>
+            <p className="font-medium">
+              {displayTime(selected.hour)} · App release {selected.release} · deployment{" "}
+              {selected.deployment}
+            </p>
+            <p className="mt-2 text-sm">
+              已观测接收 {count(selected.receivedBytes)} · 来源 {supplied(attributed, complete)} ·
+              未归属 {supplied(selected.remainingRxBytes, complete)} · 已观测差额{" "}
+              {difference === null ? "未提供" : count(difference)} 字节
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              连接采样时可观测 {count(selected.observedConnections)} / 总数{" "}
+              {count(selected.connections)}；未观测连接的字节未知，不能推断字节覆盖率。
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              异步 {supplied(selected.remaining.async, complete)} · 无查询{" "}
+              {supplied(selected.remaining.no_owner, complete)} · 未完成帧{" "}
+              {supplied(selected.remaining.partial, complete)} · 不支持{" "}
+              {supplied(selected.remaining.unsupported, complete)} · 计量异常{" "}
+              {supplied(selected.remaining.instrumentation, complete)}
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {selected.batches} 批 · {selected.processes} 进程 · 已报告丢失 {selected.dropped} 窗口
+              /{" "}
+              {selected.droppedReceivedBytes === undefined
+                ? "未提供"
+                : supplied(selected.droppedReceivedBytes, !!selected.lossComplete)}{" "}
+              字节 · 未确认{" "}
+              {selected.unconfirmedBatches === undefined
+                ? "未提供"
+                : supplied(selected.unconfirmedBatches, !!selected.lossComplete)}{" "}
+              批 /{" "}
+              {selected.unconfirmedReceivedBytes === undefined
+                ? "未提供"
+                : supplied(selected.unconfirmedReceivedBytes, !!selected.lossComplete)}{" "}
+              字节{selected.truncated ? " · 数据已截断（原因可能不同）" : ""}
+              {!selected.scopedComplete ? " · 此小时有旧数据无法拆分到版本" : ""}
+            </p>
+          </Panel>
+          <Panel contentClassName="p-0">
+            <Heading
+              title="来源排行"
+              note="按当前窗口排序；协议字节按接收时间计入，查询次数按完成时间计入。"
+            />
+            <div className="flex flex-wrap gap-4 p-4 text-sm">
+              {(
+                [
+                  ["bytes", "协议字节"],
+                  ["queries", "次数"],
+                  ["time", "耗时"],
+                  ["rows", "行数"],
+                ] as const
+              ).map(([key, label]) => (
+                <Link
+                  key={key}
+                  href={href(selected.hour, selected.release, selected.deployment, key)}
+                >
+                  按{label}
+                </Link>
+              ))}
+            </div>
+            <div className="p-4">
+              <Bars
+                wrapDetails
+                rows={sources.map((row) => ({
+                  key: row.source,
+                  label: row.source,
+                  value: row[field],
+                  displayValue: `${supplied(row.rxBytes, row.rxComplete && selected.scopedComplete)} 协议字节 · ${count(row.queries)} 次 · 失败 ${count(row.failures)} · overflow ${count(row.overflow)} 次 · ${supplied(row.logicalRowJsonBytes, row.logicalComplete)} 逻辑字节 · 已测 ${supplied(row.logicalMeasuredQueries, row.logicalComplete)} · 未测原因 ${row.skipReasonsComplete ? `预算 ${count(row.skipReasons.budget)} / 值不支持 ${count(row.skipReasons.unsupported_value)} / 错误 ${count(row.skipReasons.error)}` : "未提供或部分提供"}`,
+                }))}
+                unit=""
+              />
+            </div>
+          </Panel>
+          <Panel contentClassName="p-0">
+            <Heading
+              title="查询形态排行"
+              note={
+                sourceFilter
+                  ? "所选来源的全部保留形态。"
+                  : "当前窗口保留形态的前 20 项；选择来源可查看其全部保留形态。"
+              }
+            />
+            <div className="flex flex-wrap gap-4 p-4 text-sm">
+              <Link href={href(selected.hour, selected.release, selected.deployment, sort, "")}>
+                全部来源
+              </Link>
+              {sources.map((row) => (
+                <Link
+                  className="min-w-0 [overflow-wrap:anywhere]"
+                  key={row.source}
+                  aria-current={sourceFilter === row.source ? "page" : undefined}
+                  href={href(
+                    selected.hour,
+                    selected.release,
+                    selected.deployment,
+                    sort,
+                    row.source,
+                  )}
+                >
+                  {row.source}
+                </Link>
+              ))}
+            </div>
+            <p className="px-4 pb-4 text-sm text-muted-foreground">
+              保留形态 {supplied(retainedBytes, shapesComplete)} 字节（其中保留的 overflow{" "}
+              {supplied(overflowBytes, shapesComplete)}）；来源总量与保留形态的差额{" "}
+              {shapesComplete ? count(sourceBytes - retainedBytes) : "未提供"} 字节。overflow 查询{" "}
+              {count(scopedSources.reduce((sum, row) => sum + row.overflow, 0))}{" "}
+              次；其内部形态不可恢复。Worker
+              裁剪后保留形态可能仅含部分时间片，差额包含未保留片段；truncated 也可能由其他限制触发。
+            </p>
+            <div className="divide-y divide-border">
+              {shapes.map((row) => (
+                <div
+                  className="flex flex-wrap justify-between gap-2 p-4 text-sm"
+                  key={`${row.source}:${row.template}`}
+                >
+                  <span className="min-w-0 [overflow-wrap:anywhere]">
+                    {row.source} · {row.template}
+                  </span>
+                  <span>
+                    {supplied(row.rxBytes, row.rxComplete && selected.scopedComplete)} 协议字节 ·{" "}
+                    {count(row.queries)} 次 · 失败 {count(row.failures)} ·{" "}
+                    {supplied(row.logicalRowJsonBytes, row.logicalComplete)} 逻辑字节 ·{" "}
+                    {count(row.rows)} rowCount
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </>
+      )}
+      <Panel contentClassName="p-0">
+        <Heading title="离线消费者" note="制品字节和逻辑字节不是数据库网络字节。" />
+        {!data.offline.length ? (
+          <Empty>窗口内暂无已接收的离线摘要。</Empty>
+        ) : (
+          <div className="divide-y divide-border">
+            {data.offline.map((row) => (
+              <div key={`${row.consumer}:${row.run}`} className="space-y-1 p-4 text-sm">
+                <p>
+                  {row.consumer} · {row.run} · {row.release} · {row.status}
+                </p>
+                <p className="text-muted-foreground">
+                  {displayTime(row.started)} – {displayTime(row.ended)} · 行{" "}
+                  {row.rows == null ? "未知" : count(row.rows)} · 逻辑字节{" "}
+                  {row.logicalBytes == null ? "未知" : count(row.logicalBytes)} · dump{" "}
+                  {row.dumpBytes == null ? "未知" : count(row.dumpBytes)} · snapshot{" "}
+                  {row.snapshotBytes == null ? "未知" : count(row.snapshotBytes)} · artifact{" "}
+                  {row.artifactBytes == null ? "未知" : count(row.artifactBytes)} · Storage{" "}
+                  {row.storageBytes == null ? "未知" : count(row.storageBytes)}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+        {data.offlineTruncated && <p className="p-4">离线摘要已截断。</p>}
+      </Panel>
+      <details className="text-sm text-muted-foreground">
+        <summary className="cursor-pointer">统计口径与覆盖缺口</summary>
+        <p className="mt-3">
+          协议字节是已接入连接建连后的 PostgreSQL 下行；TLS 连接计量解密后的内容，不含握手及 TLS
+          开销，也不覆盖其他消费者。供应商账单范围更广。旧批次缺失的字段显示未提供，未送达的窗口及进程强制退出损失无法由已送达数据推断。rowCount
+          包含写入影响行数。指纹仅供在对应 release 的隔离环境比对，不输出 SQL 或参数。
+        </p>
+      </details>
+    </PageLayout>
+  );
 }

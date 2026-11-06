@@ -10,7 +10,10 @@ import { Panel } from "@/components/rivalhub";
 import { parseCSTInput } from "@/lib/utils/date";
 import { observeAction } from "@/lib/telemetry/client";
 
-const batchSetCompletionDeadline = observeAction("matches.batchSetCompletionDeadline", telemetry_batchSetCompletionDeadline);
+const batchSetCompletionDeadline = observeAction(
+  "matches.batchSetCompletionDeadline",
+  telemetry_batchSetCompletionDeadline,
+);
 
 interface RoundGroup {
   label: string;
@@ -60,9 +63,7 @@ export function BatchDeadlineCard({ seasonId, groups }: BatchDeadlineCardProps) 
 
   return (
     <Panel contentClassName="space-y-4 p-4">
-      <h3 className="text-sm font-semibold text-[var(--color-fg)]">
-        批量设置截止时间
-      </h3>
+      <h3 className="text-sm font-semibold text-[var(--color-fg)]">批量设置截止时间</h3>
       <p className="text-xs text-[var(--color-fg-mid)]">
         按阶段/轮次统一设置最晚完成时间，仅影响 scheduled / in_progress 状态的比赛
       </p>
@@ -70,23 +71,16 @@ export function BatchDeadlineCard({ seasonId, groups }: BatchDeadlineCardProps) 
         {groups.map((group) => {
           const key = getGroupKey(group);
           return (
-            <div
-              key={key}
-              className="flex items-end gap-3 flex-wrap"
-            >
+            <div key={key} className="flex items-end gap-3 flex-wrap">
               <div className="flex-1 min-w-[140px]">
                 <Label className="text-xs">
                   {group.label}
-                  <span className="ml-1 text-[var(--color-fg-dim)]">
-                    ({group.matchCount} 场)
-                  </span>
+                  <span className="ml-1 text-[var(--color-fg-dim)]">({group.matchCount} 场)</span>
                 </Label>
                 <Input
                   type="datetime-local"
                   value={deadlines[key] ?? ""}
-                  onChange={(e) =>
-                    setDeadlines((prev) => ({ ...prev, [key]: e.target.value }))
-                  }
+                  onChange={(e) => setDeadlines((prev) => ({ ...prev, [key]: e.target.value }))}
                   className="mt-1"
                 />
               </div>

@@ -73,13 +73,22 @@ export function aggregatePlayerRows(rows: StatRowInput[]): AggregatedPlayerStats
     firstKills: completeSum(rows, "firstKills"),
     multiKills: completeSum(rows, "multiKills"),
     clutches: completeSum(rows, "clutches"),
-    kd: totalKills != null && totalDeaths != null && totalDeaths > 0 ? totalKills / totalDeaths : null,
+    kd:
+      totalKills != null && totalDeaths != null && totalDeaths > 0
+        ? totalKills / totalDeaths
+        : null,
     kpr: perRoundKnown(rows, "kills"),
     fkpr: perRoundKnown(rows, "firstKills"),
     mkpr: perRoundKnown(rows, "multiKills"),
     cpr: perRoundKnown(rows, "clutches"),
-    adr: weightedAvgNums(rows.map((row) => row.adr), rows.map((row) => row.rounds)),
-    hsPercent: weightedAvgNums(rows.map((row) => row.hsPercent), rows.map((row) => row.kills)),
+    adr: weightedAvgNums(
+      rows.map((row) => row.adr),
+      rows.map((row) => row.rounds),
+    ),
+    hsPercent: weightedAvgNums(
+      rows.map((row) => row.hsPercent),
+      rows.map((row) => row.kills),
+    ),
     ratingPro: avgNums(rows.map((row) => row.ratingPro)),
     rws: avgNums(rows.map((row) => row.rws)),
     we: avgNums(rows.map((row) => row.we)),

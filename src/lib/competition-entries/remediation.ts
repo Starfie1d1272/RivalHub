@@ -1,7 +1,12 @@
-import { canSelfChangeApprovedRoster, canSubmitEntry, type RegistrationWindowSeason } from "@/lib/registration/window";
+import {
+  canSelfChangeApprovedRoster,
+  canSubmitEntry,
+  type RegistrationWindowSeason,
+} from "@/lib/registration/window";
 
 export type CompetitionEntryEditableStatus = "draft" | "changes_requested";
-export type CompetitionEntryRosterRevisionOrigin = "initial" | "admin_remediation" | "self_roster_change";
+export type CompetitionEntryRosterRevisionOrigin =
+  "initial" | "admin_remediation" | "self_roster_change";
 
 /**
  * The revision origin, rather than mutable review text, distinguishes ordinary
@@ -17,5 +22,9 @@ export function canMutateCompetitionEntryRoster(
 ): boolean {
   if (status === "draft") return majorAdjustmentPhaseOpen && canSubmitEntry(season, now);
   if (origin === "admin_remediation") return true;
-  return origin === "self_roster_change" && majorAdjustmentPhaseOpen && canSelfChangeApprovedRoster(season, now);
+  return (
+    origin === "self_roster_change" &&
+    majorAdjustmentPhaseOpen &&
+    canSelfChangeApprovedRoster(season, now)
+  );
 }

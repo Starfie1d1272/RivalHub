@@ -9,12 +9,15 @@ import type { BracketData, BracketMatch } from "@/lib/bracket";
 declare global {
   interface Window {
     bracketsViewer?: {
-      render(data: {
-        stages: unknown[];
-        matches: unknown[];
-        participants: unknown[];
-        matchGames: unknown[];
-      }, config?: { selector?: string; clear?: boolean }): Promise<void>;
+      render(
+        data: {
+          stages: unknown[];
+          matches: unknown[];
+          participants: unknown[];
+          matchGames: unknown[];
+        },
+        config?: { selector?: string; clear?: boolean },
+      ): Promise<void>;
       addLocale?(lang: string, bundle: Record<string, unknown>): Promise<void>;
     };
   }
@@ -63,18 +66,14 @@ function computeSlotLabel(
   if (!group || !round) return "TBD";
 
   const matchesInRound = (groupId: number, roundNumber: number): BracketMatch[] => {
-    const r = data.round.find(
-      (rr) => rr.group_id === groupId && rr.number === roundNumber,
-    );
+    const r = data.round.find((rr) => rr.group_id === groupId && rr.number === roundNumber);
     if (!r) return [];
-    return data.match
-      .filter((m) => m.round_id === r.id)
-      .sort((a, b) => a.number - b.number);
+    return data.match.filter((m) => m.round_id === r.id).sort((a, b) => a.number - b.number);
   };
 
   const teamsOf = (m: BracketMatch): [string | null, string | null] => [
-    m.opponent1?.id != null ? participantById.get(m.opponent1.id) ?? null : null,
-    m.opponent2?.id != null ? participantById.get(m.opponent2.id) ?? null : null,
+    m.opponent1?.id != null ? (participantById.get(m.opponent1.id) ?? null) : null,
+    m.opponent2?.id != null ? (participantById.get(m.opponent2.id) ?? null) : null,
   ];
 
   const winnerLabel = (m: BracketMatch | undefined): string => {
@@ -115,9 +114,7 @@ function computeSlotLabel(
 
   // LB (loser_bracket)
   if (groupNum === 2) {
-    const ubGroup = data.group.find(
-      (g) => g.stage_id === group.stage_id && g.number === 1,
-    );
+    const ubGroup = data.group.find((g) => g.stage_id === group.stage_id && g.number === 1);
     const ubGroupId = ubGroup?.id ?? -1;
 
     if (roundNum === 1) {
@@ -152,12 +149,8 @@ function computeSlotLabel(
 
   // GF (grand_final)
   if (groupNum === 3) {
-    const ubGroup = data.group.find(
-      (g) => g.stage_id === group.stage_id && g.number === 1,
-    );
-    const lbGroup = data.group.find(
-      (g) => g.stage_id === group.stage_id && g.number === 2,
-    );
+    const ubGroup = data.group.find((g) => g.stage_id === group.stage_id && g.number === 1);
+    const lbGroup = data.group.find((g) => g.stage_id === group.stage_id && g.number === 2);
     if (matchNum === 1) {
       // 第一场 GF: UB 总冠军 vs LB 总冠军
       if (slotIdx === 0 && ubGroup) {
@@ -183,13 +176,9 @@ function computeSlotLabel(
     }
     // bracket reset 第二场：双方为第一场 GF 胜负者
     if (matchNum === 2) {
-      const gfRound = data.round.find(
-        (r) => r.group_id === group.id && r.number === 1,
-      );
+      const gfRound = data.round.find((r) => r.group_id === group.id && r.number === 1);
       if (gfRound) {
-        const gf1 = data.match.find(
-          (m) => m.round_id === gfRound.id && m.number === 1,
-        );
+        const gf1 = data.match.find((m) => m.round_id === gfRound.id && m.number === 1);
         return slotIdx === 0 ? winnerLabel(gf1) : loserLabel(gf1);
       }
     }
@@ -216,7 +205,13 @@ function getMatchAccessibleLabel(
   return `查看比赛详情：${getSlotName(0)} 对 ${getSlotName(1)}`;
 }
 
-export function BracketView({ data, themeColor, matchNodeMap, seasonSlug, reportScheduleReady = false }: BracketViewProps) {
+export function BracketView({
+  data,
+  themeColor,
+  matchNodeMap,
+  seasonSlug,
+  reportScheduleReady = false,
+}: BracketViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scriptReady, setScriptReady] = useState(false);
   const [renderError, setRenderError] = useState(false);
@@ -255,7 +250,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug, report
           participants: data.participant,
           matchGames: data.match_game,
         },
-        { selector: "#bracket-container", clear: true }
+        { selector: "#bracket-container", clear: true },
       )
       .then(() => {
         if (disposed || !containerRef.current) return;
@@ -263,11 +258,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug, report
         const container = containerRef.current;
 
         // 兜底：如果上面 addLocale 在 render 之前未生效，把残留的 BYE 字面量替换为 TBD
-        const walker = document.createTreeWalker(
-          container,
-          NodeFilter.SHOW_TEXT,
-          null,
-        );
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
         let node: Text | null;
         while ((node = walker.nextNode() as Text | null)) {
           if (node.textContent === "BYE") node.textContent = "TBD";
@@ -277,9 +268,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug, report
         const participantById = new Map<number, string>(
           data.participant.map((p) => [p.id, p.name]),
         );
-        const matchById = new Map<number, BracketMatch>(
-          data.match.map((m) => [m.id, m]),
-        );
+        const matchById = new Map<number, BracketMatch>(data.match.map((m) => [m.id, m]));
 
         container.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
           const bracketId = el.getAttribute("data-match-id");
@@ -304,9 +293,9 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug, report
 
         // ── 点击跳转 & hover 视觉 ──────────────────────────────────────
         if (matchNodeMap && seasonSlug) {
-          const accentColor = getComputedStyle(container)
-            .getPropertyValue("--color-accent")
-            .trim() || "var(--color-accent)";
+          const accentColor =
+            getComputedStyle(container).getPropertyValue("--color-accent").trim() ||
+            "var(--color-accent)";
           const removeNodeListeners: Array<() => void> = [];
 
           container.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
@@ -355,9 +344,8 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug, report
           });
 
           const handleClick = (e: MouseEvent) => {
-            const target = e.target instanceof Element
-              ? e.target.closest<HTMLElement>("[data-match-id]")
-              : null;
+            const target =
+              e.target instanceof Element ? e.target.closest<HTMLElement>("[data-match-id]") : null;
             if (!target || !container.contains(target)) return;
             const bracketId = target.getAttribute("data-match-id");
             if (!bracketId) return;

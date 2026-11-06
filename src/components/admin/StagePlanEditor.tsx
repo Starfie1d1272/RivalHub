@@ -12,11 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  type StageConfig,
-  type StagePlan,
-  type StageType,
-} from "@/types/season";
+import { type StageConfig, type StagePlan, type StageType } from "@/types/season";
 import { STAGE_TYPE_LABELS } from "@/lib/seasons/presentation";
 import { RIVALS_STAGE_PLAN } from "@/lib/competition/templates";
 import { InlineConfirm } from "@/components/rivalhub";
@@ -33,14 +29,24 @@ interface StagePlanEditorProps {
 function stageNameToKey(name: string): string {
   if (!name) return "";
   const map: Record<string, string> = {
-    "瑞士轮": "swiss", "淘汰赛": "knockout", "排位赛": "ranking",
-    "单循环": "round_robin", "双败": "double_elim", "单败": "single_elim",
-    "小组赛": "groups", "决赛": "final",
+    瑞士轮: "swiss",
+    淘汰赛: "knockout",
+    排位赛: "ranking",
+    单循环: "round_robin",
+    双败: "double_elim",
+    单败: "single_elim",
+    小组赛: "groups",
+    决赛: "final",
   };
   for (const [cn, key] of Object.entries(map)) {
     if (name.includes(cn)) return key;
   }
-  return name.replace(/[^a-zA-Z0-9_]/g, "_").toLowerCase().slice(0, 20) || "stage";
+  return (
+    name
+      .replace(/[^a-zA-Z0-9_]/g, "_")
+      .toLowerCase()
+      .slice(0, 20) || "stage"
+  );
 }
 
 function emptyStage(): StageConfig {
@@ -120,17 +126,28 @@ export function StagePlanEditor({ value, disabled = false, onChange }: StagePlan
                 disabled={disabled}
                 onValueChange={(v) => {
                   const type = v as StageType;
-                  onChange(updateStage(value, index, {
-                    type,
-                    groupCount: type === "round_robin" ? 1 : undefined,
-                    matchFormat: type === "round_robin" ? "bo1" : type === "double_elim" ? "bo3" : stage.matchFormat,
-                  }));
+                  onChange(
+                    updateStage(value, index, {
+                      type,
+                      groupCount: type === "round_robin" ? 1 : undefined,
+                      matchFormat:
+                        type === "round_robin"
+                          ? "bo1"
+                          : type === "double_elim"
+                            ? "bo3"
+                            : stage.matchFormat,
+                    }),
+                  );
                 }}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {STAGE_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{STAGE_TYPE_LABELS[t]}</SelectItem>
+                    <SelectItem key={t} value={t}>
+                      {STAGE_TYPE_LABELS[t]}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -141,10 +158,14 @@ export function StagePlanEditor({ value, disabled = false, onChange }: StagePlan
             <div>
               <Label>队伍数</Label>
               <Input
-                type="number" min={2} max={128}
+                type="number"
+                min={2}
+                max={128}
                 value={stage.teamCount}
                 disabled={disabled}
-                onChange={(e) => onChange(updateStage(value, index, { teamCount: Number(e.target.value) }))}
+                onChange={(e) =>
+                  onChange(updateStage(value, index, { teamCount: Number(e.target.value) }))
+                }
               />
             </div>
             <div>
@@ -152,48 +173,76 @@ export function StagePlanEditor({ value, disabled = false, onChange }: StagePlan
               <Select
                 value={stage.matchFormat ?? "bo1"}
                 disabled={disabled}
-                onValueChange={(v) => onChange(updateStage(value, index, { matchFormat: v as "bo1" | "bo3" | "bo5" }))}
+                onValueChange={(v) =>
+                  onChange(updateStage(value, index, { matchFormat: v as "bo1" | "bo3" | "bo5" }))
+                }
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {(stage.type === "round_robin" ? ["bo1"] : stage.type === "double_elim" ? ["bo3"] : MATCH_FORMATS).map((f) => (
-                    <SelectItem key={f} value={f}>{f.toUpperCase()}</SelectItem>
+                  {(stage.type === "round_robin"
+                    ? ["bo1"]
+                    : stage.type === "double_elim"
+                      ? ["bo3"]
+                      : MATCH_FORMATS
+                  ).map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {f.toUpperCase()}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             {/* advanceTiers hidden for double_elim — qualifiers are bracket-determined */}
             {stage.type !== "double_elim" && (
-            <div>
-              <Label>晋级规则</Label>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={stage.advanceTiers[0]?.placement ?? "*"}
-                  disabled={disabled}
-                  onValueChange={(placement) => onChange(updateStage(value, index, {
-                    advanceTiers: [{ placement, count: stage.advanceTiers[0]?.count ?? 1 }],
-                  }))}
-                >
-                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="*">全部晋级</SelectItem>
-                    <SelectItem value="1st">冠军</SelectItem>
-                    <SelectItem value="2nd">亚军</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span className="text-sm text-[var(--color-fg-mid)]">取前</span>
-                <Input
-                  type="number" min={1}
-                  className="w-20"
-                  value={stage.advanceTiers[0]?.count ?? 1}
-                  disabled={disabled}
-                  onChange={(e) => onChange(updateStage(value, index, {
-                    advanceTiers: [{ ...stage.advanceTiers[0], placement: stage.advanceTiers[0]?.placement ?? "*", count: Number(e.target.value) }],
-                  }))}
-                />
-                <span className="text-sm text-[var(--color-fg-mid)]">名</span>
+              <div>
+                <Label>晋级规则</Label>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={stage.advanceTiers[0]?.placement ?? "*"}
+                    disabled={disabled}
+                    onValueChange={(placement) =>
+                      onChange(
+                        updateStage(value, index, {
+                          advanceTiers: [{ placement, count: stage.advanceTiers[0]?.count ?? 1 }],
+                        }),
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="*">全部晋级</SelectItem>
+                      <SelectItem value="1st">冠军</SelectItem>
+                      <SelectItem value="2nd">亚军</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-[var(--color-fg-mid)]">取前</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    className="w-20"
+                    value={stage.advanceTiers[0]?.count ?? 1}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      onChange(
+                        updateStage(value, index, {
+                          advanceTiers: [
+                            {
+                              ...stage.advanceTiers[0],
+                              placement: stage.advanceTiers[0]?.placement ?? "*",
+                              count: Number(e.target.value),
+                            },
+                          ],
+                        }),
+                      )
+                    }
+                  />
+                  <span className="text-sm text-[var(--color-fg-mid)]">名</span>
+                </div>
               </div>
-            </div>
             )}
           </div>
 
@@ -201,7 +250,9 @@ export function StagePlanEditor({ value, disabled = false, onChange }: StagePlan
           {stage.type === "round_robin" && (
             <div>
               <Label>分组</Label>
-              <p className="text-sm text-[var(--color-fg-mid)]">当前执行器只支持单组循环赛（BO1）。</p>
+              <p className="text-sm text-[var(--color-fg-mid)]">
+                当前执行器只支持单组循环赛（BO1）。
+              </p>
             </div>
           )}
 
@@ -212,7 +263,9 @@ export function StagePlanEditor({ value, disabled = false, onChange }: StagePlan
                   type="checkbox"
                   checked={stage.hasThirdPlaceMatch ?? false}
                   disabled={disabled}
-                  onChange={(e) => onChange(updateStage(value, index, { hasThirdPlaceMatch: e.target.checked }))}
+                  onChange={(e) =>
+                    onChange(updateStage(value, index, { hasThirdPlaceMatch: e.target.checked }))
+                  }
                 />
                 三四名决赛
               </label>
@@ -221,11 +274,17 @@ export function StagePlanEditor({ value, disabled = false, onChange }: StagePlan
                 <Select
                   value={stage.finalFormat ?? "__none__"}
                   disabled={disabled}
-                  onValueChange={(v) => onChange(updateStage(value, index, {
-                    finalFormat: v === "__none__" ? undefined : (v as "bo3" | "bo5"),
-                  }))}
+                  onValueChange={(v) =>
+                    onChange(
+                      updateStage(value, index, {
+                        finalFormat: v === "__none__" ? undefined : (v as "bo3" | "bo5"),
+                      }),
+                    )
+                  }
                 >
-                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">不覆写</SelectItem>
                     <SelectItem value="bo3">BO3</SelectItem>
@@ -242,8 +301,13 @@ export function StagePlanEditor({ value, disabled = false, onChange }: StagePlan
         <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={addStage}>
           添加阶段
         </Button>
-        <Select disabled={disabled} onValueChange={(v) => v !== "__none__" && applyPreset(v as "rivals" | "clear")}>
-          <SelectTrigger className="w-44"><SelectValue placeholder="预设赛制..." /></SelectTrigger>
+        <Select
+          disabled={disabled}
+          onValueChange={(v) => v !== "__none__" && applyPreset(v as "rivals" | "clear")}
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="预设赛制..." />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="rivals">Rivals 8队</SelectItem>
             <SelectItem value="clear">空赛制</SelectItem>
@@ -251,12 +315,34 @@ export function StagePlanEditor({ value, disabled = false, onChange }: StagePlan
           </SelectContent>
         </Select>
         {value.length > 0 && (
-          <Button type="button" variant="ghost" size="sm" className="text-destructive" disabled={disabled} onClick={() => applyPreset("clear")}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            disabled={disabled}
+            onClick={() => applyPreset("clear")}
+          >
             清空阶段
           </Button>
         )}
       </div>
-      {pendingPreset && !disabled && <InlineConfirm danger={pendingPreset === "clear"} title={pendingPreset === "clear" ? "确认清空所有赛程阶段？" : "确认覆盖当前赛制配置？"} sub={pendingPreset === "clear" ? "此操作会移除当前所有阶段。" : "将应用 Rivals 8 队预设。"} confirmLabel={pendingPreset === "clear" ? "清空" : "应用预设"} onCancel={() => setPendingPreset(null)} onConfirm={() => { if (disabled) return; onChange(pendingPreset === "clear" ? [] : structuredClone(RIVALS_STAGE_PLAN)); setPendingPreset(null); }} />}
+      {pendingPreset && !disabled && (
+        <InlineConfirm
+          danger={pendingPreset === "clear"}
+          title={pendingPreset === "clear" ? "确认清空所有赛程阶段？" : "确认覆盖当前赛制配置？"}
+          sub={
+            pendingPreset === "clear" ? "此操作会移除当前所有阶段。" : "将应用 Rivals 8 队预设。"
+          }
+          confirmLabel={pendingPreset === "clear" ? "清空" : "应用预设"}
+          onCancel={() => setPendingPreset(null)}
+          onConfirm={() => {
+            if (disabled) return;
+            onChange(pendingPreset === "clear" ? [] : structuredClone(RIVALS_STAGE_PLAN));
+            setPendingPreset(null);
+          }}
+        />
+      )}
     </div>
   );
 }

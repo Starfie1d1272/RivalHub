@@ -2,18 +2,22 @@ import { pgTable, uuid, text, jsonb, timestamp, index } from "drizzle-orm/pg-cor
 import { seasons } from "./seasons";
 
 // All admin actions are logged here — no exceptions
-export const auditLogs = pgTable("audit_logs", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  seasonId: uuid("season_id").references(() => seasons.id, { onDelete: "set null" }), // null for global actions
-  action: text("action").notNull(),           // e.g. "registration.approve"
-  actorId: text("actor_id"),                  // admin identifier
-  targetId: text("target_id"),                // affected entity id
-  targetType: text("target_type"),            // e.g. "registration", "team"
-  meta: jsonb("meta"),                        // arbitrary context payload
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  seasonCreatedAtIndex: index("audit_logs_season_id_created_at_idx").on(t.seasonId, t.createdAt),
-}));
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seasonId: uuid("season_id").references(() => seasons.id, { onDelete: "set null" }), // null for global actions
+    action: text("action").notNull(), // e.g. "registration.approve"
+    actorId: text("actor_id"), // admin identifier
+    targetId: text("target_id"), // affected entity id
+    targetType: text("target_type"), // e.g. "registration", "team"
+    meta: jsonb("meta"), // arbitrary context payload
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    seasonCreatedAtIndex: index("audit_logs_season_id_created_at_idx").on(t.seasonId, t.createdAt),
+  }),
+);
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type NewAuditLog = typeof auditLogs.$inferInsert;

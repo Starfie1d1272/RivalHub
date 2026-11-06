@@ -1,7 +1,6 @@
 import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
 
-
 import { CaptainConfirmPanel } from "@/components/captains/CaptainConfirmPanel";
 import { PageHeader, Panel } from "@/components/rivalhub";
 import { getAdminCaptainRanking, getSeasonTeamCount } from "@/lib/captains/data";
@@ -20,9 +19,7 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
       <div className="space-y-6">
         <PageHeader title={`队长确认 · ${season.name}`} />
         <Panel contentClassName="p-8">
-          <p className="text-sm text-[var(--color-fg-mid)]">
-            该赛季未启用队长投票。
-          </p>
+          <p className="text-sm text-[var(--color-fg-mid)]">该赛季未启用队长投票。</p>
         </Panel>
       </div>
     );
@@ -35,7 +32,10 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
 
   return (
     <div className="space-y-6">
-      <PageHeader title={`队长确认 · ${season.name}`} description="查看票数排序，确认前 8 名后自动生成队伍与 draft order。" />
+      <PageHeader
+        title={`队长确认 · ${season.name}`}
+        description="查看票数排序，确认前 8 名后自动生成队伍与 draft order。"
+      />
 
       <CaptainConfirmPanel
         seasonId={season.id}

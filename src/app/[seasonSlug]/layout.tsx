@@ -12,10 +12,7 @@ import { SeasonNav } from "@/components/layout/SeasonNav";
 import { seasonAccentStyle } from "@/lib/utils/color";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { showStats } from "@/lib/utils/season";
-import {
-  getPublicOrAuthorizedDraftSeason,
-  getPublicSeasonBySlug,
-} from "@/lib/data/public-seasons";
+import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { SeasonInformationFeedbackLauncher } from "@/components/operations/GlobalInformationFeedbackLauncher";
 
 interface SeasonLayoutProps {
@@ -52,9 +49,13 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
   return (
     <div
       data-season={seasonSlug}
-      style={season.themeColor ? {
-        ...seasonAccentStyle(season.themeColor),
-      } as React.CSSProperties : undefined}
+      style={
+        season.themeColor
+          ? ({
+              ...seasonAccentStyle(season.themeColor),
+            } as React.CSSProperties)
+          : undefined
+      }
     >
       <SeasonNav
         slug={season.slug}
@@ -66,9 +67,17 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
         hasMatches={stagePresentation.officialStages.length > 0}
         hasStats={showStats(season)}
         hasPredictions={season.competitionTemplate === "major"}
-        participationAction={<Suspense fallback={null}><SeasonParticipationEntry season={season} /></Suspense>}
+        participationAction={
+          <Suspense fallback={null}>
+            <SeasonParticipationEntry season={season} />
+          </Suspense>
+        }
       />
-      <TelemetryScene prefix={`/${seasonSlug}`} scene={season.competitionTemplate} eventId={season.id} />
+      <TelemetryScene
+        prefix={`/${seasonSlug}`}
+        scene={season.competitionTemplate}
+        eventId={season.id}
+      />
       {children}
       <Suspense fallback={null}>
         <SeasonInformationFeedbackLauncher season={{ id: season.id, slug: season.slug }} />
@@ -86,7 +95,17 @@ export async function SeasonParticipationEntry({ season }: { season: PublicSeaso
   const task = await getSeasonPersonalNextStep(season);
   const isHistorical = season.status === "finished" || season.status === "archived";
   const registrationOpen = getRegistrationWindowState(season).canSubmit;
-  const href = task?.href ?? (registrationOpen || season.registrationMode === "team" && !isHistorical ? `/${season.slug}/register` : null);
+  const href =
+    task?.href ??
+    (registrationOpen || (season.registrationMode === "team" && !isHistorical)
+      ? `/${season.slug}/register`
+      : null);
   if (!href) return null;
-  return <Button size="sm" variant="outline" asChild><Link href={href as import("next").Route}>{task?.title ?? (registrationOpen ? "报名" : "参赛事务")}</Link></Button>;
+  return (
+    <Button size="sm" variant="outline" asChild>
+      <Link href={href as import("next").Route}>
+        {task?.title ?? (registrationOpen ? "报名" : "参赛事务")}
+      </Link>
+    </Button>
+  );
 }

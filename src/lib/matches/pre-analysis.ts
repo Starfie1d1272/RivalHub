@@ -68,9 +68,19 @@ export function projectMatchPreAnalysis(input: {
     };
   });
 
-  const h2hMatches = input.matchesA.filter(isCompetitionMatch)
-    .filter((match) => (match.entryAId === input.entryBId || match.entryBId === input.entryBId) && match.scoreA !== null && match.scoreB !== null)
-    .sort((a, b) => ((b.completedAt ?? b.scheduledAt)?.getTime() ?? 0) - ((a.completedAt ?? a.scheduledAt)?.getTime() ?? 0))
+  const h2hMatches = input.matchesA
+    .filter(isCompetitionMatch)
+    .filter(
+      (match) =>
+        (match.entryAId === input.entryBId || match.entryBId === input.entryBId) &&
+        match.scoreA !== null &&
+        match.scoreB !== null,
+    )
+    .sort(
+      (a, b) =>
+        ((b.completedAt ?? b.scheduledAt)?.getTime() ?? 0) -
+        ((a.completedAt ?? a.scheduledAt)?.getTime() ?? 0),
+    )
     .slice(0, 10)
     .map((match) => {
       const teamAIsEntryA = match.entryAId === input.entryAId;
@@ -106,22 +116,30 @@ export async function loadMatchPreAnalysis(
   mapPool: readonly string[],
 ): Promise<MatchPreAnalysis> {
   const raw = await getSeasonFinishedMatches(seasonId, [entryAId, entryBId]);
-  const rawA = raw.filter(match => match.entryAId === entryAId || match.entryBId === entryAId);
-  const rawB = raw.filter(match => match.entryAId === entryBId || match.entryBId === entryBId);
-  const displayed = await withDisplayScores([...new Map([...rawA, ...rawB].map(match => [match.id, match])).values()]);
-  const byId = new Map(displayed.map(match => [match.id, match]));
-  const matchesA = rawA.map(match => byId.get(match.id)!);
-  const matchesB = rawB.map(match => byId.get(match.id)!);
-  const opponentIds = [...new Set([
-    ...matchesA.map((match) => match.entryAId === entryAId ? match.entryBId : match.entryAId),
-    ...matchesB.map((match) => match.entryAId === entryBId ? match.entryBId : match.entryAId),
-  ])];
+  const rawA = raw.filter((match) => match.entryAId === entryAId || match.entryBId === entryAId);
+  const rawB = raw.filter((match) => match.entryAId === entryBId || match.entryBId === entryBId);
+  const displayed = await withDisplayScores([
+    ...new Map([...rawA, ...rawB].map((match) => [match.id, match])).values(),
+  ]);
+  const byId = new Map(displayed.map((match) => [match.id, match]));
+  const matchesA = rawA.map((match) => byId.get(match.id)!);
+  const matchesB = rawB.map((match) => byId.get(match.id)!);
+  const opponentIds = [
+    ...new Set([
+      ...matchesA.map((match) => (match.entryAId === entryAId ? match.entryBId : match.entryAId)),
+      ...matchesB.map((match) => (match.entryAId === entryBId ? match.entryBId : match.entryAId)),
+    ]),
+  ];
   const [opponentRows, [profileA, profileB]] = await Promise.all([
     opponentIds.length
-      ? db.query.competitionEntries.findMany({ where: (entries, { inArray }) => inArray(entries.id, opponentIds), columns: { id: true, name: true } })
+      ? db.query.competitionEntries.findMany({
+          where: (entries, { inArray }) => inArray(entries.id, opponentIds),
+          columns: { id: true, name: true },
+        })
       : Promise.resolve([]),
     getTeamMapProfiles([
-      { entryId: entryAId, matches: matchesA }, { entryId: entryBId, matches: matchesB },
+      { entryId: entryAId, matches: matchesA },
+      { entryId: entryBId, matches: matchesB },
     ]),
   ]);
   const entryNames = new Map(opponentRows.map((entry) => [entry.id, entry.name]));

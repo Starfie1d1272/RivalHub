@@ -1,9 +1,20 @@
 import { compareSwissRanking, computeValveBuchholzScore } from "./ranking";
-import type { SwissCompletedMatch, SwissConfig, SwissEntrant, SwissProjection, SwissRecord, SwissTeamState } from "./types";
+import type {
+  SwissCompletedMatch,
+  SwissConfig,
+  SwissEntrant,
+  SwissProjection,
+  SwissRecord,
+  SwissTeamState,
+} from "./types";
 
 function validateConfig(config: SwissConfig): void {
-  if (!Number.isInteger(config.winThreshold) || config.winThreshold < 1 ||
-      !Number.isInteger(config.lossThreshold) || config.lossThreshold < 1) {
+  if (
+    !Number.isInteger(config.winThreshold) ||
+    config.winThreshold < 1 ||
+    !Number.isInteger(config.lossThreshold) ||
+    config.lossThreshold < 1
+  ) {
     throw new Error("Swiss win/loss thresholds must be positive integers");
   }
 }
@@ -14,16 +25,27 @@ function validateEntrants(entrants: readonly SwissEntrant[]): void {
   const seeds = new Set<number>();
   for (const entrant of entrants) {
     if (!entrant.teamId) throw new Error("Swiss entrant teamId must be a non-empty string");
-    if (ids.has(entrant.teamId)) throw new Error(`duplicate Swiss entrant teamId: ${entrant.teamId}`);
+    if (ids.has(entrant.teamId))
+      throw new Error(`duplicate Swiss entrant teamId: ${entrant.teamId}`);
     ids.add(entrant.teamId);
-    if (!Number.isInteger(entrant.initialSeed) || entrant.initialSeed < 1 || entrant.initialSeed > entrants.length) {
-      throw new Error(`invalid Swiss initialSeed ${entrant.initialSeed}: must be an integer in 1..${entrants.length}`);
+    if (
+      !Number.isInteger(entrant.initialSeed) ||
+      entrant.initialSeed < 1 ||
+      entrant.initialSeed > entrants.length
+    ) {
+      throw new Error(
+        `invalid Swiss initialSeed ${entrant.initialSeed}: must be an integer in 1..${entrants.length}`,
+      );
     }
-    if (seeds.has(entrant.initialSeed)) throw new Error(`duplicate Swiss initialSeed: ${entrant.initialSeed}`);
+    if (seeds.has(entrant.initialSeed))
+      throw new Error(`duplicate Swiss initialSeed: ${entrant.initialSeed}`);
     seeds.add(entrant.initialSeed);
   }
   for (let seed = 1; seed <= entrants.length; seed += 1) {
-    if (!seeds.has(seed)) throw new Error(`Swiss initialSeed set must be exactly 1..${entrants.length}; missing ${seed}`);
+    if (!seeds.has(seed))
+      throw new Error(
+        `Swiss initialSeed set must be exactly 1..${entrants.length}; missing ${seed}`,
+      );
   }
 }
 
@@ -44,7 +66,8 @@ function validateCompletedMatches(
     if (!entrants.has(match.entryAId) || !entrants.has(match.entryBId)) {
       throw new Error(`match ${match.matchId} references a team outside the Swiss entrants`);
     }
-    if (match.entryAId === match.entryBId) throw new Error(`match ${match.matchId} pairs a team with itself`);
+    if (match.entryAId === match.entryBId)
+      throw new Error(`match ${match.matchId} pairs a team with itself`);
     if (match.winnerId !== match.entryAId && match.winnerId !== match.entryBId) {
       throw new Error(`match ${match.matchId} winnerId must be one of the participants`);
     }
@@ -67,11 +90,15 @@ export function projectSwissStage(input: {
 }): SwissProjection {
   const { entrants, matches, completedRound, config } = input;
   validateConfig(config);
-  if (!Number.isInteger(completedRound) || completedRound < 0) throw new Error("Swiss completedRound must be a non-negative integer");
+  if (!Number.isInteger(completedRound) || completedRound < 0)
+    throw new Error("Swiss completedRound must be a non-negative integer");
   validateEntrants(entrants);
   const entrantIds = new Set(entrants.map((entrant) => entrant.teamId));
   const official = validateCompletedMatches(matches, entrantIds, completedRound);
-  const states = new Map<string, Omit<SwissTeamState, "currentSeed" | "buchholz"> & { opponents: string[] }>();
+  const states = new Map<
+    string,
+    Omit<SwissTeamState, "currentSeed" | "buchholz"> & { opponents: string[] }
+  >();
   for (const entrant of [...entrants].sort((a, b) => a.initialSeed - b.initialSeed)) {
     states.set(entrant.teamId, {
       teamId: entrant.teamId,
@@ -84,7 +111,8 @@ export function projectSwissStage(input: {
   }
 
   for (let round = 1; round <= completedRound; round += 1) {
-    const roundMatches = official.filter((match) => match.round === round)
+    const roundMatches = official
+      .filter((match) => match.round === round)
       .sort((a, b) => a.matchId.localeCompare(b.matchId));
     const participants = new Set<string>();
     for (const match of roundMatches) {
@@ -111,11 +139,15 @@ export function projectSwissStage(input: {
     for (const team of states.values()) team.status = statusFor(team, config);
   }
 
-  const records = new Map([...states.values()].map((team) => [team.teamId, { wins: team.wins, losses: team.losses }]));
-  const ranked = [...states.values()].map((team) => ({
-    ...team,
-    buchholz: computeValveBuchholzScore(team.opponents, records),
-  })).sort(compareSwissRanking);
+  const records = new Map(
+    [...states.values()].map((team) => [team.teamId, { wins: team.wins, losses: team.losses }]),
+  );
+  const ranked = [...states.values()]
+    .map((team) => ({
+      ...team,
+      buchholz: computeValveBuchholzScore(team.opponents, records),
+    }))
+    .sort(compareSwissRanking);
   const teams: SwissTeamState[] = ranked.map((team, index) => ({
     ...team,
     currentSeed: index + 1,

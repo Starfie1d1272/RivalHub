@@ -1,11 +1,26 @@
-import { pgTable, uuid, integer, text, timestamp, unique, pgEnum, uniqueIndex, check } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  uuid,
+  integer,
+  text,
+  timestamp,
+  unique,
+  pgEnum,
+  uniqueIndex,
+  check,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { matches } from "./matches";
 import { competitionEntries } from "./competition-entries";
 import { sideEnum } from "./match-maps";
 import { users } from "./users";
 
-export const matchVetoStepSourceEnum = pgEnum("match_veto_step_source", ["participant", "admin", "timeout", "system"]);
+export const matchVetoStepSourceEnum = pgEnum("match_veto_step_source", [
+  "participant",
+  "admin",
+  "timeout",
+  "system",
+]);
 
 /**
  * BP 选图步骤记录
@@ -21,7 +36,9 @@ export const matchVetoSteps = pgTable(
   "match_veto_steps",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    matchId: uuid("match_id").notNull().references(() => matches.id),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => matches.id),
     stepOrder: integer("step_order").notNull(),
     actionType: text("action_type").notNull(),
     mapName: text("map_name").notNull(),

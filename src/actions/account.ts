@@ -14,17 +14,30 @@ import { failValidation, actionError, isPgUniqueViolation } from "@/lib/action-u
 import { AppError, ErrorCode } from "@/lib/errors";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 import { isHttpUrl } from "@/lib/external-url";
-import { normalizePlayerDeclaredProfile, playerDeclaredProfileSchema } from "@/lib/player-declared-profile";
+import {
+  normalizePlayerDeclaredProfile,
+  playerDeclaredProfileSchema,
+} from "@/lib/player-declared-profile";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
-import { changePrimarySteam64InTx, assertSteam64Available, findSteam64Conflict } from "@/lib/identity/gameplay-steam";
-import { getSteamProfileForPrimary, lookupAndCacheSteamProfile, upsertSteamProfile, type SteamProfileLookupResult } from "@/lib/steam-profiles";
+import {
+  changePrimarySteam64InTx,
+  assertSteam64Available,
+  findSteam64Conflict,
+} from "@/lib/identity/gameplay-steam";
+import {
+  getSteamProfileForPrimary,
+  lookupAndCacheSteamProfile,
+  upsertSteamProfile,
+  type SteamProfileLookupResult,
+} from "@/lib/steam-profiles";
 
 export async function changeUserPassword(
   oldPassword: string,
   newPassword: string,
 ): Promise<ActionResult<void>> {
   if (!oldPassword) return failValidation("请输入原密码");
-  if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) return failValidation(`新密码至少 ${MIN_PASSWORD_LENGTH} 位`);
+  if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH)
+    return failValidation(`新密码至少 ${MIN_PASSWORD_LENGTH} 位`);
   if (oldPassword === newPassword) return failValidation("新密码不能与原密码相同");
 
   try {
@@ -33,7 +46,10 @@ export async function changeUserPassword(
     const supabase = createServiceClient();
 
     const [{ data: signInData, error: signInError }, userRow] = await Promise.all([
-      createPublicAuthClient().auth.signInWithPassword({ email: session.email, password: oldPassword }),
+      createPublicAuthClient().auth.signInWithPassword({
+        email: session.email,
+        password: oldPassword,
+      }),
       db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { authId: true } }),
     ]);
 
@@ -45,7 +61,8 @@ export async function changeUserPassword(
     }
 
     await mutatePassword(session.userId, startedAt, "user.change_password", () =>
-      supabase.auth.admin.updateUserById(userRow.authId!, { password: newPassword }));
+      supabase.auth.admin.updateUserById(userRow.authId!, { password: newPassword }),
+    );
     await destroyUserSession();
 
     return ok(undefined);
@@ -65,9 +82,7 @@ export interface ProfileInput {
 }
 
 /** 更新个人信息（跨赛季字段） */
-export async function updateProfile(
-  input: ProfileInput,
-): Promise<ActionResult<void>> {
+export async function updateProfile(input: ProfileInput): Promise<ActionResult<void>> {
   const displayName = input.displayName.trim();
   if (displayName.length < 2) return failValidation("昵称至少 2 个字符");
   if (displayName.length > 20) return failValidation("昵称最多 20 个字符");
@@ -76,12 +91,14 @@ export async function updateProfile(
   if (perfectName && perfectName.length > 40) return failValidation("完美平台昵称最多 40 个字符");
 
   const steam64 = input.steam64.trim();
-  if (steam64 && !/^\d{17}$/.test(steam64)) return failValidation("Steam64 ID 格式不正确（应为 17 位数字）");
+  if (steam64 && !/^\d{17}$/.test(steam64))
+    return failValidation("Steam64 ID 格式不正确（应为 17 位数字）");
 
   const qq = input.qq.trim();
   if (qq && !/^\d{5,12}$/.test(qq)) return failValidation("QQ 号格式不正确");
   const liveStreamUrl = input.liveStreamUrl?.trim() ?? "";
-  if (liveStreamUrl && !isHttpUrl(liveStreamUrl)) return failValidation("直播间链接必须是合法的 http 或 https URL");
+  if (liveStreamUrl && !isHttpUrl(liveStreamUrl))
+    return failValidation("直播间链接必须是合法的 http 或 https URL");
 
   const declaredProfile = playerDeclaredProfileSchema.safeParse({
     gameplayStyle: input.gameplayStyle ?? "",
@@ -92,8 +109,12 @@ export async function updateProfile(
   }
   const normalizedDeclaredProfile = normalizePlayerDeclaredProfile(declaredProfile.data);
   const declaredProfileUpdate = {
-    ...(input.gameplayStyle !== undefined ? { gameplayStyle: normalizedDeclaredProfile.gameplayStyle } : {}),
-    ...(input.competitionHistory !== undefined ? { competitionHistory: normalizedDeclaredProfile.competitionHistory } : {}),
+    ...(input.gameplayStyle !== undefined
+      ? { gameplayStyle: normalizedDeclaredProfile.gameplayStyle }
+      : {}),
+    ...(input.competitionHistory !== undefined
+      ? { competitionHistory: normalizedDeclaredProfile.competitionHistory }
+      : {}),
   };
 
   try {
@@ -133,15 +154,25 @@ export async function updateProfile(
     revalidatePath("/settings");
     return ok(undefined);
   } catch (e) {
-    if (isPgUniqueViolation(e, ["users_active_steam64_unique", "user_gameplay_steam_ids_active_steam64_unique"])) {
-      return fail({ code: ErrorCode.STEAM_PROFILE_CONFLICT, message: "该 Steam64 ID 已关联其他账户，请联系管理员处理。" });
+    if (
+      isPgUniqueViolation(e, [
+        "users_active_steam64_unique",
+        "user_gameplay_steam_ids_active_steam64_unique",
+      ])
+    ) {
+      return fail({
+        code: ErrorCode.STEAM_PROFILE_CONFLICT,
+        message: "该 Steam64 ID 已关联其他账户，请联系管理员处理。",
+      });
     }
     return actionError("updateProfile", e);
   }
 }
 
 /** 查询并缓存一份官方 Steam 资料；只返回用户可安全看到的投影。 */
-export async function lookupSteamProfile(steam64Input: string): Promise<ActionResult<SteamProfileLookupResult>> {
+export async function lookupSteamProfile(
+  steam64Input: string,
+): Promise<ActionResult<SteamProfileLookupResult>> {
   const steam64 = steam64Input.trim();
   if (!/^\d{17}$/.test(steam64)) return failValidation("Steam64 ID 格式不正确（应为 17 位数字）");
 
@@ -152,7 +183,10 @@ export async function lookupSteamProfile(steam64Input: string): Promise<ActionRe
     }
     const { result, changed } = await lookupAndCacheSteamProfile(db, steam64);
     if (changed) {
-      const owners = await db.select({ id: users.id }).from(users).where(eq(users.steam64, steam64));
+      const owners = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.steam64, steam64));
       for (const owner of owners) updatePublicPlayerTag(owner.id);
     }
     return ok(result);

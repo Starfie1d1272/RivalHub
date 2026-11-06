@@ -40,10 +40,7 @@ async function HomeContent() {
     return (
       <PageLayout variant="wide">
         <Panel>
-          <EmptyState
-            title="赛事即将到来"
-            sub="新赛事公布后会在这里展示。"
-          />
+          <EmptyState title="赛事即将到来" sub="新赛事公布后会在这里展示。" />
         </Panel>
       </PageLayout>
     );
@@ -52,7 +49,9 @@ async function HomeContent() {
   const eyebrow = buildHomeEyebrow(featured);
   const [stage, draftData, projection] = await Promise.all([
     getPublicSeasonStagePresentation(featured),
-    featured.status === "drafting" && featured.hasDraft ? getPublicDraftSummary(featured.id) : Promise.resolve(null),
+    featured.status === "drafting" && featured.hasDraft
+      ? getPublicDraftSummary(featured.id)
+      : Promise.resolve(null),
     getPublicHomeProjection(allSeasons),
   ]);
   const { tier1Entry, tier2Entries, tier3Entries } = selectHomeNavTiers(
@@ -60,8 +59,8 @@ async function HomeContent() {
     featured.status,
     buildSeasonPrimaryAction(featured),
   );
-  const hasMatchActivity = !["finished", "archived"].includes(featured.status)
-    && featured.hasOfficialMatches;
+  const hasMatchActivity =
+    !["finished", "archived"].includes(featured.status) && featured.hasOfficialMatches;
   const currentActivity = projection.results ? (
     <SeasonResults results={projection.results} slug={featured.slug} compact />
   ) : (
@@ -72,7 +71,7 @@ async function HomeContent() {
       topCandidatesWithNames={projection.topCandidatesWithNames}
       liveAndUpcomingMatches={projection.liveAndUpcomingMatches.map((match) => ({
         ...match,
-        stageLabel: match.stage ? stage.labels[match.stage] ?? null : null,
+        stageLabel: match.stage ? (stage.labels[match.stage] ?? null) : null,
       }))}
       teamCount={projection.teamCount}
       playerCount={projection.playerCount}
@@ -93,23 +92,43 @@ async function HomeContent() {
         playerCount={projection.playerCount}
         teamCountLabel={projection.teamCountLabel}
       />
-      {hasMatchActivity ? currentActivity : (
+      {hasMatchActivity ? (
+        currentActivity
+      ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div className="min-w-0">{currentActivity}</div>
           <section className="flex flex-col justify-between gap-5 border-y border-[var(--color-border)] py-5">
-            <div><p className="font-mono text-[11px] tracking-widest text-[var(--color-accent)]">FIND YOUR TEAM</p><h2 className="mt-3 text-2xl font-semibold">一起上场</h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">找到队友，参加下一场比赛。</p></div>
-            <Link href="/teams/recruitment" className="inline-flex min-h-8 items-center text-sm hover:text-[var(--color-accent)]">组队与招募 →</Link>
+            <div>
+              <p className="font-mono text-[11px] tracking-widest text-[var(--color-accent)]">
+                FIND YOUR TEAM
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold">一起上场</h2>
+              <p className="mt-2 text-sm text-[var(--color-fg-mid)]">找到队友，参加下一场比赛。</p>
+            </div>
+            <Link
+              href="/teams/recruitment"
+              className="inline-flex min-h-8 items-center text-sm hover:text-[var(--color-accent)]"
+            >
+              组队与招募 →
+            </Link>
           </section>
         </div>
       )}
-      <Suspense fallback={null}><HomePersonalNextStep season={featured} /></Suspense>
+      <Suspense fallback={null}>
+        <HomePersonalNextStep season={featured} />
+      </Suspense>
 
       <HomeNavigation
         tier1Entry={tier1Entry}
         tier2Entries={tier2Entries}
         tier3Entries={tier3Entries}
       />
-      <SeasonCardGrid markerNum={2} markerSub="MORE" title="其他赛事" seasons={projection.otherSeasons} />
+      <SeasonCardGrid
+        markerNum={2}
+        markerSub="MORE"
+        title="其他赛事"
+        seasons={projection.otherSeasons}
+      />
       <SeasonCardGrid
         markerNum={projection.otherSeasons.length > 0 ? 3 : 2}
         markerSub="ARCHIVE"

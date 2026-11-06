@@ -24,7 +24,17 @@ export async function generateMetadata({ params }: DraftCaptainPageProps): Promi
 }
 
 export default function DraftCaptainPage(props: DraftCaptainPageProps) {
- return <Suspense fallback={<PageLayout variant="workbench"><p role="status">正在加载队长工作区…</p></PageLayout>}><CaptainContent {...props} /></Suspense>;
+  return (
+    <Suspense
+      fallback={
+        <PageLayout variant="workbench">
+          <p role="status">正在加载队长工作区…</p>
+        </PageLayout>
+      }
+    >
+      <CaptainContent {...props} />
+    </Suspense>
+  );
 }
 async function CaptainContent({ params }: DraftCaptainPageProps) {
   await connection();
@@ -33,7 +43,9 @@ async function CaptainContent({ params }: DraftCaptainPageProps) {
   if (!season) notFound();
 
   if (!season.hasDraft) {
-    return <UnavailablePanel title={`队长选人 · ${season.name}`} message="该赛季未启用蛇形选秀。" />;
+    return (
+      <UnavailablePanel title={`队长选人 · ${season.name}`} message="该赛季未启用蛇形选秀。" />
+    );
   }
 
   if (season.status !== "drafting") {
@@ -86,12 +98,7 @@ async function CaptainContent({ params }: DraftCaptainPageProps) {
 
   const data = await getCaptainDraftData(season.id);
   if (!data.state) {
-    return (
-      <UnavailablePanel
-        title={`队长选人 · ${season.name}`}
-        message="等待选秀开启。"
-      />
-    );
+    return <UnavailablePanel title={`队长选人 · ${season.name}`} message="等待选秀开启。" />;
   }
 
   const currentTeamName =

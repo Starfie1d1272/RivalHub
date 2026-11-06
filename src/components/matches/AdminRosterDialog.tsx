@@ -19,15 +19,26 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { getMatchRosterReadback, retryMatchRosterRefresh, adminSelectMatchRoster as telemetry_adminSelectMatchRoster, confirmMatchRoster as telemetry_confirmMatchRoster } from "@/actions/matches/roster";
+import {
+  getMatchRosterReadback,
+  retryMatchRosterRefresh,
+  adminSelectMatchRoster as telemetry_adminSelectMatchRoster,
+  confirmMatchRoster as telemetry_confirmMatchRoster,
+} from "@/actions/matches/roster";
 import { rosterReadbackVersion, type RosterReadback } from "@/lib/matches/operation-readback";
 import { OperationReadbackNotice } from "./OperationReadbackNotice";
 import type { RosterData } from "@/lib/admin/matches/types";
 import type { MatchRosterStatus } from "@/db/schema";
 import { observeAction } from "@/lib/telemetry/client";
 
-const adminSelectMatchRoster = observeAction("matches.roster.adminSelectMatchRoster", telemetry_adminSelectMatchRoster);
-const confirmMatchRoster = observeAction("matches.roster.confirmMatchRoster", telemetry_confirmMatchRoster);
+const adminSelectMatchRoster = observeAction(
+  "matches.roster.adminSelectMatchRoster",
+  telemetry_adminSelectMatchRoster,
+);
+const confirmMatchRoster = observeAction(
+  "matches.roster.confirmMatchRoster",
+  telemetry_confirmMatchRoster,
+);
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -85,14 +96,20 @@ function RosterTeamSection({
   const [readback, setReadback] = useState<(RosterReadback & { matches: boolean }) | null>(null);
   const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | null>(null);
   // Two-step explicit flow: first pick, then review the exact five and confirm.
-  const [pendingLineup, setPendingLineup] = useState<{ starterIds: string[]; substituteIds: string[]; vetoRepresentativeEventRosterMemberId: string | null } | null>(null);
+  const [pendingLineup, setPendingLineup] = useState<{
+    starterIds: string[];
+    substituteIds: string[];
+    vetoRepresentativeEventRosterMemberId: string | null;
+  } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>(() => {
     if (existingRoster) {
       return [...existingRoster.starters, ...existingRoster.substitutes];
     }
     return [];
   });
-  const [vetoRepresentativeId, setVetoRepresentativeId] = useState<string | null>(existingRoster?.vetoRepresentativeEventRosterMemberId ?? null);
+  const [vetoRepresentativeId, setVetoRepresentativeId] = useState<string | null>(
+    existingRoster?.vetoRepresentativeEventRosterMemberId ?? null,
+  );
 
   const starterIds = selectedIds.slice(0, 5);
   const substituteIds = allowSubstitutes ? selectedIds.slice(5, 7) : [];
@@ -136,7 +153,9 @@ function RosterTeamSection({
     setPendingLineup({
       starterIds,
       substituteIds,
-      vetoRepresentativeEventRosterMemberId: starterIds.includes(vetoRepresentativeId ?? "") ? vetoRepresentativeId : null,
+      vetoRepresentativeEventRosterMemberId: starterIds.includes(vetoRepresentativeId ?? "")
+        ? vetoRepresentativeId
+        : null,
     });
   }
 
@@ -145,29 +164,33 @@ function RosterTeamSection({
     if (recovery) return;
     startTransition(async () => {
       try {
-      expectedRosterId.current = null;
-      expectedVersion.current = await rosterReadbackVersion(matchId, { status: "submitted", starterIds: pendingLineup.starterIds,
-        substituteIds: allowSubstitutes ? pendingLineup.substituteIds : [], vetoRepresentativeEventRosterMemberId: pendingLineup.vetoRepresentativeEventRosterMemberId });
-      setReadback(null);
-      const result = await adminSelectMatchRoster(
-        matchId,
-        teamId,
-        {
+        expectedRosterId.current = null;
+        expectedVersion.current = await rosterReadbackVersion(matchId, {
+          status: "submitted",
           starterIds: pendingLineup.starterIds,
           substituteIds: allowSubstitutes ? pendingLineup.substituteIds : [],
-          vetoRepresentativeEventRosterMemberId: pendingLineup.vetoRepresentativeEventRosterMemberId,
-        },
-      );
-      if (result.success) {
-        setPendingLineup(null);
-        if (result.data.refreshPending) setRecovery("refresh_pending");
-        toast.success(`${teamName} 名单已保存，开赛前需另行确认`);
-        router.refresh();
-      } else {
-        if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
-        toast.error(result.error.message);
+          vetoRepresentativeEventRosterMemberId:
+            pendingLineup.vetoRepresentativeEventRosterMemberId,
+        });
+        setReadback(null);
+        const result = await adminSelectMatchRoster(matchId, teamId, {
+          starterIds: pendingLineup.starterIds,
+          substituteIds: allowSubstitutes ? pendingLineup.substituteIds : [],
+          vetoRepresentativeEventRosterMemberId:
+            pendingLineup.vetoRepresentativeEventRosterMemberId,
+        });
+        if (result.success) {
+          setPendingLineup(null);
+          if (result.data.refreshPending) setRecovery("refresh_pending");
+          toast.success(`${teamName} 名单已保存，开赛前需另行确认`);
+          router.refresh();
+        } else {
+          if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
+          toast.error(result.error.message);
+        }
+      } catch {
+        setRecovery("unknown");
       }
-      } catch { setRecovery("unknown"); }
     });
   }
 
@@ -175,54 +198,111 @@ function RosterTeamSection({
     if (recovery) return;
     startTransition(async () => {
       try {
-      expectedRosterId.current = rosterId;
-      expectedVersion.current = await rosterReadbackVersion(matchId, { status: "confirmed", starterIds: existingRoster?.starters ?? [],
-        substituteIds: existingRoster?.substitutes ?? [], vetoRepresentativeEventRosterMemberId: existingRoster?.vetoRepresentativeEventRosterMemberId ?? null });
-      setReadback(null);
-      const result = await confirmMatchRoster(rosterId);
-      if (result.success) {
-        if (result.data.refreshPending) setRecovery("refresh_pending");
-        toast.success(result.data.alreadyConfirmed ? `${teamName} 名单此前已确认` : `${teamName} 名单已确认，可以开始比赛`);
-        router.refresh();
-      } else {
-        if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
-        toast.error(result.error.message);
+        expectedRosterId.current = rosterId;
+        expectedVersion.current = await rosterReadbackVersion(matchId, {
+          status: "confirmed",
+          starterIds: existingRoster?.starters ?? [],
+          substituteIds: existingRoster?.substitutes ?? [],
+          vetoRepresentativeEventRosterMemberId:
+            existingRoster?.vetoRepresentativeEventRosterMemberId ?? null,
+        });
+        setReadback(null);
+        const result = await confirmMatchRoster(rosterId);
+        if (result.success) {
+          if (result.data.refreshPending) setRecovery("refresh_pending");
+          toast.success(
+            result.data.alreadyConfirmed
+              ? `${teamName} 名单此前已确认`
+              : `${teamName} 名单已确认，可以开始比赛`,
+          );
+          router.refresh();
+        } else {
+          if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
+          toast.error(result.error.message);
+        }
+      } catch {
+        setRecovery("unknown");
       }
-      } catch { setRecovery("unknown"); }
     });
   }
 
   return (
     <div className="space-y-3">
-      {recovery && <div role="alert" className="space-y-2 text-sm">
-        <p>{recovery === "unknown" ? "名单操作结果尚未确认，请读取当前名单核对，不要重复提交。" : "名单已提交，页面刷新待完成。"}</p>
-        <Button size="sm" variant="outline" disabled={isPending} onClick={() => {
-          if (recovery === "unknown") {
-            startTransition(async () => {
-              try {
-                const result = await getMatchRosterReadback(matchId, teamId);
-                if (!result.success) { toast.error(result.error.message); return; }
-                setReadback({ ...result.data, matches: result.data.version === expectedVersion.current
-                  && (!expectedRosterId.current || result.data.value.rosterId === expectedRosterId.current) });
-              } catch { toast.error("当前名单暂时无法核对，选择已保留。"); }
-            });
-            return;
-          }
-          startTransition(async () => {
-            try {
-              const result = await retryMatchRosterRefresh(matchId);
-              if (!result.success) { toast.error(result.error.message); return; }
-              setRecovery(null);
-              window.location.reload();
-            } catch { toast.error("刷新仍未完成，请稍后重试刷新。"); }
-          });
-        }}>{recovery === "unknown" ? "读取当前名单核对" : "重试刷新（不重复提交）"}</Button>
-      </div>}
-      {readback && <OperationReadbackNotice matches={readback.matches} version={readback.version}>
-        <p>首发：{readback.value.starterIds.map(id => getDisplayName(memberMap.get(id) ?? {})).join("、") || "无"}</p>
-        <p>替补：{readback.value.substituteIds.map(id => getDisplayName(memberMap.get(id) ?? {})).join("、") || "无"}；BP 负责人：{getDisplayName(memberMap.get(readback.value.vetoRepresentativeEventRosterMemberId ?? "") ?? {})}</p>
-      </OperationReadbackNotice>}
-      <h4 className="font-semibold text-[var(--color-fg)]"><TeamProfileLink entryId={teamId}>{teamName}</TeamProfileLink></h4>
+      {recovery && (
+        <div role="alert" className="space-y-2 text-sm">
+          <p>
+            {recovery === "unknown"
+              ? "名单操作结果尚未确认，请读取当前名单核对，不要重复提交。"
+              : "名单已提交，页面刷新待完成。"}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => {
+              if (recovery === "unknown") {
+                startTransition(async () => {
+                  try {
+                    const result = await getMatchRosterReadback(matchId, teamId);
+                    if (!result.success) {
+                      toast.error(result.error.message);
+                      return;
+                    }
+                    setReadback({
+                      ...result.data,
+                      matches:
+                        result.data.version === expectedVersion.current &&
+                        (!expectedRosterId.current ||
+                          result.data.value.rosterId === expectedRosterId.current),
+                    });
+                  } catch {
+                    toast.error("当前名单暂时无法核对，选择已保留。");
+                  }
+                });
+                return;
+              }
+              startTransition(async () => {
+                try {
+                  const result = await retryMatchRosterRefresh(matchId);
+                  if (!result.success) {
+                    toast.error(result.error.message);
+                    return;
+                  }
+                  setRecovery(null);
+                  window.location.reload();
+                } catch {
+                  toast.error("刷新仍未完成，请稍后重试刷新。");
+                }
+              });
+            }}
+          >
+            {recovery === "unknown" ? "读取当前名单核对" : "重试刷新（不重复提交）"}
+          </Button>
+        </div>
+      )}
+      {readback && (
+        <OperationReadbackNotice matches={readback.matches} version={readback.version}>
+          <p>
+            首发：
+            {readback.value.starterIds
+              .map((id) => getDisplayName(memberMap.get(id) ?? {}))
+              .join("、") || "无"}
+          </p>
+          <p>
+            替补：
+            {readback.value.substituteIds
+              .map((id) => getDisplayName(memberMap.get(id) ?? {}))
+              .join("、") || "无"}
+            ；BP 负责人：
+            {getDisplayName(
+              memberMap.get(readback.value.vetoRepresentativeEventRosterMemberId ?? "") ?? {},
+            )}
+          </p>
+        </OperationReadbackNotice>
+      )}
+      <h4 className="font-semibold text-[var(--color-fg)]">
+        <TeamProfileLink entryId={teamId}>{teamName}</TeamProfileLink>
+      </h4>
       {existingRoster && (
         <div className="flex items-center gap-2">
           <p className="text-xs text-[var(--color-fg-mid)] flex-1">
@@ -233,7 +313,12 @@ function RosterTeamSection({
             {existingRoster.status && ` · ${STATUS_LABELS[existingRoster.status]}`}
           </p>
           {existingRoster.rosterId && existingRoster.status !== "confirmed" && (
-            <Button size="sm" variant="secondary" onClick={() => handleConfirm(existingRoster.rosterId!)} disabled={Boolean(recovery) || isPending}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => handleConfirm(existingRoster.rosterId!)}
+              disabled={Boolean(recovery) || isPending}
+            >
               确认名单
             </Button>
           )}
@@ -247,17 +332,29 @@ function RosterTeamSection({
           <ol className="space-y-1">
             {pendingLineup.starterIds.map((id, index) => (
               <li key={id} className="text-sm text-[var(--color-fg)]">
-                首发 {index + 1}. {memberMap.get(id) ? <PlayerProfileLink userId={memberMap.get(id)!.userId}>{getDisplayName(memberMap.get(id)!)}</PlayerProfileLink> : "未知队员"}
+                首发 {index + 1}.{" "}
+                {memberMap.get(id) ? (
+                  <PlayerProfileLink userId={memberMap.get(id)!.userId}>
+                    {getDisplayName(memberMap.get(id)!)}
+                  </PlayerProfileLink>
+                ) : (
+                  "未知队员"
+                )}
               </li>
             ))}
           </ol>
           {pendingLineup.substituteIds.length > 0 && (
             <p className="text-xs text-[var(--color-fg-mid)]">
-              替补：{pendingLineup.substituteIds.map((id) => (memberMap.get(id) ? getDisplayName(memberMap.get(id)!) : "")).join("、")}
+              替补：
+              {pendingLineup.substituteIds
+                .map((id) => (memberMap.get(id) ? getDisplayName(memberMap.get(id)!) : ""))
+                .join("、")}
             </p>
           )}
           <p className="text-xs text-[var(--color-fg-mid)]">
-            BP 负责人：{pendingLineup.vetoRepresentativeEventRosterMemberId && memberMap.get(pendingLineup.vetoRepresentativeEventRosterMemberId)
+            BP 负责人：
+            {pendingLineup.vetoRepresentativeEventRosterMemberId &&
+            memberMap.get(pendingLineup.vetoRepresentativeEventRosterMemberId)
               ? getDisplayName(memberMap.get(pendingLineup.vetoRepresentativeEventRosterMemberId)!)
               : "暂未指定，首发可在 Veto Room 中认领"}
           </p>
@@ -268,7 +365,12 @@ function RosterTeamSection({
             <Button size="sm" onClick={executeSave} disabled={Boolean(recovery) || isPending}>
               {isPending ? "保存中..." : "确认保存"}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setPendingLineup(null)} disabled={Boolean(recovery) || isPending}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPendingLineup(null)}
+              disabled={Boolean(recovery) || isPending}
+            >
               返回修改
             </Button>
           </div>
@@ -288,30 +390,41 @@ function RosterTeamSection({
                     ? "替补"
                     : null;
               return (
-                <div key={m.id} className="flex items-center gap-1"><label
-                  className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${
-                    isSelected
-                      ? "bg-[var(--color-accent)]/10"
-                      : "hover:bg-[var(--color-panel-low)]"
-                  } ${isUnavailable || (!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5)) ? "opacity-40 cursor-not-allowed" : ""}`}
-                >
-                  <Checkbox
-                    checked={isSelected}
-                    disabled={isUnavailable || (!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5))}
-                    onChange={() => toggleMember(m.id)}
-                  />
-                  <span className="text-sm flex-1 truncate">
-                    {getDisplayName(m)}{!m.isCurrent && " · 历史名单"}
-                  </span>
-                  <span className="text-xs text-[var(--color-fg-mid)]">
-                    {m.primaryPosition}
-                  </span>
-                  {label && (
-                    <span className="text-xs text-[var(--color-accent)] font-medium ml-1">
-                      {label}
+                <div key={m.id} className="flex items-center gap-1">
+                  <label
+                    className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${
+                      isSelected
+                        ? "bg-[var(--color-accent)]/10"
+                        : "hover:bg-[var(--color-panel-low)]"
+                    } ${isUnavailable || (!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5)) ? "opacity-40 cursor-not-allowed" : ""}`}
+                  >
+                    <Checkbox
+                      checked={isSelected}
+                      disabled={
+                        isUnavailable ||
+                        (!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5))
+                      }
+                      onChange={() => toggleMember(m.id)}
+                    />
+                    <span className="text-sm flex-1 truncate">
+                      {getDisplayName(m)}
+                      {!m.isCurrent && " · 历史名单"}
                     </span>
-                  )}
-                </label><PlayerProfileLink userId={m.userId} variant="dense" aria-label={`查看 ${getDisplayName(m)} 选手资料`}>↗</PlayerProfileLink></div>
+                    <span className="text-xs text-[var(--color-fg-mid)]">{m.primaryPosition}</span>
+                    {label && (
+                      <span className="text-xs text-[var(--color-accent)] font-medium ml-1">
+                        {label}
+                      </span>
+                    )}
+                  </label>
+                  <PlayerProfileLink
+                    userId={m.userId}
+                    variant="dense"
+                    aria-label={`查看 ${getDisplayName(m)} 选手资料`}
+                  >
+                    ↗
+                  </PlayerProfileLink>
+                </div>
               );
             })}
           </div>
@@ -319,9 +432,7 @@ function RosterTeamSection({
           {/* Starter order controls */}
           {starterIds.length > 0 && (
             <div className="space-y-1">
-              <Label className="text-xs text-[var(--color-fg-mid)]">
-                首发顺序（点击箭头调整）
-              </Label>
+              <Label className="text-xs text-[var(--color-fg-mid)]">首发顺序（点击箭头调整）</Label>
               <div className="space-y-0.5">
                 {starterIds.map((id, index) => {
                   const member = memberMap.get(id);
@@ -335,7 +446,9 @@ function RosterTeamSection({
                         {index + 1}
                       </span>
                       <span className="text-sm flex-1 truncate">
-                        <PlayerProfileLink userId={member.userId}>{getDisplayName(member)}</PlayerProfileLink>
+                        <PlayerProfileLink userId={member.userId}>
+                          {getDisplayName(member)}
+                        </PlayerProfileLink>
                       </span>
                       <span className="text-xs text-[var(--color-fg-mid)]">
                         {member.primaryPosition}
@@ -366,25 +479,40 @@ function RosterTeamSection({
           )}
 
           <fieldset className="space-y-2">
-            <legend className="text-xs font-medium text-[var(--color-fg-mid)]">BP 负责人（可选）</legend>
+            <legend className="text-xs font-medium text-[var(--color-fg-mid)]">
+              BP 负责人（可选）
+            </legend>
             <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
               {starterIds.map((id) => {
                 const member = memberMap.get(id);
                 if (!member) return null;
                 return (
-                  <div key={id} className="flex items-center"><label className="flex min-h-9 items-center gap-2 rounded border border-[var(--color-border)] px-2 py-1.5 text-sm">
-                    <input
-                      type="radio"
-                      name={`admin-veto-representative-${teamId}`}
-                      checked={vetoRepresentativeId === id}
-                      onChange={() => setVetoRepresentativeId(id)}
-                    />
-                    <span>{getDisplayName(member)}</span>
-                  </label><PlayerProfileLink userId={member.userId} variant="dense" aria-label={`查看 ${getDisplayName(member)} 选手资料`}>↗</PlayerProfileLink></div>
+                  <div key={id} className="flex items-center">
+                    <label className="flex min-h-9 items-center gap-2 rounded border border-[var(--color-border)] px-2 py-1.5 text-sm">
+                      <input
+                        type="radio"
+                        name={`admin-veto-representative-${teamId}`}
+                        checked={vetoRepresentativeId === id}
+                        onChange={() => setVetoRepresentativeId(id)}
+                      />
+                      <span>{getDisplayName(member)}</span>
+                    </label>
+                    <PlayerProfileLink
+                      userId={member.userId}
+                      variant="dense"
+                      aria-label={`查看 ${getDisplayName(member)} 选手资料`}
+                    >
+                      ↗
+                    </PlayerProfileLink>
+                  </div>
                 );
               })}
               {vetoRepresentativeId !== null && (
-                <button type="button" className="text-left text-xs text-[var(--color-fg-mid)] underline" onClick={() => setVetoRepresentativeId(null)}>
+                <button
+                  type="button"
+                  className="text-left text-xs text-[var(--color-fg-mid)] underline"
+                  onClick={() => setVetoRepresentativeId(null)}
+                >
                   暂不指定
                 </button>
               )}
@@ -393,7 +521,8 @@ function RosterTeamSection({
 
           {/* Selected count */}
           <p className="text-xs text-[var(--color-fg-mid)]">
-            已选 {selectedIds.length}/{allowSubstitutes ? 7 : 5}（首发 {starterIds.length}/5{allowSubstitutes ? `，替补 ${substituteIds.length}/2` : ""}）
+            已选 {selectedIds.length}/{allowSubstitutes ? 7 : 5}（首发 {starterIds.length}/5
+            {allowSubstitutes ? `，替补 ${substituteIds.length}/2` : ""}）
           </p>
 
           <Button
@@ -435,7 +564,8 @@ export function AdminRosterDialog({
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>
-            名单管理 · <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> vs <TeamProfileLink entryId={entryBId}>{teamBName}</TeamProfileLink>
+            名单管理 · <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> vs{" "}
+            <TeamProfileLink entryId={entryBId}>{teamBName}</TeamProfileLink>
           </DialogTitle>
           <DialogDescription>为双方选择并确认本场 5 名首发选手。</DialogDescription>
         </DialogHeader>

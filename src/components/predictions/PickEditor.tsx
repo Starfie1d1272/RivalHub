@@ -1,10 +1,7 @@
 "use client";
 import Link from "next/link";
 import React, { useState } from "react";
-import {
-  PLAYOFF_PICK_KEYS,
-  playoffDescendants,
-} from "@/lib/major/playoff-dependencies";
+import { PLAYOFF_PICK_KEYS, playoffDescendants } from "@/lib/major/playoff-dependencies";
 import { Button } from "@/components/ui/button";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { Panel } from "@/components/rivalhub";
@@ -15,9 +12,7 @@ import { SWISS_PICK_GROUPS } from "@/lib/predictions/presentation";
 type Contest = PickEmBoardData["contests"][number];
 type Group = "perfect" | "advance" | "eliminated";
 export function emptyPick(kind: string): Pick {
-  return kind === "swiss"
-    ? { perfect: [], advance: [], eliminated: [] }
-    : { bracket: [] };
+  return kind === "swiss" ? { perfect: [], advance: [], eliminated: [] } : { bracket: [] };
 }
 export function PickEditor({
   data,
@@ -44,9 +39,7 @@ export function PickEditor({
   onExport: () => void;
   busy: boolean;
 }) {
-  const [slot, setSlot] = useState<{ group: Group; index: number } | null>(
-    null,
-  );
+  const [slot, setSlot] = useState<{ group: Group; index: number } | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const locked = contest.locked || !!contest.voidReason || busy;
@@ -54,13 +47,9 @@ export function PickEditor({
   const team = (id: string) => data.base.teams.find((t) => t.teamId === id);
   const name = (id: string) => team(id)?.name ?? "待选择";
   const chosen =
-    "bracket" in pick
-      ? pick.bracket
-      : [...pick.perfect, ...pick.advance, ...pick.eliminated];
+    "bracket" in pick ? pick.bracket : [...pick.perfect, ...pick.advance, ...pick.eliminated];
   const total =
-    contest.kind === "swiss"
-      ? data.rules.perfect + data.rules.advance + data.rules.eliminated
-      : 7;
+    contest.kind === "swiss" ? data.rules.perfect + data.rules.advance + data.rules.eliminated : 7;
   const dirty = !!contest.submitted && !samePick(contest.submitted.pick, pick);
   function assign(id: string, target: { group: Group; index: number }) {
     if (locked || !("perfect" in pick) || (id && !teamIds.includes(id))) return;
@@ -96,11 +85,7 @@ export function PickEditor({
     setMessage(`${name(id)} 晋级；受影响的下游选择已清空`);
   }
   const logo = (id: string, size = "h-7 w-7") => (
-    <TeamLogo
-      teamName={name(id)}
-      logoUrl={team(id)?.logoUrl ?? null}
-      className={size}
-    />
+    <TeamLogo teamName={name(id)} logoUrl={team(id)?.logoUrl ?? null} className={size} />
   );
   return (
     <Panel label={`${stageName} · 我的预测单`} className="h-fit">
@@ -120,25 +105,26 @@ export function PickEditor({
               : contest.locked
                 ? "已锁定"
                 : contest.submitted
-                    ? "已提交"
-                    : "尚未提交"}
+                  ? "已提交"
+                  : "尚未提交"}
           {dirty && " · 有未提交修改"}
         </p>
         <p className="text-xs text-[var(--color-fg-mid)]">
-          截止：{contest.deadline ? new Date(contest.deadline).toLocaleString("zh-CN") : "时间待公布"}{contest.deadlineTentative && "（暂定）"}
+          截止：
+          {contest.deadline ? new Date(contest.deadline).toLocaleString("zh-CN") : "时间待公布"}
+          {contest.deadlineTentative && "（暂定）"}
         </p>
-        {simulationStatus && <p role="status" className="text-xs text-[var(--color-accent)]">{simulationStatus}</p>}
+        {simulationStatus && (
+          <p role="status" className="text-xs text-[var(--color-accent)]">
+            {simulationStatus}
+          </p>
+        )}
         {"perfect" in pick ? (
           <>
             {SWISS_PICK_GROUPS.map((group) => (
-              <fieldset
-                key={group.key}
-                className="border-t border-[var(--color-border)] pt-3"
-              >
+              <fieldset key={group.key} className="border-t border-[var(--color-border)] pt-3">
                 <legend className="pr-2 text-xs">
-                  <strong className="mr-2 font-mono text-lg">
-                    {group.record}
-                  </strong>
+                  <strong className="mr-2 font-mono text-lg">{group.record}</strong>
                   {group.key === "eliminated" ? "淘汰" : "晋级"}
                 </legend>
                 <div
@@ -147,8 +133,7 @@ export function PickEditor({
                   {Array.from({ length: data.rules[group.key] }, (_, index) => {
                     const id = pick[group.key][index] ?? "";
                     const target = { group: group.key, index };
-                    const active =
-                      slot?.group === group.key && slot.index === index;
+                    const active = slot?.group === group.key && slot.index === index;
                     return (
                       <div key={index} className="relative min-w-0">
                         <button
@@ -157,9 +142,7 @@ export function PickEditor({
                           aria-label={`${group.label} ${index + 1}：${name(id)}`}
                           aria-pressed={active}
                           onClick={() =>
-                            selectedTeam
-                              ? assign(selectedTeam, target)
-                              : setSlot(target)
+                            selectedTeam ? assign(selectedTeam, target) : setSlot(target)
                           }
                           onDragOver={(e) => {
                             if (!locked) {
@@ -169,10 +152,7 @@ export function PickEditor({
                           }}
                           onDrop={(e) => {
                             e.preventDefault();
-                            assign(
-                              e.dataTransfer.getData("text/plain"),
-                              target,
-                            );
+                            assign(e.dataTransfer.getData("text/plain"), target);
                           }}
                           draggable={!!id && !locked}
                           onDragStart={(e) => {
@@ -188,7 +168,10 @@ export function PickEditor({
                               ＋
                             </span>
                           )}
-                          <span className="line-clamp-2 break-words" title={id ? name(id) : undefined}>
+                          <span
+                            className="line-clamp-2 break-words"
+                            title={id ? name(id) : undefined}
+                          >
                             {name(id)}
                           </span>
                         </button>
@@ -215,28 +198,28 @@ export function PickEditor({
                 </legend>
                 <div className="grid grid-cols-4 gap-1" aria-label="可选队伍">
                   {teamIds.map((id) => (
-                    <div key={id} className="min-w-0"><button
-                      type="button"
-                      draggable
-                      aria-label={`选择 ${name(id)}`}
-                      aria-pressed={selectedTeam === id}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("text/plain", id);
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      onClick={() =>
-                        slot
-                          ? assign(id, slot)
-                          : setSelectedTeam(selectedTeam === id ? null : id)
-                      }
-                      className={`flex min-h-14 min-w-0 flex-col items-center gap-1 border p-1 text-[11px] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] ${selectedTeam === id ? "border-[var(--color-accent)]" : chosen.includes(id) ? "border-transparent opacity-40" : "border-transparent"}`}
-                    >
-                      {logo(id, "h-7 w-7")}
-                      <span className="line-clamp-2" title={name(id)}>{name(id)}</span>
-                      {chosen.includes(id) && (
-                        <span className="sr-only">已选 · 可移动</span>
-                      )}
-                    </button></div>
+                    <div key={id} className="min-w-0">
+                      <button
+                        type="button"
+                        draggable
+                        aria-label={`选择 ${name(id)}`}
+                        aria-pressed={selectedTeam === id}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", id);
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onClick={() =>
+                          slot ? assign(id, slot) : setSelectedTeam(selectedTeam === id ? null : id)
+                        }
+                        className={`flex min-h-14 min-w-0 flex-col items-center gap-1 border p-1 text-[11px] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] ${selectedTeam === id ? "border-[var(--color-accent)]" : chosen.includes(id) ? "border-transparent opacity-40" : "border-transparent"}`}
+                      >
+                        {logo(id, "h-7 w-7")}
+                        <span className="line-clamp-2" title={name(id)}>
+                          {name(id)}
+                        </span>
+                        {chosen.includes(id) && <span className="sr-only">已选 · 可移动</span>}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </fieldset>
@@ -252,9 +235,7 @@ export function PickEditor({
             <div className="grid min-w-[540px] grid-cols-3 gap-6">
               {[[0, 1, 2, 3], [4, 5], [6]].map((indexes, column) => (
                 <section key={column}>
-                  <h3 className="mb-3 text-xs font-medium">
-                    {["八强", "半决赛", "冠军"][column]}
-                  </h3>
+                  <h3 className="mb-3 text-xs font-medium">{["八强", "半决赛", "冠军"][column]}</h3>
                   <div
                     className="grid h-[400px]"
                     style={{
@@ -266,10 +247,7 @@ export function PickEditor({
                         index < 4
                           ? (contest.quarterfinals[index] ?? [])
                           : index < 6
-                            ? pick.bracket.slice(
-                                (index - 4) * 2,
-                                (index - 4) * 2 + 2,
-                              )
+                            ? pick.bracket.slice((index - 4) * 2, (index - 4) * 2 + 2)
                             : pick.bracket.slice(4, 6);
                       return (
                         <div key={index} className="relative flex items-center">
@@ -283,26 +261,29 @@ export function PickEditor({
                             {[0, 1].map((side) => {
                               const id = options[side] ?? "";
                               return (
-                                <div key={side} className="flex items-center"><button
-                                  type="button"
-                                  disabled={locked || !id}
-                                  aria-pressed={
-                                    !!id && pick.bracket[index] === id
-                                  }
-                                  aria-label={`${index < 4 ? `八强 ${index + 1}` : index < 6 ? `半决赛 ${index - 3}` : "冠军"}：${name(id)}`}
-                                  onClick={() => chooseBracket(index, id)}
-                                  className={`flex min-h-14 w-full items-center gap-1 border-b border-[var(--color-border)] px-1 py-2 text-xs focus-visible:outline-2 ${id && pick.bracket[index] === id ? "bg-[var(--color-accent)]/20" : "bg-[var(--color-panel-hi)]"}`}
-                                >
-                                  {id ? (
-                                    logo(id, "h-8 w-8")
-                                  ) : (
-                                    <span className="w-8 text-center">—</span>
-                                  )}
-                                  <span className="min-w-0 break-words" title={id ? name(id) : undefined}>
-                                    {id ? name(id) : "上游胜者"}
-                                  </span>
-                                  {id && pick.bracket[index] === id && " ✓"}
-                                </button></div>
+                                <div key={side} className="flex items-center">
+                                  <button
+                                    type="button"
+                                    disabled={locked || !id}
+                                    aria-pressed={!!id && pick.bracket[index] === id}
+                                    aria-label={`${index < 4 ? `八强 ${index + 1}` : index < 6 ? `半决赛 ${index - 3}` : "冠军"}：${name(id)}`}
+                                    onClick={() => chooseBracket(index, id)}
+                                    className={`flex min-h-14 w-full items-center gap-1 border-b border-[var(--color-border)] px-1 py-2 text-xs focus-visible:outline-2 ${id && pick.bracket[index] === id ? "bg-[var(--color-accent)]/20" : "bg-[var(--color-panel-hi)]"}`}
+                                  >
+                                    {id ? (
+                                      logo(id, "h-8 w-8")
+                                    ) : (
+                                      <span className="w-8 text-center">—</span>
+                                    )}
+                                    <span
+                                      className="min-w-0 break-words"
+                                      title={id ? name(id) : undefined}
+                                    >
+                                      {id ? name(id) : "上游胜者"}
+                                    </span>
+                                    {id && pick.bracket[index] === id && " ✓"}
+                                  </button>
+                                </div>
                               );
                             })}
                           </div>
@@ -321,32 +302,26 @@ export function PickEditor({
             </div>
           </div>
         )}
-        <p
-          aria-live="polite"
-          className="min-h-5 text-xs text-[var(--color-fg-mid)]"
-        >
-          {message ||
-            (selectedTeam ? `${name(selectedTeam)}：请选择目标槽位` : "")}
+        <p aria-live="polite" className="min-h-5 text-xs text-[var(--color-fg-mid)]">
+          {message || (selectedTeam ? `${name(selectedTeam)}：请选择目标槽位` : "")}
         </p>
         <p className="text-sm">
           已填写 {chosen.filter(Boolean).length}/{total}
         </p>
-        {!signedIn && <Button asChild className="w-full"><Link href={loginHref as never}>登录保存 Pick’Em</Link></Button>}
+        {!signedIn && (
+          <Button asChild className="w-full">
+            <Link href={loginHref as never}>登录保存 Pick’Em</Link>
+          </Button>
+        )}
         <Button
           className="w-full"
-          disabled={
-            locked || !signedIn || chosen.filter(Boolean).length !== total
-          }
+          disabled={locked || !signedIn || chosen.filter(Boolean).length !== total}
           onClick={() => onSave(true)}
         >
           提交预测
         </Button>
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            disabled={locked || !signedIn}
-            onClick={() => onSave(false)}
-          >
+          <Button variant="outline" disabled={locked || !signedIn} onClick={() => onSave(false)}>
             保存草稿
           </Button>
           <Button variant="outline" disabled={busy} onClick={onExport}>

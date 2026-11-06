@@ -10,11 +10,22 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import { isDemoEvidenceValidationError } from "@/lib/demo-evidence/validation-error";
 import type { IntegrationIssue, RivalHubEvidenceSubmission } from "./contracts";
-import { DEMO_CONTENT_CONFLICT_MESSAGE, lockDemoImportLineageInTx, promoteDemoImportInTx, resolveDemoImportLineageInTx } from "./promotion";
+import {
+  DEMO_CONTENT_CONFLICT_MESSAGE,
+  lockDemoImportLineageInTx,
+  promoteDemoImportInTx,
+  resolveDemoImportLineageInTx,
+} from "./promotion";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { selectCurrentDemoImport } from "./read";
 import { isCurrentDakSemanticProfile } from "./semantic-profile";
-import { CanonicalTargetUnavailableError, integrationIssue, loadCanonicalTarget, validateCanonicalTarget, type CanonicalTarget } from "./validation";
+import {
+  CanonicalTargetUnavailableError,
+  integrationIssue,
+  loadCanonicalTarget,
+  validateCanonicalTarget,
+  type CanonicalTarget,
+} from "./validation";
 
 const INVALID_STORED_PAYLOAD_MESSAGE = "这份 Demo 数据无法重新读取，请核对或拒绝。";
 
@@ -29,23 +40,43 @@ export interface StoredEvidenceResult {
   issues: IntegrationIssue[];
 }
 
-export function parseStoredEvidence(row: typeof matchDemoImports.$inferSelect): StoredEvidenceResult {
+export function parseStoredEvidence(
+  row: typeof matchDemoImports.$inferSelect,
+): StoredEvidenceResult {
   let evidence: RivalHubEvidenceSubmission;
   try {
     evidence = parseRivalHubDemoEvidenceV1(row.payload);
   } catch (cause) {
     if (!isDemoEvidenceValidationError(cause)) throw cause;
-    return { evidence: null, issues: [integrationIssue("STORED_PAYLOAD_INVALID", INVALID_STORED_PAYLOAD_MESSAGE)] };
+    return {
+      evidence: null,
+      issues: [integrationIssue("STORED_PAYLOAD_INVALID", INVALID_STORED_PAYLOAD_MESSAGE)],
+    };
   }
 
   const issues: IntegrationIssue[] = [];
-  if (sha256Json(evidence) !== row.payloadSha256) issues.push(integrationIssue("STORED_PAYLOAD_HASH_MISMATCH", INVALID_STORED_PAYLOAD_MESSAGE));
-  if (evidence.source.demoSha256 !== row.demoSha256) issues.push(integrationIssue("STORED_DEMO_HASH_MISMATCH", INVALID_STORED_PAYLOAD_MESSAGE));
-  if (evidence.contract.contractVersion !== row.contractVersion || evidence.contract.semanticProfile !== row.semanticProfile || evidence.contract.analysisVersion !== row.analysisVersion) {
-    issues.push(integrationIssue("STORED_PAYLOAD_METADATA_MISMATCH", INVALID_STORED_PAYLOAD_MESSAGE));
+  if (sha256Json(evidence) !== row.payloadSha256)
+    issues.push(integrationIssue("STORED_PAYLOAD_HASH_MISMATCH", INVALID_STORED_PAYLOAD_MESSAGE));
+  if (evidence.source.demoSha256 !== row.demoSha256)
+    issues.push(integrationIssue("STORED_DEMO_HASH_MISMATCH", INVALID_STORED_PAYLOAD_MESSAGE));
+  if (
+    evidence.contract.contractVersion !== row.contractVersion ||
+    evidence.contract.semanticProfile !== row.semanticProfile ||
+    evidence.contract.analysisVersion !== row.analysisVersion
+  ) {
+    issues.push(
+      integrationIssue("STORED_PAYLOAD_METADATA_MISMATCH", INVALID_STORED_PAYLOAD_MESSAGE),
+    );
   }
-  if (evidence.target.evidenceRevision !== row.evidenceRevision) issues.push(integrationIssue("STORED_EVIDENCE_REVISION_MISMATCH", INVALID_STORED_PAYLOAD_MESSAGE));
-  if (evidence.target.seasonId !== row.seasonId || evidence.target.matchId !== row.matchId || evidence.target.matchMapId !== row.matchMapId) {
+  if (evidence.target.evidenceRevision !== row.evidenceRevision)
+    issues.push(
+      integrationIssue("STORED_EVIDENCE_REVISION_MISMATCH", INVALID_STORED_PAYLOAD_MESSAGE),
+    );
+  if (
+    evidence.target.seasonId !== row.seasonId ||
+    evidence.target.matchId !== row.matchId ||
+    evidence.target.matchMapId !== row.matchMapId
+  ) {
     issues.push(integrationIssue("STORED_TARGET_MISMATCH", INVALID_STORED_PAYLOAD_MESSAGE));
   }
   return { evidence, issues };
@@ -58,7 +89,10 @@ export async function writeRecheckIssue(
   target?: CanonicalTarget,
   actorId?: string,
 ): Promise<StoredDemoRevalidationResult> {
-  await tx.update(matchDemoImports).set({ status: "needs_attention", issues }).where(eq(matchDemoImports.id, row.id));
+  await tx
+    .update(matchDemoImports)
+    .set({ status: "needs_attention", issues })
+    .where(eq(matchDemoImports.id, row.id));
   await writeAuditInTx(tx, {
     seasonId: row.seasonId,
     action: "match.demo.recheck",
@@ -81,15 +115,20 @@ export async function revalidateStoredDemoImportInTx(
 }
 
 async function loadStoredDemoImportForRecheckInTx(tx: TxDb, importId: string) {
-  const [scope] = await tx.select({ matchMapId: matchDemoImports.matchMapId }).from(matchDemoImports)
+  const [scope] = await tx
+    .select({ matchMapId: matchDemoImports.matchMapId })
+    .from(matchDemoImports)
     .where(eq(matchDemoImports.id, importId));
   if (!scope) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
   await lockDemoImportLineageInTx(tx, scope.matchMapId);
-  const [row] = await tx.select().from(matchDemoImports)
+  const [row] = await tx
+    .select()
+    .from(matchDemoImports)
     .where(eq(matchDemoImports.id, importId))
     .for("update");
   if (!row) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
-  if (row.matchMapId !== scope.matchMapId) throw new AppError(ErrorCode.INTERNAL_ERROR, "Demo 数据在重新检查期间发生了目标变化。");
+  if (row.matchMapId !== scope.matchMapId)
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "Demo 数据在重新检查期间发生了目标变化。");
   return row;
 }
 
@@ -99,12 +138,15 @@ async function revalidateStoredDemoImportRowInTx(
   input: { actorId: string; verifiedBy?: string },
   parsedEvidence?: StoredEvidenceResult,
 ): Promise<StoredDemoRevalidationResult> {
-  if (!isCurrentDakSemanticProfile(row.semanticProfile)) throw new AppError(ErrorCode.VALIDATION_FAILED, "只有当前 Demo 数据版本可以重新检查。");
+  if (!isCurrentDakSemanticProfile(row.semanticProfile))
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "只有当前 Demo 数据版本可以重新检查。");
   if (row.status === "confirmed") return { status: "confirmed", importId: row.id, issues: [] };
-  if (row.status !== "needs_attention") throw new AppError(ErrorCode.VALIDATION_FAILED, "这份 Demo 数据当前不在待处理状态。");
+  if (row.status !== "needs_attention")
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "这份 Demo 数据当前不在待处理状态。");
 
   const stored = parsedEvidence ?? parseStoredEvidence(row);
-  if (!stored.evidence || stored.issues.length > 0) return writeRecheckIssue(tx, row, stored.issues, undefined, input.actorId);
+  if (!stored.evidence || stored.issues.length > 0)
+    return writeRecheckIssue(tx, row, stored.issues, undefined, input.actorId);
 
   let target: CanonicalTarget;
   try {
@@ -114,14 +156,31 @@ async function revalidateStoredDemoImportRowInTx(
     // non-PG failure could even persist a false business issue. Let the owner
     // transaction roll back; only explicit unavailable targets are findings.
     if (!(error instanceof CanonicalTargetUnavailableError)) throw error;
-    return writeRecheckIssue(tx, row, [integrationIssue("STORED_TARGET_INVALID", "Demo 对应的赛事比赛或地图已不可用，请核对目标资料；不要重新上传同一份数据。")], undefined, input.actorId);
+    return writeRecheckIssue(
+      tx,
+      row,
+      [
+        integrationIssue(
+          "STORED_TARGET_INVALID",
+          "Demo 对应的赛事比赛或地图已不可用，请核对目标资料；不要重新上传同一份数据。",
+        ),
+      ],
+      undefined,
+      input.actorId,
+    );
   }
 
   const validation = await validateCanonicalTarget(tx, stored.evidence, target);
   const issues = [...validation.issues];
   const currentRevision = buildEvidenceRevisionForTarget(target);
   if (stored.evidence.target.evidenceRevision !== currentRevision) {
-    issues.push(integrationIssue("STALE_EVIDENCE", "Demo Evidence 基于旧的赛事/阵容/比分快照，请刷新后重新生成。", "target.evidenceRevision"));
+    issues.push(
+      integrationIssue(
+        "STALE_EVIDENCE",
+        "Demo Evidence 基于旧的赛事/阵容/比分快照，请刷新后重新生成。",
+        "target.evidenceRevision",
+      ),
+    );
   }
 
   const lineage = await resolveDemoImportLineageInTx(tx, {
@@ -131,7 +190,9 @@ async function revalidateStoredDemoImportRowInTx(
     currentImportId: row.id,
   });
   if (lineage.differentDemoConfirmed) {
-    issues.push(integrationIssue("CONTENT_CONFLICT", DEMO_CONTENT_CONFLICT_MESSAGE, "source.demoSha256"));
+    issues.push(
+      integrationIssue("CONTENT_CONFLICT", DEMO_CONTENT_CONFLICT_MESSAGE, "source.demoSha256"),
+    );
   }
   if (issues.length > 0) return writeRecheckIssue(tx, row, issues, target, input.actorId);
 
@@ -149,7 +210,6 @@ async function revalidateStoredDemoImportRowInTx(
   return { status: "confirmed", importId: row.id, issues: [] };
 }
 
-
 export interface RelatedDemoRevalidationSummary {
   attempted: number;
   confirmed: number;
@@ -159,7 +219,10 @@ export interface RelatedDemoRevalidationSummary {
   requestId?: string;
 }
 
-type RecheckCandidate = Pick<typeof matchDemoImports.$inferSelect, "id" | "matchId" | "matchMapId" | "semanticProfile" | "status">;
+type RecheckCandidate = Pick<
+  typeof matchDemoImports.$inferSelect,
+  "id" | "matchId" | "matchMapId" | "semanticProfile" | "status"
+>;
 
 async function loadSeasonNeedsAttentionCandidates(seasonId: string): Promise<RecheckCandidate[]> {
   const rows = await db
@@ -210,9 +273,19 @@ async function revalidateCandidateRows(
           // Keep the original full-contract check for Steam fanout, but reuse
           // this locked artifact for revalidation instead of downloading twice.
           parsedEvidence = parseStoredEvidence(stored);
-          if (!parsedEvidence.evidence?.participants.some((participant) => participant.steamId64 === observedSteam64)) return null;
+          if (
+            !parsedEvidence.evidence?.participants.some(
+              (participant) => participant.steamId64 === observedSteam64,
+            )
+          )
+            return null;
         }
-        return revalidateStoredDemoImportRowInTx(tx, stored, { actorId, verifiedBy: `admin:${actorId}` }, parsedEvidence);
+        return revalidateStoredDemoImportRowInTx(
+          tx,
+          stored,
+          { actorId, verifiedBy: `admin:${actorId}` },
+          parsedEvidence,
+        );
       });
       if (!result) continue;
       attempted++;
@@ -222,7 +295,10 @@ async function revalidateCandidateRows(
     } catch (error) {
       requestId ??= ensureRequestId();
       captureException("demo.recheck.failure", error, {
-        scope: "demo", operation: "recheck.related", requestId, safeContext: { phase: "recheck" },
+        scope: "demo",
+        operation: "recheck.related",
+        requestId,
+        safeContext: { phase: "recheck" },
       });
       attempted++;
       failed++;
@@ -248,8 +324,9 @@ export async function revalidateSeasonNeedsAttentionImports(input: {
   seasonId: string;
   actorId: string;
 }): Promise<RelatedDemoRevalidationSummary> {
-  const rows = (await loadSeasonNeedsAttentionCandidates(input.seasonId))
-    .filter((row) => isCurrentDakSemanticProfile(row.semanticProfile));
+  const rows = (await loadSeasonNeedsAttentionCandidates(input.seasonId)).filter((row) =>
+    isCurrentDakSemanticProfile(row.semanticProfile),
+  );
   return revalidateCandidateRows(rows, input.actorId);
 }
 
@@ -268,16 +345,29 @@ export async function revalidateNeedsAttentionImportsForSteam64(input: {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam64 ID 格式无效。");
   }
 
-  const candidates = (await loadSeasonNeedsAttentionCandidates(input.seasonId))
-    .filter((row) => row.id !== input.excludeImportId && isCurrentDakSemanticProfile(row.semanticProfile));
+  const candidates = (await loadSeasonNeedsAttentionCandidates(input.seasonId)).filter(
+    (row) => row.id !== input.excludeImportId && isCurrentDakSemanticProfile(row.semanticProfile),
+  );
   // PostgreSQL checks participant membership without returning any raw artifact.
   // Only matching current imports proceed to the locked full-contract recheck.
   const matchingIds = candidates.length
-    ? await db.select({ id: matchDemoImports.id }).from(matchDemoImports).where(and(
-      inArray(matchDemoImports.id, candidates.map((row) => row.id)),
-      sql`${matchDemoImports.payload} @> ${JSON.stringify({ participants: [{ steamId64: input.steam64 }] })}::jsonb`,
-    ))
+    ? await db
+        .select({ id: matchDemoImports.id })
+        .from(matchDemoImports)
+        .where(
+          and(
+            inArray(
+              matchDemoImports.id,
+              candidates.map((row) => row.id),
+            ),
+            sql`${matchDemoImports.payload} @> ${JSON.stringify({ participants: [{ steamId64: input.steam64 }] })}::jsonb`,
+          ),
+        )
     : [];
   const matching = new Set(matchingIds.map((row) => row.id));
-  return revalidateCandidateRows(candidates.filter((row) => matching.has(row.id)), input.actorId, input.steam64);
+  return revalidateCandidateRows(
+    candidates.filter((row) => matching.has(row.id)),
+    input.actorId,
+    input.steam64,
+  );
 }

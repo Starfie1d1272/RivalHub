@@ -18,8 +18,7 @@ export const educationEvidenceStorage = {
   async upload(key: string, file: File, contentType: EducationEvidenceMimeType): Promise<void> {
     try {
       const { error } = await createServiceClient()
-        .storage
-        .from(EDUCATION_EVIDENCE_BUCKET)
+        .storage.from(EDUCATION_EVIDENCE_BUCKET)
         .upload(key, file, { upsert: false, contentType });
       if (error) throw error;
     } catch (error) {
@@ -31,8 +30,7 @@ export const educationEvidenceStorage = {
   async remove(key: string): Promise<void> {
     try {
       const { error } = await createServiceClient()
-        .storage
-        .from(EDUCATION_EVIDENCE_BUCKET)
+        .storage.from(EDUCATION_EVIDENCE_BUCKET)
         .remove([key]);
       if (error && !isMissingObjectError(error)) throw error;
     } catch (error) {
@@ -45,8 +43,7 @@ export const educationEvidenceStorage = {
   async createSignedUrl(key: string): Promise<string> {
     try {
       const { data, error } = await createServiceClient()
-        .storage
-        .from(EDUCATION_EVIDENCE_BUCKET)
+        .storage.from(EDUCATION_EVIDENCE_BUCKET)
         .createSignedUrl(key, EDUCATION_EVIDENCE_SIGNED_URL_TTL_SECONDS);
       if (error || !data?.signedUrl) throw error ?? new Error("missing signed URL");
       return data.signedUrl;
@@ -66,7 +63,11 @@ function reportStorageFailure(operation: "upload" | "remove" | "signed_url", err
     scope: "education",
     operation,
     errorClass: "dependency",
-    retryable: metadata.httpStatus === undefined || metadata.httpStatus >= 500 || metadata.httpStatus === 408 || metadata.httpStatus === 429,
+    retryable:
+      metadata.httpStatus === undefined ||
+      metadata.httpStatus >= 500 ||
+      metadata.httpStatus === 408 ||
+      metadata.httpStatus === 429,
     safeContext: { provider: "supabase", ...metadata },
   });
 }
@@ -74,8 +75,10 @@ function reportStorageFailure(operation: "upload" | "remove" | "signed_url", err
 function isMissingObjectError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const candidate = error as { status?: unknown; statusCode?: unknown; code?: unknown };
-  return candidate.status === 404
-    || candidate.statusCode === "404"
-    || candidate.code === "NoSuchKey"
-    || candidate.code === "NotFound";
+  return (
+    candidate.status === 404 ||
+    candidate.statusCode === "404" ||
+    candidate.code === "NoSuchKey" ||
+    candidate.code === "NotFound"
+  );
 }

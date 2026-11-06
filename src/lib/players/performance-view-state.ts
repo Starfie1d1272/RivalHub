@@ -12,8 +12,10 @@ export interface PlayerPerformanceEventOption {
 
 export type PlayerPerformanceSearch = Record<string, string | string[] | undefined>;
 
-export function parsePlayerPerformanceQuery(search: PlayerPerformanceSearch): PlayerPerformanceQuery {
-  const value = (key: string) => typeof search[key] === "string" ? search[key] as string : "";
+export function parsePlayerPerformanceQuery(
+  search: PlayerPerformanceSearch,
+): PlayerPerformanceQuery {
+  const value = (key: string) => (typeof search[key] === "string" ? (search[key] as string) : "");
   const requestedMap = value("map");
   return {
     event: value("event"),

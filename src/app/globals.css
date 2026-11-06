@@ -80,11 +80,11 @@
 
   /* Status */
   --color-ok: #4dd47a;
-  --color-ok-soft: rgba(77, 212, 122, 0.10);
+  --color-ok-soft: rgba(77, 212, 122, 0.1);
   --color-ok-edge: rgba(77, 212, 122, 0.35);
   --color-warn: #ffc44d;
   --color-warn-soft: rgba(255, 196, 77, 0.08);
-  --color-warn-edge: rgba(255, 196, 77, 0.40);
+  --color-warn-edge: rgba(255, 196, 77, 0.4);
   --color-danger: #ff5470;
   --color-danger-soft: rgba(255, 84, 112, 0.08);
   --color-danger-edge: rgba(255, 84, 112, 0.35);
@@ -130,10 +130,8 @@
   --radius-display: 12px;
 
   /* Background */
-  --background-image-grid-hairline: linear-gradient(
-      rgba(31, 37, 48, 0.4) 1px,
-      transparent 1px
-    ),
+  --background-image-grid-hairline:
+    linear-gradient(rgba(31, 37, 48, 0.4) 1px, transparent 1px),
     linear-gradient(90deg, rgba(31, 37, 48, 0.4) 1px, transparent 1px);
   --background-size-grid: 32px 32px;
 
@@ -204,5 +202,5 @@
   z-index: -1;
   background-image: var(--background-image-grid-hairline);
   background-size: 48px 48px;
-  opacity: .2;
+  opacity: 0.2;
 }

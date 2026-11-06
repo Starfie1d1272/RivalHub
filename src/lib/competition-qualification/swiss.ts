@@ -1,6 +1,15 @@
 import { projectSwissStage } from "@/lib/swiss/core";
-import { groupSwissByRecord, pairSwissHighLowZeroRematch, pairSwissTopHalfBottomHalf } from "@/lib/swiss/pairing";
-import type { SwissCompletedMatch, SwissEntrant, SwissPair, SwissProjection } from "@/lib/swiss/types";
+import {
+  groupSwissByRecord,
+  pairSwissHighLowZeroRematch,
+  pairSwissTopHalfBottomHalf,
+} from "@/lib/swiss/pairing";
+import type {
+  SwissCompletedMatch,
+  SwissEntrant,
+  SwissPair,
+  SwissProjection,
+} from "@/lib/swiss/types";
 import {
   SHORT_SWISS_LOSS_THRESHOLD,
   SHORT_SWISS_MAX_ROUNDS,
@@ -57,8 +66,13 @@ export function projectShortSwissStage(input: {
         throw new Error(`Short Swiss round ${round} match ${match.matchId} is cross-record`);
       }
     }
-    if (participants.size !== activeIds.size || [...activeIds].some((teamId) => !participants.has(teamId))) {
-      throw new Error(`Short Swiss completed round ${round} must pair every active team exactly once`);
+    if (
+      participants.size !== activeIds.size ||
+      [...activeIds].some((teamId) => !participants.has(teamId))
+    ) {
+      throw new Error(
+        `Short Swiss completed round ${round} must pair every active team exactly once`,
+      );
     }
   }
   return projection;
@@ -69,8 +83,11 @@ export function generateDirectBo3QualificationPairings(
   entrants: readonly SwissEntrant[],
 ): readonly QualificationPairing[] {
   const ordered = [...entrants].sort((a, b) => a.initialSeed - b.initialSeed);
-  if (ordered.length < 2 || ordered.length % 2 !== 0 ||
-      ordered.some((entrant, index) => entrant.initialSeed !== index + 1)) {
+  if (
+    ordered.length < 2 ||
+    ordered.length % 2 !== 0 ||
+    ordered.some((entrant, index) => entrant.initialSeed !== index + 1)
+  ) {
     throw new Error("Direct BO3 requires an even, consecutively seeded Play-in field");
   }
   return Array.from({ length: ordered.length / 2 }, (_, index) => {
@@ -98,9 +115,10 @@ export function generateShortSwissRoundPairings(input: {
   const round = input.completedRound + 1;
   const pairings: QualificationPairing[] = [];
   for (const group of groupSwissByRecord(projection.active)) {
-    const pairs: readonly SwissPair[] = round === 1
-      ? pairSwissTopHalfBottomHalf(group.teams)
-      : pairSwissHighLowZeroRematch(group.teams);
+    const pairs: readonly SwissPair[] =
+      round === 1
+        ? pairSwissTopHalfBottomHalf(group.teams)
+        : pairSwissHighLowZeroRematch(group.teams);
     for (const pair of pairs) {
       pairings.push({
         round,
@@ -112,7 +130,9 @@ export function generateShortSwissRoundPairings(input: {
       });
     }
   }
-  const pairedIds = new Set(pairings.flatMap((pair) => [pair.higherSeedTeamId, pair.lowerSeedTeamId]));
+  const pairedIds = new Set(
+    pairings.flatMap((pair) => [pair.higherSeedTeamId, pair.lowerSeedTeamId]),
+  );
   if (pairedIds.size !== projection.active.length) {
     throw new Error("当前 Swiss 战绩组无法形成完整且不重赛的配对。");
   }

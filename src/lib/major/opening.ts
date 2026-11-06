@@ -3,10 +3,7 @@
 
 import { resolveManagedMajorProfile, type ManagedMajorProfile } from "@/lib/competition/definition";
 import type { StageConfig } from "@/types/season";
-import {
-  seedMajorStageOneEntrants,
-  type MajorTournamentSeededTeam,
-} from "./seeding";
+import { seedMajorStageOneEntrants, type MajorTournamentSeededTeam } from "./seeding";
 import {
   generateNextMajorSwissRound,
   type MajorSwissEntrant,
@@ -73,16 +70,26 @@ function normalizeTournamentTeams(
     }
     if (teamIds.has(team.teamId)) throw new Error(`duplicate tournament teamId: ${team.teamId}`);
     teamIds.add(team.teamId);
-    if (!Number.isInteger(team.tournamentSeed) || team.tournamentSeed < 1 || team.tournamentSeed > capacity) {
-      throw new Error(`invalid tournamentSeed ${team.tournamentSeed}: must be an integer in 1..${capacity}`);
+    if (
+      !Number.isInteger(team.tournamentSeed) ||
+      team.tournamentSeed < 1 ||
+      team.tournamentSeed > capacity
+    ) {
+      throw new Error(
+        `invalid tournamentSeed ${team.tournamentSeed}: must be an integer in 1..${capacity}`,
+      );
     }
-    if (tournamentSeeds.has(team.tournamentSeed)) throw new Error(`duplicate tournamentSeed: ${team.tournamentSeed}`);
+    if (tournamentSeeds.has(team.tournamentSeed))
+      throw new Error(`duplicate tournamentSeed: ${team.tournamentSeed}`);
     tournamentSeeds.add(team.tournamentSeed);
   }
   for (let seed = 1; seed <= capacity; seed += 1) {
-    if (!tournamentSeeds.has(seed)) throw new Error(`tournamentSeed set must be exactly 1..${capacity}; missing ${seed}`);
+    if (!tournamentSeeds.has(seed))
+      throw new Error(`tournamentSeed set must be exactly 1..${capacity}; missing ${seed}`);
   }
-  return [...teams].map((team) => ({ ...team })).sort((a, b) => a.tournamentSeed - b.tournamentSeed);
+  return [...teams]
+    .map((team) => ({ ...team }))
+    .sort((a, b) => a.tournamentSeed - b.tournamentSeed);
 }
 
 function buildFirstRoundPreview(
@@ -104,8 +111,16 @@ function buildFirstRoundPreview(
     const lower = entrantById.get(pairing.lowerSeedTeamId)!;
     return {
       round: 1,
-      higherSeed: { teamId: higher.teamId, tournamentSeed: higher.tournamentSeed, stageSeed: higher.initialStageSeed },
-      lowerSeed: { teamId: lower.teamId, tournamentSeed: lower.tournamentSeed, stageSeed: lower.initialStageSeed },
+      higherSeed: {
+        teamId: higher.teamId,
+        tournamentSeed: higher.tournamentSeed,
+        stageSeed: higher.initialStageSeed,
+      },
+      lowerSeed: {
+        teamId: lower.teamId,
+        tournamentSeed: lower.tournamentSeed,
+        stageSeed: lower.initialStageSeed,
+      },
       format: pairing.format,
       pairingRule: pairing.pairingRule,
     };
@@ -122,7 +137,9 @@ export function buildMajorOpeningPlan(input: {
   const tournamentTeams = normalizeTournamentTeams(input.teams, profile.entrantCapacity);
   const entryCohorts = profile.directEntryCohorts.map((cohort) => ({
     ...cohort,
-    entrants: tournamentTeams.filter((team) => team.tournamentSeed >= cohort.fromSeed && team.tournamentSeed <= cohort.toSeed),
+    entrants: tournamentTeams.filter(
+      (team) => team.tournamentSeed >= cohort.fromSeed && team.tournamentSeed <= cohort.toSeed,
+    ),
   }));
   const firstSwiss = profile.swissStages[0]!;
   const firstCohort = entryCohorts.find((cohort) => cohort.stageKey === firstSwiss.key)!;
@@ -137,6 +154,11 @@ export function buildMajorOpeningPlan(input: {
     tournamentTeams,
     entryCohorts,
     stage1: { key: firstSwiss.key, name: firstSwiss.name, entrants: stageOneEntrants },
-    firstRound: { pairings: buildFirstRoundPreview(stageOneEntrants, firstSwiss.matchFormat as MajorSwissStageMatchFormat) },
+    firstRound: {
+      pairings: buildFirstRoundPreview(
+        stageOneEntrants,
+        firstSwiss.matchFormat as MajorSwissStageMatchFormat,
+      ),
+    },
   };
 }

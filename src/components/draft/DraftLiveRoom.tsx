@@ -39,11 +39,17 @@ export function DraftLiveRoom({
   mode: initialMode,
 }: DraftLiveRoomProps) {
   const router = useRouter();
-  const [polled, setPolled] = useState<{ source: typeof initialData; sourceMode: typeof initialMode; data: typeof initialData; mode: "preview" | "live" | "archive" } | null>(null);
-  const data = polled?.source === initialData && polled.sourceMode === initialMode ? polled.data : initialData;
-  const mode = polled?.source === initialData && polled.sourceMode === initialMode ? polled.mode : initialMode;
-  const { state, teams, snakeOrder, remainingPlayers, completedPicks, totalPicks, maxPicks } =
-    data;
+  const [polled, setPolled] = useState<{
+    source: typeof initialData;
+    sourceMode: typeof initialMode;
+    data: typeof initialData;
+    mode: "preview" | "live" | "archive";
+  } | null>(null);
+  const data =
+    polled?.source === initialData && polled.sourceMode === initialMode ? polled.data : initialData;
+  const mode =
+    polled?.source === initialData && polled.sourceMode === initialMode ? polled.mode : initialMode;
+  const { state, teams, snakeOrder, remainingPlayers, completedPicks, totalPicks, maxPicks } = data;
 
   const isComplete = maxPicks > 0 && totalPicks >= maxPicks;
   const isArchive = mode === "archive" || (mode === undefined && Boolean(isReadonly));
@@ -56,9 +62,14 @@ export function DraftLiveRoom({
   const removeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showPickNotification = useCallback(
-    (payload: { personaName?: string | null; displayName?: string | null; perfectName?: string | null; userId: string; team_id: string }) => {
-      const teamName =
-        teams.find((t) => t.entryId === payload.team_id)?.teamName ?? "未知队伍";
+    (payload: {
+      personaName?: string | null;
+      displayName?: string | null;
+      perfectName?: string | null;
+      userId: string;
+      team_id: string;
+    }) => {
+      const teamName = teams.find((t) => t.entryId === payload.team_id)?.teamName ?? "未知队伍";
       const playerName = getPublicDisplayName(payload);
 
       setNotification({ teamName, playerName, userId: payload.userId, entryId: payload.team_id });
@@ -83,17 +94,29 @@ export function DraftLiveRoom({
     };
   }, []);
 
-  useGuardedVisiblePolling(async (isCurrent) => {
-    if (!seasonSlug) return;
-    const result = await readPublicDraft(seasonSlug).catch(error => { reportDeploymentUpdate(error); return null; });
-    if (!isCurrent()) return;
-    if (result?.success) {
-      const next = result.data;
-      setPolled({ source: initialData, sourceMode: initialMode, ...next });
-      if (next.mode !== mode || next.data.state?.isActive !== data.state?.isActive ||
-        (next.data.maxPicks > 0 && next.data.totalPicks >= next.data.maxPicks) !== isComplete) router.refresh();
-    } else router.refresh();
-  }, seasonSlug && !isArchive && !isComplete ? isLive ? 10_000 : 30_000 : null, seasonSlug, true);
+  useGuardedVisiblePolling(
+    async (isCurrent) => {
+      if (!seasonSlug) return;
+      const result = await readPublicDraft(seasonSlug).catch((error) => {
+        reportDeploymentUpdate(error);
+        return null;
+      });
+      if (!isCurrent()) return;
+      if (result?.success) {
+        const next = result.data;
+        setPolled({ source: initialData, sourceMode: initialMode, ...next });
+        if (
+          next.mode !== mode ||
+          next.data.state?.isActive !== data.state?.isActive ||
+          (next.data.maxPicks > 0 && next.data.totalPicks >= next.data.maxPicks) !== isComplete
+        )
+          router.refresh();
+      } else router.refresh();
+    },
+    seasonSlug && !isArchive && !isComplete ? (isLive ? 10_000 : 30_000) : null,
+    seasonSlug,
+    true,
+  );
 
   // Watch for new picks via completedPicks changes
   const prevPickCountRef = useRef(completedPicks.length);
@@ -120,10 +143,17 @@ export function DraftLiveRoom({
   }, [completedPicks, showPickNotification]);
 
   // 确定当前选秀队
-  const pickingEntryId = !isArchive && !isComplete ? state?.currentEntryId ?? null : null;
+  const pickingEntryId = !isArchive && !isComplete ? (state?.currentEntryId ?? null) : null;
   const pickingTeam = teams.find((t) => t.entryId === pickingEntryId);
-  const next = state?.currentEntryId && !isComplete ? getNextEntryId(teams.map(team => ({ id: team.entryId, draftOrder: team.draftOrder })), state.currentEntryId, state.currentRound) : null;
-  const nextTeam = teams.find(team => team.entryId === next?.entryId);
+  const next =
+    state?.currentEntryId && !isComplete
+      ? getNextEntryId(
+          teams.map((team) => ({ id: team.entryId, draftOrder: team.draftOrder })),
+          state.currentEntryId,
+          state.currentRound,
+        )
+      : null;
+  const nextTeam = teams.find((team) => team.entryId === next?.entryId);
 
   return (
     <div className="relative space-y-6">
@@ -139,15 +169,79 @@ export function DraftLiveRoom({
           role="status"
           aria-live="polite"
         >
-          {"🎯"} <TeamProfileLink entryId={notification.entryId}>{notification.teamName}</TeamProfileLink> 选择了 <PlayerProfileLink userId={notification.userId}>{notification.playerName}</PlayerProfileLink>
+          {"🎯"}{" "}
+          <TeamProfileLink entryId={notification.entryId}>{notification.teamName}</TeamProfileLink>{" "}
+          选择了{" "}
+          <PlayerProfileLink userId={notification.userId}>
+            {notification.playerName}
+          </PlayerProfileLink>
         </div>
       )}
 
-      {!isArchive && <section aria-label="选秀状态" className="grid gap-5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-panel)] p-5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
-        <div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">{isComplete ? "选秀已完成" : !state ? "等待开始" : isLive ? "正在选择" : "选秀暂停"}</p><h2 className="text-2xl font-semibold">{pickingTeam ? <TeamProfileLink entryId={pickingTeam.entryId}>{pickingTeam.teamName}</TeamProfileLink> : isComplete ? "最终阵容已就位" : "队伍阵容预览"}</h2>{pickingTeam?.captain.userId && <p className="mt-1 text-sm text-[var(--color-fg-mid)]">队长 <PlayerProfileLink userId={pickingTeam.captain.userId}>{getPublicDisplayName(pickingTeam.captain)}</PlayerProfileLink></p>}</div>
-        <div className="flex gap-8"><div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">已选 / 总计</p><p className="font-mono text-2xl tabular-nums">{totalPicks}<span className="text-base text-[var(--color-fg-mid)]"> / {maxPicks}</span></p></div>{state && <div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">轮次</p><p className="font-mono text-2xl">{state.currentRound}<span className="text-base text-[var(--color-fg-mid)]"> / {DRAFT_TOTAL_ROUNDS}</span></p></div>}</div>
-        {isLive && <div className="[&>span]:font-mono [&>span]:text-2xl"><p className="mb-2 text-xs text-[var(--color-fg-mid)]">剩余时间</p><DraftCountdown deadline={state?.roundDeadline ?? null} isActive />{nextTeam && <p className="mt-2 text-xs text-[var(--color-fg-mid)]">下一队 <TeamProfileLink entryId={nextTeam.entryId}>{nextTeam.teamName}</TeamProfileLink></p>}</div>}
-      </section>}
+      {!isArchive && (
+        <section
+          aria-label="选秀状态"
+          className="grid gap-5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-panel)] p-5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"
+        >
+          <div>
+            <p className="mb-2 text-xs text-[var(--color-fg-mid)]">
+              {isComplete ? "选秀已完成" : !state ? "等待开始" : isLive ? "正在选择" : "选秀暂停"}
+            </p>
+            <h2 className="text-2xl font-semibold">
+              {pickingTeam ? (
+                <TeamProfileLink entryId={pickingTeam.entryId}>
+                  {pickingTeam.teamName}
+                </TeamProfileLink>
+              ) : isComplete ? (
+                "最终阵容已就位"
+              ) : (
+                "队伍阵容预览"
+              )}
+            </h2>
+            {pickingTeam?.captain.userId && (
+              <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
+                队长{" "}
+                <PlayerProfileLink userId={pickingTeam.captain.userId}>
+                  {getPublicDisplayName(pickingTeam.captain)}
+                </PlayerProfileLink>
+              </p>
+            )}
+          </div>
+          <div className="flex gap-8">
+            <div>
+              <p className="mb-2 text-xs text-[var(--color-fg-mid)]">已选 / 总计</p>
+              <p className="font-mono text-2xl tabular-nums">
+                {totalPicks}
+                <span className="text-base text-[var(--color-fg-mid)]"> / {maxPicks}</span>
+              </p>
+            </div>
+            {state && (
+              <div>
+                <p className="mb-2 text-xs text-[var(--color-fg-mid)]">轮次</p>
+                <p className="font-mono text-2xl">
+                  {state.currentRound}
+                  <span className="text-base text-[var(--color-fg-mid)]">
+                    {" "}
+                    / {DRAFT_TOTAL_ROUNDS}
+                  </span>
+                </p>
+              </div>
+            )}
+          </div>
+          {isLive && (
+            <div className="[&>span]:font-mono [&>span]:text-2xl">
+              <p className="mb-2 text-xs text-[var(--color-fg-mid)]">剩余时间</p>
+              <DraftCountdown deadline={state?.roundDeadline ?? null} isActive />
+              {nextTeam && (
+                <p className="mt-2 text-xs text-[var(--color-fg-mid)]">
+                  下一队{" "}
+                  <TeamProfileLink entryId={nextTeam.entryId}>{nextTeam.teamName}</TeamProfileLink>
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* 队伍网格 */}
       <section>
@@ -206,7 +300,13 @@ export function DraftLiveRoom({
                     R{pick.round}P{pick.pickNumber}{" "}
                   </span>
                   <span className="text-[var(--color-fg)]">
-                    <TeamProfileLink entryId={pick.entryId}>{team?.teamName ?? "队伍"}</TeamProfileLink> · <PlayerProfileLink userId={pick.userId}>{getPublicDisplayName(pick)}</PlayerProfileLink>
+                    <TeamProfileLink entryId={pick.entryId}>
+                      {team?.teamName ?? "队伍"}
+                    </TeamProfileLink>{" "}
+                    ·{" "}
+                    <PlayerProfileLink userId={pick.userId}>
+                      {getPublicDisplayName(pick)}
+                    </PlayerProfileLink>
                   </span>
                   {pick.autoPicked && (
                     <span className="text-[var(--color-warn)] ml-0.5">{"⚡"}</span>
@@ -219,12 +319,14 @@ export function DraftLiveRoom({
       )}
 
       {/* 选手池 */}
-      {!isArchive && !isComplete && <section>
-        <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] mb-3 uppercase tracking-wider">
-          {isReadonly ? "选手池" : "剩余选手池"} ({remainingPlayers.length})
-        </h2>
-        <PlayerPool players={remainingPlayers} seasonPositions={seasonPositions} />
-      </section>}
+      {!isArchive && !isComplete && (
+        <section>
+          <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] mb-3 uppercase tracking-wider">
+            {isReadonly ? "选手池" : "剩余选手池"} ({remainingPlayers.length})
+          </h2>
+          <PlayerPool players={remainingPlayers} seasonPositions={seasonPositions} />
+        </section>
+      )}
     </div>
   );
 }

@@ -40,30 +40,50 @@ export function projectAdminDemoQuality(
       ...base,
       summary: `QA 检查${qa.ok ? "通过" : "未通过"}：${qa.errorCount} 条错误，${qa.warningCount} 条警告。`,
       notice: diagnostics
-        ? diagnostics.qa.omittedIssueCount > 0 ? `详情已截断，另有 ${diagnostics.qa.omittedIssueCount} 条未传送；总数仍以摘要为准。` : null
+        ? diagnostics.qa.omittedIssueCount > 0
+          ? `详情已截断，另有 ${diagnostics.qa.omittedIssueCount} 条未传送；总数仍以摘要为准。`
+          : null
         : "此证据未提供逐条警告和能力原因；无法从数量还原历史详情。",
-      issues: diagnostics?.qa.issues.map((issue) => ({
-        label: issue.severity === "error" ? "错误" : "警告",
-        code: issue.code, path: issue.path,
-        message: issue.message === "[redacted: raw diagnostic]"
-          ? "原始说明含运行日志或堆栈，已抑制；问题代码与定位仍保留。"
-          : issue.message === "[redacted]"
-            ? "无可安全展示的原始说明；问题代码与定位仍保留。"
-            : issue.message.includes("[redacted]") ? `${issue.message}（敏感片段已脱敏）` : issue.message,
-      })) ?? [],
+      issues:
+        diagnostics?.qa.issues.map((issue) => ({
+          label: issue.severity === "error" ? "错误" : "警告",
+          code: issue.code,
+          path: issue.path,
+          message:
+            issue.message === "[redacted: raw diagnostic]"
+              ? "原始说明含运行日志或堆栈，已抑制；问题代码与定位仍保留。"
+              : issue.message === "[redacted]"
+                ? "无可安全展示的原始说明；问题代码与定位仍保留。"
+                : issue.message.includes("[redacted]")
+                  ? `${issue.message}（敏感片段已脱敏）`
+                  : issue.message,
+        })) ?? [],
       capability: `高级击杀信息：${availability[capabilities.richKills]}`,
       capabilityReason: diagnostics ? reason[diagnostics.richKills.reason] : "能力原因未提供。",
-      coverage: diagnostics ? `击杀事件 ${diagnostics.richKills.eventCount} 条；含完整扩展标记 ${diagnostics.richKills.flagsEventCount} 条；当前武器可识别 ${diagnostics.richKills.namedActiveWeaponEventCount} 条。` : null,
+      coverage: diagnostics
+        ? `击杀事件 ${diagnostics.richKills.eventCount} 条；含完整扩展标记 ${diagnostics.richKills.flagsEventCount} 条；当前武器可识别 ${diagnostics.richKills.namedActiveWeaponEventCount} 条。`
+        : null,
     };
   } catch (error) {
     // Runtime correlation belongs to the read failure, never to the hashed Evidence.
     const failureId = ensureRequestId();
     captureException("demo.quality.read_failure", error, {
-      scope: "admin.demo", operation: "read-stored-quality", errorClass: "invariant", level: "error",
-      errorCode: "DEMO_QUALITY_READ_FAILED", requestId: failureId,
+      scope: "admin.demo",
+      operation: "read-stored-quality",
+      errorClass: "invariant",
+      level: "error",
+      errorCode: "DEMO_QUALITY_READ_FAILED",
+      requestId: failureId,
       safeContext: { importId: row.id, stage: "read-stored-evidence" },
     });
-    return { ...base, summary: "质量详情无法读取。", notice: `请联系管理员核对这份 Demo 数据。诊断编号：${failureId}`,
-      issues: [], capability: null, capabilityReason: null, coverage: null };
+    return {
+      ...base,
+      summary: "质量详情无法读取。",
+      notice: `请联系管理员核对这份 Demo 数据。诊断编号：${failureId}`,
+      issues: [],
+      capability: null,
+      capabilityReason: null,
+      coverage: null,
+    };
   }
 }

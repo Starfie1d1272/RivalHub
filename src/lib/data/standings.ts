@@ -14,7 +14,13 @@ export async function getMatchMapRoundScores(
   const rows = await db
     .select({ matchId: matchMaps.matchId, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB })
     .from(matchMaps)
-    .where(and(inArray(matchMaps.matchId, [...matchIds]), isNotNull(matchMaps.scoreA), isNotNull(matchMaps.scoreB)));
+    .where(
+      and(
+        inArray(matchMaps.matchId, [...matchIds]),
+        isNotNull(matchMaps.scoreA),
+        isNotNull(matchMaps.scoreB),
+      ),
+    );
   const result = new Map<string, MatchRoundScore[]>();
   for (const row of rows) {
     if (row.scoreA == null || row.scoreB == null) continue;
@@ -32,7 +38,10 @@ export async function getStandings(seasonId: string): Promise<TeamStanding[]> {
       orderBy: [asc(competitionEntries.formationOrder)],
     }),
     db.query.matches.findMany({
-      where: and(officialMatchCondition(), and(eq(matches.seasonId, seasonId), eq(matches.status, "finished"))),
+      where: and(
+        officialMatchCondition(),
+        and(eq(matches.seasonId, seasonId), eq(matches.status, "finished")),
+      ),
       orderBy: [asc(matches.completedAt), asc(matches.id)],
     }),
   ]);

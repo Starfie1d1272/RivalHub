@@ -2,7 +2,11 @@ import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches } from "@/db/schema";
-import { createStageBracket, ensureResolvedBracketMatch, saveStageBracketState } from "@/lib/bracket";
+import {
+  createStageBracket,
+  ensureResolvedBracketMatch,
+  saveStageBracketState,
+} from "@/lib/bracket";
 import type { StageExecutor } from "./types";
 import type { QualifiedTeam } from "@/types/season";
 import { isStageComplete } from "./_shared";
@@ -40,12 +44,18 @@ export const doubleElimExecutor: StageExecutor = {
     // Provider-driven matches are inserted as their nodes become resolved;
     // the latest completed match is the terminal grand-final result.
     const finalMatch = stageMatches[0];
-    if (finalMatch.scoreA === null || finalMatch.scoreB === null || finalMatch.scoreA === finalMatch.scoreB) {
+    if (
+      finalMatch.scoreA === null ||
+      finalMatch.scoreB === null ||
+      finalMatch.scoreA === finalMatch.scoreB
+    ) {
       return [];
     }
     assertCompetitionMatch(finalMatch);
-    const winnerId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryAId : finalMatch.entryBId;
-    const loserId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryBId : finalMatch.entryAId;
+    const winnerId =
+      finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryAId : finalMatch.entryBId;
+    const loserId =
+      finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryBId : finalMatch.entryAId;
     const result: QualifiedTeam[] = [{ teamId: winnerId, placement: "1st" }];
     if (config.advanceTiers.some((tier) => tier.placement === "2nd")) {
       result.push({ teamId: loserId, placement: "2nd" });

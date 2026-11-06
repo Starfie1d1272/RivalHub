@@ -44,12 +44,18 @@ export function resolveDefaultStageKey<T extends Pick<StageMatch, "stage">>(
   matches: readonly T[],
   requestedStage?: string,
 ): string | null {
-  if (requestedStage && requestedStage !== "all" && stagePlan.some((stage) => stage.key === requestedStage)) {
+  if (
+    requestedStage &&
+    requestedStage !== "all" &&
+    stagePlan.some((stage) => stage.key === requestedStage)
+  ) {
     return requestedStage;
   }
 
   const stagesWithMatches = new Set(matches.map((match) => match.stage));
-  return [...stagePlan].reverse().find((stage) => stagesWithMatches.has(stage.key))?.key
-    ?? stagePlan[0]?.key
-    ?? null;
+  return (
+    [...stagePlan].reverse().find((stage) => stagesWithMatches.has(stage.key))?.key ??
+    stagePlan[0]?.key ??
+    null
+  );
 }

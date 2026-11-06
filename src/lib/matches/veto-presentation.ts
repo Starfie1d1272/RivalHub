@@ -24,7 +24,9 @@ const ROLE_HELP: Record<MatchFormat, string> = {
 };
 
 export function vetoActionHelp(action: keyof typeof VETO_ACTION_HELP, format: MatchFormat): string {
-  return action === "role_select" ? `${VETO_ACTION_HELP.role_select}${ROLE_HELP[format]}` : VETO_ACTION_HELP[action];
+  return action === "role_select"
+    ? `${VETO_ACTION_HELP.role_select}${ROLE_HELP[format]}`
+    : VETO_ACTION_HELP[action];
 }
 
 /** Captain operation labels; historical record labels remain stable. */

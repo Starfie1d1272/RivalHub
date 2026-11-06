@@ -38,14 +38,26 @@ function isSteam64(value: string): boolean {
   return STEAM64_PATTERN.test(value);
 }
 
-function gameplayIdentityLookupQueries(database: GameplayIdentityExecutor, values: readonly string[]) {
+function gameplayIdentityLookupQueries(
+  database: GameplayIdentityExecutor,
+  values: readonly string[],
+) {
   return [
-    () => database.select({ steam64: users.steam64, userId: users.id })
-      .from(users)
-      .where(and(eq(users.status, "active"), inArray(users.steam64, [...values]))),
-    () => database.select({ steam64: userGameplaySteamIds.steam64, userId: userGameplaySteamIds.userId })
-      .from(userGameplaySteamIds)
-      .where(and(eq(userGameplaySteamIds.status, "active"), inArray(userGameplaySteamIds.steam64, [...values]))),
+    () =>
+      database
+        .select({ steam64: users.steam64, userId: users.id })
+        .from(users)
+        .where(and(eq(users.status, "active"), inArray(users.steam64, [...values]))),
+    () =>
+      database
+        .select({ steam64: userGameplaySteamIds.steam64, userId: userGameplaySteamIds.userId })
+        .from(userGameplaySteamIds)
+        .where(
+          and(
+            eq(userGameplaySteamIds.status, "active"),
+            inArray(userGameplaySteamIds.steam64, [...values]),
+          ),
+        ),
   ] as const;
 }
 
@@ -82,7 +94,10 @@ function resolveGameplayIdentityRows(
     const aliasIds = aliasesBySteam.get(steam64) ?? [];
     const userIds = new Set([...primaryIds, ...aliasIds]);
     if (userIds.size > 1) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, `Gameplay Steam64 ${steam64} 同时指向多个用户，已停止身份解析。`);
+      throw new AppError(
+        ErrorCode.INTERNAL_ERROR,
+        `Gameplay Steam64 ${steam64} 同时指向多个用户，已停止身份解析。`,
+      );
     }
     const userId = [...userIds][0];
     if (!userId) continue;
@@ -169,7 +184,10 @@ export async function assertSteam64Available(
   excludeUserId?: string,
 ): Promise<void> {
   if (await findSteam64Conflict(database, steam64, excludeUserId)) {
-    throw new AppError(ErrorCode.STEAM_PROFILE_CONFLICT, "该 Steam64 ID 已关联其他账户，请联系管理员处理。");
+    throw new AppError(
+      ErrorCode.STEAM_PROFILE_CONFLICT,
+      "该 Steam64 ID 已关联其他账户，请联系管理员处理。",
+    );
   }
 }
 
@@ -179,7 +197,10 @@ async function assertSteam64AvailableInTx(
   excludeUserId?: string,
 ): Promise<void> {
   if (await findSteam64ConflictInTx(tx, steam64, excludeUserId)) {
-    throw new AppError(ErrorCode.STEAM_PROFILE_CONFLICT, "该 Steam64 ID 已关联其他账户，请联系管理员处理。");
+    throw new AppError(
+      ErrorCode.STEAM_PROFILE_CONFLICT,
+      "该 Steam64 ID 已关联其他账户，请联系管理员处理。",
+    );
   }
 }
 
@@ -205,7 +226,8 @@ export async function recordGameplaySteamIdentityInTx(
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam 身份来源说明不能为空");
   }
 
-  const [user] = await tx.select({ id: users.id, status: users.status, steam64: users.steam64 })
+  const [user] = await tx
+    .select({ id: users.id, status: users.status, steam64: users.steam64 })
     .from(users)
     .where(eq(users.id, input.userId))
     .for("update");
@@ -219,26 +241,32 @@ export async function recordGameplaySteamIdentityInTx(
   await lockSteam64(tx, input.steam64);
   await assertSteam64AvailableInTx(tx, input.steam64, input.userId);
 
-  const [existing] = await tx.select({ id: userGameplaySteamIds.id })
+  const [existing] = await tx
+    .select({ id: userGameplaySteamIds.id })
     .from(userGameplaySteamIds)
-    .where(and(
-      eq(userGameplaySteamIds.userId, input.userId),
-      eq(userGameplaySteamIds.steam64, input.steam64),
-      eq(userGameplaySteamIds.status, "active"),
-    ))
+    .where(
+      and(
+        eq(userGameplaySteamIds.userId, input.userId),
+        eq(userGameplaySteamIds.steam64, input.steam64),
+        eq(userGameplaySteamIds.status, "active"),
+      ),
+    )
     .limit(1);
   if (existing) return { id: existing.id, created: false };
 
-  const [created] = await tx.insert(userGameplaySteamIds).values({
-    userId: input.userId,
-    steam64: input.steam64,
-    status: "active",
-    provenance: input.provenance,
-    sourceImportId: input.sourceImportId ?? null,
-    confirmedByUserId: input.actorId,
-    confirmedAt: new Date(),
-    reason,
-  }).returning({ id: userGameplaySteamIds.id });
+  const [created] = await tx
+    .insert(userGameplaySteamIds)
+    .values({
+      userId: input.userId,
+      steam64: input.steam64,
+      status: "active",
+      provenance: input.provenance,
+      sourceImportId: input.sourceImportId ?? null,
+      confirmedByUserId: input.actorId,
+      confirmedAt: new Date(),
+      reason,
+    })
+    .returning({ id: userGameplaySteamIds.id });
   if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "Steam 游戏身份保存失败");
   return { id: created.id, created: true };
 }
@@ -253,26 +281,30 @@ export async function retireGameplaySteamIdentityInTx(
   if (!reason) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam 身份撤销原因不能为空");
   }
-  const [identity] = await tx.select({
-    id: userGameplaySteamIds.id,
-    steam64: userGameplaySteamIds.steam64,
-    status: userGameplaySteamIds.status,
-  }).from(userGameplaySteamIds)
+  const [identity] = await tx
+    .select({
+      id: userGameplaySteamIds.id,
+      steam64: userGameplaySteamIds.steam64,
+      status: userGameplaySteamIds.status,
+    })
+    .from(userGameplaySteamIds)
     .where(eq(userGameplaySteamIds.id, input.identityId))
     .for("update");
   if (!identity) throw new AppError(ErrorCode.NOT_FOUND, "Steam 游戏身份不存在");
   if (identity.status === "retired") return { retired: false };
 
   await lockSteam64(tx, identity.steam64);
-  await tx.update(userGameplaySteamIds).set({
-    status: "retired",
-    retiredByUserId: input.actorId,
-    retiredAt: new Date(),
-    retiredReason: reason,
-  }).where(and(
-    eq(userGameplaySteamIds.id, input.identityId),
-    eq(userGameplaySteamIds.status, "active"),
-  ));
+  await tx
+    .update(userGameplaySteamIds)
+    .set({
+      status: "retired",
+      retiredByUserId: input.actorId,
+      retiredAt: new Date(),
+      retiredReason: reason,
+    })
+    .where(
+      and(eq(userGameplaySteamIds.id, input.identityId), eq(userGameplaySteamIds.status, "active")),
+    );
   await invalidateConfirmedDemoIdentityInTx(tx, { steam64: identity.steam64 });
   return { retired: true };
 }
@@ -292,7 +324,8 @@ export async function changePrimarySteam64InTx(
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam64 ID 格式不正确（应为 17 位数字）");
   }
 
-  const [user] = await tx.select({ id: users.id, status: users.status, steam64: users.steam64 })
+  const [user] = await tx
+    .select({ id: users.id, status: users.status, steam64: users.steam64 })
     .from(users)
     .where(eq(users.id, input.userId))
     .for("update");
@@ -300,7 +333,11 @@ export async function changePrimarySteam64InTx(
     throw new AppError(ErrorCode.NOT_FOUND, "用户资料不存在");
   }
 
-  const valuesToLock = [...new Set([user.steam64, input.nextSteam64].filter((value): value is string => value !== null))].sort();
+  const valuesToLock = [
+    ...new Set(
+      [user.steam64, input.nextSteam64].filter((value): value is string => value !== null),
+    ),
+  ].sort();
   for (const steam64 of valuesToLock) await lockSteam64(tx, steam64);
 
   if (input.nextSteam64) {
@@ -309,34 +346,43 @@ export async function changePrimarySteam64InTx(
   if (user.steam64 && user.steam64 !== input.nextSteam64) {
     const oldIdentityConflict = await findSteam64ConflictInTx(tx, user.steam64, input.userId);
     if (oldIdentityConflict) {
-      throw new AppError(ErrorCode.STEAM_PROFILE_CONFLICT, "该 Steam64 ID 已关联其他账户，请联系管理员处理。");
+      throw new AppError(
+        ErrorCode.STEAM_PROFILE_CONFLICT,
+        "该 Steam64 ID 已关联其他账户，请联系管理员处理。",
+      );
     }
   }
 
   const now = new Date();
   if (input.nextSteam64) {
-    await tx.update(userGameplaySteamIds)
+    await tx
+      .update(userGameplaySteamIds)
       .set({
         status: "retired",
         retiredByUserId: input.actorId,
         retiredAt: now,
         retiredReason: "该历史 Steam64 已恢复为当前 Steam64。",
       })
-      .where(and(
-        eq(userGameplaySteamIds.userId, input.userId),
-        eq(userGameplaySteamIds.steam64, input.nextSteam64),
-        eq(userGameplaySteamIds.status, "active"),
-      ));
+      .where(
+        and(
+          eq(userGameplaySteamIds.userId, input.userId),
+          eq(userGameplaySteamIds.steam64, input.nextSteam64),
+          eq(userGameplaySteamIds.status, "active"),
+        ),
+      );
   }
 
   if (user.steam64 && user.steam64 !== input.nextSteam64) {
-    const [existingHistory] = await tx.select({ id: userGameplaySteamIds.id })
+    const [existingHistory] = await tx
+      .select({ id: userGameplaySteamIds.id })
       .from(userGameplaySteamIds)
-      .where(and(
-        eq(userGameplaySteamIds.userId, input.userId),
-        eq(userGameplaySteamIds.steam64, user.steam64),
-        eq(userGameplaySteamIds.status, "active"),
-      ))
+      .where(
+        and(
+          eq(userGameplaySteamIds.userId, input.userId),
+          eq(userGameplaySteamIds.steam64, user.steam64),
+          eq(userGameplaySteamIds.status, "active"),
+        ),
+      )
       .limit(1);
     if (!existingHistory) {
       await recordGameplaySteamIdentityInTx(tx, {
@@ -349,7 +395,8 @@ export async function changePrimarySteam64InTx(
     }
   }
 
-  await tx.update(users)
+  await tx
+    .update(users)
     .set({ steam64: input.nextSteam64, updatedAt: now })
     .where(eq(users.id, input.userId));
   return { previousSteam64: user.steam64, steam64: input.nextSteam64 };
@@ -362,19 +409,46 @@ export async function loadGameplayIdentityReviewDetails(
 ) {
   const userIds = [...new Set([...resolutions.values()].map((value) => value.userId))];
   if (userIds.length === 0) return new Map<string, GameplayIdentityReviewDetail>();
-  const players = await tx.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
-    .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, userIds));
-  const aliases = await tx.select({ identityId: userGameplaySteamIds.id, userId: userGameplaySteamIds.userId,
-    steam64: userGameplaySteamIds.steam64, provenance: userGameplaySteamIds.provenance,
-    status: userGameplaySteamIds.status, sourceSeasonId: matchDemoImports.seasonId })
-    .from(userGameplaySteamIds).leftJoin(matchDemoImports, eq(matchDemoImports.id, userGameplaySteamIds.sourceImportId))
-    .where(and(inArray(userGameplaySteamIds.steam64, [...resolutions.keys()]), eq(userGameplaySteamIds.status, "active")));
-  return new Map([...resolutions].map(([steam64, resolution]) => {
-    const player = players.find((row) => row.userId === resolution.userId);
-    const alias = resolution.source === "gameplay_alias"
-      ? aliases.find((row) => row.steam64 === steam64 && row.userId === resolution.userId) : undefined;
-    return [steam64, { ...resolution, name: getDisplayName(player ?? {}), identity: alias ?? null }];
-  }));
+  const players = await tx
+    .select({
+      userId: users.id,
+      displayName: users.displayName,
+      perfectName: users.perfectName,
+      personaName: steamProfiles.personaName,
+    })
+    .from(users)
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(inArray(users.id, userIds));
+  const aliases = await tx
+    .select({
+      identityId: userGameplaySteamIds.id,
+      userId: userGameplaySteamIds.userId,
+      steam64: userGameplaySteamIds.steam64,
+      provenance: userGameplaySteamIds.provenance,
+      status: userGameplaySteamIds.status,
+      sourceSeasonId: matchDemoImports.seasonId,
+    })
+    .from(userGameplaySteamIds)
+    .leftJoin(matchDemoImports, eq(matchDemoImports.id, userGameplaySteamIds.sourceImportId))
+    .where(
+      and(
+        inArray(userGameplaySteamIds.steam64, [...resolutions.keys()]),
+        eq(userGameplaySteamIds.status, "active"),
+      ),
+    );
+  return new Map(
+    [...resolutions].map(([steam64, resolution]) => {
+      const player = players.find((row) => row.userId === resolution.userId);
+      const alias =
+        resolution.source === "gameplay_alias"
+          ? aliases.find((row) => row.steam64 === steam64 && row.userId === resolution.userId)
+          : undefined;
+      return [
+        steam64,
+        { ...resolution, name: getDisplayName(player ?? {}), identity: alias ?? null },
+      ];
+    }),
+  );
 }
 
 export interface GameplayIdentityReviewDetail extends GameplayUserResolution {

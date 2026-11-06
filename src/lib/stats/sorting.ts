@@ -15,9 +15,10 @@ export function compareStatsValues(
     return leftMissing ? 1 : -1;
   }
 
-  const comparison = typeof left === "number" && typeof right === "number"
-    ? left - right
-    : String(left).localeCompare(String(right), "zh-CN", { numeric: true, sensitivity: "base" });
+  const comparison =
+    typeof left === "number" && typeof right === "number"
+      ? left - right
+      : String(left).localeCompare(String(right), "zh-CN", { numeric: true, sensitivity: "base" });
   return direction === "asc" ? comparison : -comparison;
 }
 
@@ -26,12 +27,24 @@ export interface StatsSortRule<T> {
   direction?: StatsSortDirection;
 }
 
-export function sortStatsRows<T>(rows: readonly T[], primary: StatsSortRule<T>, tieBreakers: readonly StatsSortRule<T>[] = []): T[] {
+export function sortStatsRows<T>(
+  rows: readonly T[],
+  primary: StatsSortRule<T>,
+  tieBreakers: readonly StatsSortRule<T>[] = [],
+): T[] {
   return [...rows].sort((left, right) => {
-    const comparison = compareStatsValues(primary.getValue(left), primary.getValue(right), primary.direction);
+    const comparison = compareStatsValues(
+      primary.getValue(left),
+      primary.getValue(right),
+      primary.direction,
+    );
     if (comparison !== 0) return comparison;
     for (const tieBreaker of tieBreakers) {
-      const tie = compareStatsValues(tieBreaker.getValue(left), tieBreaker.getValue(right), tieBreaker.direction);
+      const tie = compareStatsValues(
+        tieBreaker.getValue(left),
+        tieBreaker.getValue(right),
+        tieBreaker.direction,
+      );
       if (tie !== 0) return tie;
     }
     return 0;

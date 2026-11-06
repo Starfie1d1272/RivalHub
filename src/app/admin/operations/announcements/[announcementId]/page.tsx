@@ -18,7 +18,7 @@ export default async function EditAnnouncementPage({
 }) {
   const admin = await resolveAdminPageAccess(requireAdmin);
   if (!admin) return <AdminAccessDenied />;
-  const role = admin.role === "super_admin" ? "super_admin" as const : "season_admin" as const;
+  const role = admin.role === "super_admin" ? ("super_admin" as const) : ("season_admin" as const);
   const { announcementId } = await params;
 
   const [announcement, seasonRows] = await Promise.all([
@@ -26,7 +26,13 @@ export default async function EditAnnouncementPage({
     db
       .select({ id: seasons.id, name: seasons.name })
       .from(seasons)
-      .where(role === "super_admin" ? undefined : admin.seasonIds.length ? inArray(seasons.id, admin.seasonIds) : inArray(seasons.id, [] as string[]))
+      .where(
+        role === "super_admin"
+          ? undefined
+          : admin.seasonIds.length
+            ? inArray(seasons.id, admin.seasonIds)
+            : inArray(seasons.id, [] as string[]),
+      )
       .orderBy(asc(seasons.name)),
   ]);
 

@@ -12,6 +12,10 @@ export async function authorizeDakPairingAction(formData: FormData) {
     if (!pairingId) return failValidation("连接请求无效");
     const authorization = await requireAdmin();
     await authorizeDakPairing(pairingId, authorization);
-    return ok({ redirectTo: `/integrations/dak/connect?pairingId=${encodeURIComponent(pairingId)}&authorized=1` });
-  } catch (error) { return actionError("integrations.dak.authorize", error); }
+    return ok({
+      redirectTo: `/integrations/dak/connect?pairingId=${encodeURIComponent(pairingId)}&authorized=1`,
+    });
+  } catch (error) {
+    return actionError("integrations.dak.authorize", error);
+  }
 }

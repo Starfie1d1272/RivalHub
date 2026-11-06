@@ -27,11 +27,11 @@ export function ScrollHint({
 
     const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
     const nextCanScrollLeft = container.scrollLeft > SCROLL_EPSILON;
-    const nextCanScrollRight = maxScrollLeft > SCROLL_EPSILON
-      && container.scrollLeft < maxScrollLeft - SCROLL_EPSILON;
+    const nextCanScrollRight =
+      maxScrollLeft > SCROLL_EPSILON && container.scrollLeft < maxScrollLeft - SCROLL_EPSILON;
 
-    setCanScrollLeft((current) => current === nextCanScrollLeft ? current : nextCanScrollLeft);
-    setCanScrollRight((current) => current === nextCanScrollRight ? current : nextCanScrollRight);
+    setCanScrollLeft((current) => (current === nextCanScrollLeft ? current : nextCanScrollLeft));
+    setCanScrollRight((current) => (current === nextCanScrollRight ? current : nextCanScrollRight));
   }, []);
 
   React.useEffect(() => {
@@ -75,7 +75,9 @@ export function ScrollHint({
           style={{ background: `linear-gradient(to left, ${fromColor}, transparent)` }}
         />
       )}
-      <div ref={scrollRef} className="overflow-x-auto">{children}</div>
+      <div ref={scrollRef} className="overflow-x-auto">
+        {children}
+      </div>
     </div>
   );
 }

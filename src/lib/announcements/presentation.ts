@@ -26,8 +26,17 @@ export type PublicAnnouncement = {
   attentionUntil: string | null;
 };
 
-type AnnouncementWithSeason = Pick<Announcement,
-  "id" | "scope" | "type" | "title" | "body" | "publishedAt" | "updatedAt" | "requiresAttention" | "attentionUntil"
+type AnnouncementWithSeason = Pick<
+  Announcement,
+  | "id"
+  | "scope"
+  | "type"
+  | "title"
+  | "body"
+  | "publishedAt"
+  | "updatedAt"
+  | "requiresAttention"
+  | "attentionUntil"
 > & { season?: { slug: string; name: string } | null };
 
 export function announcementTypeLabel(type: Announcement["type"]): string {
@@ -42,9 +51,11 @@ export function isAnnouncementAttentionEligible(
   announcement: Pick<Announcement, "status" | "requiresAttention" | "attentionUntil">,
   now = new Date(),
 ): boolean {
-  return announcement.status === "published"
-    && announcement.requiresAttention
-    && (!announcement.attentionUntil || announcement.attentionUntil.getTime() > now.getTime());
+  return (
+    announcement.status === "published" &&
+    announcement.requiresAttention &&
+    (!announcement.attentionUntil || announcement.attentionUntil.getTime() > now.getTime())
+  );
 }
 
 export function toPublicAnnouncement(row: AnnouncementWithSeason): PublicAnnouncement {
@@ -52,7 +63,7 @@ export function toPublicAnnouncement(row: AnnouncementWithSeason): PublicAnnounc
   return {
     id: row.id,
     scope: row.scope,
-    scopeLabel: row.scope === "site" ? "全站" : row.season?.name ?? "赛事公告",
+    scopeLabel: row.scope === "site" ? "全站" : (row.season?.name ?? "赛事公告"),
     season: row.season ? { slug: row.season.slug, name: row.season.name } : null,
     type: row.type,
     typeLabel: announcementTypeLabel(row.type),
@@ -65,34 +76,44 @@ export function toPublicAnnouncement(row: AnnouncementWithSeason): PublicAnnounc
   };
 }
 
-export function selectLatestAnnouncement<T extends { publishedAt: Date | null; updatedAt: Date; id: string }>(rows: readonly T[]): T | null {
-  return [...rows].sort((a, b) => {
-    const published = (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0);
-    if (published !== 0) return published;
-    const updated = b.updatedAt.getTime() - a.updatedAt.getTime();
-    return updated !== 0 ? updated : b.id.localeCompare(a.id);
-  })[0] ?? null;
+export function selectLatestAnnouncement<
+  T extends { publishedAt: Date | null; updatedAt: Date; id: string },
+>(rows: readonly T[]): T | null {
+  return (
+    [...rows].sort((a, b) => {
+      const published = (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0);
+      if (published !== 0) return published;
+      const updated = b.updatedAt.getTime() - a.updatedAt.getTime();
+      return updated !== 0 ? updated : b.id.localeCompare(a.id);
+    })[0] ?? null
+  );
 }
 
-export function selectAttentionAnnouncement<T extends {
-  scope: "site" | "season";
-  status: "draft" | "published";
-  requiresAttention: boolean;
-  attentionUntil: Date | null;
-  publishedAt: Date | null;
-  updatedAt: Date;
-  id: string;
-}>(rows: readonly T[], seasonId?: string, now = new Date()): T | null {
-  return [...rows]
-    .filter((row) => isAnnouncementAttentionEligible(row, now))
-    .sort((a, b) => {
-      const aPriority = seasonId && a.scope === "season" ? 0 : a.scope === "site" ? 1 : 2;
-      const bPriority = seasonId && b.scope === "season" ? 0 : b.scope === "site" ? 1 : 2;
-      if (aPriority !== bPriority) return aPriority - bPriority;
-      return (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0)
-        || b.updatedAt.getTime() - a.updatedAt.getTime()
-        || b.id.localeCompare(a.id);
-    })[0] ?? null;
+export function selectAttentionAnnouncement<
+  T extends {
+    scope: "site" | "season";
+    status: "draft" | "published";
+    requiresAttention: boolean;
+    attentionUntil: Date | null;
+    publishedAt: Date | null;
+    updatedAt: Date;
+    id: string;
+  },
+>(rows: readonly T[], seasonId?: string, now = new Date()): T | null {
+  return (
+    [...rows]
+      .filter((row) => isAnnouncementAttentionEligible(row, now))
+      .sort((a, b) => {
+        const aPriority = seasonId && a.scope === "season" ? 0 : a.scope === "site" ? 1 : 2;
+        const bPriority = seasonId && b.scope === "season" ? 0 : b.scope === "site" ? 1 : 2;
+        if (aPriority !== bPriority) return aPriority - bPriority;
+        return (
+          (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0) ||
+          b.updatedAt.getTime() - a.updatedAt.getTime() ||
+          b.id.localeCompare(a.id)
+        );
+      })[0] ?? null
+  );
 }
 export function stripMarkdown(markdown: string): string {
   return markdown

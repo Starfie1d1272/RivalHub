@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { expireSanction as telemetry_expireSanction, issueSanction as telemetry_issueSanction, revokeSanction as telemetry_revokeSanction, searchSanctionSubjects } from "@/actions/discipline";
+import {
+  expireSanction as telemetry_expireSanction,
+  issueSanction as telemetry_issueSanction,
+  revokeSanction as telemetry_revokeSanction,
+  searchSanctionSubjects,
+} from "@/actions/discipline";
 import type { SanctionEffect } from "@/lib/discipline/contract";
 import { SANCTION_EFFECTS } from "@/lib/discipline/contract";
 import { formatCST, parseCSTInput } from "@/lib/utils/date";
@@ -31,7 +36,10 @@ const expireSanction = observeAction("discipline.expireSanction", telemetry_expi
 const issueSanction = observeAction("discipline.issueSanction", telemetry_issueSanction);
 const revokeSanction = observeAction("discipline.revokeSanction", telemetry_revokeSanction);
 
-export type { DisciplineSanctionRow, DisciplineSubjectOption } from "@/lib/discipline/admin-review-contract";
+export type {
+  DisciplineSanctionRow,
+  DisciplineSubjectOption,
+} from "@/lib/discipline/admin-review-contract";
 
 /**
  * 管理员专用 discipline 面板。`internalEvidence` 仅出现在本组件的
@@ -149,7 +157,7 @@ export function DisciplineManagement({
 
   const requestedStatus = searchParams.get("status");
   const currentStatus = STATUS_OPTIONS.some((option) => option.value === requestedStatus)
-    ? requestedStatus as DisciplineAdminQuery["status"]
+    ? (requestedStatus as DisciplineAdminQuery["status"])
     : normalizedQuery.status;
 
   function toggleEffect(effect: SanctionEffect) {
@@ -248,7 +256,10 @@ export function DisciplineManagement({
         <h2 className="text-base font-semibold text-[var(--color-fg)]">签发处罚</h2>
         <Panel contentClassName="space-y-4 p-5">
           <div className="space-y-2">
-            <label className="block text-sm text-[var(--color-fg-mid)]" htmlFor="discipline-subject-search">
+            <label
+              className="block text-sm text-[var(--color-fg-mid)]"
+              htmlFor="discipline-subject-search"
+            >
               搜索被处罚用户（展示昵称 / 完美昵称 / Steam 昵称 / 邮箱，至少 2 个字符）
             </label>
             <input
@@ -260,7 +271,9 @@ export function DisciplineManagement({
               className="w-full max-w-sm rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-fg-dim)] outline-none focus:border-[var(--color-accent)] transition-colors"
             />
             {subjectSearchError && (
-              <p role="alert" className="text-sm text-[var(--color-danger)]">{subjectSearchError}</p>
+              <p role="alert" className="text-sm text-[var(--color-danger)]">
+                {subjectSearchError}
+              </p>
             )}
             <select
               aria-label="选择被处罚用户"
@@ -279,16 +292,21 @@ export function DisciplineManagement({
                 </option>
               ))}
             </select>
-            {subjectQuery.trim().length >= MIN_QUERY_LENGTH && subjectResults.length === 0 && !subjectSearchError && (
-              <p className="text-xs text-[var(--color-fg-mid)]">没有匹配的用户。</p>
-            )}
+            {subjectQuery.trim().length >= MIN_QUERY_LENGTH &&
+              subjectResults.length === 0 &&
+              !subjectSearchError && (
+                <p className="text-xs text-[var(--color-fg-mid)]">没有匹配的用户。</p>
+              )}
           </div>
 
           <div className="space-y-2">
             <span className="block text-sm text-[var(--color-fg-mid)]">处罚效果（至少一项）</span>
             <div className="flex flex-wrap gap-3">
               {SANCTION_EFFECTS.map((effect) => (
-                <label key={effect} className="flex items-center gap-1.5 text-sm text-[var(--color-fg)]">
+                <label
+                  key={effect}
+                  className="flex items-center gap-1.5 text-sm text-[var(--color-fg)]"
+                >
                   <input
                     type="checkbox"
                     checked={effects.includes(effect)}
@@ -301,7 +319,10 @@ export function DisciplineManagement({
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm text-[var(--color-fg-mid)]" htmlFor="discipline-internal-evidence">
+            <label
+              className="block text-sm text-[var(--color-fg-mid)]"
+              htmlFor="discipline-internal-evidence"
+            >
               内部证据（仅管理员可见）
             </label>
             <textarea
@@ -315,7 +336,10 @@ export function DisciplineManagement({
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm text-[var(--color-fg-mid)]" htmlFor="discipline-public-explanation">
+            <label
+              className="block text-sm text-[var(--color-fg-mid)]"
+              htmlFor="discipline-public-explanation"
+            >
               公开处罚说明
             </label>
             <textarea
@@ -327,11 +351,19 @@ export function DisciplineManagement({
               maxLength={1000}
               className="w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)] transition-colors"
             />
-            <p id="discipline-public-explanation-help" className="text-xs text-[var(--color-fg-mid)]">向本人展示，并用于个人主页公示。请勿填写内部证据或敏感信息。</p>
+            <p
+              id="discipline-public-explanation-help"
+              className="text-xs text-[var(--color-fg-mid)]"
+            >
+              向本人展示，并用于个人主页公示。请勿填写内部证据或敏感信息。
+            </p>
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm text-[var(--color-fg-mid)]" htmlFor="discipline-effective-until">
+            <label
+              className="block text-sm text-[var(--color-fg-mid)]"
+              htmlFor="discipline-effective-until"
+            >
               有效期至（北京时间，留空为长期有效）
             </label>
             <input
@@ -344,10 +376,14 @@ export function DisciplineManagement({
           </div>
 
           {issueError && (
-            <p role="alert" className="text-sm text-[var(--color-danger)]">{issueError}</p>
+            <p role="alert" className="text-sm text-[var(--color-danger)]">
+              {issueError}
+            </p>
           )}
 
-          <Button type="button" variant="outline" onClick={handleIssue} disabled={pending}>签发处罚</Button>
+          <Button type="button" variant="outline" onClick={handleIssue} disabled={pending}>
+            签发处罚
+          </Button>
         </Panel>
       </section>
 
@@ -371,7 +407,11 @@ export function DisciplineManagement({
               onChange={(event) => update({ status: event.target.value })}
               className="h-9 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)]"
             >
-              {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
           <ClearFilters
@@ -385,7 +425,9 @@ export function DisciplineManagement({
         </ListToolbar>
 
         {sanctions.length === 0 ? (
-          <EmptyState title={hasAnyRecords ? "没有符合当前筛选条件的纪律处罚" : "本赛事暂无纪律处罚记录"} />
+          <EmptyState
+            title={hasAnyRecords ? "没有符合当前筛选条件的纪律处罚" : "本赛事暂无纪律处罚记录"}
+          />
         ) : (
           <div className="space-y-3">
             {sanctions.map((row) => (
@@ -397,7 +439,10 @@ export function DisciplineManagement({
                     data-status={row.resolvedStatus}
                     style={
                       row.resolvedStatus === "active"
-                        ? { background: "color-mix(in srgb, var(--color-danger) 12%, transparent)", color: "var(--color-danger)" }
+                        ? {
+                            background: "color-mix(in srgb, var(--color-danger) 12%, transparent)",
+                            color: "var(--color-danger)",
+                          }
                         : { background: "var(--color-panel-low)", color: "var(--color-fg-mid)" }
                     }
                   >
@@ -412,34 +457,58 @@ export function DisciplineManagement({
                     </span>
                   ))}
                 </div>
-                <p className="text-sm text-[var(--color-fg-mid)]">生效窗口：{describeWindow(row)}</p>
+                <p className="text-sm text-[var(--color-fg-mid)]">
+                  生效窗口：{describeWindow(row)}
+                </p>
                 <p className="text-sm">公开说明：{row.publicExplanation ?? "—"}</p>
                 {row.internalEvidence && (
                   <p className="text-sm">
-                    内部证据：<span className="text-[var(--color-fg-mid)]">{row.internalEvidence}</span>
+                    内部证据：
+                    <span className="text-[var(--color-fg-mid)]">{row.internalEvidence}</span>
                   </p>
                 )}
                 {row.revocationReason && (
-                  <p className="text-sm text-[var(--color-fg-mid)]">撤销原因：{row.revocationReason}</p>
+                  <p className="text-sm text-[var(--color-fg-mid)]">
+                    撤销原因：{row.revocationReason}
+                  </p>
                 )}
                 {rowErrors[row.id] && (
-                  <p role="alert" className="text-sm text-[var(--color-danger)]">{rowErrors[row.id]}</p>
+                  <p role="alert" className="text-sm text-[var(--color-danger)]">
+                    {rowErrors[row.id]}
+                  </p>
                 )}
                 <div className="flex flex-wrap items-center gap-2">
                   {row.resolvedStatus !== "revoked" && (
-                    <Button type="button" size="sm" variant="destructive" onClick={() => { setRevokeTarget(revokeTarget === row.id ? null : row.id); setRevokeReason(""); }}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        setRevokeTarget(revokeTarget === row.id ? null : row.id);
+                        setRevokeReason("");
+                      }}
+                    >
                       撤销
                     </Button>
                   )}
                   {row.storedStatus === "active" && row.resolvedStatus === "expired" && (
-                    <Button type="button" size="sm" variant="outline" onClick={() => handleExpire(row.id)} disabled={pending}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleExpire(row.id)}
+                      disabled={pending}
+                    >
                       标记过期
                     </Button>
                   )}
                 </div>
                 {revokeTarget === row.id && (
                   <div className="space-y-2 rounded-sm border border-[var(--color-border)] p-3">
-                    <label className="block text-sm text-[var(--color-fg-mid)]" htmlFor={`revoke-reason-${row.id}`}>
+                    <label
+                      className="block text-sm text-[var(--color-fg-mid)]"
+                      htmlFor={`revoke-reason-${row.id}`}
+                    >
                       撤销原因（必填）
                     </label>
                     <textarea
@@ -460,7 +529,15 @@ export function DisciplineManagement({
                       >
                         确认撤销
                       </Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => { setRevokeTarget(null); setRevokeReason(""); }}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setRevokeTarget(null);
+                          setRevokeReason("");
+                        }}
+                      >
                         取消
                       </Button>
                     </div>
@@ -476,7 +553,9 @@ export function DisciplineManagement({
         <PaginationControls
           page={page}
           totalPages={totalPages}
-          onPageChange={(nextPage) => update({ page: nextPage }, { defaults: { page: 1 }, history: "push" })}
+          onPageChange={(nextPage) =>
+            update({ page: nextPage }, { defaults: { page: 1 }, history: "push" })
+          }
         />
       </section>
     </div>

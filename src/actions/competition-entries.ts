@@ -39,193 +39,367 @@ function revalidateEntry(seasonSlug: string, entryId?: string): void {
   if (entryId) revalidatePath(`/${seasonSlug}/entries/${entryId}`);
 }
 
-export async function createCompetitionEntry(input: { competitionId: string; teamId: string }): Promise<ActionResult<{ entryId: string }>> {
+export async function createCompetitionEntry(input: {
+  competitionId: string;
+  teamId: string;
+}): Promise<ActionResult<{ entryId: string }>> {
   const parsed = z.object({ competitionId: uuid, teamId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("赛事或队伍标识无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => createCompetitionEntryInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
+    const result = await db.transaction((tx) =>
+      createCompetitionEntryInTx(tx, {
+        ...parsed.data,
+        userId: session.userId,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateEntry(result.seasonSlug, result.entryId);
     return ok({ entryId: result.entryId });
-  } catch (error) { return actionError("createCompetitionEntry", error); }
+  } catch (error) {
+    return actionError("createCompetitionEntry", error);
+  }
 }
 
-export async function saveCompetitionEntryRoster(input: { entryId: string; userIds: string[]; primaryStarterUserIds: string[]; perfectTeamId?: string | null }): Promise<ActionResult<void>> {
-  const parsed = z.object({ entryId: uuid, userIds: z.array(uuid).min(1).max(9), primaryStarterUserIds: z.array(uuid).max(5), perfectTeamId: z.union([z.literal(""), z.string().max(128).regex(/^[0-9]+$/), z.null()]).optional() }).safeParse(input);
-  if (!parsed.success || new Set(parsed.data.userIds).size !== parsed.data.userIds.length || new Set(parsed.data.primaryStarterUserIds).size !== parsed.data.primaryStarterUserIds.length || parsed.data.primaryStarterUserIds.some((id) => !parsed.data.userIds.includes(id))) return failValidation("赛事名单或预定主力无效。");
+export async function saveCompetitionEntryRoster(input: {
+  entryId: string;
+  userIds: string[];
+  primaryStarterUserIds: string[];
+  perfectTeamId?: string | null;
+}): Promise<ActionResult<void>> {
+  const parsed = z
+    .object({
+      entryId: uuid,
+      userIds: z.array(uuid).min(1).max(9),
+      primaryStarterUserIds: z.array(uuid).max(5),
+      perfectTeamId: z
+        .union([
+          z.literal(""),
+          z
+            .string()
+            .max(128)
+            .regex(/^[0-9]+$/),
+          z.null(),
+        ])
+        .optional(),
+    })
+    .safeParse(input);
+  if (
+    !parsed.success ||
+    new Set(parsed.data.userIds).size !== parsed.data.userIds.length ||
+    new Set(parsed.data.primaryStarterUserIds).size !== parsed.data.primaryStarterUserIds.length ||
+    parsed.data.primaryStarterUserIds.some((id) => !parsed.data.userIds.includes(id))
+  )
+    return failValidation("赛事名单或预定主力无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => saveCompetitionEntryRosterInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
+    const result = await db.transaction((tx) =>
+      saveCompetitionEntryRosterInTx(tx, {
+        ...parsed.data,
+        userId: session.userId,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("saveCompetitionEntryRoster", error); }
+  } catch (error) {
+    return actionError("saveCompetitionEntryRoster", error);
+  }
 }
 
-export async function addCompetitionEntryRosterMember(input: { entryId: string; memberUserId: string }): Promise<ActionResult<void>> {
+export async function addCompetitionEntryRosterMember(input: {
+  entryId: string;
+  memberUserId: string;
+}): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid, memberUserId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("队伍或成员信息无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction(tx => addCompetitionEntryRosterMemberInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
+    const result = await db.transaction((tx) =>
+      addCompetitionEntryRosterMemberInTx(tx, {
+        ...parsed.data,
+        userId: session.userId,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     revalidatePath("/my/teams");
     return ok(undefined);
-  } catch (error) { return actionError("addCompetitionEntryRosterMember", error); }
+  } catch (error) {
+    return actionError("addCompetitionEntryRosterMember", error);
+  }
 }
 
-export async function transferCompetitionEntryParticipation(input: { entryId: string; fromEntryId: string }): Promise<ActionResult<void>> {
+export async function transferCompetitionEntryParticipation(input: {
+  entryId: string;
+  fromEntryId: string;
+}): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid, fromEntryId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("参赛队伍信息无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction(tx => transferCompetitionEntryParticipationInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
+    const result = await db.transaction((tx) =>
+      transferCompetitionEntryParticipationInTx(tx, {
+        ...parsed.data,
+        userId: session.userId,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     revalidatePath(`/${result.seasonSlug}/entries/${parsed.data.fromEntryId}`);
     revalidatePath("/my/teams");
     return ok(undefined);
-  } catch (error) { return actionError("transferCompetitionEntryParticipation", error); }
+  } catch (error) {
+    return actionError("transferCompetitionEntryParticipation", error);
+  }
 }
 
-export async function confirmCompetitionEntryParticipation(input: { entryId: string }): Promise<ActionResult<void>> {
+export async function confirmCompetitionEntryParticipation(input: {
+  entryId: string;
+}): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => confirmCompetitionEntryParticipationInTx(tx, { entryId: parsed.data.entryId, userId: session.userId, actorId: auditActorId(session) }));
+    const result = await db.transaction((tx) =>
+      confirmCompetitionEntryParticipationInTx(tx, {
+        entryId: parsed.data.entryId,
+        userId: session.userId,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("confirmCompetitionEntryParticipation", error); }
+  } catch (error) {
+    return actionError("confirmCompetitionEntryParticipation", error);
+  }
 }
 
-export async function withdrawCompetitionEntryParticipation(input: { entryId: string }): Promise<ActionResult<void>> {
+export async function withdrawCompetitionEntryParticipation(input: {
+  entryId: string;
+}): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => withdrawCompetitionEntryParticipationInTx(tx, { entryId: parsed.data.entryId, userId: session.userId, actorId: auditActorId(session) }));
+    const result = await db.transaction((tx) =>
+      withdrawCompetitionEntryParticipationInTx(tx, {
+        entryId: parsed.data.entryId,
+        userId: session.userId,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("withdrawCompetitionEntryParticipation", error); }
+  } catch (error) {
+    return actionError("withdrawCompetitionEntryParticipation", error);
+  }
 }
 
-export async function declineCompetitionEntryParticipation(input: { entryId: string }): Promise<ActionResult<void>> {
+export async function declineCompetitionEntryParticipation(input: {
+  entryId: string;
+}): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => declineCompetitionEntryParticipationInTx(tx, { entryId: parsed.data.entryId, userId: session.userId, actorId: auditActorId(session) }));
+    const result = await db.transaction((tx) =>
+      declineCompetitionEntryParticipationInTx(tx, {
+        entryId: parsed.data.entryId,
+        userId: session.userId,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("declineCompetitionEntryParticipation", error); }
+  } catch (error) {
+    return actionError("declineCompetitionEntryParticipation", error);
+  }
 }
 
-export async function withdrawCompetitionEntryFromReview(input: { entryId: string }): Promise<ActionResult<void>> {
+export async function withdrawCompetitionEntryFromReview(input: {
+  entryId: string;
+}): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => withdrawCompetitionEntryFromReviewInTx(tx, {
-      entryId: parsed.data.entryId,
-      userId: session.userId,
-      actorId: auditActorId(session),
-    }));
+    const result = await db.transaction((tx) =>
+      withdrawCompetitionEntryFromReviewInTx(tx, {
+        entryId: parsed.data.entryId,
+        userId: session.userId,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("withdrawCompetitionEntryFromReview", error); }
+  } catch (error) {
+    return actionError("withdrawCompetitionEntryFromReview", error);
+  }
 }
 
-export async function requestCompetitionEntryRosterChange(input: { entryId: string }): Promise<ActionResult<void>> {
+export async function requestCompetitionEntryRosterChange(input: {
+  entryId: string;
+}): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => requestCompetitionEntryRosterChangeInTx(tx, {
-      entryId: parsed.data.entryId,
-      representativeUserId: session.userId,
-      actorId: auditActorId(session),
-    }));
+    const result = await db.transaction((tx) =>
+      requestCompetitionEntryRosterChangeInTx(tx, {
+        entryId: parsed.data.entryId,
+        representativeUserId: session.userId,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("requestCompetitionEntryRosterChange", error); }
+  } catch (error) {
+    return actionError("requestCompetitionEntryRosterChange", error);
+  }
 }
 
-export async function submitCompetitionEntry(input: { entryId: string }): Promise<ActionResult<void>> {
+export async function submitCompetitionEntry(input: {
+  entryId: string;
+}): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => submitCompetitionEntryInTx(tx, {
-      entryId: parsed.data.entryId,
-      userId: session.userId,
-      actorId: auditActorId(session),
-    }));
+    const result = await db.transaction((tx) =>
+      submitCompetitionEntryInTx(tx, {
+        entryId: parsed.data.entryId,
+        userId: session.userId,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("submitCompetitionEntry", error); }
+  } catch (error) {
+    return actionError("submitCompetitionEntry", error);
+  }
 }
 
-export async function reviewCompetitionEntry(input: { entryId: string; decision: "changes_requested" | "waitlisted" | "approved" | "rejected"; reason?: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ entryId: uuid, decision: z.enum(["changes_requested", "waitlisted", "approved", "rejected"]), reason: z.string().trim().max(1000).optional() }).safeParse(input);
-  if (!parsed.success || ((parsed.data.decision === "changes_requested" || parsed.data.decision === "rejected") && !parsed.data.reason)) return failValidation("审核决定或原因无效。");
+export async function reviewCompetitionEntry(input: {
+  entryId: string;
+  decision: "changes_requested" | "waitlisted" | "approved" | "rejected";
+  reason?: string;
+}): Promise<ActionResult<void>> {
+  const parsed = z
+    .object({
+      entryId: uuid,
+      decision: z.enum(["changes_requested", "waitlisted", "approved", "rejected"]),
+      reason: z.string().trim().max(1000).optional(),
+    })
+    .safeParse(input);
+  if (
+    !parsed.success ||
+    ((parsed.data.decision === "changes_requested" || parsed.data.decision === "rejected") &&
+      !parsed.data.reason)
+  )
+    return failValidation("审核决定或原因无效。");
   try {
-    const existing = await db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, parsed.data.entryId), columns: { competitionId: true } });
+    const existing = await db.query.competitionEntries.findFirst({
+      where: eq(competitionEntries.id, parsed.data.entryId),
+      columns: { competitionId: true },
+    });
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
     const admin = await requireSeasonAdmin(existing.competitionId);
-    const result = await db.transaction((tx) => reviewCompetitionEntryWorkflowInTx(tx, {
-      entryId: parsed.data.entryId,
-      decision: parsed.data.decision,
-      reason: parsed.data.reason,
-      actorId: auditActorId(admin),
-    }));
+    const result = await db.transaction((tx) =>
+      reviewCompetitionEntryWorkflowInTx(tx, {
+        entryId: parsed.data.entryId,
+        decision: parsed.data.decision,
+        reason: parsed.data.reason,
+        actorId: auditActorId(admin),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("reviewCompetitionEntry", error); }
+  } catch (error) {
+    return actionError("reviewCompetitionEntry", error);
+  }
 }
 
-export async function grantCompetitionEntryRestrictionOverride(input: { entryId: string; restrictionCode: string; reason: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ entryId: uuid, restrictionCode: z.string().trim().min(1).max(128), reason: z.string().trim().min(1).max(1000) }).safeParse(input);
+export async function grantCompetitionEntryRestrictionOverride(input: {
+  entryId: string;
+  restrictionCode: string;
+  reason: string;
+}): Promise<ActionResult<void>> {
+  const parsed = z
+    .object({
+      entryId: uuid,
+      restrictionCode: z.string().trim().min(1).max(128),
+      reason: z.string().trim().min(1).max(1000),
+    })
+    .safeParse(input);
   if (!parsed.success) return failValidation("解除限制必须指定具体限制并填写非空理由。 ");
   try {
-    const existing = await db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, parsed.data.entryId), columns: { competitionId: true } });
+    const existing = await db.query.competitionEntries.findFirst({
+      where: eq(competitionEntries.id, parsed.data.entryId),
+      columns: { competitionId: true },
+    });
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。 ");
     const admin = await requireSeasonAdmin(existing.competitionId);
-    const result = await db.transaction((tx) => grantCompetitionEntryRestrictionOverrideInTx(tx, {
-      ...parsed.data,
-      actorId: auditActorId(admin),
-    }));
+    const result = await db.transaction((tx) =>
+      grantCompetitionEntryRestrictionOverrideInTx(tx, {
+        ...parsed.data,
+        actorId: auditActorId(admin),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("grantCompetitionEntryRestrictionOverride", error); }
+  } catch (error) {
+    return actionError("grantCompetitionEntryRestrictionOverride", error);
+  }
 }
 
-export async function revokeCompetitionEntryRestrictionOverride(input: { entryId: string; restrictionCode: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ entryId: uuid, restrictionCode: z.string().trim().min(1).max(128) }).safeParse(input);
+export async function revokeCompetitionEntryRestrictionOverride(input: {
+  entryId: string;
+  restrictionCode: string;
+}): Promise<ActionResult<void>> {
+  const parsed = z
+    .object({ entryId: uuid, restrictionCode: z.string().trim().min(1).max(128) })
+    .safeParse(input);
   if (!parsed.success) return failValidation("解除限制标识无效。 ");
   try {
-    const existing = await db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, parsed.data.entryId), columns: { competitionId: true } });
+    const existing = await db.query.competitionEntries.findFirst({
+      where: eq(competitionEntries.id, parsed.data.entryId),
+      columns: { competitionId: true },
+    });
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。 ");
     const admin = await requireSeasonAdmin(existing.competitionId);
-    const result = await db.transaction((tx) => revokeCompetitionEntryRestrictionOverrideInTx(tx, {
-      ...parsed.data,
-      actorId: auditActorId(admin),
-    }));
+    const result = await db.transaction((tx) =>
+      revokeCompetitionEntryRestrictionOverrideInTx(tx, {
+        ...parsed.data,
+        actorId: auditActorId(admin),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("revokeCompetitionEntryRestrictionOverride", error); }
+  } catch (error) {
+    return actionError("revokeCompetitionEntryRestrictionOverride", error);
+  }
 }
 
-export async function transferCompetitionEntryRepresentative(input: { entryId: string; toUserId: string }): Promise<ActionResult<void>> {
+export async function transferCompetitionEntryRepresentative(input: {
+  entryId: string;
+  toUserId: string;
+}): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid, toUserId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("赛事负责人交接信息无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => transferCompetitionEntryRepresentativeInTx(tx, {
-      entryId: parsed.data.entryId,
-      userId: session.userId,
-      toUserId: parsed.data.toUserId,
-      actorId: auditActorId(session),
-    }));
+    const result = await db.transaction((tx) =>
+      transferCompetitionEntryRepresentativeInTx(tx, {
+        entryId: parsed.data.entryId,
+        userId: session.userId,
+        toUserId: parsed.data.toUserId,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("transferCompetitionEntryRepresentative", error); }
+  } catch (error) {
+    return actionError("transferCompetitionEntryRepresentative", error);
+  }
 }

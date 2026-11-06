@@ -18,6 +18,14 @@ export function isTeamRegistration(season: Pick<Season, "registrationMode">): bo
 // ── 展示工具 ──────────────────────────────────────────────────────────────
 
 /** Formal match facts include qualification while the event is still registering. */
-export function showStats(season: Pick<Season, "status"> & { hasOfficialMatches?: boolean }): boolean {
-  return season.status !== "draft" && (season.hasOfficialMatches === true || season.status === "playing" || season.status === "finished" || season.status === "archived");
+export function showStats(
+  season: Pick<Season, "status"> & { hasOfficialMatches?: boolean },
+): boolean {
+  return (
+    season.status !== "draft" &&
+    (season.hasOfficialMatches === true ||
+      season.status === "playing" ||
+      season.status === "finished" ||
+      season.status === "archived")
+  );
 }

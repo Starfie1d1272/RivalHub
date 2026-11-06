@@ -1,8 +1,16 @@
 "use client";
 
 import React, { useRef } from "react";
-import { ClearFilters, ListSearchField, ListToolbar, type ListSearchFieldHandle } from "@/components/rivalhub";
-import type { ListQuerySearchParams, ListQueryUpdate } from "@/components/rivalhub/useListQueryParams";
+import {
+  ClearFilters,
+  ListSearchField,
+  ListToolbar,
+  type ListSearchFieldHandle,
+} from "@/components/rivalhub";
+import type {
+  ListQuerySearchParams,
+  ListQueryUpdate,
+} from "@/components/rivalhub/useListQueryParams";
 import { Button } from "@/components/ui/button";
 import {
   ADMIN_USERS_DEFAULTS,
@@ -13,14 +21,15 @@ import {
 } from "@/lib/admin/users-contract";
 
 const FILTERS = [
-  { key: "all",          label: "全部" },
+  { key: "all", label: "全部" },
   { key: "participated", label: "参赛过" },
-  { key: "none",         label: "仅注册" },
+  { key: "none", label: "仅注册" },
 ] as const;
 
 export type UserFilter = AdminUserParticipationFilter;
 
-const SELECT_CLASS_NAME = "min-w-0 max-w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 py-2 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
+const SELECT_CLASS_NAME =
+  "min-w-0 max-w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 py-2 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
 
 const EDUCATION_OPTIONS = [
   { value: "all", label: "全部教育状态" },
@@ -50,7 +59,14 @@ interface UserSearchBarProps {
   update: ListQueryUpdate;
 }
 
-export function UserSearchBar({ filter, education, team, activity, searchParams, update }: UserSearchBarProps) {
+export function UserSearchBar({
+  filter,
+  education,
+  team,
+  activity,
+  searchParams,
+  update,
+}: UserSearchBarProps) {
   const searchFieldRef = useRef<ListSearchFieldHandle>(null);
   return (
     <ListToolbar aria-label="用户搜索与筛选">
@@ -66,7 +82,7 @@ export function UserSearchBar({ filter, education, team, activity, searchParams,
       <div className="min-w-0">
         <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">参赛状态</span>
         <div className="flex flex-wrap gap-1" role="group" aria-label="参赛状态">
-        {FILTERS.map(({ key, label }) => (
+          {FILTERS.map(({ key, label }) => (
             <Button
               key={key}
               type="button"
@@ -76,7 +92,7 @@ export function UserSearchBar({ filter, education, team, activity, searchParams,
             >
               {label}
             </Button>
-        ))}
+          ))}
         </div>
       </div>
       <FilterSelect
@@ -123,8 +139,17 @@ function FilterSelect<T extends string>({
   return (
     <label className="min-w-0 w-full sm:w-auto">
       <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">{ariaLabel}</span>
-      <select aria-label={ariaLabel} value={value} onChange={(event) => onChange(event.target.value as T)} className={SELECT_CLASS_NAME}>
-        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      <select
+        aria-label={ariaLabel}
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className={SELECT_CLASS_NAME}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
       </select>
     </label>
   );

@@ -11,7 +11,11 @@ import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { getUserSession } from "@/lib/auth/session";
-import { buildRegistrationSchema, registrationSeedSchema, type RegistrationFormData } from "@/lib/validators/registration";
+import {
+  buildRegistrationSchema,
+  registrationSeedSchema,
+  type RegistrationFormData,
+} from "@/lib/validators/registration";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { getRegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
@@ -20,7 +24,11 @@ import { lockGameplayIdentityWriteInTx } from "@/lib/identity/write-lock";
 import { changePrimarySteam64InTx, assertSteam64Available } from "@/lib/identity/gameplay-steam";
 import { getSteamProfileForPrimary, upsertSteamProfile } from "@/lib/steam-profiles";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
-import { updatePublicHomeTag, updatePublicPlayerTag, updatePublicSeasonTags } from "@/lib/revalidation";
+import {
+  updatePublicHomeTag,
+  updatePublicPlayerTag,
+  updatePublicSeasonTags,
+} from "@/lib/revalidation";
 import { normalizePlayerDeclaredProfile } from "@/lib/player-declared-profile";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 
@@ -167,9 +175,7 @@ export async function submitRegistration(input: RegistrationFormData) {
   const seedParsed = registrationSeedSchema.safeParse(input);
   if (!seedParsed.success) {
     const fieldErrors: Record<string, string> = {};
-    for (const [field, errors] of Object.entries(
-      seedParsed.error.flatten().fieldErrors
-    )) {
+    for (const [field, errors] of Object.entries(seedParsed.error.flatten().fieldErrors)) {
       if (errors?.[0]) fieldErrors[field] = errors[0];
     }
     return fail({
@@ -208,7 +214,9 @@ export async function submitRegistration(input: RegistrationFormData) {
     // then repeat the gate inside the final mutation transaction below.
     const seasonId = season.id;
     if (initialWindow.needsOpeningRecovery) {
-      const opening = await db.transaction((tx) => ensureRegistrationOpenForParticipantInTx(tx, seasonId));
+      const opening = await db.transaction((tx) =>
+        ensureRegistrationOpenForParticipantInTx(tx, seasonId),
+      );
       season = opening.season;
       if (opening.opened) updatePublicSeasonTags(season.slug, season.id);
     }
@@ -221,9 +229,7 @@ export async function submitRegistration(input: RegistrationFormData) {
     const parsed = buildRegistrationSchema(registrationConfig, season.positions).safeParse(input);
     if (!parsed.success) {
       const fieldErrors: Record<string, string> = {};
-      for (const [field, errors] of Object.entries(
-        parsed.error.flatten().fieldErrors
-      )) {
+      for (const [field, errors] of Object.entries(parsed.error.flatten().fieldErrors)) {
         if (errors?.[0]) fieldErrors[field] = errors[0];
       }
       return fail({
@@ -261,11 +267,14 @@ export async function submitRegistration(input: RegistrationFormData) {
     const existing = await db.query.seasonRegistrations.findFirst({
       where: and(
         eq(seasonRegistrations.userId, user.id),
-        eq(seasonRegistrations.seasonId, data.seasonId)
+        eq(seasonRegistrations.seasonId, data.seasonId),
       ),
     });
     if (existing?.status === "approved") {
-      throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "报名已审核通过，无法自行修改。如确需调整请联系管理员。");
+      throw new AppError(
+        ErrorCode.REGISTRATION_DUPLICATE,
+        "报名已审核通过，无法自行修改。如确需调整请联系管理员。",
+      );
     }
 
     const [totalCount] = await db
@@ -372,7 +381,8 @@ export async function submitRegistration(input: RegistrationFormData) {
               ...registrationValues,
             })
             .returning();
-      if (!savedRegistration) throw new AppError(ErrorCode.INTERNAL_ERROR, ERROR_MESSAGES.INTERNAL_ERROR);
+      if (!savedRegistration)
+        throw new AppError(ErrorCode.INTERNAL_ERROR, ERROR_MESSAGES.INTERNAL_ERROR);
 
       await tx
         .delete(registrationDrafts)
@@ -387,7 +397,8 @@ export async function submitRegistration(input: RegistrationFormData) {
         seasonId: data.seasonId,
         action: "registration.submit",
         actorId: session.userId,
-        targetId: savedRegistration.id,meta: { email: data.email, primaryPosition: data.primaryPosition },
+        targetId: savedRegistration.id,
+        meta: { email: data.email, primaryPosition: data.primaryPosition },
       });
 
       return { registration: savedRegistration, seasonSlug: currentSeason.slug };
@@ -419,15 +430,14 @@ export async function getRegistrationCounts(seasonId: string): Promise<{
     })
     .from(seasonRegistrations)
     .where(
-      and(
-        eq(seasonRegistrations.seasonId, seasonId),
-        ne(seasonRegistrations.status, "rejected"),
-      ),
+      and(eq(seasonRegistrations.seasonId, seasonId), ne(seasonRegistrations.status, "rejected")),
     )
     .groupBy(seasonRegistrations.primaryPosition);
 
   return {
     positionCounts: Object.fromEntries(rows.map((row) => [row.position, Number(row.count)])),
-    approvedCount: Number(rows.reduce((total, row) => total + BigInt(row.approvedCount), BigInt(0))),
+    approvedCount: Number(
+      rows.reduce((total, row) => total + BigInt(row.approvedCount), BigInt(0)),
+    ),
   };
 }

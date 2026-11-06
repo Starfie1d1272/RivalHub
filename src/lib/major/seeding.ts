@@ -47,9 +47,7 @@ function assertValidTournamentTeam(
   teamIds.add(team.teamId);
 
   if (!Number.isInteger(team.tournamentSeed) || team.tournamentSeed <= 0) {
-    throw new Error(
-      `invalid tournamentSeed ${team.tournamentSeed}: must be a positive integer`,
-    );
+    throw new Error(`invalid tournamentSeed ${team.tournamentSeed}: must be a positive integer`);
   }
   if (tournamentSeeds.has(team.tournamentSeed)) {
     throw new Error(`duplicate tournamentSeed: ${team.tournamentSeed}`);
@@ -87,7 +85,9 @@ export function seedMajorLaterStageEntrants(input: {
   const { directEntrants, advancingEntrants } = input;
 
   if (directEntrants.length !== HALF) {
-    throw new Error(`later stage requires exactly ${HALF} direct entrants (got ${directEntrants.length})`);
+    throw new Error(
+      `later stage requires exactly ${HALF} direct entrants (got ${directEntrants.length})`,
+    );
   }
   if (advancingEntrants.length !== HALF) {
     throw new Error(
@@ -142,10 +142,15 @@ export function seedMajorLaterStageEntrants(input: {
 }
 
 /** Shared frozen stage direct-entry range, used by runtime and simulation. */
-export function directSeedRange(stages: readonly { key: string; type: string; entrySeeds?: number | null }[], stageKey: string, count: number): readonly [number, number] {
+export function directSeedRange(
+  stages: readonly { key: string; type: string; entrySeeds?: number | null }[],
+  stageKey: string,
+  count: number,
+): readonly [number, number] {
   const targetIndex = stages.findIndex((stage) => stage.key === stageKey);
   if (targetIndex < 0) throw new Error(`Unknown stage: ${stageKey}`);
-  const laterDirectCount = stages.slice(targetIndex + 1)
+  const laterDirectCount = stages
+    .slice(targetIndex + 1)
     .filter((stage) => stage.type === "swiss")
     .reduce((sum, stage) => sum + (stage.entrySeeds ?? 0), 0);
   return [laterDirectCount + 1, laterDirectCount + count];

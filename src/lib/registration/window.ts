@@ -8,12 +8,7 @@ export type RegistrationWindowSeason = {
   rosterChangeClosesAt?: Date | string | null;
 };
 
-export type RegistrationWindowPhase =
-  | "hidden"
-  | "unscheduled"
-  | "upcoming"
-  | "open"
-  | "closed";
+export type RegistrationWindowPhase = "hidden" | "unscheduled" | "upcoming" | "open" | "closed";
 
 export interface RegistrationWindowState {
   phase: RegistrationWindowPhase;
@@ -26,10 +21,7 @@ export interface RegistrationWindowState {
 }
 
 /** New Entry submissions only open after the recorded registration transition. */
-export function canSubmitEntry(
-  season: RegistrationWindowSeason,
-  now: Date = new Date(),
-): boolean {
+export function canSubmitEntry(season: RegistrationWindowSeason, now: Date = new Date()): boolean {
   return getRegistrationWindowState(season, now).canSubmit;
 }
 
@@ -52,7 +44,10 @@ function toTime(value: Date | string | null): number | null {
   return Number.isNaN(time) ? null : time;
 }
 
-export function getWindowTone(phase: RegistrationWindowPhase, canSubmit: boolean): "success" | "warn" | "info" {
+export function getWindowTone(
+  phase: RegistrationWindowPhase,
+  canSubmit: boolean,
+): "success" | "warn" | "info" {
   if (canSubmit) return "success";
   if (phase === "closed") return "warn";
   return "info";

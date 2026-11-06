@@ -42,10 +42,23 @@ export function MatchTabsSection({
   isHistorical = false,
 }: MatchTabsSectionProps) {
   return (
-    <Tabs defaultValue={isHistorical || activeMatches.length === 0 ? "done" : "active"} className="w-full">
+    <Tabs
+      defaultValue={isHistorical || activeMatches.length === 0 ? "done" : "active"}
+      className="w-full"
+    >
       <TabsList className="bg-[var(--color-panel)] border border-[var(--color-border)] p-1">
-        <TabsTrigger value="active" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">当前赛程</TabsTrigger>
-        <TabsTrigger value="done" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">已结束</TabsTrigger>
+        <TabsTrigger
+          value="active"
+          className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]"
+        >
+          当前赛程
+        </TabsTrigger>
+        <TabsTrigger
+          value="done"
+          className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]"
+        >
+          已结束
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="active" className="mt-4">
         {activeMatches.length > 0 ? (
@@ -54,8 +67,12 @@ export function MatchTabsSection({
               <MatchCard
                 key={m.id}
                 matchId={m.id}
-                entryAId={m.entryAId} entryBId={m.entryBId} liveContext={liveContexts?.get(m.id)}
-                highlighted={Boolean(highlightTeamId && [m.entryAId, m.entryBId].includes(highlightTeamId))}
+                entryAId={m.entryAId}
+                entryBId={m.entryBId}
+                liveContext={liveContexts?.get(m.id)}
+                highlighted={Boolean(
+                  highlightTeamId && [m.entryAId, m.entryBId].includes(highlightTeamId),
+                )}
                 seasonSlug={seasonSlug}
                 teamAName={teamMap.get(m.entryAId) ?? unknownTeamName}
                 teamBName={teamMap.get(m.entryBId) ?? unknownTeamName}
@@ -81,8 +98,12 @@ export function MatchTabsSection({
               <MatchCard
                 key={m.id}
                 matchId={m.id}
-                entryAId={m.entryAId} entryBId={m.entryBId} liveContext={liveContexts?.get(m.id)}
-                highlighted={Boolean(highlightTeamId && [m.entryAId, m.entryBId].includes(highlightTeamId))}
+                entryAId={m.entryAId}
+                entryBId={m.entryBId}
+                liveContext={liveContexts?.get(m.id)}
+                highlighted={Boolean(
+                  highlightTeamId && [m.entryAId, m.entryBId].includes(highlightTeamId),
+                )}
                 seasonSlug={seasonSlug}
                 teamAName={teamMap.get(m.entryAId) ?? unknownTeamName}
                 teamBName={teamMap.get(m.entryBId) ?? unknownTeamName}

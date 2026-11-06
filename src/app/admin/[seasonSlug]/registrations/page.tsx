@@ -28,7 +28,7 @@ export default async function AdminRegistrationsPage({ params, searchParams }: P
   const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) notFound();
 
-  const rawSearchParams: RegistrationReviewSearchParams = await searchParams ?? {};
+  const rawSearchParams: RegistrationReviewSearchParams = (await searchParams) ?? {};
 
   if (isTeamRegistration(season)) {
     const query = normalizeTeamRegistrationReviewQuery(rawSearchParams);
@@ -38,9 +38,7 @@ export default async function AdminRegistrationsPage({ params, searchParams }: P
     ]);
     return (
       <div className="min-w-0 space-y-6">
-        <PageHeader
-          title={`赛事报名审核 · ${season.name}`}
-        />
+        <PageHeader title={`赛事报名审核 · ${season.name}`} />
         <TeamRegistrationProgress progress={progress} />
         <CompetitionEntryReviewList
           seasonSlug={seasonSlug}
@@ -70,9 +68,7 @@ export default async function AdminRegistrationsPage({ params, searchParams }: P
 
   return (
     <div className="min-w-0 space-y-6">
-      <PageHeader
-        title={`报名审核 · ${season.name}`}
-      />
+      <PageHeader title={`报名审核 · ${season.name}`} />
       <RegistrationReviewList
         seasonSlug={seasonSlug}
         positions={season.positions}

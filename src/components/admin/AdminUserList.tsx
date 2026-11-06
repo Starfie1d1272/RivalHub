@@ -10,7 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { observeAction } from "@/lib/telemetry/client";
 
-const revokeUserAdminRole = observeAction("admin.revokeUserAdminRole", telemetry_revokeUserAdminRole);
+const revokeUserAdminRole = observeAction(
+  "admin.revokeUserAdminRole",
+  telemetry_revokeUserAdminRole,
+);
 
 interface AdminUserRow {
   id: string;
@@ -96,10 +99,15 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
                 <td className="px-4 py-3 text-xs text-[var(--color-fg-mid)]">{u.email}</td>
                 <td className="px-4 py-3">
                   <span className="flex items-center gap-1.5 flex-wrap">
-                    <Badge variant={u.role === "super_admin" ? "default" : "outline"} className="text-[10px]">
+                    <Badge
+                      variant={u.role === "super_admin" ? "default" : "outline"}
+                      className="text-[10px]"
+                    >
                       {u.role === "super_admin" ? "超级管理员" : "赛季管理员"}
                     </Badge>
-                    {u.role === "super_admin" && <span className="text-[10px] text-[var(--color-fg-dim)]">全局</span>}
+                    {u.role === "super_admin" && (
+                      <span className="text-[10px] text-[var(--color-fg-dim)]">全局</span>
+                    )}
                     {u.role === "season_admin" &&
                       u.seasonIds.map((sid) => {
                         const name = seasonMap[sid];
@@ -115,18 +123,49 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
                 <td className="px-4 py-3">
                   {u.steam64 ? (
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-[var(--color-fg-mid)]">{u.steam64}</span>
-                      <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => void copyValue("Steam64", u.steam64!)} aria-label="复制 Steam64">复制</Button>
+                      <span className="font-mono text-xs text-[var(--color-fg-mid)]">
+                        {u.steam64}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="shrink-0"
+                        onClick={() => void copyValue("Steam64", u.steam64!)}
+                        aria-label="复制 Steam64"
+                      >
+                        复制
+                      </Button>
                     </div>
-                  ) : <span className="text-xs text-[var(--color-fg-dim)]">未填写 Steam64</span>}
+                  ) : (
+                    <span className="text-xs text-[var(--color-fg-dim)]">未填写 Steam64</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {u.liveStreamUrl ? (
                     <div className="flex items-center gap-2">
-                      <a href={u.liveStreamUrl} target="_blank" rel="noopener noreferrer" className="max-w-56 truncate text-xs text-[var(--color-fg-mid)] underline underline-offset-2 hover:text-[var(--color-fg)]">{u.liveStreamUrl}</a>
-                      <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => void copyValue("直播间", u.liveStreamUrl!)} aria-label="复制直播间">复制</Button>
+                      <a
+                        href={u.liveStreamUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="max-w-56 truncate text-xs text-[var(--color-fg-mid)] underline underline-offset-2 hover:text-[var(--color-fg)]"
+                      >
+                        {u.liveStreamUrl}
+                      </a>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="shrink-0"
+                        onClick={() => void copyValue("直播间", u.liveStreamUrl!)}
+                        aria-label="复制直播间"
+                      >
+                        复制
+                      </Button>
                     </div>
-                  ) : <span className="text-xs text-[var(--color-fg-dim)]">未填写直播间</span>}
+                  ) : (
+                    <span className="text-xs text-[var(--color-fg-dim)]">未填写直播间</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-right text-xs text-[var(--color-fg-dim)] tabular-nums">
                   {formatCST(u.createdAt)}

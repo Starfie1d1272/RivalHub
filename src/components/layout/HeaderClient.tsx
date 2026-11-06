@@ -29,70 +29,70 @@ export function HeaderClient({
   return (
     <HeaderAvatarFailureProvider>
       <header
-      className="sticky top-0 z-50 border-b backdrop-blur"
-      style={{
-        padding: "14px clamp(16px, 2vw, 32px)",
-        minHeight: 64,
-        background: "color-mix(in srgb, var(--color-panel-low) 90%, transparent)",
-        borderColor: "var(--color-border)",
-        display: "grid",
-        gridTemplateColumns: "auto 1fr auto",
-        gap: 16,
-        alignItems: "center",
-      }}
-    >
-      <Link
-        href="/"
-        className="flex items-center gap-2.5 font-bold text-base text-[var(--color-fg)] hover:text-[var(--color-fg)] transition-colors"
+        className="sticky top-0 z-50 border-b backdrop-blur"
         style={{
-          fontFamily: "var(--font-display)",
-          fontWeight: 700,
-          letterSpacing: "var(--tracking-tight-1)",
+          padding: "14px clamp(16px, 2vw, 32px)",
+          minHeight: 64,
+          background: "color-mix(in srgb, var(--color-panel-low) 90%, transparent)",
+          borderColor: "var(--color-border)",
+          display: "grid",
+          gridTemplateColumns: "auto 1fr auto",
+          gap: 16,
+          alignItems: "center",
         }}
       >
-        <Image
-          src="/brand/rivalhub/favicon-32-transparent.png"
-          alt=""
-          width={28}
-          height={28}
-          className="rounded-sm"
-        />
-        {APP_BRAND.name.toUpperCase()}
-      </Link>
-
-      <nav className="hidden sm:flex items-center justify-center gap-0.5 flex-wrap">
-        {desktopNavigation}
-      </nav>
-
-      <div className="flex items-center gap-3">
-        <div className="hidden sm:flex items-center">
-          <OnlineCounter />
-        </div>
-        {desktopViewer}
-        <button
-          type="button"
-          className="sm:hidden p-2 text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
-          onClick={() => setMobileOpen((open) => !open)}
-          aria-expanded={mobileOpen}
-          aria-controls="rivalhub-mobile-navigation"
-          aria-label={mobileOpen ? "收起菜单" : "展开菜单"}
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 font-bold text-base text-[var(--color-fg)] hover:text-[var(--color-fg)] transition-colors"
+          style={{
+            fontFamily: "var(--font-display)",
+            fontWeight: 700,
+            letterSpacing: "var(--tracking-tight-1)",
+          }}
         >
-          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </div>
+          <Image
+            src="/brand/rivalhub/favicon-32-transparent.png"
+            alt=""
+            width={28}
+            height={28}
+            className="rounded-sm"
+          />
+          {APP_BRAND.name.toUpperCase()}
+        </Link>
 
-      {mobileOpen && (
-        <div
-          id="rivalhub-mobile-navigation"
-          className="sm:hidden col-span-full min-w-0 border-t border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-3 flex flex-col gap-1"
-          onClick={() => setMobileOpen(false)}
-        >
-          {mobileNavigation}
-          <div className="mt-2 pt-2 border-t border-[var(--color-border)] flex flex-col gap-1">
-            {mobileViewer}
+        <nav className="hidden sm:flex items-center justify-center gap-0.5 flex-wrap">
+          {desktopNavigation}
+        </nav>
+
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center">
+            <OnlineCounter />
           </div>
+          {desktopViewer}
+          <button
+            type="button"
+            className="sm:hidden p-2 text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
+            onClick={() => setMobileOpen((open) => !open)}
+            aria-expanded={mobileOpen}
+            aria-controls="rivalhub-mobile-navigation"
+            aria-label={mobileOpen ? "收起菜单" : "展开菜单"}
+          >
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
-      )}
+
+        {mobileOpen && (
+          <div
+            id="rivalhub-mobile-navigation"
+            className="sm:hidden col-span-full min-w-0 border-t border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-3 flex flex-col gap-1"
+            onClick={() => setMobileOpen(false)}
+          >
+            {mobileNavigation}
+            <div className="mt-2 pt-2 border-t border-[var(--color-border)] flex flex-col gap-1">
+              {mobileViewer}
+            </div>
+          </div>
+        )}
       </header>
     </HeaderAvatarFailureProvider>
   );

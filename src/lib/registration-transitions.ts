@@ -10,15 +10,15 @@ export interface TransitionRule {
 }
 
 export const TRANSITION_RULES: Partial<Record<TransitionKey, TransitionRule>> = {
-  "pending→approved":    { allowedSeasonStatuses: ["registration", "voting"] },
-  "pending→rejected":    { allowedSeasonStatuses: [] },
-  "pending→waitlisted":  { allowedSeasonStatuses: ["registration"] },
+  "pending→approved": { allowedSeasonStatuses: ["registration", "voting"] },
+  "pending→rejected": { allowedSeasonStatuses: [] },
+  "pending→waitlisted": { allowedSeasonStatuses: ["registration"] },
   "waitlisted→approved": { allowedSeasonStatuses: ["registration", "voting"] },
   "waitlisted→rejected": { allowedSeasonStatuses: [] },
-  "approved→pending":    { allowedSeasonStatuses: ["registration"] },
-  "approved→rejected":   { allowedSeasonStatuses: ["registration", "voting"] },
-  "rejected→approved":   { allowedSeasonStatuses: ["registration"] },
-  "rejected→pending":    { allowedSeasonStatuses: ["registration"] },
+  "approved→pending": { allowedSeasonStatuses: ["registration"] },
+  "approved→rejected": { allowedSeasonStatuses: ["registration", "voting"] },
+  "rejected→approved": { allowedSeasonStatuses: ["registration"] },
+  "rejected→pending": { allowedSeasonStatuses: ["registration"] },
 };
 
 export function validateTransition(

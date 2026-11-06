@@ -9,13 +9,17 @@ import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registra
 import { updatePublicSeasonTags } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 
-export async function recoverRegistrationOpening(input: unknown): Promise<ActionResult<{ opened: boolean }>> {
+export async function recoverRegistrationOpening(
+  input: unknown,
+): Promise<ActionResult<{ opened: boolean }>> {
   const parsed = z.object({ seasonId: z.guid() }).safeParse(input);
   if (!parsed.success) return failValidation("赛事标识无效。");
 
   try {
     await requireAuth();
-    const result = await db.transaction((tx) => ensureRegistrationOpenForParticipantInTx(tx, parsed.data.seasonId));
+    const result = await db.transaction((tx) =>
+      ensureRegistrationOpenForParticipantInTx(tx, parsed.data.seasonId),
+    );
     if (result.opened) updatePublicSeasonTags(result.season.slug, result.season.id);
     revalidatePath(`/${result.season.slug}/register`);
     return ok({ opened: result.opened });

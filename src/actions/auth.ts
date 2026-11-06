@@ -10,18 +10,23 @@ import { ok, fail } from "@/types/action";
 import { ErrorCode } from "@/lib/errors";
 import type { ActionResult } from "@/types/action";
 import { actionError } from "@/lib/action-utils";
-import { MIN_PASSWORD_LENGTH, isPasswordPolicySatisfied, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
+import {
+  MIN_PASSWORD_LENGTH,
+  isPasswordPolicySatisfied,
+  PASSWORD_POLICY_MESSAGE,
+} from "@/lib/config/auth-config";
 import { normalizeEmail } from "@/lib/utils/email";
 import { resolveOrCreateCanonicalUserInTx } from "@/lib/identity/canonical";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
-import {
-  requireAuth,
-  createUserSession,
-  destroyUserSession,
-} from "@/lib/auth/session";
+import { requireAuth, createUserSession, destroyUserSession } from "@/lib/auth/session";
 import { claimAdminInviteInTx } from "@/lib/auth/admin-invites";
-import { signInFailure, authErrorCode, authServerFailure, isAuthServerFailure } from "@/lib/auth/sign-in-error";
+import {
+  signInFailure,
+  authErrorCode,
+  authServerFailure,
+  isAuthServerFailure,
+} from "@/lib/auth/sign-in-error";
 import { captureException, logEvent } from "@/lib/observability/server";
 
 export async function loginWithPassword(
@@ -32,14 +37,20 @@ export async function loginWithPassword(
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   }
   if (!password || password.length < MIN_PASSWORD_LENGTH) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: `密码至少 ${MIN_PASSWORD_LENGTH} 位` });
+    return fail({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: `密码至少 ${MIN_PASSWORD_LENGTH} 位`,
+    });
   }
   const normalizedEmail = normalizeEmail(email);
 
   try {
     const authenticationStartedAt = await beginAuthentication(db);
     const supabase = createPublicAuthClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
 
     if (error) return signInFailure(error, "auth.sign_in");
 
@@ -55,12 +66,16 @@ export async function loginWithPassword(
       return bootstrapConfiguredOwnerInTx(tx, canonicalUser);
     });
 
-    if (!userRow) return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录。" });
+    if (!userRow)
+      return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录。" });
 
-    await createUserSession({
-      userId: userRow.id,
-      email: userRow.email,
-    }, authenticationStartedAt);
+    await createUserSession(
+      {
+        userId: userRow.id,
+        email: userRow.email,
+      },
+      authenticationStartedAt,
+    );
 
     return ok({ email: normalizedEmail });
   } catch (e) {
@@ -79,7 +94,10 @@ export async function signUp(
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   }
   if (!password || password.length < MIN_PASSWORD_LENGTH) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: `密码至少 ${MIN_PASSWORD_LENGTH} 位` });
+    return fail({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: `密码至少 ${MIN_PASSWORD_LENGTH} 位`,
+    });
   }
   if (!isPasswordPolicySatisfied(password)) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: PASSWORD_POLICY_MESSAGE });
@@ -96,12 +114,15 @@ export async function signUp(
       return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请完成验证码校验" });
     }
     try {
-      const verifyResult = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secret: secretKey, response: turnstileToken }),
-      });
-      const verifyData = await verifyResult.json() as {
+      const verifyResult = await fetch(
+        "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ secret: secretKey, response: turnstileToken }),
+        },
+      );
+      const verifyData = (await verifyResult.json()) as {
         success: boolean;
         "error-codes"?: string[];
         hostname?: string;
@@ -163,8 +184,12 @@ export async function signUp(
 }
 
 /** Safe ambiguous resend endpoint for the signup waiting state. */
-export async function resendSignupConfirmation(email: string, next?: string): Promise<ActionResult<void>> {
-  if (!email || !email.includes("@")) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
+export async function resendSignupConfirmation(
+  email: string,
+  next?: string,
+): Promise<ActionResult<void>> {
+  if (!email || !email.includes("@"))
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   try {
     const { error } = await createPublicAuthClient().auth.resend({
       type: "signup",
@@ -173,7 +198,9 @@ export async function resendSignupConfirmation(email: string, next?: string): Pr
     });
     if (error) return emailSendFailure(error, "验证邮件");
     return ok(undefined);
-  } catch (e) { return actionError("resendSignupConfirmation", e); }
+  } catch (e) {
+    return actionError("resendSignupConfirmation", e);
+  }
 }
 
 /** Existing accounts prove control of their already-bound email without account creation. */
@@ -189,7 +216,9 @@ export async function resendCurrentEmailVerification(): Promise<ActionResult<voi
     });
     if (error) return emailSendFailure(error, "验证邮件");
     return ok(undefined);
-  } catch (e) { return actionError("resendCurrentEmailVerification", e); }
+  } catch (e) {
+    return actionError("resendCurrentEmailVerification", e);
+  }
 }
 
 function confirmationUrl(flow: "signup" | "reverify", next?: string): string {
@@ -243,7 +272,10 @@ function emailSendFailure(error: unknown, emailKind: "验证邮件" | "重置邮
       retryable: true,
       safeContext: { provider: "supabase-auth", providerCode, kind: emailKind },
     });
-    return fail({ code: ErrorCode.EMAIL_SEND_RATE_LIMITED, message: "邮件发送过于频繁，请稍后再试。" });
+    return fail({
+      code: ErrorCode.EMAIL_SEND_RATE_LIMITED,
+      message: "邮件发送过于频繁，请稍后再试。",
+    });
   }
   logEvent({
     level: "error",
@@ -252,9 +284,16 @@ function emailSendFailure(error: unknown, emailKind: "验证邮件" | "重置邮
     operation: "auth.mail_send",
     errorClass: "dependency",
     retryable: true,
-    safeContext: { provider: "supabase-auth", providerCode: providerCode ?? "unknown", kind: emailKind },
+    safeContext: {
+      provider: "supabase-auth",
+      providerCode: providerCode ?? "unknown",
+      kind: emailKind,
+    },
   });
-  return fail({ code: ErrorCode.INTERNAL_ERROR, message: `${emailKind}暂时无法发送，请稍后重试。` });
+  return fail({
+    code: ErrorCode.INTERNAL_ERROR,
+    message: `${emailKind}暂时无法发送，请稍后重试。`,
+  });
 }
 
 export async function logoutUser(): Promise<ActionResult<undefined>> {

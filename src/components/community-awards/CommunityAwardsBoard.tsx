@@ -1,13 +1,29 @@
 "use client";
 
-import { CommunityAwardAdminControls, CommunityAwardEvidenceReview } from "./CommunityAwardAdminControls";
+import {
+  CommunityAwardAdminControls,
+  CommunityAwardEvidenceReview,
+} from "./CommunityAwardAdminControls";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { addCommunityAwardEvidence as telemetry_addCommunityAwardEvidence, requestCommunityAwardSupplement as telemetry_requestCommunityAwardSupplement, reviewCommunityAward as telemetry_reviewCommunityAward, reviseCommunityAward as telemetry_reviseCommunityAward, submitCommunityAward as telemetry_submitCommunityAward, withdrawCommunityAward as telemetry_withdrawCommunityAward } from "@/actions/community-awards";
+import {
+  addCommunityAwardEvidence as telemetry_addCommunityAwardEvidence,
+  requestCommunityAwardSupplement as telemetry_requestCommunityAwardSupplement,
+  reviewCommunityAward as telemetry_reviewCommunityAward,
+  reviseCommunityAward as telemetry_reviseCommunityAward,
+  submitCommunityAward as telemetry_submitCommunityAward,
+  withdrawCommunityAward as telemetry_withdrawCommunityAward,
+} from "@/actions/community-awards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Panel, StatusBanner } from "@/components/rivalhub";
 import { isHttpUrl } from "@/lib/external-url";
@@ -17,45 +33,552 @@ import type { CommunityAwardModel } from "@/lib/community-awards/data";
 import type { SeasonAwardCandidate } from "@/lib/community-awards/read-model";
 import { observeAction } from "@/lib/telemetry/client";
 
-const addCommunityAwardEvidence = observeAction("community-awards.addCommunityAwardEvidence", telemetry_addCommunityAwardEvidence);
-const requestCommunityAwardSupplement = observeAction("community-awards.requestCommunityAwardSupplement", telemetry_requestCommunityAwardSupplement);
-const reviewCommunityAward = observeAction("community-awards.reviewCommunityAward", telemetry_reviewCommunityAward);
-const reviseCommunityAward = observeAction("community-awards.reviseCommunityAward", telemetry_reviseCommunityAward);
-const submitCommunityAward = observeAction("community-awards.submitCommunityAward", telemetry_submitCommunityAward);
-const withdrawCommunityAward = observeAction("community-awards.withdrawCommunityAward", telemetry_withdrawCommunityAward);
+const addCommunityAwardEvidence = observeAction(
+  "community-awards.addCommunityAwardEvidence",
+  telemetry_addCommunityAwardEvidence,
+);
+const requestCommunityAwardSupplement = observeAction(
+  "community-awards.requestCommunityAwardSupplement",
+  telemetry_requestCommunityAwardSupplement,
+);
+const reviewCommunityAward = observeAction(
+  "community-awards.reviewCommunityAward",
+  telemetry_reviewCommunityAward,
+);
+const reviseCommunityAward = observeAction(
+  "community-awards.reviseCommunityAward",
+  telemetry_reviseCommunityAward,
+);
+const submitCommunityAward = observeAction(
+  "community-awards.submitCommunityAward",
+  telemetry_submitCommunityAward,
+);
+const withdrawCommunityAward = observeAction(
+  "community-awards.withdrawCommunityAward",
+  telemetry_withdrawCommunityAward,
+);
 
 type Award = CommunityAwardModel;
 type Candidate = SeasonAwardCandidate;
 type Match = { id: string; label: string };
 
-const STATUS = { pending_review: "待审核", rejected: "未通过", approved: "已公开", withdrawn: "已撤回", awarded: "已结奖", not_awarded: "本届不颁", cancelled: "已取消" } satisfies Record<CommunityAwardStatus, string>;
+const STATUS = {
+  pending_review: "待审核",
+  rejected: "未通过",
+  approved: "已公开",
+  withdrawn: "已撤回",
+  awarded: "已结奖",
+  not_awarded: "本届不颁",
+  cancelled: "已取消",
+} satisfies Record<CommunityAwardStatus, string>;
 
-export function CommunityAwardsBoard({ seasonId, awards, currentUserId, isAdmin, candidates, matches, allowSubmission = true, stages = [] }: { seasonId: string; awards: Award[]; currentUserId: string | null; isAdmin: boolean; candidates: Candidate[]; matches: Match[]; allowSubmission?: boolean; stages?: { key: string; name: string }[] }) {
+export function CommunityAwardsBoard({
+  seasonId,
+  awards,
+  currentUserId,
+  isAdmin,
+  candidates,
+  matches,
+  allowSubmission = true,
+  stages = [],
+}: {
+  seasonId: string;
+  awards: Award[];
+  currentUserId: string | null;
+  isAdmin: boolean;
+  candidates: Candidate[];
+  matches: Match[];
+  allowSubmission?: boolean;
+  stages?: { key: string; name: string }[];
+}) {
   const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState({ name: "", condition: "", prize: "", supplementaryNote: "" });
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const [evidence, setEvidence] = useState<Record<string, { explanation: string; candidateUserId: string; matchId: string; videoUrl: string }>>({});
+  const [evidence, setEvidence] = useState<
+    Record<
+      string,
+      { explanation: string; candidateUserId: string; matchId: string; videoUrl: string }
+    >
+  >({});
   const [editing, setEditing] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", condition: "", prize: "", supplementaryNote: "" });
-  const run = (work: () => Promise<{ success: boolean; error?: { message: string } }>, success: string) => startTransition(async () => { const result = await work(); if (result.success) toast.success(success); else toast.error(result.error?.message ?? "操作失败。 "); });
-  const visibleAwards = isAdmin ? awards : awards.filter((award) => !["pending_review", "rejected"].includes(award.status) || award.submittedByUserId === currentUserId);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    condition: "",
+    prize: "",
+    supplementaryNote: "",
+  });
+  const run = (
+    work: () => Promise<{ success: boolean; error?: { message: string } }>,
+    success: string,
+  ) =>
+    startTransition(async () => {
+      const result = await work();
+      if (result.success) toast.success(success);
+      else toast.error(result.error?.message ?? "操作失败。 ");
+    });
+  const visibleAwards = isAdmin
+    ? awards
+    : awards.filter(
+        (award) =>
+          !["pending_review", "rejected"].includes(award.status) ||
+          award.submittedByUserId === currentUserId,
+      );
 
-  return <div className="space-y-6">
-    {currentUserId && allowSubmission && <Panel label="提交社区奖" contentClassName="p-4"><div className="grid gap-3"><Input aria-label="奖项名称" placeholder="奖项名称" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /><Textarea aria-label="获奖条件：说明何时、如何判断" placeholder="获奖条件：说明何时、如何判断" value={form.condition} onChange={(event) => setForm({ ...form, condition: event.target.value })} /><Input aria-label="奖品" placeholder="奖品" value={form.prize} onChange={(event) => setForm({ ...form, prize: event.target.value })} /><Textarea aria-label="补充说明（选填）" placeholder="补充说明（选填）" value={form.supplementaryNote} onChange={(event) => setForm({ ...form, supplementaryNote: event.target.value })} /><Button disabled={!form.name.trim() || !form.condition.trim() || !form.prize.trim() || isPending} onClick={() => run(async () => { const result = await submitCommunityAward({ seasonId, ...form, supplementaryNote: form.supplementaryNote.trim() || null }); if (result.success) setForm({ name: "", condition: "", prize: "", supplementaryNote: "" }); return result; }, "社区奖已提交，等待赛事管理员审核。")}>提交社区奖</Button></div></Panel>}
-    {!currentUserId && <StatusBanner tone="info" title="登录后可提交社区奖或补充候选证据" sub="赛事管理员审核通过后，奖项会在本页公开。" />}
-    {visibleAwards.length === 0 ? <StatusBanner tone="info" title={isAdmin ? "尚无社区奖申报" : "暂未公开社区奖"} sub={isAdmin ? "登录用户提交后会出现在审核队列。" : "通过审核的社区奖会在这里展示。"} /> : visibleAwards.map((award) => {
-      const isOwn = award.submittedByUserId === currentUserId;
-      const evidenceInput = evidence[award.id] ?? { explanation: "", candidateUserId: "", matchId: "", videoUrl: "" };
-      const evidencePlayer = candidates.find(candidate => candidate.id === evidenceInput.candidateUserId)?.playerUserId;
-      return <Panel key={award.id} label={<span>{award.name} · {STATUS[award.status]}</span>} contentClassName="space-y-3 p-4">
-        <div className="text-sm space-y-1"><p><strong>条件：</strong>{award.condition}</p><p><strong>奖品：</strong>{award.prize}</p><p className="text-[var(--color-fg-mid)]">发起人：{award.submitterPlayerUserId ? <PlayerProfileLink userId={award.submitterPlayerUserId}>{award.submitterName}</PlayerProfileLink> : award.submitterName}</p>{award.supplementaryNote && <p className="text-[var(--color-fg-mid)]">补充：{award.supplementaryNote}</p>}{award.publicNote && <p className="text-[var(--color-fg-mid)]">公开说明：{award.publicNote}</p>}{award.recipients.length > 0 && <p><strong>获奖者：</strong>{award.recipients.map((recipient, index) => <span key={recipient.userId}>{index > 0 && "、"}{recipient.target ? <PlayerProfileLink userId={recipient.userId}>{recipient.name}</PlayerProfileLink> : recipient.name}</span>)}</p>}{award.outcomeNote && <p className="text-[var(--color-fg-mid)]">结果说明：{award.outcomeNote}</p>}{isAdmin && award.reviewNote && <p className="text-[var(--color-warn)]">审核备注：{award.reviewNote}</p>}</div>
-        {isOwn && ["pending_review", "rejected"].includes(award.status) && <div className="space-y-2 border-t border-[var(--color-border)] pt-3">{award.reviewNote && <p className="text-sm text-[var(--color-warn)]">请补充：{award.reviewNote}</p>}{editing === award.id ? <><Input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} aria-label="奖项名称" /><Textarea value={editForm.condition} onChange={(event) => setEditForm({ ...editForm, condition: event.target.value })} aria-label="获奖条件" /><Input value={editForm.prize} onChange={(event) => setEditForm({ ...editForm, prize: event.target.value })} aria-label="奖品" /><Textarea value={editForm.supplementaryNote} onChange={(event) => setEditForm({ ...editForm, supplementaryNote: event.target.value })} aria-label="补充说明" /><Button size="sm" disabled={isPending || !editForm.name.trim() || !editForm.condition.trim() || !editForm.prize.trim()} onClick={() => run(async () => { const result = await reviseCommunityAward({ awardId: award.id, seasonId, ...editForm, supplementaryNote: editForm.supplementaryNote || null }); if (result.success) setEditing(null); return result; }, "已重新提交社区奖，等待审核。")}>保存并重新提交</Button></> : <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={isPending} onClick={() => { setEditing(award.id); setEditForm({ name: award.name, condition: award.condition, prize: award.prize, supplementaryNote: award.supplementaryNote ?? "" }); }}>编辑并重新提交</Button><Button size="sm" variant="outline" disabled={isPending} onClick={() => run(() => withdrawCommunityAward({ awardId: award.id }), "社区奖已撤回。")}>撤回申报</Button></div>}</div>}
-        {isOwn && award.status === "approved" && <Button size="sm" variant="outline" disabled={isPending} onClick={() => run(() => withdrawCommunityAward({ awardId: award.id }), "社区奖已撤回。")}>撤回申报</Button>}
-        {award.status === "approved" && currentUserId && <div className="grid gap-2 border-t border-[var(--color-border)] pt-3"><p className="text-sm font-medium">提交候选证据</p>{evidencePlayer && <PlayerProfileLink userId={evidencePlayer}>查看候选选手 ↗</PlayerProfileLink>}<Select value={evidenceInput.candidateUserId} onValueChange={(value) => setEvidence({ ...evidence, [award.id]: { ...evidenceInput, candidateUserId: value } })}><SelectTrigger aria-label="选择候选人或相关比赛"><SelectValue placeholder="候选人（选填）" /></SelectTrigger><SelectContent>{candidates.map((candidate) => <SelectItem key={candidate.id} value={candidate.id}>{candidate.name}</SelectItem>)}</SelectContent></Select><Select value={evidenceInput.matchId} onValueChange={(value) => setEvidence({ ...evidence, [award.id]: { ...evidenceInput, matchId: value } })}><SelectTrigger aria-label="选择候选人或相关比赛"><SelectValue placeholder="相关比赛（选填）" /></SelectTrigger><SelectContent>{matches.map((match) => <SelectItem key={match.id} value={match.id}>{match.label}</SelectItem>)}</SelectContent></Select><Textarea aria-label="说明为什么该候选人符合条件" placeholder="说明为什么该候选人符合条件" value={evidenceInput.explanation} onChange={(event) => setEvidence({ ...evidence, [award.id]: { ...evidenceInput, explanation: event.target.value } })} /><Input aria-label="视频链接（选填）" type="url" placeholder="视频链接（选填）" value={evidenceInput.videoUrl} onChange={(event) => setEvidence({ ...evidence, [award.id]: { ...evidenceInput, videoUrl: event.target.value } })} /><Button size="sm" disabled={!evidenceInput.explanation.trim() || isPending} onClick={() => run(() => addCommunityAwardEvidence({ awardId: award.id, candidateUserId: evidenceInput.candidateUserId || null, matchId: evidenceInput.matchId || null, explanation: evidenceInput.explanation, videoUrl: evidenceInput.videoUrl || null }), "候选证据已提交，等待管理员核实。")}>提交证据</Button></div>}
-        {isAdmin && award.status === "pending_review" && <div className="grid gap-2 border-t border-[var(--color-border)] pt-3"><Textarea aria-label="审核备注 / 要求补充的内容（选填）" placeholder="审核备注 / 要求补充的内容（选填）" value={notes[award.id] ?? ""} onChange={(event) => setNotes({ ...notes, [award.id]: event.target.value })} /><div className="flex flex-wrap gap-2"><Button size="sm" disabled={isPending} onClick={() => run(() => reviewCommunityAward({ awardId: award.id, status: "approved", publicNote: null, reviewNote: notes[award.id] || null }), "社区奖已审核通过并公开。")}>通过并公开</Button><Button size="sm" variant="outline" disabled={!notes[award.id]?.trim() || isPending} onClick={() => run(() => requestCommunityAwardSupplement({ awardId: award.id, note: notes[award.id] }), "已要求发起人补充说明。")}>要求补充</Button><Button size="sm" variant="destructive" disabled={isPending} onClick={() => run(() => reviewCommunityAward({ awardId: award.id, status: "rejected", publicNote: null, reviewNote: notes[award.id] || null }), "社区奖已驳回。")}>驳回</Button></div></div>}
-        {isAdmin && award.evidence && award.evidence.length > 0 && <div className="space-y-2 border-t border-[var(--color-border)] pt-3"><p className="text-sm font-medium">候选证据</p>{award.evidence.map((item) => <div key={item.id} className="border border-[var(--color-border)] p-2 text-xs"><p>{item.submitterPlayerUserId ? <PlayerProfileLink userId={item.submitterPlayerUserId}>{item.submitterName}</PlayerProfileLink> : item.submitterName}{item.candidateName ? <> · 候选人：{item.candidatePlayerUserId ? <PlayerProfileLink userId={item.candidatePlayerUserId}>{item.candidateName}</PlayerProfileLink> : item.candidateName}</> : ""}{item.matchLabel ? ` · ${item.matchLabel}` : ""}</p><p className="mt-1">{item.explanation}</p>{item.videoUrl && isHttpUrl(item.videoUrl) && <a href={item.videoUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-[var(--color-accent)] hover:underline">证据视频 ↗</a>}<p className="mt-1 text-[var(--color-fg-dim)]">{item.createdAt}</p><CommunityAwardEvidenceReview key={`${item.id}-${award.resultVersion}`} award={award} item={item} /></div>)}</div>}
-        {isAdmin && ["pending_review", "approved", "awarded", "not_awarded", "cancelled"].includes(award.status) && <CommunityAwardAdminControls key={`${award.id}-${award.resultVersion}`} award={award} candidates={candidates} stages={stages} />}
-      </Panel>;
-    })}
-  </div>;
+  return (
+    <div className="space-y-6">
+      {currentUserId && allowSubmission && (
+        <Panel label="提交社区奖" contentClassName="p-4">
+          <div className="grid gap-3">
+            <Input
+              aria-label="奖项名称"
+              placeholder="奖项名称"
+              value={form.name}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
+            />
+            <Textarea
+              aria-label="获奖条件：说明何时、如何判断"
+              placeholder="获奖条件：说明何时、如何判断"
+              value={form.condition}
+              onChange={(event) => setForm({ ...form, condition: event.target.value })}
+            />
+            <Input
+              aria-label="奖品"
+              placeholder="奖品"
+              value={form.prize}
+              onChange={(event) => setForm({ ...form, prize: event.target.value })}
+            />
+            <Textarea
+              aria-label="补充说明（选填）"
+              placeholder="补充说明（选填）"
+              value={form.supplementaryNote}
+              onChange={(event) => setForm({ ...form, supplementaryNote: event.target.value })}
+            />
+            <Button
+              disabled={
+                !form.name.trim() || !form.condition.trim() || !form.prize.trim() || isPending
+              }
+              onClick={() =>
+                run(async () => {
+                  const result = await submitCommunityAward({
+                    seasonId,
+                    ...form,
+                    supplementaryNote: form.supplementaryNote.trim() || null,
+                  });
+                  if (result.success)
+                    setForm({ name: "", condition: "", prize: "", supplementaryNote: "" });
+                  return result;
+                }, "社区奖已提交，等待赛事管理员审核。")
+              }
+            >
+              提交社区奖
+            </Button>
+          </div>
+        </Panel>
+      )}
+      {!currentUserId && (
+        <StatusBanner
+          tone="info"
+          title="登录后可提交社区奖或补充候选证据"
+          sub="赛事管理员审核通过后，奖项会在本页公开。"
+        />
+      )}
+      {visibleAwards.length === 0 ? (
+        <StatusBanner
+          tone="info"
+          title={isAdmin ? "尚无社区奖申报" : "暂未公开社区奖"}
+          sub={isAdmin ? "登录用户提交后会出现在审核队列。" : "通过审核的社区奖会在这里展示。"}
+        />
+      ) : (
+        visibleAwards.map((award) => {
+          const isOwn = award.submittedByUserId === currentUserId;
+          const evidenceInput = evidence[award.id] ?? {
+            explanation: "",
+            candidateUserId: "",
+            matchId: "",
+            videoUrl: "",
+          };
+          const evidencePlayer = candidates.find(
+            (candidate) => candidate.id === evidenceInput.candidateUserId,
+          )?.playerUserId;
+          return (
+            <Panel
+              key={award.id}
+              label={
+                <span>
+                  {award.name} · {STATUS[award.status]}
+                </span>
+              }
+              contentClassName="space-y-3 p-4"
+            >
+              <div className="text-sm space-y-1">
+                <p>
+                  <strong>条件：</strong>
+                  {award.condition}
+                </p>
+                <p>
+                  <strong>奖品：</strong>
+                  {award.prize}
+                </p>
+                <p className="text-[var(--color-fg-mid)]">
+                  发起人：
+                  {award.submitterPlayerUserId ? (
+                    <PlayerProfileLink userId={award.submitterPlayerUserId}>
+                      {award.submitterName}
+                    </PlayerProfileLink>
+                  ) : (
+                    award.submitterName
+                  )}
+                </p>
+                {award.supplementaryNote && (
+                  <p className="text-[var(--color-fg-mid)]">补充：{award.supplementaryNote}</p>
+                )}
+                {award.publicNote && (
+                  <p className="text-[var(--color-fg-mid)]">公开说明：{award.publicNote}</p>
+                )}
+                {award.recipients.length > 0 && (
+                  <p>
+                    <strong>获奖者：</strong>
+                    {award.recipients.map((recipient, index) => (
+                      <span key={recipient.userId}>
+                        {index > 0 && "、"}
+                        {recipient.target ? (
+                          <PlayerProfileLink userId={recipient.userId}>
+                            {recipient.name}
+                          </PlayerProfileLink>
+                        ) : (
+                          recipient.name
+                        )}
+                      </span>
+                    ))}
+                  </p>
+                )}
+                {award.outcomeNote && (
+                  <p className="text-[var(--color-fg-mid)]">结果说明：{award.outcomeNote}</p>
+                )}
+                {isAdmin && award.reviewNote && (
+                  <p className="text-[var(--color-warn)]">审核备注：{award.reviewNote}</p>
+                )}
+              </div>
+              {isOwn && ["pending_review", "rejected"].includes(award.status) && (
+                <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
+                  {award.reviewNote && (
+                    <p className="text-sm text-[var(--color-warn)]">请补充：{award.reviewNote}</p>
+                  )}
+                  {editing === award.id ? (
+                    <>
+                      <Input
+                        value={editForm.name}
+                        onChange={(event) => setEditForm({ ...editForm, name: event.target.value })}
+                        aria-label="奖项名称"
+                      />
+                      <Textarea
+                        value={editForm.condition}
+                        onChange={(event) =>
+                          setEditForm({ ...editForm, condition: event.target.value })
+                        }
+                        aria-label="获奖条件"
+                      />
+                      <Input
+                        value={editForm.prize}
+                        onChange={(event) =>
+                          setEditForm({ ...editForm, prize: event.target.value })
+                        }
+                        aria-label="奖品"
+                      />
+                      <Textarea
+                        value={editForm.supplementaryNote}
+                        onChange={(event) =>
+                          setEditForm({ ...editForm, supplementaryNote: event.target.value })
+                        }
+                        aria-label="补充说明"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={
+                          isPending ||
+                          !editForm.name.trim() ||
+                          !editForm.condition.trim() ||
+                          !editForm.prize.trim()
+                        }
+                        onClick={() =>
+                          run(async () => {
+                            const result = await reviseCommunityAward({
+                              awardId: award.id,
+                              seasonId,
+                              ...editForm,
+                              supplementaryNote: editForm.supplementaryNote || null,
+                            });
+                            if (result.success) setEditing(null);
+                            return result;
+                          }, "已重新提交社区奖，等待审核。")
+                        }
+                      >
+                        保存并重新提交
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isPending}
+                        onClick={() => {
+                          setEditing(award.id);
+                          setEditForm({
+                            name: award.name,
+                            condition: award.condition,
+                            prize: award.prize,
+                            supplementaryNote: award.supplementaryNote ?? "",
+                          });
+                        }}
+                      >
+                        编辑并重新提交
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isPending}
+                        onClick={() =>
+                          run(() => withdrawCommunityAward({ awardId: award.id }), "社区奖已撤回。")
+                        }
+                      >
+                        撤回申报
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {isOwn && award.status === "approved" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() =>
+                    run(() => withdrawCommunityAward({ awardId: award.id }), "社区奖已撤回。")
+                  }
+                >
+                  撤回申报
+                </Button>
+              )}
+              {award.status === "approved" && currentUserId && (
+                <div className="grid gap-2 border-t border-[var(--color-border)] pt-3">
+                  <p className="text-sm font-medium">提交候选证据</p>
+                  {evidencePlayer && (
+                    <PlayerProfileLink userId={evidencePlayer}>查看候选选手 ↗</PlayerProfileLink>
+                  )}
+                  <Select
+                    value={evidenceInput.candidateUserId}
+                    onValueChange={(value) =>
+                      setEvidence({
+                        ...evidence,
+                        [award.id]: { ...evidenceInput, candidateUserId: value },
+                      })
+                    }
+                  >
+                    <SelectTrigger aria-label="选择候选人或相关比赛">
+                      <SelectValue placeholder="候选人（选填）" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {candidates.map((candidate) => (
+                        <SelectItem key={candidate.id} value={candidate.id}>
+                          {candidate.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={evidenceInput.matchId}
+                    onValueChange={(value) =>
+                      setEvidence({ ...evidence, [award.id]: { ...evidenceInput, matchId: value } })
+                    }
+                  >
+                    <SelectTrigger aria-label="选择候选人或相关比赛">
+                      <SelectValue placeholder="相关比赛（选填）" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {matches.map((match) => (
+                        <SelectItem key={match.id} value={match.id}>
+                          {match.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Textarea
+                    aria-label="说明为什么该候选人符合条件"
+                    placeholder="说明为什么该候选人符合条件"
+                    value={evidenceInput.explanation}
+                    onChange={(event) =>
+                      setEvidence({
+                        ...evidence,
+                        [award.id]: { ...evidenceInput, explanation: event.target.value },
+                      })
+                    }
+                  />
+                  <Input
+                    aria-label="视频链接（选填）"
+                    type="url"
+                    placeholder="视频链接（选填）"
+                    value={evidenceInput.videoUrl}
+                    onChange={(event) =>
+                      setEvidence({
+                        ...evidence,
+                        [award.id]: { ...evidenceInput, videoUrl: event.target.value },
+                      })
+                    }
+                  />
+                  <Button
+                    size="sm"
+                    disabled={!evidenceInput.explanation.trim() || isPending}
+                    onClick={() =>
+                      run(
+                        () =>
+                          addCommunityAwardEvidence({
+                            awardId: award.id,
+                            candidateUserId: evidenceInput.candidateUserId || null,
+                            matchId: evidenceInput.matchId || null,
+                            explanation: evidenceInput.explanation,
+                            videoUrl: evidenceInput.videoUrl || null,
+                          }),
+                        "候选证据已提交，等待管理员核实。",
+                      )
+                    }
+                  >
+                    提交证据
+                  </Button>
+                </div>
+              )}
+              {isAdmin && award.status === "pending_review" && (
+                <div className="grid gap-2 border-t border-[var(--color-border)] pt-3">
+                  <Textarea
+                    aria-label="审核备注 / 要求补充的内容（选填）"
+                    placeholder="审核备注 / 要求补充的内容（选填）"
+                    value={notes[award.id] ?? ""}
+                    onChange={(event) => setNotes({ ...notes, [award.id]: event.target.value })}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      disabled={isPending}
+                      onClick={() =>
+                        run(
+                          () =>
+                            reviewCommunityAward({
+                              awardId: award.id,
+                              status: "approved",
+                              publicNote: null,
+                              reviewNote: notes[award.id] || null,
+                            }),
+                          "社区奖已审核通过并公开。",
+                        )
+                      }
+                    >
+                      通过并公开
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!notes[award.id]?.trim() || isPending}
+                      onClick={() =>
+                        run(
+                          () =>
+                            requestCommunityAwardSupplement({
+                              awardId: award.id,
+                              note: notes[award.id],
+                            }),
+                          "已要求发起人补充说明。",
+                        )
+                      }
+                    >
+                      要求补充
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={isPending}
+                      onClick={() =>
+                        run(
+                          () =>
+                            reviewCommunityAward({
+                              awardId: award.id,
+                              status: "rejected",
+                              publicNote: null,
+                              reviewNote: notes[award.id] || null,
+                            }),
+                          "社区奖已驳回。",
+                        )
+                      }
+                    >
+                      驳回
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {isAdmin && award.evidence && award.evidence.length > 0 && (
+                <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
+                  <p className="text-sm font-medium">候选证据</p>
+                  {award.evidence.map((item) => (
+                    <div key={item.id} className="border border-[var(--color-border)] p-2 text-xs">
+                      <p>
+                        {item.submitterPlayerUserId ? (
+                          <PlayerProfileLink userId={item.submitterPlayerUserId}>
+                            {item.submitterName}
+                          </PlayerProfileLink>
+                        ) : (
+                          item.submitterName
+                        )}
+                        {item.candidateName ? (
+                          <>
+                            {" "}
+                            · 候选人：
+                            {item.candidatePlayerUserId ? (
+                              <PlayerProfileLink userId={item.candidatePlayerUserId}>
+                                {item.candidateName}
+                              </PlayerProfileLink>
+                            ) : (
+                              item.candidateName
+                            )}
+                          </>
+                        ) : (
+                          ""
+                        )}
+                        {item.matchLabel ? ` · ${item.matchLabel}` : ""}
+                      </p>
+                      <p className="mt-1">{item.explanation}</p>
+                      {item.videoUrl && isHttpUrl(item.videoUrl) && (
+                        <a
+                          href={item.videoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-block text-[var(--color-accent)] hover:underline"
+                        >
+                          证据视频 ↗
+                        </a>
+                      )}
+                      <p className="mt-1 text-[var(--color-fg-dim)]">{item.createdAt}</p>
+                      <CommunityAwardEvidenceReview
+                        key={`${item.id}-${award.resultVersion}`}
+                        award={award}
+                        item={item}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {isAdmin &&
+                ["pending_review", "approved", "awarded", "not_awarded", "cancelled"].includes(
+                  award.status,
+                ) && (
+                  <CommunityAwardAdminControls
+                    key={`${award.id}-${award.resultVersion}`}
+                    award={award}
+                    candidates={candidates}
+                    stages={stages}
+                  />
+                )}
+            </Panel>
+          );
+        })
+      )}
+    </div>
+  );
 }

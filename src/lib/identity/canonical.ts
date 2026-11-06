@@ -9,7 +9,8 @@ import { identityAppError } from "@/lib/identity/errors";
 import { normalizeEmail } from "@/lib/utils/email";
 
 type IdentityQueryable = Pick<DB, "select">;
-type VerificationSource = "signup_confirmation" | "existing_account_reverification" | "admin_migration";
+type VerificationSource =
+  "signup_confirmation" | "existing_account_reverification" | "admin_migration";
 
 export async function resolveCanonicalUserId(
   queryable: IdentityQueryable,
@@ -19,16 +20,22 @@ export async function resolveCanonicalUserId(
   const visited = new Set<string>();
 
   for (let depth = 0; depth < 16; depth += 1) {
-    if (visited.has(currentId)) throw new AppError(ErrorCode.INTERNAL_ERROR, "用户归并 alias 存在循环。");
+    if (visited.has(currentId))
+      throw new AppError(ErrorCode.INTERNAL_ERROR, "用户归并 alias 存在循环。");
     visited.add(currentId);
-    const [row] = await queryable.select({
-      id: users.id,
-      status: users.status,
-      mergedIntoUserId: users.mergedIntoUserId,
-    }).from(users).where(eq(users.id, currentId)).limit(1);
+    const [row] = await queryable
+      .select({
+        id: users.id,
+        status: users.status,
+        mergedIntoUserId: users.mergedIntoUserId,
+      })
+      .from(users)
+      .where(eq(users.id, currentId))
+      .limit(1);
     if (!row) return null;
     if (row.status === "active") return row.id;
-    if (!row.mergedIntoUserId) throw new AppError(ErrorCode.INTERNAL_ERROR, "已归并用户缺少 canonical alias。");
+    if (!row.mergedIntoUserId)
+      throw new AppError(ErrorCode.INTERNAL_ERROR, "已归并用户缺少 canonical alias。");
     currentId = row.mergedIntoUserId;
   }
 
@@ -36,20 +43,35 @@ export async function resolveCanonicalUserId(
 }
 
 /** Original attribution rows whose alias chain resolves to this active viewer. */
-export async function getCanonicalUserSourceIds(queryable: IdentityQueryable, userId: string): Promise<string[]> {
-  const [viewer] = await queryable.select({id: users.id}).from(users).where(and(eq(users.id, userId), eq(users.status, "active"))).limit(1);
+export async function getCanonicalUserSourceIds(
+  queryable: IdentityQueryable,
+  userId: string,
+): Promise<string[]> {
+  const [viewer] = await queryable
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, userId), eq(users.status, "active")))
+    .limit(1);
   if (!viewer) return [];
   const ids = new Set([viewer.id]);
   let frontier = [viewer.id];
   // Match resolveCanonicalUserId's maximum of 16 visited accounts.
   for (let depth = 1; depth < 16 && frontier.length; depth++) {
-    const rows = await queryable.select({id: users.id}).from(users).where(and(ne(users.status, "active"), inArray(users.mergedIntoUserId, frontier)));
-    frontier = rows.map(row => row.id).filter(id => !ids.has(id));
+    const rows = await queryable
+      .select({ id: users.id })
+      .from(users)
+      .where(and(ne(users.status, "active"), inArray(users.mergedIntoUserId, frontier)));
+    frontier = rows.map((row) => row.id).filter((id) => !ids.has(id));
     for (const id of frontier) ids.add(id);
   }
   if (frontier.length) {
-    const deeper = await queryable.select({id: users.id}).from(users).where(and(ne(users.status, "active"), inArray(users.mergedIntoUserId, frontier))).limit(1);
-    if (deeper.length) throw new AppError(ErrorCode.INTERNAL_ERROR, "用户归并 alias 链超过安全上限。");
+    const deeper = await queryable
+      .select({ id: users.id })
+      .from(users)
+      .where(and(ne(users.status, "active"), inArray(users.mergedIntoUserId, frontier)))
+      .limit(1);
+    if (deeper.length)
+      throw new AppError(ErrorCode.INTERNAL_ERROR, "用户归并 alias 链超过安全上限。");
   }
   return [...ids];
 }
@@ -67,76 +89,130 @@ export async function resolveOrCreateCanonicalUserInTx(
   },
 ): Promise<typeof users.$inferSelect> {
   const email = normalizeEmail(input.email);
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`identity:${email}:${input.authId}`}, 0))`);
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`identity:${email}:${input.authId}`}, 0))`,
+  );
 
-  const identityRows = await tx.select({ userId: userIdentities.userId })
+  const identityRows = await tx
+    .select({ userId: userIdentities.userId })
     .from(userIdentities)
-    .where(and(
-      eq(userIdentities.status, "active"),
-      or(
-        and(eq(userIdentities.provider, "supabase_auth"), eq(userIdentities.providerSubject, input.authId)),
-        and(eq(userIdentities.kind, "email"), eq(userIdentities.normalizedValue, email)),
+    .where(
+      and(
+        eq(userIdentities.status, "active"),
+        or(
+          and(
+            eq(userIdentities.provider, "supabase_auth"),
+            eq(userIdentities.providerSubject, input.authId),
+          ),
+          and(eq(userIdentities.kind, "email"), eq(userIdentities.normalizedValue, email)),
+        ),
       ),
-    ));
-  const legacyRows = await tx.select({ id: users.id })
+    );
+  const legacyRows = await tx
+    .select({ id: users.id })
     .from(users)
-    .where(and(
-      eq(users.status, "active"),
-      or(eq(users.authId, input.authId), sql`lower(trim(${users.email})) = ${email}`),
-    ));
+    .where(
+      and(
+        eq(users.status, "active"),
+        or(eq(users.authId, input.authId), sql`lower(trim(${users.email})) = ${email}`),
+      ),
+    );
 
   const canonicalIds = new Set<string>();
-  for (const candidate of new Set([...identityRows.map((row) => row.userId), ...legacyRows.map((row) => row.id)])) {
+  for (const candidate of new Set([
+    ...identityRows.map((row) => row.userId),
+    ...legacyRows.map((row) => row.id),
+  ])) {
     const canonicalId = await resolveCanonicalUserId(tx, candidate);
     if (canonicalId) canonicalIds.add(canonicalId);
   }
   if (canonicalIds.size > 1) {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "Auth identity 与 email identity 指向不同 canonical user，已拒绝登录绑定。");
+    throw new AppError(
+      ErrorCode.INTERNAL_ERROR,
+      "Auth identity 与 email identity 指向不同 canonical user，已拒绝登录绑定。",
+    );
   }
 
   let user: typeof users.$inferSelect | undefined;
   const existingId = canonicalIds.values().next().value as string | undefined;
   if (existingId) {
-    [user] = await tx.select().from(users).where(and(eq(users.id, existingId), eq(users.status, "active"))).for("update");
+    [user] = await tx
+      .select()
+      .from(users)
+      .where(and(eq(users.id, existingId), eq(users.status, "active")))
+      .for("update");
   } else if (input.allowCreate) {
     // Password login also allows first-time account synchronization. Absence of
     // an active binding is not proof that this provider credential is new.
-    const withdrawn = await tx.select({ id: userIdentities.id }).from(userIdentities).where(and(
-      eq(userIdentities.status, "revoked"), eq(userIdentities.provider, "supabase_auth"),
-      eq(userIdentities.providerSubject, input.authId),
-    )).limit(1);
+    const withdrawn = await tx
+      .select({ id: userIdentities.id })
+      .from(userIdentities)
+      .where(
+        and(
+          eq(userIdentities.status, "revoked"),
+          eq(userIdentities.provider, "supabase_auth"),
+          eq(userIdentities.providerSubject, input.authId),
+        ),
+      )
+      .limit(1);
     if (withdrawn.length) throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
-    [user] = await tx.insert(users).values({
-      email,
-      authId: input.authId,
-      emailVerifiedAt: input.verifiedAt,
-      emailVerificationSource: input.source,
-    }).returning();
+    [user] = await tx
+      .insert(users)
+      .values({
+        email,
+        authId: input.authId,
+        emailVerifiedAt: input.verifiedAt,
+        emailVerificationSource: input.source,
+      })
+      .returning();
   }
   if (!user) throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
 
   // The pre-lock lookup discovers a candidate, not authority. READ COMMITTED must
   // observe ownership again after waiting for revoke/merge/link to release users.
   if (existingId) {
-    const current = await tx.select().from(userIdentities).where(and(
-      eq(userIdentities.status, "active"),
-      or(
-        and(eq(userIdentities.provider, "supabase_auth"), eq(userIdentities.providerSubject, input.authId)),
-        and(eq(userIdentities.kind, "email"), eq(userIdentities.normalizedValue, email)),
-      ),
-    ));
-    const legacyOwnsCredential = user.authId === input.authId || normalizeEmail(user.email) === email;
-    if (current.some(row => row.userId !== user!.id) ||
-        (!legacyOwnsCredential && !current.some(row => row.userId === user!.id))) {
+    const current = await tx
+      .select()
+      .from(userIdentities)
+      .where(
+        and(
+          eq(userIdentities.status, "active"),
+          or(
+            and(
+              eq(userIdentities.provider, "supabase_auth"),
+              eq(userIdentities.providerSubject, input.authId),
+            ),
+            and(eq(userIdentities.kind, "email"), eq(userIdentities.normalizedValue, email)),
+          ),
+        ),
+      );
+    const legacyOwnsCredential =
+      user.authId === input.authId || normalizeEmail(user.email) === email;
+    if (
+      current.some((row) => row.userId !== user!.id) ||
+      (!legacyOwnsCredential && !current.some((row) => row.userId === user!.id))
+    ) {
       throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
     }
     // An old provider subject is not a new credential merely because the same
     // email has subsequently been explicitly linked with a different subject.
-    const revokedSubject = await tx.select({ id: userIdentities.id }).from(userIdentities).where(and(
-      eq(userIdentities.status, "revoked"),
-      eq(userIdentities.provider, "supabase_auth"), eq(userIdentities.providerSubject, input.authId),
-    )).limit(1);
-    if (revokedSubject.length && !current.some(row => row.provider === "supabase_auth" && row.providerSubject === input.authId)) {
+    const revokedSubject = await tx
+      .select({ id: userIdentities.id })
+      .from(userIdentities)
+      .where(
+        and(
+          eq(userIdentities.status, "revoked"),
+          eq(userIdentities.provider, "supabase_auth"),
+          eq(userIdentities.providerSubject, input.authId),
+        ),
+      )
+      .limit(1);
+    if (
+      revokedSubject.length &&
+      !current.some(
+        (row) => row.provider === "supabase_auth" && row.providerSubject === input.authId,
+      )
+    ) {
       throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
     }
   }
@@ -148,15 +224,22 @@ export async function resolveOrCreateCanonicalUserInTx(
   const isPrimaryEmail = primaryEmail === email;
   const isPrimaryAuth = user.authId === input.authId || (isPrimaryEmail && user.authId === null);
   if (isPrimaryAuth && user.authId === null) {
-    [user] = await tx.update(users).set({ authId: input.authId, updatedAt: new Date() })
-      .where(eq(users.id, user.id)).returning();
+    [user] = await tx
+      .update(users)
+      .set({ authId: input.authId, updatedAt: new Date() })
+      .where(eq(users.id, user.id))
+      .returning();
   }
   if (isPrimaryEmail) {
-    [user] = await tx.update(users).set({
-      emailVerifiedAt: input.verifiedAt,
-      emailVerificationSource: input.source,
-      updatedAt: new Date(),
-    }).where(eq(users.id, user.id)).returning();
+    [user] = await tx
+      .update(users)
+      .set({
+        emailVerifiedAt: input.verifiedAt,
+        emailVerificationSource: input.source,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id))
+      .returning();
   }
 
   await upsertActiveIdentityInTx(tx, {
@@ -191,19 +274,36 @@ export async function upsertActiveIdentityInTx(
     providerSubject: string;
     normalizedValue: string | null;
     verifiedAt: Date;
-    provenance: "signup_confirmation" | "existing_account_reverification" | "user_verified_link" | "merge" | "admin_migration";
+    provenance:
+      | "signup_confirmation"
+      | "existing_account_reverification"
+      | "user_verified_link"
+      | "merge"
+      | "admin_migration";
     isPrimary: boolean;
   },
 ): Promise<void> {
-  const matches = await tx.select().from(userIdentities).where(and(
-    eq(userIdentities.status, "active"),
-    or(
-      and(eq(userIdentities.provider, input.provider), eq(userIdentities.providerSubject, input.providerSubject)),
-      input.normalizedValue === null
-        ? sql`false`
-        : and(eq(userIdentities.kind, input.kind), eq(userIdentities.normalizedValue, input.normalizedValue)),
-    ),
-  )).for("update");
+  const matches = await tx
+    .select()
+    .from(userIdentities)
+    .where(
+      and(
+        eq(userIdentities.status, "active"),
+        or(
+          and(
+            eq(userIdentities.provider, input.provider),
+            eq(userIdentities.providerSubject, input.providerSubject),
+          ),
+          input.normalizedValue === null
+            ? sql`false`
+            : and(
+                eq(userIdentities.kind, input.kind),
+                eq(userIdentities.normalizedValue, input.normalizedValue),
+              ),
+        ),
+      ),
+    )
+    .for("update");
   const owners = new Set(matches.map((row) => row.userId));
   if (owners.size > 0 && (!owners.has(input.userId) || owners.size > 1)) {
     throw identityAppError(ErrorCode.VALIDATION_FAILED, "loginMethodAlreadyBound");
@@ -212,8 +312,11 @@ export async function upsertActiveIdentityInTx(
     await tx.insert(userIdentities).values(input);
     return;
   }
-  await tx.update(userIdentities).set({
-    verifiedAt: input.verifiedAt,
-    isPrimary: matches[0]!.isPrimary || input.isPrimary,
-  }).where(eq(userIdentities.id, matches[0]!.id));
+  await tx
+    .update(userIdentities)
+    .set({
+      verifiedAt: input.verifiedAt,
+      isPrimary: matches[0]!.isPrimary || input.isPrimary,
+    })
+    .where(eq(userIdentities.id, matches[0]!.id));
 }

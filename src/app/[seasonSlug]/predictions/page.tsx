@@ -5,12 +5,14 @@ import { notFound } from "next/navigation";
 import { db } from "@/db/client";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getUserSession } from "@/lib/auth/session";
-import { readPredictionSnapshot, projectPredictionBoard, publicPickEmBoard } from "@/lib/predictions/data";
+import {
+  readPredictionSnapshot,
+  projectPredictionBoard,
+  publicPickEmBoard,
+} from "@/lib/predictions/data";
 import { PredictionErrorBoundary } from "@/components/predictions/PredictionErrorBoundary";
 import { PredictionBoard } from "@/components/predictions/PredictionBoard";
-export default function PredictionsPage(props: {
-  params: Promise<{ seasonSlug: string }>;
-}) {
+export default function PredictionsPage(props: { params: Promise<{ seasonSlug: string }> }) {
   return (
     <PageLayout as="div" variant="workbench">
       <Suspense
@@ -25,21 +27,21 @@ export default function PredictionsPage(props: {
     </PageLayout>
   );
 }
-async function PredictionContent({
-  params,
-}: {
-  params: Promise<{ seasonSlug: string }>;
-}) {
+async function PredictionContent({ params }: { params: Promise<{ seasonSlug: string }> }) {
   return withDbTrafficSource("predictions.page", async () => {
-  const { seasonSlug } = await params;
-  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
-  if (!season || season.competitionTemplate !== "major") notFound();
-  const user = await getUserSession();
-  const data = await db.transaction((tx) =>
-    readPredictionSnapshot(tx, season.id, user?.userId ?? null, "sim"),
-    { accessMode: "read only", isolationLevel: "repeatable read" },
-  );
-  const board=await publicPickEmBoard(projectPredictionBoard(data));
-  return <PredictionErrorBoundary key={`${season.id}/${user?.userId??"anonymous"}`}><PredictionBoard initial={board} slug={seasonSlug} signedIn={!!user} /></PredictionErrorBoundary>;
+    const { seasonSlug } = await params;
+    const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
+    if (!season || season.competitionTemplate !== "major") notFound();
+    const user = await getUserSession();
+    const data = await db.transaction(
+      (tx) => readPredictionSnapshot(tx, season.id, user?.userId ?? null, "sim"),
+      { accessMode: "read only", isolationLevel: "repeatable read" },
+    );
+    const board = await publicPickEmBoard(projectPredictionBoard(data));
+    return (
+      <PredictionErrorBoundary key={`${season.id}/${user?.userId ?? "anonymous"}`}>
+        <PredictionBoard initial={board} slug={seasonSlug} signedIn={!!user} />
+      </PredictionErrorBoundary>
+    );
   });
 }

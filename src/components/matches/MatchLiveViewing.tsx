@@ -46,33 +46,54 @@ export function MatchLiveViewing({
   const [loadedRooms, setLoadedRooms] = useState<Record<string, boolean>>({});
 
   const liveResources = resources.filter((c) => c.broadcastStatus === "live" && c.bilibiliRoomId);
-  const activeCommentator = liveResources.find((c) => c.userId === selectedUserId) ?? liveResources[0];
+  const activeCommentator =
+    liveResources.find((c) => c.userId === selectedUserId) ?? liveResources[0];
   const activeUserId = activeCommentator?.userId ?? null;
   if (selectedUserId !== activeUserId) setSelectedUserId(activeUserId);
 
-  if (!resources.length) return showEmpty ? <section aria-label="直播观看" className="border-y border-[var(--color-border)] py-4"><h2 className="text-sm font-semibold">直播观看</h2><p className="mt-1 text-sm text-[var(--color-fg-dim)]">暂无直播</p></section> : null;
+  if (!resources.length)
+    return showEmpty ? (
+      <section aria-label="直播观看" className="border-y border-[var(--color-border)] py-4">
+        <h2 className="text-sm font-semibold">直播观看</h2>
+        <p className="mt-1 text-sm text-[var(--color-fg-dim)]">暂无直播</p>
+      </section>
+    ) : null;
 
   const bilibiliRoomId = activeCommentator?.bilibiliRoomId ?? null;
   const isLoaded = Boolean(bilibiliRoomId && loadedRooms[bilibiliRoomId]);
   const isProminent = Boolean(bilibiliRoomId);
 
   return (
-    <Panel label={isProminent && bilibiliRoomId ? "站内直播观看" : "直播观看"} contentClassName="p-4 space-y-4">
+    <Panel
+      label={isProminent && bilibiliRoomId ? "站内直播观看" : "直播观看"}
+      contentClassName="p-4 space-y-4"
+    >
       {liveResources.length > 1 && (
         <div className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] pb-3 text-xs">
           <span className="text-[var(--color-fg-dim)]">切换解说：</span>
           {liveResources.map((commentator) => (
-            <div key={commentator.userId} className="flex items-center"><button
-              type="button"
-              onClick={() => setSelectedUserId(commentator.userId)}
-              className={`rounded px-2 py-1 transition-colors ${
-                commentator.userId === activeCommentator?.userId
-                  ? "bg-[var(--color-accent)] font-semibold text-white"
-                  : "bg-[var(--color-panel-lo)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
-              }`}
-            >
-              {getPublicDisplayName(commentator)}
-            </button>{commentator.playerUserId && <PlayerProfileLink userId={commentator.playerUserId} variant="dense" aria-label={`查看 ${getPublicDisplayName(commentator)} 选手资料`}>↗</PlayerProfileLink>}</div>
+            <div key={commentator.userId} className="flex items-center">
+              <button
+                type="button"
+                onClick={() => setSelectedUserId(commentator.userId)}
+                className={`rounded px-2 py-1 transition-colors ${
+                  commentator.userId === activeCommentator?.userId
+                    ? "bg-[var(--color-accent)] font-semibold text-white"
+                    : "bg-[var(--color-panel-lo)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
+                }`}
+              >
+                {getPublicDisplayName(commentator)}
+              </button>
+              {commentator.playerUserId && (
+                <PlayerProfileLink
+                  userId={commentator.playerUserId}
+                  variant="dense"
+                  aria-label={`查看 ${getPublicDisplayName(commentator)} 选手资料`}
+                >
+                  ↗
+                </PlayerProfileLink>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -90,12 +111,19 @@ export function MatchLiveViewing({
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-                <p className="text-sm text-[var(--color-fg-mid)]">解说 · {activeCommentator.playerUserId ? <PlayerProfileLink userId={activeCommentator.playerUserId}>{getPublicDisplayName(activeCommentator)}</PlayerProfileLink> : getPublicDisplayName(activeCommentator)}</p>
+                <p className="text-sm text-[var(--color-fg-mid)]">
+                  解说 ·{" "}
+                  {activeCommentator.playerUserId ? (
+                    <PlayerProfileLink userId={activeCommentator.playerUserId}>
+                      {getPublicDisplayName(activeCommentator)}
+                    </PlayerProfileLink>
+                  ) : (
+                    getPublicDisplayName(activeCommentator)
+                  )}
+                </p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <Button
-                    onClick={() =>
-                      setLoadedRooms((prev) => ({ ...prev, [bilibiliRoomId]: true }))
-                    }
+                    onClick={() => setLoadedRooms((prev) => ({ ...prev, [bilibiliRoomId]: true }))}
                   >
                     加载站内播放器
                   </Button>
@@ -127,7 +155,13 @@ export function MatchLiveViewing({
       ) : null}
       <div className="flex flex-wrap items-center gap-3">
         {resources.map((commentator) => (
-          <a key={commentator.userId} href={commentator.liveStreamUrl!} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-fg-mid)] hover:underline">
+          <a
+            key={commentator.userId}
+            href={commentator.liveStreamUrl!}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-[var(--color-fg-mid)] hover:underline"
+          >
             {getPublicDisplayName(commentator)} · 进入直播间 ↗
           </a>
         ))}

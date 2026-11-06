@@ -11,18 +11,29 @@ interface AdminMatchWorkbenchPageProps {
   searchParams: Promise<{ returnTo?: string }>;
 }
 
-export default async function AdminMatchWorkbenchPage({ params, searchParams }: AdminMatchWorkbenchPageProps) {
+export default async function AdminMatchWorkbenchPage({
+  params,
+  searchParams,
+}: AdminMatchWorkbenchPageProps) {
   const { seasonSlug, matchId } = await params;
   const data = await loadAdminMatchWorkbench({ seasonSlug, matchId });
   if (!data) notFound();
-  const returnContext = resolveMatchReturnContext(seasonSlug, (await searchParams).returnTo, Boolean(data.match.testConfig));
+  const returnContext = resolveMatchReturnContext(
+    seasonSlug,
+    (await searchParams).returnTo,
+    Boolean(data.match.testConfig),
+  );
 
   return (
     <div className="min-w-0 space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-        <p className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">{data.season.name}</p>
-        <h1 className="mt-1 text-lg font-bold text-[var(--color-fg)]">{data.match.testConfig ? "测试赛工作台" : "比赛工作台"}</h1>
+          <p className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">
+            {data.season.name}
+          </p>
+          <h1 className="mt-1 text-lg font-bold text-[var(--color-fg)]">
+            {data.match.testConfig ? "测试赛工作台" : "比赛工作台"}
+          </h1>
         </div>
         <Link
           href={returnContext.href as never}
@@ -32,7 +43,19 @@ export default async function AdminMatchWorkbenchPage({ params, searchParams }: 
         </Link>
       </header>
       <AdminMatchWorkbench {...data} />
-      {data.match.testConfig && (data.match.status === "in_progress" || data.match.status === "finished") && <TestMatchConclusion key={data.match.updatedAt.toISOString()} scoreA={data.match.scoreA} scoreB={data.match.scoreB} maps={data.finishedMaps} matchId={matchId} finished={data.match.status === "finished"} disposition={data.match.resultDisposition} updatedAt={data.match.updatedAt.toISOString()} />}
+      {data.match.testConfig &&
+        (data.match.status === "in_progress" || data.match.status === "finished") && (
+          <TestMatchConclusion
+            key={data.match.updatedAt.toISOString()}
+            scoreA={data.match.scoreA}
+            scoreB={data.match.scoreB}
+            maps={data.finishedMaps}
+            matchId={matchId}
+            finished={data.match.status === "finished"}
+            disposition={data.match.resultDisposition}
+            updatedAt={data.match.updatedAt.toISOString()}
+          />
+        )}
       <ContentReady module="admin" phase="primary" />
     </div>
   );

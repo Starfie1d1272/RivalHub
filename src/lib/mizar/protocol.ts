@@ -2,10 +2,10 @@
 // Verified against Mizar 88ba7001f8b3993c6cd2e6961dbf6968f29ec63b by
 // scripts/mizar-contract-check.mjs; change it only together with the producer.
 // RivalHub public projection lives in live-projection.ts.
-import { z } from 'zod';
+import { z } from "zod";
 
-export const LIVE_SNAPSHOT_SCHEMA_VERSION = 'mizar.live-snapshot.v1' as const;
-export const RELIABLE_EVENT_SCHEMA_VERSION = 'mizar.reliable-event.v1' as const;
+export const LIVE_SNAPSHOT_SCHEMA_VERSION = "mizar.live-snapshot.v1" as const;
+export const RELIABLE_EVENT_SCHEMA_VERSION = "mizar.reliable-event.v1" as const;
 
 const id = z.string().min(1).max(128);
 const nullableId = id.nullable();
@@ -23,7 +23,7 @@ const cursor = z.strictObject({
   programReceiveSequence: z.number().int().min(0).nullable(),
   mapEpoch: z.number().int().min(0),
 });
-const identity = z.enum(['unbound', 'resolving', 'matched', 'degraded', 'mismatch']);
+const identity = z.enum(["unbound", "resolving", "matched", "degraded", "mismatch"]);
 const capability = z.strictObject({
   telemetryFresh: z.boolean(),
   contextFresh: z.boolean(),
@@ -36,11 +36,11 @@ const capability = z.strictObject({
 const player = z.strictObject({
   sourcePlayerId: id,
   canonicalPlayerId: nullableId,
-  identityEvidence: z.enum(['canonical', 'observed', 'unresolved']),
-  lineupEvidence: z.enum(['current', 'retained']),
+  identityEvidence: z.enum(["canonical", "observed", "unresolved"]),
+  lineupEvidence: z.enum(["current", "retained"]),
   displayName: z.string().max(256).nullable(),
-  side: z.enum(['CT', 'T', 'unknown']),
-  lifeState: z.enum(['alive', 'dead', 'unknown']),
+  side: z.enum(["CT", "T", "unknown"]),
+  lifeState: z.enum(["alive", "dead", "unknown"]),
   health: health,
   armor: health,
   hasHelmet: z.boolean().nullable(),
@@ -59,7 +59,7 @@ const player = z.strictObject({
   }),
 });
 // Public overview coordinates are calibrated by Mizar; never world coordinates.
-const layer = z.enum(['single', 'upper', 'lower']);
+const layer = z.enum(["single", "upper", "lower"]);
 const position = z.strictObject({
   x: z.number().finite().min(0).max(1),
   y: z.number().finite().min(0).max(1),
@@ -80,8 +80,8 @@ export const publicRadarV1Schema = z
         z.strictObject({
           sourcePlayerId: id,
           canonicalPlayerId: nullableId,
-          side: z.enum(['CT', 'T', 'unknown']),
-          lifeState: z.enum(['alive', 'dead', 'unknown']),
+          side: z.enum(["CT", "T", "unknown"]),
+          lifeState: z.enum(["alive", "dead", "unknown"]),
           position: position.nullable(),
           facing: z
             .strictObject({
@@ -111,7 +111,7 @@ export const publicRadarV1Schema = z
     if (
       value.utility.reduce((sum, utility) => sum + utility.flames.length, 0) > LIVE_RADAR_MAX_FLAMES
     )
-      ctx.addIssue({ code: 'custom', message: 'radar_total_flames_exceeded' });
+      ctx.addIssue({ code: "custom", message: "radar_total_flames_exceeded" });
     const positions = [
       ...value.players.map((player) => player.position),
       value.bomb?.position,
@@ -124,23 +124,23 @@ export const publicRadarV1Schema = z
       (value.activeLayer !== null && !value.layers.includes(value.activeLayer)) ||
       positions.some((point) => point != null && !value.layers.includes(point.layer))
     )
-      ctx.addIssue({ code: 'custom', message: 'radar_layer_unavailable' });
+      ctx.addIssue({ code: "custom", message: "radar_layer_unavailable" });
     if (
       new Set(value.layers).size !== value.layers.length ||
-      (value.layers.includes('single') ? value.layers.length !== 1 : value.layers.length !== 2)
+      (value.layers.includes("single") ? value.layers.length !== 1 : value.layers.length !== 2)
     )
-      ctx.addIssue({ code: 'custom', message: 'radar_layers_invalid' });
+      ctx.addIssue({ code: "custom", message: "radar_layers_invalid" });
   });
 const roundHistory = z.strictObject({
   mapOrder: z.number().int().min(1).max(5),
-  completeness: z.enum(['complete', 'partial', 'unavailable']),
+  completeness: z.enum(["complete", "partial", "unavailable"]),
   rounds: z
     .array(
       z.strictObject({
         roundNumber: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-        winnerSide: z.enum(['CT', 'T', 'unknown']),
+        winnerSide: z.enum(["CT", "T", "unknown"]),
         winnerEntryId: nullableId,
-        winCondition: z.enum(['elimination', 'bomb', 'defuse', 'time', 'unknown']),
+        winCondition: z.enum(["elimination", "bomb", "defuse", "time", "unknown"]),
       }),
     )
     .max(256),
@@ -153,7 +153,7 @@ export const liveSnapshotV1Schema = z
     producedAt: utc.max(64),
     matchId: id,
     competitionId: id,
-    format: z.enum(['bo1', 'bo3', 'bo5']),
+    format: z.enum(["bo1", "bo3", "bo5"]),
     series: z.strictObject({ scoreA: count, scoreB: count, currentMapOrder: count }),
     roundHistory: roundHistory.nullable(),
     map: z.strictObject({
@@ -180,7 +180,7 @@ export const liveSnapshotV1Schema = z
         carrierSourceId: nullableId,
         action: z
           .strictObject({
-            kind: z.enum(['plant', 'defuse']),
+            kind: z.enum(["plant", "defuse"]),
             sourcePlayerId: nullableId,
             remainingSeconds: number,
             durationSeconds: number,
@@ -194,28 +194,28 @@ export const liveSnapshotV1Schema = z
   .superRefine((value, ctx) => {
     if (value.radar !== null) {
       if (!value.capability.radarCurrent)
-        ctx.addIssue({ code: 'custom', message: 'radar_payload_not_current' });
+        ctx.addIssue({ code: "custom", message: "radar_payload_not_current" });
       if (value.map.name === null || value.radar.mapName !== value.map.name)
-        ctx.addIssue({ code: 'custom', message: 'radar_map_mismatch' });
+        ctx.addIssue({ code: "custom", message: "radar_map_mismatch" });
     }
     if (
       value.roundHistory !== null &&
       value.series.currentMapOrder !== null &&
       value.roundHistory.mapOrder !== value.series.currentMapOrder
     )
-      ctx.addIssue({ code: 'custom', message: 'round_history_map_mismatch' });
+      ctx.addIssue({ code: "custom", message: "round_history_map_mismatch" });
   });
 
 export const reliableEventKindV1Schema = z.enum([
-  'match_started',
-  'map_started',
-  'map_ended',
-  'map_player_snapshot',
-  'series_ended',
-  'source_generation_changed',
-  'map_epoch_changed',
-  'identity_mismatch',
-  'lineup_mismatch',
+  "match_started",
+  "map_started",
+  "map_ended",
+  "map_player_snapshot",
+  "series_ended",
+  "source_generation_changed",
+  "map_epoch_changed",
+  "identity_mismatch",
+  "lineup_mismatch",
 ]);
 const reliableEventBase = z.strictObject({
   schemaVersion: z.literal(RELIABLE_EVENT_SCHEMA_VERSION),
@@ -234,16 +234,16 @@ const reliableEventBase = z.strictObject({
     telemetryFresh: z.boolean(),
     contextFresh: z.boolean(),
     lineupMismatchOnly: z.boolean().optional(),
-    source: z.enum(['runtime-transition', 'runtime-continuity', 'series-progress', 'identity']),
+    source: z.enum(["runtime-transition", "runtime-continuity", "series-progress", "identity"]),
   }),
 });
 const emptyPayload = z.strictObject({});
 const reason = z.string().max(128).nullable();
-export const reliableEventV1Schema = z.discriminatedUnion('kind', [
-  reliableEventBase.extend({ kind: z.literal('match_started'), payload: emptyPayload }),
-  reliableEventBase.extend({ kind: z.literal('map_started'), payload: emptyPayload }),
+export const reliableEventV1Schema = z.discriminatedUnion("kind", [
+  reliableEventBase.extend({ kind: z.literal("match_started"), payload: emptyPayload }),
+  reliableEventBase.extend({ kind: z.literal("map_started"), payload: emptyPayload }),
   reliableEventBase.extend({
-    kind: z.literal('map_ended'),
+    kind: z.literal("map_ended"),
     payload: z.strictObject({
       scoreA: nonNegativeInteger,
       scoreB: nonNegativeInteger,
@@ -252,7 +252,7 @@ export const reliableEventV1Schema = z.discriminatedUnion('kind', [
     }),
   }),
   reliableEventBase.extend({
-    kind: z.literal('map_player_snapshot'),
+    kind: z.literal("map_player_snapshot"),
     payload: z.strictObject({
       mapEndedKey: id,
       players: z
@@ -270,23 +270,23 @@ export const reliableEventV1Schema = z.discriminatedUnion('kind', [
     }),
   }),
   reliableEventBase.extend({
-    kind: z.literal('series_ended'),
+    kind: z.literal("series_ended"),
     payload: z.strictObject({ scoreA: count, scoreB: count }),
   }),
   reliableEventBase.extend({
-    kind: z.literal('source_generation_changed'),
+    kind: z.literal("source_generation_changed"),
     payload: z.strictObject({ previousSourceGeneration: count }),
   }),
   reliableEventBase.extend({
-    kind: z.literal('map_epoch_changed'),
+    kind: z.literal("map_epoch_changed"),
     payload: z.strictObject({ previousMapEpoch: count, reason }),
   }),
   reliableEventBase.extend({
-    kind: z.literal('identity_mismatch'),
+    kind: z.literal("identity_mismatch"),
     payload: z.strictObject({ reason }),
   }),
   reliableEventBase.extend({
-    kind: z.literal('lineup_mismatch'),
+    kind: z.literal("lineup_mismatch"),
     payload: z.strictObject({ reason }),
   }),
 ]);
@@ -298,7 +298,7 @@ export type ReliableEventKindV1 = z.infer<typeof reliableEventKindV1Schema>;
 function boundedParse<T>(schema: z.ZodType<T>, input: unknown, maxBytes: number): T {
   const text = JSON.stringify(input);
   if (text === undefined || new TextEncoder().encode(text).length > maxBytes)
-    throw new Error('output_payload_too_large');
+    throw new Error("output_payload_too_large");
   return schema.parse(input);
 }
 export const parseLiveSnapshotV1 = (input: unknown): LiveSnapshotV1 =>

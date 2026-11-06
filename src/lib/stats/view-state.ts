@@ -1,7 +1,14 @@
 import { RECORD_EVENT_NAMES, type RecordEventKind } from "./record-facts";
 import type { Route } from "next";
 
-export const STATS_TABS = { overview: "Overview", players: "Players", teams: "Teams", maps: "Maps", weapons: "Weapons", records: "Records" } as const;
+export const STATS_TABS = {
+  overview: "Overview",
+  players: "Players",
+  teams: "Teams",
+  maps: "Maps",
+  weapons: "Weapons",
+  records: "Records",
+} as const;
 export type StatsTab = keyof typeof STATS_TABS;
 export type StatsMatchFormat = "" | "bo1" | "bo3" | "bo5";
 export type StatsSearch = Record<string, string | string[] | undefined>;
@@ -33,26 +40,54 @@ const mapKeyPattern = /^de_[a-z0-9_]+$/;
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function parseStatsQuery(raw: StatsSearch, stages: readonly string[]): StatsQuery {
-  const value = (key: string) => typeof raw[key] === "string" && raw[key].length <= 128 ? raw[key] as string : "";
+  const value = (key: string) =>
+    typeof raw[key] === "string" && raw[key].length <= 128 ? (raw[key] as string) : "";
   const requestedTab = value("tab");
   const requestedFormat = value("format");
-  const tab = Object.hasOwn(STATS_TABS, requestedTab) ? requestedTab as StatsTab : !requestedTab && value("map") ? "maps" : "overview";
-  const format: StatsMatchFormat = requestedFormat === "bo1" || requestedFormat === "bo3" || requestedFormat === "bo5" ? requestedFormat : "";
+  const tab = Object.hasOwn(STATS_TABS, requestedTab)
+    ? (requestedTab as StatsTab)
+    : !requestedTab && value("map")
+      ? "maps"
+      : "overview";
+  const format: StatsMatchFormat =
+    requestedFormat === "bo1" || requestedFormat === "bo3" || requestedFormat === "bo5"
+      ? requestedFormat
+      : "";
   return {
     tab,
     recordPage: /^[1-9][0-9]{0,5}$/.test(value("recordPage")) ? Number(value("recordPage")) : 1,
     eventPage: /^[1-9][0-9]{0,5}$/.test(value("eventPage")) ? Number(value("eventPage")) : 1,
-    eventType: Object.hasOwn(RECORD_EVENT_NAMES, value("eventType")) ? value("eventType") as RecordEventKind : "",
+    eventType: Object.hasOwn(RECORD_EVENT_NAMES, value("eventType"))
+      ? (value("eventType") as RecordEventKind)
+      : "",
     eventWeapon: /^[a-z0-9_]{1,64}$/.test(value("eventWeapon")) ? value("eventWeapon") : "",
     sort: /^[a-zA-Z0-9_:-]{1,64}$/.test(value("sort")) ? value("sort") : "",
     direction: value("direction") === "asc" ? "asc" : "desc",
     page: /^[1-9][0-9]{0,3}$/.test(value("page")) ? Number(value("page")) : 1,
-    family: ["overall", "opening", "teamplay", "utility", "clutch", "results", "rounds", "conversion"].includes(value("family")) ? value("family") : "",
+    family: [
+      "overall",
+      "opening",
+      "teamplay",
+      "utility",
+      "clutch",
+      "results",
+      "rounds",
+      "conversion",
+    ].includes(value("family"))
+      ? value("family")
+      : "",
     q: value("q"),
-    stage: value("stage") ? stages.includes(value("stage")) ? value("stage") : "__invalid__" : "",
+    stage: value("stage") ? (stages.includes(value("stage")) ? value("stage") : "__invalid__") : "",
     format,
-    mapFilter: value("mapFilter") ? mapKeyPattern.test(value("mapFilter")) ? value("mapFilter") : "__invalid__" : "",
-    teamFilter: (tab === "players" || tab === "weapons") && idPattern.test(value("teamFilter")) ? value("teamFilter") : "",
+    mapFilter: value("mapFilter")
+      ? mapKeyPattern.test(value("mapFilter"))
+        ? value("mapFilter")
+        : "__invalid__"
+      : "",
+    teamFilter:
+      (tab === "players" || tab === "weapons") && idPattern.test(value("teamFilter"))
+        ? value("teamFilter")
+        : "",
     player: "",
     team: "",
     map: tab === "maps" && mapKeyPattern.test(value("map")) ? value("map") : "",
@@ -71,9 +106,11 @@ function serializeStatsQuery(query: StatsQuery): URLSearchParams {
   if (query.stage) params.set("stage", query.stage);
   if (query.format) params.set("format", query.format);
   if (query.mapFilter) params.set("mapFilter", query.mapFilter);
-  if ((query.tab === "players" || query.tab === "weapons") && query.teamFilter) params.set("teamFilter", query.teamFilter);
+  if ((query.tab === "players" || query.tab === "weapons") && query.teamFilter)
+    params.set("teamFilter", query.teamFilter);
   if (query.tab === "maps" && query.map) params.set("map", query.map);
-  if (query.tab === "records" && query.recordPage && query.recordPage > 1) params.set("recordPage", String(query.recordPage));
+  if (query.tab === "records" && query.recordPage && query.recordPage > 1)
+    params.set("recordPage", String(query.recordPage));
   if (query.tab === "maps" && query.mapsView === "veto") params.set("mapsView", "veto");
   if (query.tab === "records") {
     if (query.eventType) params.set("eventType", query.eventType);
@@ -83,17 +120,53 @@ function serializeStatsQuery(query: StatsQuery): URLSearchParams {
   return params;
 }
 
-export function statsHref(slug: string, current: StatsQuery, updates: StatsQueryUpdates = {}): Route {
+export function statsHref(
+  slug: string,
+  current: StatsQuery,
+  updates: StatsQueryUpdates = {},
+): Route {
   const nextTab = updates.tab && Object.hasOwn(STATS_TABS, updates.tab) ? updates.tab : current.tab;
-  let next: StatsQuery = nextTab === current.tab
-    ? { ...current }
-    : { tab: nextTab, stage: current.stage, format: current.format, mapFilter: current.map || current.mapFilter, teamFilter: "", player: "", team: "", map: "", mapsView: "pool", preview: current.preview };
+  let next: StatsQuery =
+    nextTab === current.tab
+      ? { ...current }
+      : {
+          tab: nextTab,
+          stage: current.stage,
+          format: current.format,
+          mapFilter: current.map || current.mapFilter,
+          teamFilter: "",
+          player: "",
+          team: "",
+          map: "",
+          mapsView: "pool",
+          preview: current.preview,
+        };
 
   if (Object.hasOwn(updates, "stage") && updates.stage !== current.stage) {
-    next = { tab: nextTab, stage: updates.stage ?? "", format: current.format, mapFilter: "", teamFilter: "", player: "", team: "", map: "", mapsView: "pool" };
+    next = {
+      tab: nextTab,
+      stage: updates.stage ?? "",
+      format: current.format,
+      mapFilter: "",
+      teamFilter: "",
+      player: "",
+      team: "",
+      map: "",
+      mapsView: "pool",
+    };
   }
   if (Object.hasOwn(updates, "format") && updates.format !== current.format) {
-    next = { tab: nextTab, stage: next.stage, format: updates.format ?? "", mapFilter: "", teamFilter: "", player: "", team: "", map: "", mapsView: "pool" };
+    next = {
+      tab: nextTab,
+      stage: next.stage,
+      format: updates.format ?? "",
+      mapFilter: "",
+      teamFilter: "",
+      player: "",
+      team: "",
+      map: "",
+      mapsView: "pool",
+    };
   }
   if (Object.hasOwn(updates, "mapFilter")) {
     next.mapFilter = updates.mapFilter ?? "";
@@ -109,18 +182,45 @@ export function statsHref(slug: string, current: StatsQuery, updates: StatsQuery
     next.map = updates.map ?? "";
     if (next.map && next.mapFilter && next.map !== next.mapFilter) next.mapFilter = next.map;
   }
-  if (Object.hasOwn(updates, "mapsView") && nextTab === "maps") next.mapsView = updates.mapsView ?? "pool";
+  if (Object.hasOwn(updates, "mapsView") && nextTab === "maps")
+    next.mapsView = updates.mapsView ?? "pool";
 
-  if (updates.recordPage !== undefined && nextTab === "records") next.recordPage = updates.recordPage;
-  if (nextTab !== current.tab || updates.stage !== undefined || updates.format !== undefined || updates.mapFilter !== undefined) next.recordPage = 1;
+  if (updates.recordPage !== undefined && nextTab === "records")
+    next.recordPage = updates.recordPage;
+  if (
+    nextTab !== current.tab ||
+    updates.stage !== undefined ||
+    updates.format !== undefined ||
+    updates.mapFilter !== undefined
+  )
+    next.recordPage = 1;
   if (nextTab === "records") {
-    if (updates.eventType !== undefined) { next.eventType = updates.eventType; next.eventWeapon = ""; next.eventPage = 1; }
-    if (updates.eventWeapon !== undefined) { next.eventWeapon = updates.eventWeapon; next.eventPage = 1; }
+    if (updates.eventType !== undefined) {
+      next.eventType = updates.eventType;
+      next.eventWeapon = "";
+      next.eventPage = 1;
+    }
+    if (updates.eventWeapon !== undefined) {
+      next.eventWeapon = updates.eventWeapon;
+      next.eventPage = 1;
+    }
     if (updates.eventPage !== undefined) next.eventPage = updates.eventPage;
-    if (updates.stage !== undefined || updates.format !== undefined || updates.mapFilter !== undefined) next.eventPage = 1;
+    if (
+      updates.stage !== undefined ||
+      updates.format !== undefined ||
+      updates.mapFilter !== undefined
+    )
+      next.eventPage = 1;
   }
-  if (updates.family !== undefined) { next.family = updates.family; next.sort = ""; next.page = 1; }
-  if (updates.q !== undefined) { next.q = updates.q; next.page = 1; }
+  if (updates.family !== undefined) {
+    next.family = updates.family;
+    next.sort = "";
+    next.page = 1;
+  }
+  if (updates.q !== undefined) {
+    next.q = updates.q;
+    next.page = 1;
+  }
   if (updates.sort !== undefined) next.sort = updates.sort;
   if (updates.direction !== undefined) next.direction = updates.direction;
   if (updates.page !== undefined) next.page = updates.page;
@@ -134,7 +234,12 @@ export interface StatsScopeRouter {
   push(href: string | Route, options?: { scroll?: boolean }): void;
 }
 
-export function navigateStatsScope(router: StatsScopeRouter, slug: string, query: StatsQuery, updates: StatsQueryUpdates): Route {
+export function navigateStatsScope(
+  router: StatsScopeRouter,
+  slug: string,
+  query: StatsQuery,
+  updates: StatsQueryUpdates,
+): Route {
   const href = statsHref(slug, query, updates);
   router.push(href, { scroll: false });
   return href;

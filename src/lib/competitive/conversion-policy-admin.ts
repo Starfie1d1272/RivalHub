@@ -93,12 +93,23 @@ function requireValidMapping(mapping: unknown): asserts mapping is ConversionPol
 }
 
 function assertSupportedPair(sourcePlatform: string, targetPlatform: string): void {
-  if (sourcePlatform !== SUPPORTED_SOURCE_PLATFORM || targetPlatform !== SUPPORTED_TARGET_PLATFORM) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "2.x 只支持运营 5E → Perfect World 换算策略。 ");
+  if (
+    sourcePlatform !== SUPPORTED_SOURCE_PLATFORM ||
+    targetPlatform !== SUPPORTED_TARGET_PLATFORM
+  ) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "2.x 只支持运营 5E → Perfect World 换算策略。 ",
+    );
   }
 }
 
-function policyAuditMeta(policy: Pick<typeof conversionPolicies.$inferSelect, "id" | "version" | "sourcePlatform" | "targetPlatform">) {
+function policyAuditMeta(
+  policy: Pick<
+    typeof conversionPolicies.$inferSelect,
+    "id" | "version" | "sourcePlatform" | "targetPlatform"
+  >,
+) {
   return {
     policyId: policy.id,
     version: policy.version,
@@ -108,7 +119,11 @@ function policyAuditMeta(policy: Pick<typeof conversionPolicies.$inferSelect, "i
 }
 
 async function lockPolicy(tx: TxDb, id: string) {
-  const [policy] = await tx.select().from(conversionPolicies).where(eq(conversionPolicies.id, id)).for("update");
+  const [policy] = await tx
+    .select()
+    .from(conversionPolicies)
+    .where(eq(conversionPolicies.id, id))
+    .for("update");
   if (!policy) throw new AppError(ErrorCode.NOT_FOUND, "换算策略不存在。 ");
   return policy;
 }
@@ -131,7 +146,9 @@ export function extractConversionPolicyReference(config: unknown): {
   conversionPolicyVersion: string | null;
   fallbackConversionVersion: string | null;
 } {
-  const reference = extractReference(normalizeTeamRegistrationConfig(config as Partial<TeamRegistrationConfig> | null | undefined));
+  const reference = extractReference(
+    normalizeTeamRegistrationConfig(config as Partial<TeamRegistrationConfig> | null | undefined),
+  );
   return {
     conversionPolicyId: reference.policyId,
     conversionPolicyVersion: reference.policyVersion,
@@ -141,31 +158,54 @@ export function extractConversionPolicyReference(config: unknown): {
 
 /** Preserve the SQL season ordering while normalizing each event config once. */
 export function groupConversionPolicyEventReferences(
-  rows: Array<Pick<typeof seasons.$inferSelect, "id" | "name" | "slug" | "status" | "registrationOpenedAt" | "teamRegistrationConfig">>,
+  rows: Array<
+    Pick<
+      typeof seasons.$inferSelect,
+      "id" | "name" | "slug" | "status" | "registrationOpenedAt" | "teamRegistrationConfig"
+    >
+  >,
 ): Map<string, ConversionPolicyEventReference[]> {
   const grouped = new Map<string, ConversionPolicyEventReference[]>();
   for (const season of rows) {
-    const reference = extractReference(normalizeTeamRegistrationConfig(season.teamRegistrationConfig));
+    const reference = extractReference(
+      normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
+    );
     if (!reference.policyId) continue;
     const list = grouped.get(reference.policyId) ?? [];
-    list.push({ seasonId: season.id, seasonName: season.name, seasonSlug: season.slug,
-      seasonStatus: season.status, policyId: reference.policyId,
+    list.push({
+      seasonId: season.id,
+      seasonName: season.name,
+      seasonSlug: season.slug,
+      seasonStatus: season.status,
+      policyId: reference.policyId,
       policyVersion: reference.policyVersion ?? reference.fallbackVersion,
       registrationOpenedAt: season.registrationOpenedAt,
-      referenceState: season.registrationOpenedAt ? "registration_frozen" : "published_locked" });
+      referenceState: season.registrationOpenedAt ? "registration_frozen" : "published_locked",
+    });
     grouped.set(reference.policyId, list);
   }
   return grouped;
 }
 
-async function loadPolicyApproverLabels(executor: ConversionPolicyDatabaseExecutor, ids: readonly (string | null)[]) {
+async function loadPolicyApproverLabels(
+  executor: ConversionPolicyDatabaseExecutor,
+  ids: readonly (string | null)[],
+) {
   const approvedByIds = [...new Set(ids.filter((id): id is string => Boolean(id)))];
-  const approvers = approvedByIds.length === 0
-    ? []
-    : await executor.select({ id: users.id, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
-      .from(users)
-      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(inArray(users.id, approvedByIds));
+  const approvers =
+    approvedByIds.length === 0
+      ? []
+      : await executor
+          .select({
+            id: users.id,
+            email: users.email,
+            displayName: users.displayName,
+            perfectName: users.perfectName,
+            personaName: steamProfiles.personaName,
+          })
+          .from(users)
+          .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+          .where(inArray(users.id, approvedByIds));
   return new Map(approvers.map((user) => [user.id, getDisplayName(user)]));
 }
 
@@ -175,21 +215,33 @@ export async function loadConversionPolicyAdminRows(
   policyId?: string,
 ): Promise<ConversionPolicyAdminRow[]> {
   const [policies, seasonRows] = await Promise.all([
-    executor.select().from(conversionPolicies).where(and(
-      eq(conversionPolicies.sourcePlatform, SUPPORTED_SOURCE_PLATFORM),
-      eq(conversionPolicies.targetPlatform, SUPPORTED_TARGET_PLATFORM),
-      policyId ? eq(conversionPolicies.id, policyId) : undefined,
-    )).orderBy(desc(conversionPolicies.createdAt), desc(conversionPolicies.version)),
-    executor.select({
-      id: seasons.id,
-      name: seasons.name,
-      slug: seasons.slug,
-      status: seasons.status,
-      registrationOpenedAt: seasons.registrationOpenedAt,
-      teamRegistrationConfig: seasons.teamRegistrationConfig,
-    }).from(seasons).orderBy(asc(seasons.name), asc(seasons.id)),
+    executor
+      .select()
+      .from(conversionPolicies)
+      .where(
+        and(
+          eq(conversionPolicies.sourcePlatform, SUPPORTED_SOURCE_PLATFORM),
+          eq(conversionPolicies.targetPlatform, SUPPORTED_TARGET_PLATFORM),
+          policyId ? eq(conversionPolicies.id, policyId) : undefined,
+        ),
+      )
+      .orderBy(desc(conversionPolicies.createdAt), desc(conversionPolicies.version)),
+    executor
+      .select({
+        id: seasons.id,
+        name: seasons.name,
+        slug: seasons.slug,
+        status: seasons.status,
+        registrationOpenedAt: seasons.registrationOpenedAt,
+        teamRegistrationConfig: seasons.teamRegistrationConfig,
+      })
+      .from(seasons)
+      .orderBy(asc(seasons.name), asc(seasons.id)),
   ]);
-  const approverLabels = await loadPolicyApproverLabels(executor, policies.map(policy => policy.approvedBy));
+  const approverLabels = await loadPolicyApproverLabels(
+    executor,
+    policies.map((policy) => policy.approvedBy),
+  );
 
   const references = groupConversionPolicyEventReferences(seasonRows);
   return policies.map((policy) => ({
@@ -206,23 +258,53 @@ export async function loadConversionPolicyAdminRows(
     internalNote: policy.internalNote,
     approvedAt: policy.approvedAt,
     approvedBy: policy.approvedBy,
-    approvedByLabel: policy.approvedBy ? approverLabels.get(policy.approvedBy) ?? policy.approvedBy : null,
+    approvedByLabel: policy.approvedBy
+      ? (approverLabels.get(policy.approvedBy) ?? policy.approvedBy)
+      : null,
     createdAt: policy.createdAt,
     updatedAt: policy.updatedAt,
     eventReferences: references.get(policy.id) ?? [],
   }));
 }
 
-export type ConversionPolicyAdminSummary = Pick<ConversionPolicyAdminRow,
-  "id" | "sourcePlatform" | "targetPlatform" | "version" | "status" | "isCurrent" | "approvedAt" | "approvedBy" | "approvedByLabel" | "createdAt"> & { eventReferenceCount: number };
+export type ConversionPolicyAdminSummary = Pick<
+  ConversionPolicyAdminRow,
+  | "id"
+  | "sourcePlatform"
+  | "targetPlatform"
+  | "version"
+  | "status"
+  | "isCurrent"
+  | "approvedAt"
+  | "approvedBy"
+  | "approvedByLabel"
+  | "createdAt"
+> & { eventReferenceCount: number };
 
 /** Directory metadata only. Mapping, notes and event reference detail load on demand. */
-export async function loadConversionPolicyAdminSummaries(executor: ConversionPolicyDatabaseExecutor = db): Promise<ConversionPolicyAdminSummary[]> {
+export async function loadConversionPolicyAdminSummaries(
+  executor: ConversionPolicyDatabaseExecutor = db,
+): Promise<ConversionPolicyAdminSummary[]> {
   const [policies, events] = await Promise.all([
-    executor.select({ id: conversionPolicies.id, sourcePlatform: conversionPolicies.sourcePlatform, targetPlatform: conversionPolicies.targetPlatform,
-      version: conversionPolicies.version, status: conversionPolicies.status, isCurrent: conversionPolicies.isCurrent,
-      approvedAt: conversionPolicies.approvedAt, approvedBy: conversionPolicies.approvedBy, createdAt: conversionPolicies.createdAt })
-      .from(conversionPolicies).where(and(eq(conversionPolicies.sourcePlatform, SUPPORTED_SOURCE_PLATFORM), eq(conversionPolicies.targetPlatform, SUPPORTED_TARGET_PLATFORM)))
+    executor
+      .select({
+        id: conversionPolicies.id,
+        sourcePlatform: conversionPolicies.sourcePlatform,
+        targetPlatform: conversionPolicies.targetPlatform,
+        version: conversionPolicies.version,
+        status: conversionPolicies.status,
+        isCurrent: conversionPolicies.isCurrent,
+        approvedAt: conversionPolicies.approvedAt,
+        approvedBy: conversionPolicies.approvedBy,
+        createdAt: conversionPolicies.createdAt,
+      })
+      .from(conversionPolicies)
+      .where(
+        and(
+          eq(conversionPolicies.sourcePlatform, SUPPORTED_SOURCE_PLATFORM),
+          eq(conversionPolicies.targetPlatform, SUPPORTED_TARGET_PLATFORM),
+        ),
+      )
       .orderBy(desc(conversionPolicies.createdAt), desc(conversionPolicies.version)),
     executor.select({ config: seasons.teamRegistrationConfig }).from(seasons),
   ]);
@@ -231,12 +313,23 @@ export async function loadConversionPolicyAdminSummaries(executor: ConversionPol
     const id = extractConversionPolicyReference(event.config).conversionPolicyId;
     if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
   }
-  const labels = await loadPolicyApproverLabels(executor, policies.map(policy => policy.approvedBy));
-  return policies.map(policy => ({ ...policy, approvedByLabel: policy.approvedBy ? labels.get(policy.approvedBy) ?? policy.approvedBy : null,
-    eventReferenceCount: counts.get(policy.id) ?? 0 }));
+  const labels = await loadPolicyApproverLabels(
+    executor,
+    policies.map((policy) => policy.approvedBy),
+  );
+  return policies.map((policy) => ({
+    ...policy,
+    approvedByLabel: policy.approvedBy
+      ? (labels.get(policy.approvedBy) ?? policy.approvedBy)
+      : null,
+    eventReferenceCount: counts.get(policy.id) ?? 0,
+  }));
 }
 
-export async function loadConversionPolicyAdminDetail(executor: ConversionPolicyDatabaseExecutor, id: string): Promise<ConversionPolicyAdminRow | null> {
+export async function loadConversionPolicyAdminDetail(
+  executor: ConversionPolicyDatabaseExecutor,
+  id: string,
+): Promise<ConversionPolicyAdminRow | null> {
   return (await loadConversionPolicyAdminRows(executor, id))[0] ?? null;
 }
 
@@ -247,16 +340,21 @@ export async function loadConversionPolicyProvenance(
 ): Promise<ConversionPolicyProvenance | null> {
   const reference = extractConversionPolicyReference(config);
   if (!reference.conversionPolicyId) return null;
-  const [policy] = await executor.select({
-    id: conversionPolicies.id,
-    version: conversionPolicies.version,
-    sourceNote: conversionPolicies.sourceNote,
-    rationale: conversionPolicies.rationale,
-    changeSummary: conversionPolicies.changeSummary,
-  }).from(conversionPolicies).where(eq(conversionPolicies.id, reference.conversionPolicyId)).limit(1);
+  const [policy] = await executor
+    .select({
+      id: conversionPolicies.id,
+      version: conversionPolicies.version,
+      sourceNote: conversionPolicies.sourceNote,
+      rationale: conversionPolicies.rationale,
+      changeSummary: conversionPolicies.changeSummary,
+    })
+    .from(conversionPolicies)
+    .where(eq(conversionPolicies.id, reference.conversionPolicyId))
+    .limit(1);
   return {
     id: reference.conversionPolicyId,
-    version: policy?.version ?? reference.conversionPolicyVersion ?? reference.fallbackConversionVersion,
+    version:
+      policy?.version ?? reference.conversionPolicyVersion ?? reference.fallbackConversionVersion,
     sourceNote: policy?.sourceNote ?? null,
     rationale: policy?.rationale ?? null,
     changeSummary: policy?.changeSummary ?? null,
@@ -270,36 +368,52 @@ export async function createConversionPolicyDraftInTx(
 ): Promise<{ id: string }> {
   const base = await lockPolicy(tx, input.basePolicyId);
   assertSupportedPair(base.sourcePlatform, base.targetPlatform);
-  if (!base.status || base.status === "draft") throw new AppError(ErrorCode.VALIDATION_FAILED, "新草稿必须从已批准或已退役策略复制。 ");
+  if (!base.status || base.status === "draft")
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "新草稿必须从已批准或已退役策略复制。 ");
   const version = input.version.trim();
   if (!version) throw new AppError(ErrorCode.VALIDATION_FAILED, "请填写新的策略版本。 ");
-  const [duplicate] = await tx.select({ id: conversionPolicies.id }).from(conversionPolicies).where(and(
-    eq(conversionPolicies.sourcePlatform, base.sourcePlatform),
-    eq(conversionPolicies.targetPlatform, base.targetPlatform),
-    eq(conversionPolicies.version, version),
-  )).limit(1);
+  const [duplicate] = await tx
+    .select({ id: conversionPolicies.id })
+    .from(conversionPolicies)
+    .where(
+      and(
+        eq(conversionPolicies.sourcePlatform, base.sourcePlatform),
+        eq(conversionPolicies.targetPlatform, base.targetPlatform),
+        eq(conversionPolicies.version, version),
+      ),
+    )
+    .limit(1);
   if (duplicate) throw new AppError(ErrorCode.VALIDATION_FAILED, `策略版本 ${version} 已存在。`);
-  const [created] = await tx.insert(conversionPolicies).values({
-    sourcePlatform: base.sourcePlatform,
-    targetPlatform: base.targetPlatform,
-    version,
-    status: "draft",
-    mapping: base.mapping,
-    sourceNote: input.sourceNote === undefined ? base.sourceNote : normalizedNote(input.sourceNote),
-    rationale: input.rationale === undefined ? base.rationale : normalizedNote(input.rationale),
-    changeSummary: input.changeSummary === undefined ? base.changeSummary : normalizedNote(input.changeSummary),
-    internalNote: input.internalNote === undefined ? base.internalNote : normalizedNote(input.internalNote),
-    isCurrent: false,
-    approvedAt: null,
-    approvedBy: null,
-    updatedAt: new Date(),
-  }).returning({ id: conversionPolicies.id });
+  const [created] = await tx
+    .insert(conversionPolicies)
+    .values({
+      sourcePlatform: base.sourcePlatform,
+      targetPlatform: base.targetPlatform,
+      version,
+      status: "draft",
+      mapping: base.mapping,
+      sourceNote:
+        input.sourceNote === undefined ? base.sourceNote : normalizedNote(input.sourceNote),
+      rationale: input.rationale === undefined ? base.rationale : normalizedNote(input.rationale),
+      changeSummary:
+        input.changeSummary === undefined
+          ? base.changeSummary
+          : normalizedNote(input.changeSummary),
+      internalNote:
+        input.internalNote === undefined ? base.internalNote : normalizedNote(input.internalNote),
+      isCurrent: false,
+      approvedAt: null,
+      approvedBy: null,
+      updatedAt: new Date(),
+    })
+    .returning({ id: conversionPolicies.id });
   if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "创建换算策略草稿失败。 ");
   await writeAuditInTx(tx, {
     seasonId: null,
     action: "conversion_policy.create_draft",
     actorId,
-    targetId: created.id,meta: { ...policyAuditMeta({ ...base, id: created.id, version }), clonedFromId: base.id },
+    targetId: created.id,
+    meta: { ...policyAuditMeta({ ...base, id: created.id, version }), clonedFromId: base.id },
   });
   return created;
 }
@@ -311,105 +425,180 @@ export async function updateConversionPolicyDraftInTx(
 ): Promise<void> {
   const policy = await lockPolicy(tx, input.id);
   assertSupportedPair(policy.sourcePlatform, policy.targetPlatform);
-  if (policy.status !== "draft") throw new AppError(ErrorCode.VALIDATION_FAILED, "只有草稿策略可以编辑。 ");
+  if (policy.status !== "draft")
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "只有草稿策略可以编辑。 ");
   requireValidMapping(input.mapping);
-  await tx.update(conversionPolicies).set({
-    mapping: input.mapping,
-    ...(input.sourceNote === undefined ? {} : { sourceNote: normalizedNote(input.sourceNote) }),
-    ...(input.rationale === undefined ? {} : { rationale: normalizedNote(input.rationale) }),
-    ...(input.changeSummary === undefined ? {} : { changeSummary: normalizedNote(input.changeSummary) }),
-    ...(input.internalNote === undefined ? {} : { internalNote: normalizedNote(input.internalNote) }),
-    updatedAt: new Date(),
-  }).where(eq(conversionPolicies.id, policy.id));
+  await tx
+    .update(conversionPolicies)
+    .set({
+      mapping: input.mapping,
+      ...(input.sourceNote === undefined ? {} : { sourceNote: normalizedNote(input.sourceNote) }),
+      ...(input.rationale === undefined ? {} : { rationale: normalizedNote(input.rationale) }),
+      ...(input.changeSummary === undefined
+        ? {}
+        : { changeSummary: normalizedNote(input.changeSummary) }),
+      ...(input.internalNote === undefined
+        ? {}
+        : { internalNote: normalizedNote(input.internalNote) }),
+      updatedAt: new Date(),
+    })
+    .where(eq(conversionPolicies.id, policy.id));
   await writeAuditInTx(tx, {
     seasonId: null,
     action: "conversion_policy.update_draft",
     actorId,
-    targetId: policy.id,meta: policyAuditMeta(policy),
+    targetId: policy.id,
+    meta: policyAuditMeta(policy),
   });
 }
 
-export async function approveConversionPolicyInTx(tx: TxDb, id: string, actorId: string): Promise<void> {
+export async function approveConversionPolicyInTx(
+  tx: TxDb,
+  id: string,
+  actorId: string,
+): Promise<void> {
   const policy = await lockPolicy(tx, id);
   assertSupportedPair(policy.sourcePlatform, policy.targetPlatform);
-  if (policy.status !== "draft") throw new AppError(ErrorCode.VALIDATION_FAILED, "只有草稿策略可以批准。 ");
+  if (policy.status !== "draft")
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "只有草稿策略可以批准。 ");
   requireValidMapping(policy.mapping);
   if (!policy.sourceNote?.trim() || !policy.rationale?.trim()) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "批准策略前必须填写来源说明和采用理由。 ");
   }
   const approvedAt = new Date();
-  await tx.update(conversionPolicies).set({
-    status: "approved",
-    isCurrent: false,
-    approvedAt,
-    approvedBy: actorId,
-    updatedAt: approvedAt,
-  }).where(eq(conversionPolicies.id, policy.id));
+  await tx
+    .update(conversionPolicies)
+    .set({
+      status: "approved",
+      isCurrent: false,
+      approvedAt,
+      approvedBy: actorId,
+      updatedAt: approvedAt,
+    })
+    .where(eq(conversionPolicies.id, policy.id));
   await writeAuditInTx(tx, {
     seasonId: null,
     action: "conversion_policy.approve",
     actorId,
-    targetId: policy.id,meta: { ...policyAuditMeta(policy), approvedAt: approvedAt.toISOString() },
+    targetId: policy.id,
+    meta: { ...policyAuditMeta(policy), approvedAt: approvedAt.toISOString() },
   });
 }
 
-export async function setCurrentConversionPolicyInTx(tx: TxDb, id: string, actorId: string): Promise<void> {
-  const [candidate] = await tx.select({ sourcePlatform: conversionPolicies.sourcePlatform, targetPlatform: conversionPolicies.targetPlatform })
+export async function setCurrentConversionPolicyInTx(
+  tx: TxDb,
+  id: string,
+  actorId: string,
+): Promise<void> {
+  const [candidate] = await tx
+    .select({
+      sourcePlatform: conversionPolicies.sourcePlatform,
+      targetPlatform: conversionPolicies.targetPlatform,
+    })
     .from(conversionPolicies)
     .where(eq(conversionPolicies.id, id))
     .limit(1);
   if (!candidate) throw new AppError(ErrorCode.NOT_FOUND, "换算策略不存在。 ");
   assertSupportedPair(candidate.sourcePlatform, candidate.targetPlatform);
-  const pairPolicies = await tx.select({ id: conversionPolicies.id, version: conversionPolicies.version, isCurrent: conversionPolicies.isCurrent })
+  const pairPolicies = await tx
+    .select({
+      id: conversionPolicies.id,
+      version: conversionPolicies.version,
+      isCurrent: conversionPolicies.isCurrent,
+    })
     .from(conversionPolicies)
-    .where(and(eq(conversionPolicies.sourcePlatform, candidate.sourcePlatform), eq(conversionPolicies.targetPlatform, candidate.targetPlatform)))
+    .where(
+      and(
+        eq(conversionPolicies.sourcePlatform, candidate.sourcePlatform),
+        eq(conversionPolicies.targetPlatform, candidate.targetPlatform),
+      ),
+    )
     .orderBy(asc(conversionPolicies.id))
     .for("update");
   const policyIdentity = pairPolicies.find((row) => row.id === id);
   if (!policyIdentity) throw new AppError(ErrorCode.NOT_FOUND, "换算策略不存在。 ");
   if (policyIdentity.isCurrent) {
-    const [currentPolicy] = await tx.select().from(conversionPolicies).where(eq(conversionPolicies.id, id)).limit(1);
+    const [currentPolicy] = await tx
+      .select()
+      .from(conversionPolicies)
+      .where(eq(conversionPolicies.id, id))
+      .limit(1);
     if (!currentPolicy) throw new AppError(ErrorCode.NOT_FOUND, "换算策略不存在。 ");
-    if (currentPolicy.status !== "approved") throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已批准策略可以设为当前版本。 ");
+    if (currentPolicy.status !== "approved")
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已批准策略可以设为当前版本。 ");
     return;
   }
-  const [policy] = await tx.select().from(conversionPolicies).where(eq(conversionPolicies.id, id)).limit(1);
+  const [policy] = await tx
+    .select()
+    .from(conversionPolicies)
+    .where(eq(conversionPolicies.id, id))
+    .limit(1);
   if (!policy) throw new AppError(ErrorCode.NOT_FOUND, "换算策略不存在。 ");
-  if (policy.status !== "approved") throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已批准策略可以设为当前版本。 ");
+  if (policy.status !== "approved")
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已批准策略可以设为当前版本。 ");
   const previous = pairPolicies.find((row) => row.isCurrent);
-  await tx.update(conversionPolicies).set({ isCurrent: false, updatedAt: new Date() }).where(and(
-    eq(conversionPolicies.sourcePlatform, candidate.sourcePlatform),
-    eq(conversionPolicies.targetPlatform, candidate.targetPlatform),
-    eq(conversionPolicies.isCurrent, true),
-  ));
-  await tx.update(conversionPolicies).set({ isCurrent: true, updatedAt: new Date() }).where(eq(conversionPolicies.id, policy.id));
+  await tx
+    .update(conversionPolicies)
+    .set({ isCurrent: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(conversionPolicies.sourcePlatform, candidate.sourcePlatform),
+        eq(conversionPolicies.targetPlatform, candidate.targetPlatform),
+        eq(conversionPolicies.isCurrent, true),
+      ),
+    );
+  await tx
+    .update(conversionPolicies)
+    .set({ isCurrent: true, updatedAt: new Date() })
+    .where(eq(conversionPolicies.id, policy.id));
   await writeAuditInTx(tx, {
     seasonId: null,
     action: "conversion_policy.set_current",
     actorId,
-    targetId: policy.id,meta: { ...policyAuditMeta(policy), fromVersion: previous?.version ?? null, toVersion: policy.version },
+    targetId: policy.id,
+    meta: {
+      ...policyAuditMeta(policy),
+      fromVersion: previous?.version ?? null,
+      toVersion: policy.version,
+    },
   });
 }
 
-export async function retireConversionPolicyInTx(tx: TxDb, id: string, actorId: string): Promise<void> {
+export async function retireConversionPolicyInTx(
+  tx: TxDb,
+  id: string,
+  actorId: string,
+): Promise<void> {
   const policy = await lockPolicy(tx, id);
   assertSupportedPair(policy.sourcePlatform, policy.targetPlatform);
-  if (policy.status !== "approved") throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已批准策略可以退役。 ");
-  if (policy.isCurrent) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前策略不能直接退役，请先切换当前版本。 ");
-  await tx.update(conversionPolicies).set({ status: "retired", updatedAt: new Date() }).where(eq(conversionPolicies.id, policy.id));
+  if (policy.status !== "approved")
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已批准策略可以退役。 ");
+  if (policy.isCurrent)
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "当前策略不能直接退役，请先切换当前版本。 ");
+  await tx
+    .update(conversionPolicies)
+    .set({ status: "retired", updatedAt: new Date() })
+    .where(eq(conversionPolicies.id, policy.id));
   await writeAuditInTx(tx, {
     seasonId: null,
     action: "conversion_policy.retire",
     actorId,
-    targetId: policy.id,meta: policyAuditMeta(policy),
+    targetId: policy.id,
+    meta: policyAuditMeta(policy),
   });
 }
 
-export async function createConversionPolicyDraft(input: ConversionPolicyDraftInput, actorId: string): Promise<{ id: string }> {
+export async function createConversionPolicyDraft(
+  input: ConversionPolicyDraftInput,
+  actorId: string,
+): Promise<{ id: string }> {
   return db.transaction((tx) => createConversionPolicyDraftInTx(tx, input, actorId));
 }
 
-export async function updateConversionPolicyDraft(input: ConversionPolicyDraftUpdateInput, actorId: string): Promise<void> {
+export async function updateConversionPolicyDraft(
+  input: ConversionPolicyDraftUpdateInput,
+  actorId: string,
+): Promise<void> {
   return db.transaction((tx) => updateConversionPolicyDraftInTx(tx, input, actorId));
 }
 

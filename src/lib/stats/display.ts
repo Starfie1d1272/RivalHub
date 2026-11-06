@@ -1,11 +1,5 @@
 export type StatsDisplayUnit =
-  | "count"
-  | "number"
-  | "percentPoints"
-  | "ratioPercent"
-  | "perRound"
-  | "per100Round"
-  | "seconds";
+  "count" | "number" | "percentPoints" | "ratioPercent" | "perRound" | "per100Round" | "seconds";
 
 export interface StatsDisplayRule {
   unit: StatsDisplayUnit;
@@ -26,10 +20,7 @@ export function formatDisplayValue(
     return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(value);
   }
 
-  const scale =
-    rule.unit === "ratioPercent" || rule.unit === "per100Round"
-      ? 100
-      : 1;
+  const scale = rule.unit === "ratioPercent" || rule.unit === "per100Round" ? 100 : 1;
   const suffix =
     rule.unit === "percentPoints" || rule.unit === "ratioPercent"
       ? "%"

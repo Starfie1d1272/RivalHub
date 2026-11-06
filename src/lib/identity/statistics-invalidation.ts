@@ -4,11 +4,13 @@ import { asc, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { matches, seasons } from "@/db/schema";
 
-const identityIssue = JSON.stringify([{
-  code: "IDENTITY_CHANGED",
-  path: "participants",
-  message: "比赛身份归属已变更，需要重新检查 Demo 数据。",
-}]);
+const identityIssue = JSON.stringify([
+  {
+    code: "IDENTITY_CHANGED",
+    path: "participants",
+    message: "比赛身份归属已变更，需要重新检查 Demo 数据。",
+  },
+]);
 
 type IdentityScope = { steam64: string } | { userId: string };
 function identityDependency(scope: IdentityScope) {
@@ -38,16 +40,34 @@ export async function readConfirmedDemoIdentityScopeInTx(tx: TxDb, scope: Identi
   return result.rows;
 }
 
-export async function lockDemoIdentityInvalidationSeasonsInTx(tx: TxDb, scope: IdentityScope, auditSeasonId: string): Promise<void> {
+export async function lockDemoIdentityInvalidationSeasonsInTx(
+  tx: TxDb,
+  scope: IdentityScope,
+  auditSeasonId: string,
+): Promise<void> {
   const affected = await readConfirmedDemoIdentityScopeInTx(tx, scope);
-  const ids = [...new Set([auditSeasonId, ...affected.map(row => row.season_id)])].sort();
-  await tx.select({ id: seasons.id }).from(seasons).where(inArray(seasons.id, ids)).orderBy(asc(seasons.id)).for("update");
-  const matchIds = [...new Set(affected.map(row => row.match_id))].sort();
-  if (matchIds.length) await tx.select({ id: matches.id }).from(matches).where(inArray(matches.id, matchIds)).orderBy(asc(matches.id)).for("update");
+  const ids = [...new Set([auditSeasonId, ...affected.map((row) => row.season_id)])].sort();
+  await tx
+    .select({ id: seasons.id })
+    .from(seasons)
+    .where(inArray(seasons.id, ids))
+    .orderBy(asc(seasons.id))
+    .for("update");
+  const matchIds = [...new Set(affected.map((row) => row.match_id))].sort();
+  if (matchIds.length)
+    await tx
+      .select({ id: matches.id })
+      .from(matches)
+      .where(inArray(matches.id, matchIds))
+      .orderBy(asc(matches.id))
+      .for("update");
 }
 
 /** Resolve dependencies inside PostgreSQL; never transfer Evidence to invalidate its attribution. */
-export async function invalidateConfirmedDemoIdentityInTx(tx: TxDb, scope: IdentityScope): Promise<void> {
+export async function invalidateConfirmedDemoIdentityInTx(
+  tx: TxDb,
+  scope: IdentityScope,
+): Promise<void> {
   const dependency = identityDependency(scope);
   await tx.execute(sql`
     UPDATE match_demo_imports

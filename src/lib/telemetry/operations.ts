@@ -212,7 +212,7 @@ export const OPERATIONS = [
   "teams.uploadTeamLogo",
   "test-matches.concludeTestMatch",
   "test-matches.createTestMatch",
-  "user-merge.executeSelfServiceUserMerge"
+  "user-merge.executeSelfServiceUserMerge",
 ] as const;
 export type Operation = (typeof OPERATIONS)[number];
 

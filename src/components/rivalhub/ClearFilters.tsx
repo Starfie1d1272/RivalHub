@@ -21,7 +21,13 @@ function normalized(value: ListQueryValue): string | undefined {
   return value === null || value === undefined || value === "" ? undefined : String(value);
 }
 
-export function ClearFilters({ defaults = {}, keys, searchParams, onClear, label = "清除筛选" }: ClearFiltersProps) {
+export function ClearFilters({
+  defaults = {},
+  keys,
+  searchParams,
+  onClear,
+  label = "清除筛选",
+}: ClearFiltersProps) {
   const filterKeys = keys ?? Object.keys(defaults);
   const active = filterKeys.some((key) => {
     const defaultValue = normalized(defaults[key]);
@@ -30,7 +36,9 @@ export function ClearFilters({ defaults = {}, keys, searchParams, onClear, label
   });
   if (!active) return null;
 
-  const clearUpdates: ListQueryUpdates = Object.fromEntries(filterKeys.map((key) => [key, defaults[key]]));
+  const clearUpdates: ListQueryUpdates = Object.fromEntries(
+    filterKeys.map((key) => [key, defaults[key]]),
+  );
   return (
     <Button type="button" size="sm" variant="ghost" onClick={() => onClear(clearUpdates)}>
       {label}

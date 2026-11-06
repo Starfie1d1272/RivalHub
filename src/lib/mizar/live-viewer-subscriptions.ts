@@ -6,22 +6,29 @@ import { initialLiveViewerState, type LiveViewerState } from "./live-viewer-stat
 const IDLE_DISCONNECT_MS = 5000;
 
 export function createLiveViewerSubscriptions(environment: ViewerEnvironment) {
-  const entries = new Map<string, {
-    state: LiveViewerState;
-    listeners: Set<(state: LiveViewerState) => void>;
-    stop: () => void;
-    idleTimer?: ReturnType<typeof setTimeout>;
-  }>();
+  const entries = new Map<
+    string,
+    {
+      state: LiveViewerState;
+      listeners: Set<(state: LiveViewerState) => void>;
+      stop: () => void;
+      idleTimer?: ReturnType<typeof setTimeout>;
+    }
+  >();
   return (matchId: string, onState: (state: LiveViewerState) => void): (() => void) => {
     let entry = entries.get(matchId);
     if (!entry) {
       entry = { state: initialLiveViewerState(), listeners: new Set(), stop: () => {} };
       entries.set(matchId, entry);
       const receiver = entry;
-      receiver.stop = connectLiveViewer(matchId, state => {
-        receiver.state = state;
-        for (const listener of receiver.listeners) listener(state);
-      }, environment);
+      receiver.stop = connectLiveViewer(
+        matchId,
+        (state) => {
+          receiver.state = state;
+          for (const listener of receiver.listeners) listener(state);
+        },
+        environment,
+      );
     }
     const receiver = entry;
     clearTimeout(receiver.idleTimer);
@@ -49,7 +56,10 @@ export function createLiveViewerSubscriptions(environment: ViewerEnvironment) {
 // All consumers receive the same anonymous, single-match public projection; this
 // client never holds a signed-in user's Supabase Auth identity or operator data.
 let browserSubscriptions: ReturnType<typeof createLiveViewerSubscriptions> | undefined;
-export function subscribeBrowserLiveViewer(matchId: string, onState: (state: LiveViewerState) => void) {
+export function subscribeBrowserLiveViewer(
+  matchId: string,
+  onState: (state: LiveViewerState) => void,
+) {
   browserSubscriptions ??= createLiveViewerSubscriptions(browserViewerEnvironment());
   return browserSubscriptions(matchId, onState);
 }

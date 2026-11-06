@@ -17,7 +17,16 @@ export default async function NewSeasonPage() {
     <PageLayout variant="narrow">
       <SeasonForm
         mode="create"
-        competitivePlatforms={catalog.map((platform) => ({ key: platform.key, displayName: platform.displayName, seasons: platform.seasons.map((season) => ({ seasonKey: season.seasonKey, label: season.label, active: season.active })), ranks: platform.ranks.map((rank) => ({ rankKey: rank.rankKey, label: rank.label })) }))}
+        competitivePlatforms={catalog.map((platform) => ({
+          key: platform.key,
+          displayName: platform.displayName,
+          seasons: platform.seasons.map((season) => ({
+            seasonKey: season.seasonKey,
+            label: season.label,
+            active: season.active,
+          })),
+          ranks: platform.ranks.map((rank) => ({ rankKey: rank.rankKey, label: rank.label })),
+        }))}
         initial={{
           name: "",
           slug: "",

@@ -27,10 +27,7 @@ import {
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { loadBaseline, officialWinner } from "./baseline";
-import {
-  resolveMarketOptions,
-  type MarketResolutionFact,
-} from "./market-resolution";
+import { resolveMarketOptions, type MarketResolutionFact } from "./market-resolution";
 import { simulateMajor } from "./simulator";
 import {
   distributePool,
@@ -38,34 +35,21 @@ import {
   validatePick,
   defaultPredictionRules,
 } from "./rules";
-import {
-  samePick,
-  type Baseline,
-  type Pick,
-} from "./types";
+import { samePick, type Baseline, type Pick } from "./types";
 import { officialPickEmStages, pickEmWindowState, samePredictionEntrants } from "./lifecycle";
 const zero = BigInt(0);
 function invalid(message: string): never {
   throw new AppError(ErrorCode.VALIDATION_FAILED, message);
 }
 async function databaseTime(tx: TxDb): Promise<Date> {
-  const result = await tx.execute<{ now: Date }>(
-    sql`select clock_timestamp() as now`,
-  );
+  const result = await tx.execute<{ now: Date }>(sql`select clock_timestamp() as now`);
   return new Date(result.rows[0]!.now);
 }
 /** Identity -> season lifecycle -> official match -> outbox -> program. Reconciler never locks official rows. */
 async function activeUser(tx: TxDb, userId: string) {
-  const [user] = await tx
-    .select()
-    .from(users)
-    .where(eq(users.id, userId))
-    .for("share");
+  const [user] = await tx.select().from(users).where(eq(users.id, userId)).for("share");
   if (!user || user.status !== "active" || !user.emailVerifiedAt)
-    throw new AppError(
-      ErrorCode.FORBIDDEN,
-      "请先完成账号邮箱验证；归并账号请重新登录",
-    );
+    throw new AppError(ErrorCode.FORBIDDEN, "请先完成账号邮箱验证；归并账号请重新登录");
   return user;
 }
 export async function lockPredictionProgram(tx: TxDb, seasonId: string) {
@@ -101,22 +85,37 @@ export async function balanceOf(tx: TxDb, accountId: string): Promise<bigint> {
   return BigInt(row?.amount ?? "0");
 }
 /** Window publication is separate from judging/Bet settlement: official transitions never wait for those. */
-async function syncPickEmWindowsInTx(tx: TxDb, base: Baseline, now: Date, eligible=officialPickEmStages(base)) {
+async function syncPickEmWindowsInTx(
+  tx: TxDb,
+  base: Baseline,
+  now: Date,
+  eligible = officialPickEmStages(base),
+) {
   const seasonId = base.seasonId;
   for (const stage of eligible) {
-    const state = pickEmWindowState(base, { stageKey: stage.key, deadline: null, lockedAt: null }, now);
-    await tx.insert(contests).values({
-      seasonId, stageKey: stage.key, kind: stage.kind, entrants: stage.entrants,
-      stageRunId: stage.stageRunId, deadline: state.deadline, lockedAt: state.locked ? now : null,
-    }).onConflictDoNothing();
+    const state = pickEmWindowState(
+      base,
+      { stageKey: stage.key, deadline: null, lockedAt: null },
+      now,
+    );
+    await tx
+      .insert(contests)
+      .values({
+        seasonId,
+        stageKey: stage.key,
+        kind: stage.kind,
+        entrants: stage.entrants,
+        stageRunId: stage.stageRunId,
+        deadline: state.deadline,
+        lockedAt: state.locked ? now : null,
+      })
+      .onConflictDoNothing();
   }
-  const allContests = await tx
-    .select()
-    .from(contests)
-    .where(eq(contests.seasonId, seasonId));
+  const allContests = await tx.select().from(contests).where(eq(contests.seasonId, seasonId));
   for (const contest of allContests) {
     const current = eligible.find((stage) => stage.key === contest.stageKey);
-    const mismatch = !current ||
+    const mismatch =
+      !current ||
       (contest.stageRunId !== null && contest.stageRunId !== current.stageRunId) ||
       !samePredictionEntrants(contest.entrants, current.entrants);
     if (mismatch && !contest.voidedAt) {
@@ -128,13 +127,20 @@ async function syncPickEmWindowsInTx(tx: TxDb, base: Baseline, now: Date, eligib
     }
     const state = pickEmWindowState(base, contest, now);
     // Do not rewrite PostgreSQL's immutable lock timestamp through JS millisecond precision.
-    const binding = !mismatch && !contest.stageRunId && current?.stageRunId
-      ? { stageRunId: current.stageRunId } : {};
+    const binding =
+      !mismatch && !contest.stageRunId && current?.stageRunId
+        ? { stageRunId: current.stageRunId }
+        : {};
     if (!contest.lockedAt || binding.stageRunId) {
-      await tx.update(contests).set({
-        ...(!contest.lockedAt ? { deadline: state.deadline, lockedAt: state.locked ? now : null } : {}),
-        ...binding,
-      }).where(eq(contests.id, contest.id));
+      await tx
+        .update(contests)
+        .set({
+          ...(!contest.lockedAt
+            ? { deadline: state.deadline, lockedAt: state.locked ? now : null }
+            : {}),
+          ...binding,
+        })
+        .where(eq(contests.id, contest.id));
     }
   }
 }
@@ -148,43 +154,28 @@ export async function reconcilePredictionProgram(
   const seasonId = program.seasonId;
   const now = await databaseTime(tx);
   const base = await loadBaseline(tx, seasonId);
-  const due = force ? undefined : await tx.execute<{ due: boolean }>(
-    sql`select public.prediction_reconciliation_is_due(${seasonId}::uuid) as due`,
-  );
+  const due = force
+    ? undefined
+    : await tx.execute<{ due: boolean }>(
+        sql`select public.prediction_reconciliation_is_due(${seasonId}::uuid) as due`,
+      );
   if (!force && !due?.rows[0]?.due) {
-    await tx
-      .update(jobs)
-      .set({ updatedAt: now })
-      .where(eq(jobs.seasonId, seasonId));
+    await tx.update(jobs).set({ updatedAt: now }).where(eq(jobs.seasonId, seasonId));
     return base;
   }
-  const official = await tx
-    .select()
-    .from(matches)
-    .where(eq(matches.seasonId, seasonId));
-  const runs = await tx
-    .select()
-    .from(majorStageRuns)
-    .where(eq(majorStageRuns.seasonId, seasonId));
+  const official = await tx.select().from(matches).where(eq(matches.seasonId, seasonId));
+  const runs = await tx.select().from(majorStageRuns).where(eq(majorStageRuns.seasonId, seasonId));
   const [final] = await tx
     .select()
     .from(majorFinalResults)
     .where(eq(majorFinalResults.seasonId, seasonId));
-  const allAccounts = await tx
-    .select()
-    .from(accounts)
-    .where(eq(accounts.seasonId, seasonId));
-  const launches = await tx
-    .select()
-    .from(milestones)
-    .where(eq(milestones.seasonId, seasonId));
-  const ledgerRows:(typeof ledger.$inferInsert)[]=[];
+  const allAccounts = await tx.select().from(accounts).where(eq(accounts.seasonId, seasonId));
+  const launches = await tx.select().from(milestones).where(eq(milestones.seasonId, seasonId));
+  const ledgerRows: (typeof ledger.$inferInsert)[] = [];
   for (const run of launches) {
     const stage = base.stages.find((s) => s.key === run.stageKey);
     if (!stage?.previousKey || !program.rules.stagePoints) continue;
-    for (const account of allAccounts.filter(
-      (a) => a.joinedAt < run.openedAt,
-    )) {
+    for (const account of allAccounts.filter((a) => a.joinedAt < run.openedAt)) {
       ledgerRows.push({
         seasonId,
         accountId: account.id,
@@ -195,17 +186,14 @@ export async function reconcilePredictionProgram(
     }
   }
   const stageResults = simulateMajor(base, {});
-  await syncPickEmWindowsInTx(tx, base, now,officialPickEmStages(base,stageResults));
+  await syncPickEmWindowsInTx(tx, base, now, officialPickEmStages(base, stageResults));
   const allContests = await tx.select().from(contests).where(eq(contests.seasonId, seasonId));
   for (const contest of allContests) {
     const run = base.runs.find((r) => r.key === contest.stageKey);
     const stage = stageResults.find((s) => s.key === contest.stageKey);
     const accepted =
-      contest.kind === "swiss"
-        ? run?.finalizedRound === 5
-        : final?.status === "confirmed";
-    const actual =
-      !contest.voidedAt && accepted && stage?.complete ? stage.pick : null;
+      contest.kind === "swiss" ? run?.finalizedRound === 5 : final?.status === "confirmed";
+    const actual = !contest.voidedAt && accepted && stage?.complete ? stage.pick : null;
     const fingerprint = JSON.stringify({ void: !!contest.voidedAt, actual });
     const [previous] = await tx
       .select()
@@ -214,14 +202,8 @@ export async function reconcilePredictionProgram(
       .orderBy(desc(judgements.createdAt))
       .limit(1);
     if (previous?.fingerprint !== fingerprint)
-      await tx
-        .insert(judgements)
-        .values({ contestId: contest.id, fingerprint, actual });
-    if (
-      contest.lockedAt &&
-      !contest.voidedAt &&
-      program.rules.participationPoints
-    ) {
+      await tx.insert(judgements).values({ contestId: contest.id, fingerprint, actual });
+    if (contest.lockedAt && !contest.voidedAt && program.rules.participationPoints) {
       const submissions = await tx
         .select({ accountId: picks.accountId })
         .from(picks)
@@ -240,10 +222,7 @@ export async function reconcilePredictionProgram(
         .select()
         .from(ledger)
         .where(
-          and(
-            eq(ledger.seasonId, seasonId),
-            eq(ledger.source, `participation/${contest.id}`),
-          ),
+          and(eq(ledger.seasonId, seasonId), eq(ledger.source, `participation/${contest.id}`)),
         );
       for (const reward of rewards)
         ledgerRows.push({
@@ -255,15 +234,35 @@ export async function reconcilePredictionProgram(
         });
     }
   }
-  const allMarkets = await tx
-    .select()
-    .from(markets)
-    .where(eq(markets.seasonId, seasonId));
-  const marketIds=allMarkets.map(market=>market.id);
-  const allStakes=marketIds.length?await tx.select().from(stakes).where(inArray(stakes.marketId,marketIds)):[];
-  const allOptions=marketIds.length?await tx.select().from(options).where(inArray(options.marketId,marketIds)):[];
-  const latestSettlements=marketIds.length?await tx.selectDistinctOn([settlements.marketId]).from(settlements).where(inArray(settlements.marketId,marketIds)).orderBy(settlements.marketId,desc(settlements.createdAt),desc(settlements.id)):[];
-  const oldLedger=latestSettlements.length?await tx.select().from(ledger).where(and(eq(ledger.seasonId,seasonId),inArray(ledger.source,latestSettlements.map(batch=>`settlement/${batch.id}`)))):[];
+  const allMarkets = await tx.select().from(markets).where(eq(markets.seasonId, seasonId));
+  const marketIds = allMarkets.map((market) => market.id);
+  const allStakes = marketIds.length
+    ? await tx.select().from(stakes).where(inArray(stakes.marketId, marketIds))
+    : [];
+  const allOptions = marketIds.length
+    ? await tx.select().from(options).where(inArray(options.marketId, marketIds))
+    : [];
+  const latestSettlements = marketIds.length
+    ? await tx
+        .selectDistinctOn([settlements.marketId])
+        .from(settlements)
+        .where(inArray(settlements.marketId, marketIds))
+        .orderBy(settlements.marketId, desc(settlements.createdAt), desc(settlements.id))
+    : [];
+  const oldLedger = latestSettlements.length
+    ? await tx
+        .select()
+        .from(ledger)
+        .where(
+          and(
+            eq(ledger.seasonId, seasonId),
+            inArray(
+              ledger.source,
+              latestSettlements.map((batch) => `settlement/${batch.id}`),
+            ),
+          ),
+        )
+    : [];
   for (const market of allMarkets) {
     const match = official.find((m) => m.id === market.matchId);
     const voided =
@@ -279,19 +278,15 @@ export async function reconcilePredictionProgram(
       ? !!run && run.finalizedRound >= match.round
       : match?.entryRound === "quarterfinal"
         ? official.some(
-            (m) =>
-              m.majorStageRunId === match.majorStageRunId &&
-              m.entryRound === "semifinal",
+            (m) => m.majorStageRunId === match.majorStageRunId && m.entryRound === "semifinal",
           )
         : match?.entryRound === "semifinal"
           ? official.some(
-              (m) =>
-                m.majorStageRunId === match.majorStageRunId &&
-                m.entryRound === "final",
+              (m) => m.majorStageRunId === match.majorStageRunId && m.entryRound === "final",
             )
           : final?.status === "confirmed";
-    const rows=allStakes.filter(row=>row.marketId===market.id);
-    const marketOptions=allOptions.filter(option=>option.marketId===market.id);
+    const rows = allStakes.filter((row) => row.marketId === market.id);
+    const marketOptions = allOptions.filter((option) => option.marketId === market.id);
     // Resolver registry is deliberately closed: a new market requires a confirmed-fact adapter.
     if (market.resolver !== "match_winner")
       throw new Error(`Unsupported prediction resolver: ${market.resolver}`);
@@ -319,26 +314,18 @@ export async function reconcilePredictionProgram(
       .filter((row) => resolution.winningOptionIds.includes(row.optionId))
       .reduce((n, row) => n + row.amount, zero);
     const state =
-      resolution.state === "settled" &&
-      (winningPool === zero || winningPool === total)
+      resolution.state === "settled" && (winningPool === zero || winningPool === total)
         ? "refunded"
         : resolution.state;
-    const winningOptionIds =
-      state === "settled" ? resolution.winningOptionIds : [];
-    if (
-      !market.lockedAt &&
-      (now >= market.deadline || voided || match?.status !== "scheduled")
-    )
-      await tx
-        .update(markets)
-        .set({ lockedAt: now })
-        .where(eq(markets.id, market.id));
+    const winningOptionIds = state === "settled" ? resolution.winningOptionIds : [];
+    if (!market.lockedAt && (now >= market.deadline || voided || match?.status !== "scheduled"))
+      await tx.update(markets).set({ lockedAt: now }).where(eq(markets.id, market.id));
     const fingerprint = JSON.stringify({
       state,
       winningOptionIds,
       factRevision: resolution.factRevision,
     });
-    const previous=latestSettlements.find(batch=>batch.marketId===market.id);
+    const previous = latestSettlements.find((batch) => batch.marketId === market.id);
     if (previous?.fingerprint === fingerprint) continue;
     const [batch] = await tx
       .insert(settlements)
@@ -352,7 +339,7 @@ export async function reconcilePredictionProgram(
       .returning();
     if (!batch) throw new Error("Settlement insert failed");
     if (previous) {
-      const old=oldLedger.filter(row=>row.source===`settlement/${previous.id}`);
+      const old = oldLedger.filter((row) => row.source === `settlement/${previous.id}`);
       for (const row of old)
         ledgerRows.push({
           seasonId,
@@ -369,10 +356,7 @@ export async function reconcilePredictionProgram(
         optionId: s.optionId,
         stake: s.amount,
       }));
-      const payouts = distributePool(
-        positions,
-        state === "settled" ? winningOptionIds : null,
-      );
+      const payouts = distributePool(positions, state === "settled" ? winningOptionIds : null);
       for (const [accountId, amount] of payouts) {
         const invested = rows
           .filter((s) => s.accountId === accountId)
@@ -388,11 +372,12 @@ export async function reconcilePredictionProgram(
       }
     }
   }
-  for(let start=0;start<ledgerRows.length;start+=1000)await tx.insert(ledger).values(ledgerRows.slice(start,start+1000)).onConflictDoNothing({target:[ledger.accountId,ledger.source]});
-  await tx
-    .update(jobs)
-    .set({ dirty: false, updatedAt: now })
-    .where(eq(jobs.seasonId, seasonId));
+  for (let start = 0; start < ledgerRows.length; start += 1000)
+    await tx
+      .insert(ledger)
+      .values(ledgerRows.slice(start, start + 1000))
+      .onConflictDoNothing({ target: [ledger.accountId, ledger.source] });
+  await tx.update(jobs).set({ dirty: false, updatedAt: now }).where(eq(jobs.seasonId, seasonId));
   return base;
 }
 /** Caller holds the program lock; first participation and its credit commit with the pick. */
@@ -401,11 +386,7 @@ async function ensurePredictionAccountInTx(
   input: { seasonId: string; userId: string },
   initialPoints: number,
 ) {
-  const [account] = await tx
-    .insert(accounts)
-    .values(input)
-    .onConflictDoNothing()
-    .returning();
+  const [account] = await tx.insert(accounts).values(input).onConflictDoNothing().returning();
   if (account)
     await writeLedger(tx, {
       seasonId: input.seasonId,
@@ -417,10 +398,15 @@ async function ensurePredictionAccountInTx(
   return account ?? accountFor(tx, input.seasonId, input.userId);
 }
 /** Worker due checks do not force a baseline read on an already-consumed job. */
-export async function reconcileDuePredictionProgram(tx:TxDb,program:typeof programs.$inferSelect) {
-  const due=await tx.execute<{due:boolean}>(sql`select public.prediction_reconciliation_is_due(${program.seasonId}::uuid) as due`);
-  if(!due.rows[0]?.due)return false;
-  await reconcilePredictionProgram(tx,program,true);
+export async function reconcileDuePredictionProgram(
+  tx: TxDb,
+  program: typeof programs.$inferSelect,
+) {
+  const due = await tx.execute<{ due: boolean }>(
+    sql`select public.prediction_reconciliation_is_due(${program.seasonId}::uuid) as due`,
+  );
+  if (!due.rows[0]?.due) return false;
+  await reconcilePredictionProgram(tx, program, true);
   return true;
 }
 /** Caller holds lifecycle, relevant official rows, outbox and program locks.
@@ -428,17 +414,17 @@ export async function reconcileDuePredictionProgram(tx:TxDb,program:typeof progr
  * monetary corrections stay with the durable worker and never run on admission.
  */
 async function ensurePickEmAdmissionSnapshotInTx(tx: TxDb, seasonId: string) {
-  const base=await loadBaseline(tx,seasonId);
-  const eligible=officialPickEmStages(base);
-  await syncPickEmWindowsInTx(tx,base,await databaseTime(tx),eligible);
+  const base = await loadBaseline(tx, seasonId);
+  const eligible = officialPickEmStages(base);
+  await syncPickEmWindowsInTx(tx, base, await databaseTime(tx), eligible);
   // A newly latched deadline must remain due even if no official edit follows.
-  await tx.update(jobs).set({dirty:true,updatedAt:sql`clock_timestamp()`}).where(eq(jobs.seasonId,seasonId));
-  return {base,eligible};
+  await tx
+    .update(jobs)
+    .set({ dirty: true, updatedAt: sql`clock_timestamp()` })
+    .where(eq(jobs.seasonId, seasonId));
+  return { base, eligible };
 }
-export async function joinPredictionsInTx(
-  tx: TxDb,
-  input: { seasonId: string; userId: string },
-) {
+export async function joinPredictionsInTx(tx: TxDb, input: { seasonId: string; userId: string }) {
   await activeUser(tx, input.userId);
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const program = await lockPredictionProgram(tx, input.seasonId);
@@ -462,35 +448,24 @@ export async function savePickInTx(
   const [target] = await tx
     .select()
     .from(contests)
-    .where(
-      and(
-        eq(contests.id, input.contestId),
-        eq(contests.seasonId, input.seasonId),
-      ),
-    );
+    .where(and(eq(contests.id, input.contestId), eq(contests.seasonId, input.seasonId)));
   if (!target) invalid("阶段窗口不存在");
   await tx
     .select({ id: matches.id })
     .from(matches)
-    .where(
-      and(
-        eq(matches.seasonId, input.seasonId),
-        eq(matches.stage, target.stageKey),
-      ),
-    )
+    .where(and(eq(matches.seasonId, input.seasonId), eq(matches.stage, target.stageKey)))
     .orderBy(asc(matches.id))
     .for("share");
   const program = await lockPredictionProgram(tx, input.seasonId);
-  const account = await ensurePredictionAccountInTx(tx, { seasonId: input.seasonId, userId: input.userId }, program.rules.initialPoints);
+  const account = await ensurePredictionAccountInTx(
+    tx,
+    { seasonId: input.seasonId, userId: input.userId },
+    program.rules.initialPoints,
+  );
   const [replay] = await tx
     .select()
     .from(picks)
-    .where(
-      and(
-        eq(picks.accountId, account.id),
-        eq(picks.requestId, input.requestId),
-      ),
-    );
+    .where(and(eq(picks.accountId, account.id), eq(picks.requestId, input.requestId)));
   if (replay) {
     if (
       replay.contestId !== input.contestId ||
@@ -504,11 +479,8 @@ export async function savePickInTx(
       at: replay.createdAt.toISOString(),
     };
   }
-  const {base,eligible} = await ensurePickEmAdmissionSnapshotInTx(tx, input.seasonId);
-  const [contest] = await tx
-    .select()
-    .from(contests)
-    .where(eq(contests.id, input.contestId));
+  const { base, eligible } = await ensurePickEmAdmissionSnapshotInTx(tx, input.seasonId);
+  const [contest] = await tx.select().from(contests).where(eq(contests.id, input.contestId));
   const current = eligible.find((stage) => stage.key === target.stageKey);
   if (
     !contest ||
@@ -520,8 +492,7 @@ export async function savePickInTx(
     !samePredictionEntrants(contest.entrants, current.entrants)
   )
     invalid("阶段已截止或官方名单发生变化，原有效提交保持不变");
-  if ((contest.kind === "swiss") !== ("perfect" in input.pick))
-    invalid("草稿类型与本阶段不一致");
+  if ((contest.kind === "swiss") !== "perfect" in input.pick) invalid("草稿类型与本阶段不一致");
   if (input.submitted) {
     try {
       validatePick(input.pick, contest.entrants, contest.kind, program.rules);
@@ -532,9 +503,7 @@ export async function savePickInTx(
   const [latest] = await tx
     .select({ version: picks.version })
     .from(picks)
-    .where(
-      and(eq(picks.contestId, contest.id), eq(picks.accountId, account.id)),
-    )
+    .where(and(eq(picks.contestId, contest.id), eq(picks.accountId, account.id)))
     .orderBy(desc(picks.version))
     .limit(1);
   const [saved] = await tx
@@ -549,7 +518,10 @@ export async function savePickInTx(
       version: (latest?.version ?? 0) + 1,
     })
     .returning();
-  await tx.update(jobs).set({dirty:true,updatedAt:sql`clock_timestamp()`}).where(eq(jobs.seasonId,input.seasonId));
+  await tx
+    .update(jobs)
+    .set({ dirty: true, updatedAt: sql`clock_timestamp()` })
+    .where(eq(jobs.seasonId, input.seasonId));
   return {
     version: saved!.version,
     submitted: saved!.submitted,
@@ -572,16 +544,12 @@ export async function stakeInTx(
   const [target] = await tx
     .select()
     .from(markets)
-    .where(
-      and(eq(markets.id, input.marketId), eq(markets.seasonId, input.seasonId)),
-    );
+    .where(and(eq(markets.id, input.marketId), eq(markets.seasonId, input.seasonId)));
   if (!target) invalid("积分池不存在");
   const [match] = await tx
     .select()
     .from(matches)
-    .where(
-      and(eq(matches.id, target.matchId), eq(matches.seasonId, input.seasonId)),
-    )
+    .where(and(eq(matches.id, target.matchId), eq(matches.seasonId, input.seasonId)))
     .for("share");
   const program = await lockPredictionProgram(tx, input.seasonId);
   await reconcilePredictionProgram(tx, program);
@@ -589,12 +557,7 @@ export async function stakeInTx(
   const [replay] = await tx
     .select()
     .from(stakes)
-    .where(
-      and(
-        eq(stakes.accountId, account.id),
-        eq(stakes.requestId, input.requestId),
-      ),
-    );
+    .where(and(eq(stakes.accountId, account.id), eq(stakes.requestId, input.requestId)));
   if (replay) {
     if (
       replay.marketId !== input.marketId ||
@@ -604,10 +567,7 @@ export async function stakeInTx(
       invalid("重复请求标识与内容不一致");
     return { amount: replay.amount.toString() };
   }
-  const [market] = await tx
-    .select()
-    .from(markets)
-    .where(eq(markets.id, target.id));
+  const [market] = await tx.select().from(markets).where(eq(markets.id, target.id));
   const now = await databaseTime(tx);
   const effectiveDeadline = market
     ? effectivePredictionMarketDeadline({
@@ -632,9 +592,7 @@ export async function stakeInTx(
   const [option] = await tx
     .select()
     .from(options)
-    .where(
-      and(eq(options.id, input.optionId), eq(options.marketId, market.id)),
-    );
+    .where(and(eq(options.id, input.optionId), eq(options.marketId, market.id)));
   if (!option) invalid("所选选项不属于本积分池");
   const admins = await tx
     .select()
@@ -648,10 +606,7 @@ export async function stakeInTx(
   const roster = await tx
     .select({ id: eventRosterMembers.id })
     .from(eventRosterMembers)
-    .innerJoin(
-      eventRosters,
-      eq(eventRosters.id, eventRosterMembers.eventRosterId),
-    )
+    .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
     .where(
       and(
         eq(eventRosterMembers.userId, input.userId),
@@ -659,22 +614,15 @@ export async function stakeInTx(
       ),
     );
   if (user.role === "super_admin" || admins.length || roster.length)
-    throw new AppError(
-      ErrorCode.FORBIDDEN,
-      "本场名单成员和赛事管理员不能参与本场积分预测",
-    );
+    throw new AppError(ErrorCode.FORBIDDEN, "本场名单成员和赛事管理员不能参与本场积分预测");
   const previous = await tx
     .select()
     .from(stakes)
-    .where(
-      and(eq(stakes.marketId, market.id), eq(stakes.accountId, account.id)),
-    );
-  if (previous.some((s) => s.optionId !== input.optionId))
-    invalid("已经投入另一方，不能换边");
+    .where(and(eq(stakes.marketId, market.id), eq(stakes.accountId, account.id)));
+  if (previous.some((s) => s.optionId !== input.optionId)) invalid("已经投入另一方，不能换边");
   const balance = await balanceOf(tx, account.id);
   const amount = input.amount === "all" ? balance : BigInt(input.amount);
-  if (amount <= zero || amount > balance)
-    invalid("可用积分不足；待追回积分需先抵扣");
+  if (amount <= zero || amount > balance) invalid("可用积分不足；待追回积分需先抵扣");
   const [saved] = await tx
     .insert(stakes)
     .values({
@@ -708,12 +656,7 @@ export async function openPredictionMarketInTx(
   const official = await tx
     .select()
     .from(matches)
-    .where(
-      and(
-        eq(matches.seasonId, input.seasonId),
-        eq(matches.id, input.matchId),
-      ),
-    )
+    .where(and(eq(matches.seasonId, input.seasonId), eq(matches.id, input.matchId)))
     .orderBy(asc(matches.id))
     .for("share");
   const program = await lockPredictionProgram(tx, input.seasonId);
@@ -723,18 +666,12 @@ export async function openPredictionMarketInTx(
     program.paused ||
     input.deadline <= now ||
     !official.length ||
-    official.some(
-      (m) => m.status !== "scheduled" || m.ownership !== "major_stage",
-    )
+    official.some((m) => m.status !== "scheduled" || m.ownership !== "major_stage")
   )
     invalid("只允许在官方比赛尚未开始时开放未来截止窗口");
   const scheduled = official
     .filter((m) => m.scheduledAt)
-    .map(
-      (m) =>
-        m.scheduledAt!.getTime() -
-        program.rules.cutoffMinutes * 60000,
-    );
+    .map((m) => m.scheduledAt!.getTime() - program.rules.cutoffMinutes * 60000);
   const deadline = new Date(Math.min(input.deadline.getTime(), ...scheduled));
   if (deadline <= now) invalid("比赛计划开赛时间已到，不能延后开放");
 
@@ -757,18 +694,15 @@ export async function openPredictionMarketInTx(
     })
     .returning();
   const id = created!.id;
-  await tx
-    .insert(options)
-    .values(
-      [m.entryAId, m.entryBId].map((entryId, position) => ({
-        marketId: id,
-        key: entryId,
-        entryId,
-        position,
-        label:
-          base.teams.find((team) => team.teamId === entryId)?.name ?? "队伍",
-      })),
-    );
+  await tx.insert(options).values(
+    [m.entryAId, m.entryBId].map((entryId, position) => ({
+      marketId: id,
+      key: entryId,
+      entryId,
+      position,
+      label: base.teams.find((team) => team.teamId === entryId)?.name ?? "队伍",
+    })),
+  );
 
   await writeAuditInTx(tx, {
     seasonId: input.seasonId,
@@ -782,9 +716,12 @@ export async function openPredictionMarketInTx(
 /** Called after official transitions, never from a public read. */
 export async function syncAutomaticPickEmInTx(tx: TxDb, seasonId: string) {
   const base = await loadBaseline(tx, seasonId);
-  const eligible=officialPickEmStages(base);
+  const eligible = officialPickEmStages(base);
   if (!eligible.length) return;
-  await tx.insert(programs).values({ seasonId, rules: defaultPredictionRules(base.stages) }).onConflictDoNothing();
+  await tx
+    .insert(programs)
+    .values({ seasonId, rules: defaultPredictionRules(base.stages) })
+    .onConflictDoNothing();
   await lockPredictionProgram(tx, seasonId);
-  await syncPickEmWindowsInTx(tx, base, await databaseTime(tx),eligible);
+  await syncPickEmWindowsInTx(tx, base, await databaseTime(tx), eligible);
 }

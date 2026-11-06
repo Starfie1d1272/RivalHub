@@ -8,13 +8,7 @@ interface EmptyStateProps {
   accent?: boolean;
 }
 
-export function EmptyState({
-  icon = "◇",
-  title,
-  sub,
-  action,
-  accent,
-}: EmptyStateProps) {
+export function EmptyState({ icon = "◇", title, sub, action, accent }: EmptyStateProps) {
   return (
     <div className="py-12 px-6 text-center">
       <div

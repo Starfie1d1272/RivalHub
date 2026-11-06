@@ -4,16 +4,36 @@ import "server-only";
 import { alias } from "drizzle-orm/pg-core";
 import { and, desc, eq, gt, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitiveRankFacts, competitionEntries, recruitmentIntents, recruitmentInterests, seasons, steamProfiles, teamMemberships, teams, teamInvitations, userCompetitiveRoles, userMapPreferences, users } from "@/db/schema";
+import {
+  competitiveRankFacts,
+  competitionEntries,
+  recruitmentIntents,
+  recruitmentInterests,
+  seasons,
+  steamProfiles,
+  teamMemberships,
+  teams,
+  teamInvitations,
+  userCompetitiveRoles,
+  userMapPreferences,
+  users,
+} from "@/db/schema";
 import { getPublicCompetitiveCatalog } from "@/lib/competitive/public-catalog";
-import { presentPublicCompetitiveSummary, type PublicCompetitiveProfilePlatform } from "@/lib/competitive/presentation";
+import {
+  presentPublicCompetitiveSummary,
+  type PublicCompetitiveProfilePlatform,
+} from "@/lib/competitive/presentation";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
 import { PLAYABLE_MAP_LEVELS, projectMapPreferences } from "@/lib/maps";
 import { escapeLikePattern } from "@/lib/db/search";
 import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/lib/config/cs2-maps";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { MapPreferenceDraft } from "@/types/season";
-import { isTeamRecruitmentTargetAvailable, recruitmentTargetAvailableCondition, teamRecruitmentTargetAvailableCondition } from "@/lib/recruitment/target-policy";
+import {
+  isTeamRecruitmentTargetAvailable,
+  recruitmentTargetAvailableCondition,
+  teamRecruitmentTargetAvailableCondition,
+} from "@/lib/recruitment/target-policy";
 import type { RecruitmentFilters, RecruitmentTeamSize } from "@/lib/recruitment/contract";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
@@ -64,40 +84,65 @@ export interface PlayerLftCardData extends PublicRecruitmentIntent {
   competitiveRoles: Cs2Position[];
   mapPreferences: MapPreferenceDraft[];
   mapPreferenceContextLabel: string;
-  currentTeamSlug: string | null; currentTeamName: string | null;
+  currentTeamSlug: string | null;
+  currentTeamName: string | null;
   competitiveSummary: PublicCompetitiveProfilePlatform[];
 }
 
 /** Shared base predicate for a publicly discoverable, non-expired intent. */
 export function openRecruitmentIntentConditions(kind: "team_recruiting" | "player_lft", now: Date) {
-  return [eq(recruitmentIntents.kind, kind), eq(recruitmentIntents.status, "open"), gt(recruitmentIntents.expiresAt, now)];
+  return [
+    eq(recruitmentIntents.kind, kind),
+    eq(recruitmentIntents.status, "open"),
+    gt(recruitmentIntents.expiresAt, now),
+  ];
 }
 
-function openConditions(kind: "team_recruiting" | "player_lft", filters: RecruitmentFilters, now: Date) {
+function openConditions(
+  kind: "team_recruiting" | "player_lft",
+  filters: RecruitmentFilters,
+  now: Date,
+) {
   const conditions = [...openRecruitmentIntentConditions(kind, now)];
   if (filters.q) {
     const pattern = `%${escapeLikePattern(filters.q)}%`;
-    conditions.push(kind === "team_recruiting"
-      ? or(ilike(teams.name, pattern), publicNameSearchCondition(pattern))!
-      : publicNameSearchCondition(pattern));
+    conditions.push(
+      kind === "team_recruiting"
+        ? or(ilike(teams.name, pattern), publicNameSearchCondition(pattern))!
+        : publicNameSearchCondition(pattern),
+    );
   }
-  if (filters.targetSeasonId) conditions.push(intentCompatibleWithSelectedEventCondition(filters.targetSeasonId));
+  if (filters.targetSeasonId)
+    conditions.push(intentCompatibleWithSelectedEventCondition(filters.targetSeasonId));
   if (filters.position) {
-    conditions.push(kind === "team_recruiting"
-      ? sql`${recruitmentIntents.positions} = ARRAY[]::cs2_role[] OR ${recruitmentIntents.positions} @> ARRAY[${filters.position}]::cs2_role[]`
-      : sql`${recruitmentIntents.positions} @> ARRAY[${filters.position}]::cs2_role[]`);
+    conditions.push(
+      kind === "team_recruiting"
+        ? sql`${recruitmentIntents.positions} = ARRAY[]::cs2_role[] OR ${recruitmentIntents.positions} @> ARRAY[${filters.position}]::cs2_role[]`
+        : sql`${recruitmentIntents.positions} @> ARRAY[${filters.position}]::cs2_role[]`,
+    );
   }
   return conditions;
 }
 
-export function recruitmentTeamSizeMatches(memberCount: number, teamSize: RecruitmentTeamSize): boolean {
+export function recruitmentTeamSizeMatches(
+  memberCount: number,
+  teamSize: RecruitmentTeamSize,
+): boolean {
   if (teamSize === "small") return memberCount <= 4;
   if (teamSize === "medium") return memberCount >= 5 && memberCount <= 6;
   return memberCount >= 7;
 }
 
-export function hasPlayableMapPreference(preferences: readonly MapPreferenceDraft[], map: string): boolean {
-  return preferences.some((preference) => preference.map === map && preference.level !== null && PLAYABLE_MAP_LEVELS.has(preference.level));
+export function hasPlayableMapPreference(
+  preferences: readonly MapPreferenceDraft[],
+  map: string,
+): boolean {
+  return preferences.some(
+    (preference) =>
+      preference.map === map &&
+      preference.level !== null &&
+      PLAYABLE_MAP_LEVELS.has(preference.level),
+  );
 }
 
 export async function getRecruitmentLobbyData(
@@ -120,16 +165,24 @@ export async function getRecruitmentLobbyData(
 }> {
   const currentPlayerTeam = alias(teams, "recruitment_current_player_team");
   const now = new Date();
-  const targetSeasonRows = await db.select({ id: seasons.id, name: seasons.name, registrationConfig: seasons.registrationConfig }).from(seasons).where(recruitmentTargetAvailableCondition(now)).orderBy(desc(seasons.createdAt));
+  const targetSeasonRows = await db
+    .select({ id: seasons.id, name: seasons.name, registrationConfig: seasons.registrationConfig })
+    .from(seasons)
+    .where(recruitmentTargetAvailableCondition(now))
+    .orderBy(desc(seasons.createdAt));
   const targetSeasons = targetSeasonRows.map(({ id, name }) => ({ id, name }));
-  const targetSeasonId = filters.targetSeasonId && targetSeasons.some((season) => season.id === filters.targetSeasonId)
-    ? filters.targetSeasonId
-    : undefined;
+  const targetSeasonId =
+    filters.targetSeasonId && targetSeasons.some((season) => season.id === filters.targetSeasonId)
+      ? filters.targetSeasonId
+      : undefined;
   const targetMapPools = new Map(
-    targetSeasonRows.map((season) => [season.id, normalizeRegistrationConfig(season.registrationConfig).mapPool]),
+    targetSeasonRows.map((season) => [
+      season.id,
+      normalizeRegistrationConfig(season.registrationConfig).mapPool,
+    ]),
   );
   const mapOptions = targetSeasonId
-    ? targetMapPools.get(targetSeasonId) ?? [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]
+    ? (targetMapPools.get(targetSeasonId) ?? [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL])
     : [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL];
   const normalizedFilters: RecruitmentFilters = {
     q: filters.q?.trim() || undefined,
@@ -142,21 +195,36 @@ export async function getRecruitmentLobbyData(
   const memberCount = sql<number>`(select count(*)::int from ${teamMemberships}
     inner join ${users} as recruitment_member on recruitment_member.id = ${teamMemberships.userId}
     where ${teamMemberships.teamId} = ${teams.id} and ${teamMemberships.endedAt} is null and recruitment_member.status = 'active')`;
-  const teamSizeCondition = !normalizedFilters.teamSize ? undefined
-    : normalizedFilters.teamSize === "small" ? sql`${memberCount} <= 4`
-      : normalizedFilters.teamSize === "medium" ? sql`${memberCount} between 5 and 6` : sql`${memberCount} >= 7`;
-  const allowedMapSeasonIds = [...targetMapPools].filter(([, pool]) => pool.includes(normalizedFilters.map ?? "")).map(([id]) => id);
-  const mapCondition = !normalizedFilters.map ? undefined : and(
-    normalizedFilters.targetSeasonId ? undefined : or(isNull(recruitmentIntents.targetSeasonId),
-      allowedMapSeasonIds.length ? inArray(recruitmentIntents.targetSeasonId, allowedMapSeasonIds) : sql`false`),
-    sql`exists (select 1 from ${userMapPreferences}
+  const teamSizeCondition = !normalizedFilters.teamSize
+    ? undefined
+    : normalizedFilters.teamSize === "small"
+      ? sql`${memberCount} <= 4`
+      : normalizedFilters.teamSize === "medium"
+        ? sql`${memberCount} between 5 and 6`
+        : sql`${memberCount} >= 7`;
+  const allowedMapSeasonIds = [...targetMapPools]
+    .filter(([, pool]) => pool.includes(normalizedFilters.map ?? ""))
+    .map(([id]) => id);
+  const mapCondition = !normalizedFilters.map
+    ? undefined
+    : and(
+        normalizedFilters.targetSeasonId
+          ? undefined
+          : or(
+              isNull(recruitmentIntents.targetSeasonId),
+              allowedMapSeasonIds.length
+                ? inArray(recruitmentIntents.targetSeasonId, allowedMapSeasonIds)
+                : sql`false`,
+            ),
+        sql`exists (select 1 from ${userMapPreferences}
       where ${userMapPreferences.userId} = ${users.id}
       and exists (select 1 from jsonb_array_elements(${userMapPreferences.mapPreferences}::jsonb) with ordinality as pref(value, ordinal)
         where pref.value->>'map' = ${normalizedFilters.map} and pref.value->>'level' in ('playable', 'proficient', 'strong')
         and not exists (select 1 from jsonb_array_elements(${userMapPreferences.mapPreferences}::jsonb) with ordinality as later(value, ordinal)
           where later.ordinal > pref.ordinal and later.value->>'map' = pref.value->>'map' and later.value->>'level' is not null)))`,
-  );
-  const teamQuery = db.select({
+      );
+  const teamQuery = db
+    .select({
       id: recruitmentIntents.id,
       positions: recruitmentIntents.positions,
       targetSeasonId: recruitmentIntents.targetSeasonId,
@@ -173,15 +241,27 @@ export async function getRecruitmentLobbyData(
       captainDisplayName: users.displayName,
       captainPersonaName: steamProfiles.personaName,
       captainPerfectName: users.perfectName,
-    }).from(recruitmentIntents)
-      .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
-      .innerJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
-      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
-      .where(and(...openConditions("team_recruiting", normalizedFilters, now), eq(teams.status, "active"), teamSizeCondition, or(isNull(recruitmentIntents.targetSeasonId), teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId))))
-      .orderBy(desc(recruitmentIntents.updatedAt), desc(recruitmentIntents.id)).$dynamic();
-  const playerQuery =
-    db.select({
+    })
+    .from(recruitmentIntents)
+    .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
+    .innerJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
+    .where(
+      and(
+        ...openConditions("team_recruiting", normalizedFilters, now),
+        eq(teams.status, "active"),
+        teamSizeCondition,
+        or(
+          isNull(recruitmentIntents.targetSeasonId),
+          teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId),
+        ),
+      ),
+    )
+    .orderBy(desc(recruitmentIntents.updatedAt), desc(recruitmentIntents.id))
+    .$dynamic();
+  const playerQuery = db
+    .select({
       id: recruitmentIntents.id,
       positions: recruitmentIntents.positions,
       targetSeasonId: recruitmentIntents.targetSeasonId,
@@ -198,14 +278,28 @@ export async function getRecruitmentLobbyData(
       currentTeamId: currentPlayerTeam.id,
       currentTeamSlug: currentPlayerTeam.slug,
       currentTeamName: currentPlayerTeam.name,
-    }).from(recruitmentIntents)
-      .innerJoin(users, and(eq(users.id, recruitmentIntents.userId), eq(users.status, "active")))
-      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .leftJoin(teamMemberships, and(eq(teamMemberships.userId, users.id), isNull(teamMemberships.endedAt)))
-      .leftJoin(currentPlayerTeam, and(eq(currentPlayerTeam.id, teamMemberships.teamId), eq(currentPlayerTeam.status, "active")))
-      .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
-      .where(and(...openConditions("player_lft", normalizedFilters, now), mapCondition, or(isNull(recruitmentIntents.targetSeasonId), recruitmentTargetAvailableCondition(now))))
-      .orderBy(desc(recruitmentIntents.updatedAt), desc(recruitmentIntents.id)).$dynamic();
+    })
+    .from(recruitmentIntents)
+    .innerJoin(users, and(eq(users.id, recruitmentIntents.userId), eq(users.status, "active")))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .leftJoin(
+      teamMemberships,
+      and(eq(teamMemberships.userId, users.id), isNull(teamMemberships.endedAt)),
+    )
+    .leftJoin(
+      currentPlayerTeam,
+      and(eq(currentPlayerTeam.id, teamMemberships.teamId), eq(currentPlayerTeam.status, "active")),
+    )
+    .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
+    .where(
+      and(
+        ...openConditions("player_lft", normalizedFilters, now),
+        mapCondition,
+        or(isNull(recruitmentIntents.targetSeasonId), recruitmentTargetAvailableCondition(now)),
+      ),
+    )
+    .orderBy(desc(recruitmentIntents.updatedAt), desc(recruitmentIntents.id))
+    .$dynamic();
 
   const [[teamTotal], [playerTotal]] = await Promise.all([
     db.select({ count: sql<number>`count(*)::int` }).from(teamQuery.as("filtered_teams")),
@@ -218,71 +312,157 @@ export async function getRecruitmentLobbyData(
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.max(1, Math.min(totalPages, Math.trunc(pagination?.page || 1)));
   const [teamRows, playerRows] = await Promise.all([
-    pagination?.view === "players" ? Promise.resolve([]) : pagination ? teamQuery.limit(pageSize).offset((page - 1) * pageSize) : teamQuery,
-    pagination?.view === "teams" ? Promise.resolve([]) : pagination ? playerQuery.limit(pageSize).offset((page - 1) * pageSize) : playerQuery,
+    pagination?.view === "players"
+      ? Promise.resolve([])
+      : pagination
+        ? teamQuery.limit(pageSize).offset((page - 1) * pageSize)
+        : teamQuery,
+    pagination?.view === "teams"
+      ? Promise.resolve([])
+      : pagination
+        ? playerQuery.limit(pageSize).offset((page - 1) * pageSize)
+        : playerQuery,
   ]);
   const teamIds = teamRows.map((row) => row.teamId);
   const playerIds = [...new Set(playerRows.map((row) => row.userId))];
   const interestIntentIds = teamRows.map((row) => row.id);
-  const [memberCounts, roles, mapPreferences, interests, pendingInvitations, rankFacts, competitiveCatalog] = await Promise.all([
+  const [
+    memberCounts,
+    roles,
+    mapPreferences,
+    interests,
+    pendingInvitations,
+    rankFacts,
+    competitiveCatalog,
+  ] = await Promise.all([
     teamIds.length
-      ? db.select({ teamId: teamMemberships.teamId, count: sql<number>`count(*)::int` }).from(teamMemberships).innerJoin(users, and(eq(teamMemberships.userId, users.id), eq(users.status, "active"))).where(and(inArray(teamMemberships.teamId, teamIds), isNull(teamMemberships.endedAt))).groupBy(teamMemberships.teamId)
+      ? db
+          .select({ teamId: teamMemberships.teamId, count: sql<number>`count(*)::int` })
+          .from(teamMemberships)
+          .innerJoin(users, and(eq(teamMemberships.userId, users.id), eq(users.status, "active")))
+          .where(and(inArray(teamMemberships.teamId, teamIds), isNull(teamMemberships.endedAt)))
+          .groupBy(teamMemberships.teamId)
       : Promise.resolve([]),
     playerIds.length
-      ? db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, playerIds))
+      ? db
+          .select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role })
+          .from(userCompetitiveRoles)
+          .where(inArray(userCompetitiveRoles.userId, playerIds))
       : Promise.resolve([]),
     playerIds.length
-      ? db.select({ userId: userMapPreferences.userId, mapPreferences: userMapPreferences.mapPreferences }).from(userMapPreferences).where(inArray(userMapPreferences.userId, playerIds))
+      ? db
+          .select({
+            userId: userMapPreferences.userId,
+            mapPreferences: userMapPreferences.mapPreferences,
+          })
+          .from(userMapPreferences)
+          .where(inArray(userMapPreferences.userId, playerIds))
       : Promise.resolve([]),
     viewerUserId && interestIntentIds.length
-      ? db.select({ recruitmentIntentId: recruitmentInterests.recruitmentIntentId }).from(recruitmentInterests).where(and(eq(recruitmentInterests.userId, viewerUserId), inArray(recruitmentInterests.recruitmentIntentId, interestIntentIds)))
+      ? db
+          .select({ recruitmentIntentId: recruitmentInterests.recruitmentIntentId })
+          .from(recruitmentInterests)
+          .where(
+            and(
+              eq(recruitmentInterests.userId, viewerUserId),
+              inArray(recruitmentInterests.recruitmentIntentId, interestIntentIds),
+            ),
+          )
       : Promise.resolve([]),
     viewerUserId && teamIds.length
-      ? db.select({ teamId: teamInvitations.teamId }).from(teamInvitations).where(and(
-        eq(teamInvitations.invitedUserId, viewerUserId),
-        eq(teamInvitations.kind, "direct"),
-        eq(teamInvitations.status, "pending"),
-        gt(teamInvitations.expiresAt, now),
-        inArray(teamInvitations.teamId, teamIds),
-      ))
+      ? db
+          .select({ teamId: teamInvitations.teamId })
+          .from(teamInvitations)
+          .where(
+            and(
+              eq(teamInvitations.invitedUserId, viewerUserId),
+              eq(teamInvitations.kind, "direct"),
+              eq(teamInvitations.status, "pending"),
+              gt(teamInvitations.expiresAt, now),
+              inArray(teamInvitations.teamId, teamIds),
+            ),
+          )
       : Promise.resolve([]),
     playerIds.length
-      ? db.select({ id: competitiveRankFacts.id, userId: competitiveRankFacts.userId, platform: competitiveRankFacts.platform, kind: competitiveRankFacts.kind, platformSeasonKey: competitiveRankFacts.platformSeasonKey, status: competitiveRankFacts.status, rank: competitiveRankFacts.rank, rating: competitiveRankFacts.rating, stars: competitiveRankFacts.stars, achievedSeasonKey: competitiveRankFacts.achievedSeasonKey }).from(competitiveRankFacts).where(inArray(competitiveRankFacts.userId, playerIds))
+      ? db
+          .select({
+            id: competitiveRankFacts.id,
+            userId: competitiveRankFacts.userId,
+            platform: competitiveRankFacts.platform,
+            kind: competitiveRankFacts.kind,
+            platformSeasonKey: competitiveRankFacts.platformSeasonKey,
+            status: competitiveRankFacts.status,
+            rank: competitiveRankFacts.rank,
+            rating: competitiveRankFacts.rating,
+            stars: competitiveRankFacts.stars,
+            achievedSeasonKey: competitiveRankFacts.achievedSeasonKey,
+          })
+          .from(competitiveRankFacts)
+          .where(inArray(competitiveRankFacts.userId, playerIds))
       : Promise.resolve([]),
     playerIds.length ? getPublicCompetitiveCatalog() : Promise.resolve([]),
   ]);
   const countByTeam = new Map(memberCounts.map((row) => [row.teamId, row.count]));
   const rolesByUser = new Map<string, Cs2Position[]>();
-  for (const row of roles) rolesByUser.set(row.userId, [...(rolesByUser.get(row.userId) ?? []), row.role]);
+  for (const row of roles)
+    rolesByUser.set(row.userId, [...(rolesByUser.get(row.userId) ?? []), row.role]);
   const mapPreferencesByUser = new Map<string, MapPreferenceDraft[]>();
   for (const row of mapPreferences) mapPreferencesByUser.set(row.userId, row.mapPreferences);
   const factsByUser = new Map<string, typeof rankFacts>();
-  for (const row of rankFacts) factsByUser.set(row.userId, [...(factsByUser.get(row.userId) ?? []), row]);
+  for (const row of rankFacts)
+    factsByUser.set(row.userId, [...(factsByUser.get(row.userId) ?? []), row]);
   const mapPoolForPlayer = (intentTargetSeasonId: string | null) => {
     const projectionSeasonId = normalizedFilters.targetSeasonId ?? intentTargetSeasonId;
     return projectionSeasonId
-      ? targetMapPools.get(projectionSeasonId) ?? [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]
+      ? (targetMapPools.get(projectionSeasonId) ?? [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL])
       : [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL];
   };
   const teamRecruitments = teamRows
     .map(({ captainDisplayName, captainPersonaName, captainPerfectName, ...row }) => ({
       ...row,
-      captainName: getPublicDisplayName({ displayName: captainDisplayName, personaName: captainPersonaName, perfectName: captainPerfectName }),
+      captainName: getPublicDisplayName({
+        displayName: captainDisplayName,
+        personaName: captainPersonaName,
+        perfectName: captainPerfectName,
+      }),
       positions: row.positions as Cs2Position[],
       memberCount: countByTeam.get(row.teamId) ?? 0,
     }))
-    .filter((item) => !normalizedFilters.teamSize || recruitmentTeamSizeMatches(item.memberCount, normalizedFilters.teamSize));
-  const playerLfts = playerRows.map(({ displayName, personaName, perfectName, ...row }) => ({
-    ...row,
-    name: getPublicDisplayName({ displayName, personaName, perfectName }),
-    positions: row.positions as Cs2Position[],
-    competitiveRoles: rolesByUser.get(row.userId) ?? [],
-    mapPreferences: projectMapPreferences(mapPreferencesByUser.get(row.userId) ?? [], mapPoolForPlayer(row.targetSeasonId)),
-    mapPreferenceContextLabel: normalizedFilters.targetSeasonId || row.targetSeasonId ? "目标赛事图池熟练度" : "当前地图池熟练度",
-    competitiveSummary: presentPublicCompetitiveSummary(competitiveCatalog, factsByUser.get(row.userId) ?? []),
-  })).filter((item) => !normalizedFilters.map || hasPlayableMapPreference(item.mapPreferences, normalizedFilters.map));
+    .filter(
+      (item) =>
+        !normalizedFilters.teamSize ||
+        recruitmentTeamSizeMatches(item.memberCount, normalizedFilters.teamSize),
+    );
+  const playerLfts = playerRows
+    .map(({ displayName, personaName, perfectName, ...row }) => ({
+      ...row,
+      name: getPublicDisplayName({ displayName, personaName, perfectName }),
+      positions: row.positions as Cs2Position[],
+      competitiveRoles: rolesByUser.get(row.userId) ?? [],
+      mapPreferences: projectMapPreferences(
+        mapPreferencesByUser.get(row.userId) ?? [],
+        mapPoolForPlayer(row.targetSeasonId),
+      ),
+      mapPreferenceContextLabel:
+        normalizedFilters.targetSeasonId || row.targetSeasonId
+          ? "目标赛事图池熟练度"
+          : "当前地图池熟练度",
+      competitiveSummary: presentPublicCompetitiveSummary(
+        competitiveCatalog,
+        factsByUser.get(row.userId) ?? [],
+      ),
+    }))
+    .filter(
+      (item) =>
+        !normalizedFilters.map ||
+        hasPlayableMapPreference(item.mapPreferences, normalizedFilters.map),
+    );
   return {
-    teamCount, playerCount, page, pageSize, totalPages,
+    teamCount,
+    playerCount,
+    page,
+    pageSize,
+    totalPages,
     teamRecruitments,
     playerLfts,
     targetSeasons,
@@ -293,53 +473,184 @@ export async function getRecruitmentLobbyData(
   };
 }
 
-export async function getPublicTeamRecruitment(teamId: string): Promise<PublicRecruitmentIntent | null> {
+export async function getPublicTeamRecruitment(
+  teamId: string,
+): Promise<PublicRecruitmentIntent | null> {
   const now = new Date();
-  const [intent] = await db.select({ id: recruitmentIntents.id, positions: recruitmentIntents.positions, targetSeasonId: recruitmentIntents.targetSeasonId, targetSeasonName: seasons.name, note: recruitmentIntents.note, expiresAt: recruitmentIntents.expiresAt, updatedAt: recruitmentIntents.updatedAt })
-    .from(recruitmentIntents).innerJoin(teams, and(eq(teams.id, recruitmentIntents.teamId), eq(teams.status, "active"))).leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
-    .where(and(eq(recruitmentIntents.teamId, teamId), ...openRecruitmentIntentConditions("team_recruiting", now), or(isNull(recruitmentIntents.targetSeasonId), teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId))))
+  const [intent] = await db
+    .select({
+      id: recruitmentIntents.id,
+      positions: recruitmentIntents.positions,
+      targetSeasonId: recruitmentIntents.targetSeasonId,
+      targetSeasonName: seasons.name,
+      note: recruitmentIntents.note,
+      expiresAt: recruitmentIntents.expiresAt,
+      updatedAt: recruitmentIntents.updatedAt,
+    })
+    .from(recruitmentIntents)
+    .innerJoin(teams, and(eq(teams.id, recruitmentIntents.teamId), eq(teams.status, "active")))
+    .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
+    .where(
+      and(
+        eq(recruitmentIntents.teamId, teamId),
+        ...openRecruitmentIntentConditions("team_recruiting", now),
+        or(
+          isNull(recruitmentIntents.targetSeasonId),
+          teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId),
+        ),
+      ),
+    )
     .limit(1);
   return intent ? { ...intent, positions: intent.positions as Cs2Position[] } : null;
 }
 
 export async function getPublicPlayerLft(userId: string): Promise<PublicRecruitmentIntent | null> {
   const now = new Date();
-  const [intent] = await db.select({ id: recruitmentIntents.id, positions: recruitmentIntents.positions, targetSeasonId: recruitmentIntents.targetSeasonId, targetSeasonName: seasons.name, note: recruitmentIntents.note, expiresAt: recruitmentIntents.expiresAt, updatedAt: recruitmentIntents.updatedAt })
-    .from(recruitmentIntents).innerJoin(users, and(eq(users.id, recruitmentIntents.userId), eq(users.status, "active"))).leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
-    .where(and(eq(recruitmentIntents.userId, userId), ...openRecruitmentIntentConditions("player_lft", now), or(isNull(recruitmentIntents.targetSeasonId), recruitmentTargetAvailableCondition(now))))
+  const [intent] = await db
+    .select({
+      id: recruitmentIntents.id,
+      positions: recruitmentIntents.positions,
+      targetSeasonId: recruitmentIntents.targetSeasonId,
+      targetSeasonName: seasons.name,
+      note: recruitmentIntents.note,
+      expiresAt: recruitmentIntents.expiresAt,
+      updatedAt: recruitmentIntents.updatedAt,
+    })
+    .from(recruitmentIntents)
+    .innerJoin(users, and(eq(users.id, recruitmentIntents.userId), eq(users.status, "active")))
+    .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
+    .where(
+      and(
+        eq(recruitmentIntents.userId, userId),
+        ...openRecruitmentIntentConditions("player_lft", now),
+        or(isNull(recruitmentIntents.targetSeasonId), recruitmentTargetAvailableCondition(now)),
+      ),
+    )
     .limit(1);
   return intent ? { ...intent, positions: intent.positions as Cs2Position[] } : null;
 }
 
-export async function getTeamRecruitmentWorkspace(teamId: string, viewerUserId: string): Promise<{
-  recruitment: (PublicRecruitmentIntent & { status: "open" | "closed"; isPubliclyActive: boolean }) | null;
+export async function getTeamRecruitmentWorkspace(
+  teamId: string,
+  viewerUserId: string,
+): Promise<{
+  recruitment:
+    (PublicRecruitmentIntent & { status: "open" | "closed"; isPubliclyActive: boolean }) | null;
   targetSeasons: Array<{ id: string; name: string }>;
-  interests: Array<{ userId: string; name: string; positions: Cs2Position[]; currentTeamSlug: string | null; currentTeamName: string | null; qq: string | null }>;
+  interests: Array<{
+    userId: string;
+    name: string;
+    positions: Cs2Position[];
+    currentTeamSlug: string | null;
+    currentTeamName: string | null;
+    qq: string | null;
+  }>;
 }> {
   const now = new Date();
   const [intents, targetSeasons] = await Promise.all([
-    db.select({ id: recruitmentIntents.id, positions: recruitmentIntents.positions, targetSeasonId: recruitmentIntents.targetSeasonId, targetSeasonName: seasons.name, targetSeasonStatus: seasons.status, targetSeasonRegistrationClosesAt: seasons.registrationClosesAt, targetSeasonRosterChangeClosesAt: seasons.rosterChangeClosesAt, hasEffectiveEntry: sql<boolean>`exists (select 1 from ${competitionEntries} where ${competitionEntries.competitionId} = ${seasons.id} and ${competitionEntries.teamId} = ${teamId} and ${competitionEntries.registrationStatus} not in ('rejected', 'withdrawn'))`, note: recruitmentIntents.note, status: recruitmentIntents.status, expiresAt: recruitmentIntents.expiresAt, updatedAt: recruitmentIntents.updatedAt })
-      .from(recruitmentIntents).leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId)).where(and(eq(recruitmentIntents.teamId, teamId), eq(recruitmentIntents.kind, "team_recruiting"))).limit(1),
-    db.select({ id: seasons.id, name: seasons.name }).from(seasons).where(teamRecruitmentTargetAvailableCondition(now, sql`${teamId}::uuid`)).orderBy(desc(seasons.createdAt)),
+    db
+      .select({
+        id: recruitmentIntents.id,
+        positions: recruitmentIntents.positions,
+        targetSeasonId: recruitmentIntents.targetSeasonId,
+        targetSeasonName: seasons.name,
+        targetSeasonStatus: seasons.status,
+        targetSeasonRegistrationClosesAt: seasons.registrationClosesAt,
+        targetSeasonRosterChangeClosesAt: seasons.rosterChangeClosesAt,
+        hasEffectiveEntry: sql<boolean>`exists (select 1 from ${competitionEntries} where ${competitionEntries.competitionId} = ${seasons.id} and ${competitionEntries.teamId} = ${teamId} and ${competitionEntries.registrationStatus} not in ('rejected', 'withdrawn'))`,
+        note: recruitmentIntents.note,
+        status: recruitmentIntents.status,
+        expiresAt: recruitmentIntents.expiresAt,
+        updatedAt: recruitmentIntents.updatedAt,
+      })
+      .from(recruitmentIntents)
+      .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
+      .where(
+        and(eq(recruitmentIntents.teamId, teamId), eq(recruitmentIntents.kind, "team_recruiting")),
+      )
+      .limit(1),
+    db
+      .select({ id: seasons.id, name: seasons.name })
+      .from(seasons)
+      .where(teamRecruitmentTargetAvailableCondition(now, sql`${teamId}::uuid`))
+      .orderBy(desc(seasons.createdAt)),
   ]);
   const rawIntent = intents[0];
-  const isPubliclyActive = Boolean(rawIntent && rawIntent.status === "open" && rawIntent.expiresAt > now && (!rawIntent.targetSeasonId || (rawIntent.targetSeasonStatus && isTeamRecruitmentTargetAvailable({ status: rawIntent.targetSeasonStatus, registrationClosesAt: rawIntent.targetSeasonRegistrationClosesAt, rosterChangeClosesAt: rawIntent.targetSeasonRosterChangeClosesAt }, rawIntent.hasEffectiveEntry, now))));
-  const intent = rawIntent ? { id: rawIntent.id, positions: rawIntent.positions as Cs2Position[], targetSeasonId: rawIntent.targetSeasonId, targetSeasonName: rawIntent.targetSeasonName, note: rawIntent.note, status: rawIntent.status, expiresAt: rawIntent.expiresAt, updatedAt: rawIntent.updatedAt, isPubliclyActive } : null;
+  const isPubliclyActive = Boolean(
+    rawIntent &&
+    rawIntent.status === "open" &&
+    rawIntent.expiresAt > now &&
+    (!rawIntent.targetSeasonId ||
+      (rawIntent.targetSeasonStatus &&
+        isTeamRecruitmentTargetAvailable(
+          {
+            status: rawIntent.targetSeasonStatus,
+            registrationClosesAt: rawIntent.targetSeasonRegistrationClosesAt,
+            rosterChangeClosesAt: rawIntent.targetSeasonRosterChangeClosesAt,
+          },
+          rawIntent.hasEffectiveEntry,
+          now,
+        ))),
+  );
+  const intent = rawIntent
+    ? {
+        id: rawIntent.id,
+        positions: rawIntent.positions as Cs2Position[],
+        targetSeasonId: rawIntent.targetSeasonId,
+        targetSeasonName: rawIntent.targetSeasonName,
+        note: rawIntent.note,
+        status: rawIntent.status,
+        expiresAt: rawIntent.expiresAt,
+        updatedAt: rawIntent.updatedAt,
+        isPubliclyActive,
+      }
+    : null;
   if (!intent || !isPubliclyActive) return { recruitment: intent, targetSeasons, interests: [] };
   const currentTeam = alias(teams, "interest_current_team");
-  const interestRows = await db.select({ userId: users.id, displayName: users.displayName, personaName: steamProfiles.personaName, perfectName: users.perfectName, qq: users.qq, currentTeamSlug: currentTeam.slug, currentTeamName: currentTeam.name }).from(recruitmentInterests)
-    .innerJoin(recruitmentIntents, eq(recruitmentIntents.id, recruitmentInterests.recruitmentIntentId))
+  const interestRows = await db
+    .select({
+      userId: users.id,
+      displayName: users.displayName,
+      personaName: steamProfiles.personaName,
+      perfectName: users.perfectName,
+      qq: users.qq,
+      currentTeamSlug: currentTeam.slug,
+      currentTeamName: currentTeam.name,
+    })
+    .from(recruitmentInterests)
+    .innerJoin(
+      recruitmentIntents,
+      eq(recruitmentIntents.id, recruitmentInterests.recruitmentIntentId),
+    )
     .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
     .innerJoin(users, eq(users.id, recruitmentInterests.userId))
     .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
-    .leftJoin(teamMemberships, and(eq(teamMemberships.userId, users.id), isNull(teamMemberships.endedAt)))
-    .leftJoin(currentTeam, and(eq(currentTeam.id, teamMemberships.teamId), eq(currentTeam.status, "active")))
-    .where(and(eq(recruitmentIntents.id, intent.id), eq(teams.captainUserId, viewerUserId), actionableInterestCondition(now)));
+    .leftJoin(
+      teamMemberships,
+      and(eq(teamMemberships.userId, users.id), isNull(teamMemberships.endedAt)),
+    )
+    .leftJoin(
+      currentTeam,
+      and(eq(currentTeam.id, teamMemberships.teamId), eq(currentTeam.status, "active")),
+    )
+    .where(
+      and(
+        eq(recruitmentIntents.id, intent.id),
+        eq(teams.captainUserId, viewerUserId),
+        actionableInterestCondition(now),
+      ),
+    );
   const interestedUserIds = interestRows.map((row) => row.userId);
-  const roles = interestedUserIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, interestedUserIds)) : [];
+  const roles = interestedUserIds.length
+    ? await db
+        .select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role })
+        .from(userCompetitiveRoles)
+        .where(inArray(userCompetitiveRoles.userId, interestedUserIds))
+    : [];
   const rolesByUser = new Map<string, Cs2Position[]>();
-  for (const role of roles) rolesByUser.set(role.userId, [...(rolesByUser.get(role.userId) ?? []), role.role]);
+  for (const role of roles)
+    rolesByUser.set(role.userId, [...(rolesByUser.get(role.userId) ?? []), role.role]);
   return {
     recruitment: intent,
     targetSeasons,
@@ -354,17 +665,28 @@ export async function getTeamRecruitmentWorkspace(teamId: string, viewerUserId: 
 /** Actionable interests have the same meaning in the captain workspace and /my. */
 function actionableInterestCondition(now: Date) {
   return and(
-    eq(recruitmentIntents.kind, "team_recruiting"), eq(recruitmentIntents.status, "open"), gt(recruitmentIntents.expiresAt, now),
-    eq(teams.status, "active"), eq(users.status, "active"),
-    or(isNull(recruitmentIntents.targetSeasonId), teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId)),
+    eq(recruitmentIntents.kind, "team_recruiting"),
+    eq(recruitmentIntents.status, "open"),
+    gt(recruitmentIntents.expiresAt, now),
+    eq(teams.status, "active"),
+    eq(users.status, "active"),
+    or(
+      isNull(recruitmentIntents.targetSeasonId),
+      teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId),
+    ),
     sql`not exists (select 1 from ${teamMemberships} where ${teamMemberships.teamId} = ${teams.id} and ${teamMemberships.userId} = ${users.id} and ${teamMemberships.endedAt} is null)`,
     sql`not exists (select 1 from ${teamInvitations} where ${teamInvitations.teamId} = ${teams.id} and ${teamInvitations.invitedUserId} = ${users.id} and ${teamInvitations.kind} = 'direct' and ${teamInvitations.status} = 'pending' and ${teamInvitations.expiresAt} > ${now})`,
   );
 }
 
 export async function countActionableRecruitmentInterests(captainUserId: string): Promise<number> {
-  const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(recruitmentInterests)
-    .innerJoin(recruitmentIntents, eq(recruitmentIntents.id, recruitmentInterests.recruitmentIntentId))
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(recruitmentInterests)
+    .innerJoin(
+      recruitmentIntents,
+      eq(recruitmentIntents.id, recruitmentInterests.recruitmentIntentId),
+    )
     .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
     .innerJoin(users, eq(users.id, recruitmentInterests.userId))
     .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))

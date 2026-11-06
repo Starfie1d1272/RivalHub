@@ -7,5 +7,10 @@ import { MyWorkspaceNav } from "@/components/my/MyWorkspaceNav";
 export const instant = false;
 
 export default function MyLayout({ children }: { children: ReactNode }) {
-  return <PageLayout as="div" variant="wide" className="space-y-6"><MyWorkspaceNav />{children}</PageLayout>;
+  return (
+    <PageLayout as="div" variant="wide" className="space-y-6">
+      <MyWorkspaceNav />
+      {children}
+    </PageLayout>
+  );
 }

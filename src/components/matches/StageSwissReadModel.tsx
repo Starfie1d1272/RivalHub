@@ -9,9 +9,12 @@ interface StageSwissReadModelProps {
 
 export function StageSwissReadModel({ data, seasonSlug }: StageSwissReadModelProps) {
   const isQualification = data.stageKey === "play-in";
-  const qualificationComplete = isQualification && data.competitionEntries.length > 0 &&
+  const qualificationComplete =
+    isQualification &&
+    data.competitionEntries.length > 0 &&
     data.competitionEntries.every((entry) => entry.status !== "active");
-  const qualificationRound = data.rounds.find((round) => round.status === "active")?.round ?? data.finalizedRound + 1;
+  const qualificationRound =
+    data.rounds.find((round) => round.status === "active")?.round ?? data.finalizedRound + 1;
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">

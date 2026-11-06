@@ -2,7 +2,13 @@
 
 import { useRef, useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
-import { getTimeProposalReadback, retryTimeProposalRefresh, proposeMatchTime as telemetry_proposeMatchTime, respondToTimeProposal as telemetry_respondToTimeProposal, forceSetMatchTime as telemetry_forceSetMatchTime } from "@/actions/matches/scheduling";
+import {
+  getTimeProposalReadback,
+  retryTimeProposalRefresh,
+  proposeMatchTime as telemetry_proposeMatchTime,
+  respondToTimeProposal as telemetry_respondToTimeProposal,
+  forceSetMatchTime as telemetry_forceSetMatchTime,
+} from "@/actions/matches/scheduling";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,9 +20,18 @@ import { OperationReadbackNotice } from "./OperationReadbackNotice";
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
 import { observeAction } from "@/lib/telemetry/client";
 
-const proposeMatchTime = observeAction("matches.scheduling.proposeMatchTime", telemetry_proposeMatchTime);
-const respondToTimeProposal = observeAction("matches.scheduling.respondToTimeProposal", telemetry_respondToTimeProposal);
-const forceSetMatchTime = observeAction("matches.scheduling.forceSetMatchTime", telemetry_forceSetMatchTime);
+const proposeMatchTime = observeAction(
+  "matches.scheduling.proposeMatchTime",
+  telemetry_proposeMatchTime,
+);
+const respondToTimeProposal = observeAction(
+  "matches.scheduling.respondToTimeProposal",
+  telemetry_respondToTimeProposal,
+);
+const forceSetMatchTime = observeAction(
+  "matches.scheduling.forceSetMatchTime",
+  telemetry_forceSetMatchTime,
+);
 
 interface MatchTimeNegotiationProps {
   matchId: string;
@@ -50,17 +65,11 @@ export function MatchTimeNegotiation({
   const isCaptain = isCaptainA || isCaptainB;
 
   const pendingProposals = initialProposals.filter((p) => p.status === "pending");
-  const completionDeadline = currentCompletionDeadline
-    ? new Date(currentCompletionDeadline)
-    : null;
-  const confirmationCutoffTime = completionDeadline
-    ? completionDeadline.getTime()
-    : null;
-  const confirmationCutoff = confirmationCutoffTime === null
-    ? null
-    : new Date(confirmationCutoffTime);
-  const isNegotiationClosed =
-    confirmationCutoffTime !== null && now >= confirmationCutoffTime;
+  const completionDeadline = currentCompletionDeadline ? new Date(currentCompletionDeadline) : null;
+  const confirmationCutoffTime = completionDeadline ? completionDeadline.getTime() : null;
+  const confirmationCutoff =
+    confirmationCutoffTime === null ? null : new Date(confirmationCutoffTime);
+  const isNegotiationClosed = confirmationCutoffTime !== null && now >= confirmationCutoffTime;
 
   // The scheduled match page already refreshes this dialog through MatchContextRefresh.
 
@@ -78,20 +87,31 @@ export function MatchTimeNegotiation({
     };
   }, [confirmationCutoffTime, pendingProposals.length]);
 
-  const currentAcceptedProposal = initialProposals.find(p =>
-    p.status === "accepted" && currentScheduledAt &&
-    new Date(p.proposedTime).getTime() === new Date(currentScheduledAt).getTime());
-  const autoAcceptedProposal = currentAcceptedProposal?.resolution === "auto_timeout" || currentAcceptedProposal?.resolution === "auto_cutoff"
-    ? currentAcceptedProposal : null;
+  const currentAcceptedProposal = initialProposals.find(
+    (p) =>
+      p.status === "accepted" &&
+      currentScheduledAt &&
+      new Date(p.proposedTime).getTime() === new Date(currentScheduledAt).getTime(),
+  );
+  const autoAcceptedProposal =
+    currentAcceptedProposal?.resolution === "auto_timeout" ||
+    currentAcceptedProposal?.resolution === "auto_cutoff"
+      ? currentAcceptedProposal
+      : null;
   const selectedTime = proposedTime ? parseCSTInput(proposedTime) : null;
-  const shortNotice = (time: Date | null) => time && time.getTime() > now && time.getTime() < now + 2 * 60 * 60_000;
-  const shortNoticeHint = "若需使用非预定主力，请先提交双方本场首发和 BP 负责人再确认时间；如未提交，系统将尝试采用已审核的预定主力。排期确认后临时换人须联系管理员。";
+  const shortNotice = (time: Date | null) =>
+    time && time.getTime() > now && time.getTime() < now + 2 * 60 * 60_000;
+  const shortNoticeHint =
+    "若需使用非预定主力，请先提交双方本场首发和 BP 负责人再确认时间；如未提交，系统将尝试采用已审核的预定主力。排期确认后临时换人须联系管理员。";
 
   const handlePropose = () => {
     if (!proposedTime) return;
     startTransition(async () => {
       const parsed = parseCSTInput(proposedTime);
-      if (!parsed) { toast.error("请输入有效的时间"); return; }
+      if (!parsed) {
+        toast.error("请输入有效的时间");
+        return;
+      }
       const result = await proposeMatchTime(matchId, parsed);
       if (result.success) {
         toast.success("时间提议已发送");
@@ -106,26 +126,47 @@ export function MatchTimeNegotiation({
     if (outcomeGuidance) return;
     startTransition(async () => {
       try {
-      const reason = action === "reject" ? rejectReasons[proposalId] : undefined;
-      const proposal = initialProposals.find(value => value.id === proposalId);
-      if (!proposal) { toast.error("提议已变化，请重新读取。"); return; }
-      expected.current = { proposalId, committed: false, version: await timeReadbackVersion(matchId, { proposalId,
-        status: action === "accept" ? "accepted" : "rejected", resolution: action === "accept" ? "participant_accept" : null,
-        proposedTime: new Date(proposal.proposedTime).toISOString(), scheduledAt: action === "accept" ? new Date(proposal.proposedTime).toISOString() : currentScheduledAt ? new Date(currentScheduledAt).toISOString() : null,
-        rejectReason: action === "reject" ? reason?.trim().slice(0, 200) ?? null : proposal.rejectReason }) };
-      setReadback(null);
-      const result = await respondToTimeProposal(proposalId, action, reason);
-      if (result.success) {
-        expected.current.committed = true;
-        if (result.data?.refreshPending) setOutcomeGuidance("回应已提交，刷新待完成。请刷新页面核对当前提议状态。");
-        toast.success(action === "accept" ? "已接受提议" : "已拒绝提议");
-        setRejectReasons((prev) => ({ ...prev, [proposalId]: "" }));
-        setRejectingId(null);
-      } else {
-        if (result.error.code === "INTERNAL_ERROR") setOutcomeGuidance("回应结果尚未确认，请刷新页面核对提议状态，不要重复回应。");
-        toast.error(result.error.message ?? "操作失败");
+        const reason = action === "reject" ? rejectReasons[proposalId] : undefined;
+        const proposal = initialProposals.find((value) => value.id === proposalId);
+        if (!proposal) {
+          toast.error("提议已变化，请重新读取。");
+          return;
+        }
+        expected.current = {
+          proposalId,
+          committed: false,
+          version: await timeReadbackVersion(matchId, {
+            proposalId,
+            status: action === "accept" ? "accepted" : "rejected",
+            resolution: action === "accept" ? "participant_accept" : null,
+            proposedTime: new Date(proposal.proposedTime).toISOString(),
+            scheduledAt:
+              action === "accept"
+                ? new Date(proposal.proposedTime).toISOString()
+                : currentScheduledAt
+                  ? new Date(currentScheduledAt).toISOString()
+                  : null,
+            rejectReason:
+              action === "reject" ? (reason?.trim().slice(0, 200) ?? null) : proposal.rejectReason,
+          }),
+        };
+        setReadback(null);
+        const result = await respondToTimeProposal(proposalId, action, reason);
+        if (result.success) {
+          expected.current.committed = true;
+          if (result.data?.refreshPending)
+            setOutcomeGuidance("回应已提交，刷新待完成。请刷新页面核对当前提议状态。");
+          toast.success(action === "accept" ? "已接受提议" : "已拒绝提议");
+          setRejectReasons((prev) => ({ ...prev, [proposalId]: "" }));
+          setRejectingId(null);
+        } else {
+          if (result.error.code === "INTERNAL_ERROR")
+            setOutcomeGuidance("回应结果尚未确认，请刷新页面核对提议状态，不要重复回应。");
+          toast.error(result.error.message ?? "操作失败");
+        }
+      } catch {
+        setOutcomeGuidance("回应结果尚未确认，请刷新页面核对提议状态，不要重复回应。");
       }
-      } catch { setOutcomeGuidance("回应结果尚未确认，请刷新页面核对提议状态，不要重复回应。"); }
     });
   };
 
@@ -133,7 +174,10 @@ export function MatchTimeNegotiation({
     if (!proposedTime) return;
     startTransition(async () => {
       const parsed = parseCSTInput(proposedTime);
-      if (!parsed) { toast.error("请输入有效的时间"); return; }
+      if (!parsed) {
+        toast.error("请输入有效的时间");
+        return;
+      }
       const result = await forceSetMatchTime(matchId, parsed);
       if (result.success) {
         toast.success("比赛时间已设定");
@@ -146,30 +190,60 @@ export function MatchTimeNegotiation({
 
   return (
     <div className="space-y-4">
-      {outcomeGuidance && <div role="alert" className="space-y-2 text-sm text-[var(--color-danger)]"><p>{outcomeGuidance}</p>
-        <Button size="sm" variant="outline" disabled={isPending} onClick={() => startTransition(async () => {
-          const original = expected.current;
-          if (!original) return;
-          try {
-            const result = await getTimeProposalReadback(original.proposalId);
-            if (!result.success) { toast.error(result.error.message); return; }
-            const matches = result.data.version === original.version && result.data.value.proposalId === original.proposalId;
-            setReadback({ ...result.data, matches });
-            if (original.committed && matches) {
-              const refreshed = await retryTimeProposalRefresh(original.proposalId);
-              if (refreshed.success) setOutcomeGuidance(null); else toast.error(refreshed.error.message);
+      {outcomeGuidance && (
+        <div role="alert" className="space-y-2 text-sm text-[var(--color-danger)]">
+          <p>{outcomeGuidance}</p>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isPending}
+            onClick={() =>
+              startTransition(async () => {
+                const original = expected.current;
+                if (!original) return;
+                try {
+                  const result = await getTimeProposalReadback(original.proposalId);
+                  if (!result.success) {
+                    toast.error(result.error.message);
+                    return;
+                  }
+                  const matches =
+                    result.data.version === original.version &&
+                    result.data.value.proposalId === original.proposalId;
+                  setReadback({ ...result.data, matches });
+                  if (original.committed && matches) {
+                    const refreshed = await retryTimeProposalRefresh(original.proposalId);
+                    if (refreshed.success) setOutcomeGuidance(null);
+                    else toast.error(refreshed.error.message);
+                  }
+                } catch {
+                  toast.error("提议状态暂时无法核对，未重复回应。");
+                }
+              })
             }
-          } catch { toast.error("提议状态暂时无法核对，未重复回应。"); }
-        })}>读取原提议核对</Button>
-      </div>}
-      {readback && <OperationReadbackNotice matches={readback.matches} version={readback.version}>
-        <p>原提议 {readback.value.proposalId}：{readback.value.status}；处理方式：{readback.value.resolution ?? "无"}；当前排期：{readback.value.scheduledAt ? formatCST(readback.value.scheduledAt) : "未设定"}</p>
-      </OperationReadbackNotice>}
+          >
+            读取原提议核对
+          </Button>
+        </div>
+      )}
+      {readback && (
+        <OperationReadbackNotice matches={readback.matches} version={readback.version}>
+          <p>
+            原提议 {readback.value.proposalId}：{readback.value.status}；处理方式：
+            {readback.value.resolution ?? "无"}；当前排期：
+            {readback.value.scheduledAt ? formatCST(readback.value.scheduledAt) : "未设定"}
+          </p>
+        </OperationReadbackNotice>
+      )}
       {isCaptain && !hasSubmittedRoster && (
-        <div className="rounded border p-3" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}>
+        <div
+          className="rounded border p-3"
+          style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}
+        >
           <p className="text-sm text-[var(--color-fg)]">请尽早提交本场首发及 BP 负责人</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-            可先协商比赛时间；请尽量在开赛两小时前提交首发及 BP 负责人，否则系统将尝试从本届合法的预定主力自动生成。名单不符合资格时需联系管理员处理。
+            可先协商比赛时间；请尽量在开赛两小时前提交首发及 BP
+            负责人，否则系统将尝试从本届合法的预定主力自动生成。名单不符合资格时需联系管理员处理。
           </p>
         </div>
       )}
@@ -184,10 +258,16 @@ export function MatchTimeNegotiation({
 
       {/* 系统自动采纳提示 */}
       {autoAcceptedProposal && currentScheduledAt && (
-        <div className="rounded border p-3 text-sm" style={{ borderColor: "var(--color-ok-edge)", background: "var(--color-ok-soft)" }}>
+        <div
+          className="rounded border p-3 text-sm"
+          style={{ borderColor: "var(--color-ok-edge)", background: "var(--color-ok-soft)" }}
+        >
           <p className="font-medium text-[var(--color-fg)]">比赛时间已自动设定</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-0.5">
-            {autoAcceptedProposal.resolution === "auto_timeout" ? "对方完整 24 小时未回应，系统自动采纳" : "按当时的截止政策自动确定"}为 {formatCST(autoAcceptedProposal.proposedTime)}。
+            {autoAcceptedProposal.resolution === "auto_timeout"
+              ? "对方完整 24 小时未回应，系统自动采纳"
+              : "按当时的截止政策自动确定"}
+            为 {formatCST(autoAcceptedProposal.proposedTime)}。
           </p>
         </div>
       )}
@@ -200,21 +280,36 @@ export function MatchTimeNegotiation({
           </p>
           {pendingProposals.map((proposal) => {
             const isMyProposal = proposal.isMine;
-            const scheduling = projectMatchScheduling({
-              status: "scheduled", scheduledAt: currentScheduledAt ? new Date(currentScheduledAt) : null, completionDeadline,
-            }, { createdAt: new Date(proposal.createdAt), proposedTime: new Date(proposal.proposedTime) }, new Date(now));
+            const scheduling = projectMatchScheduling(
+              {
+                status: "scheduled",
+                scheduledAt: currentScheduledAt ? new Date(currentScheduledAt) : null,
+                completionDeadline,
+              },
+              {
+                createdAt: new Date(proposal.createdAt),
+                proposedTime: new Date(proposal.proposedTime),
+              },
+              new Date(now),
+            );
             const autoAcceptAt = scheduling.autoAcceptAt;
             const canStillAutoAccept = Boolean(autoAcceptAt);
-            const hoursLeft = autoAcceptAt ? Math.max(0, Math.round((autoAcceptAt.getTime() - now) / 3_600_000 * 10) / 10) : 0;
+            const hoursLeft = autoAcceptAt
+              ? Math.max(0, Math.round(((autoAcceptAt.getTime() - now) / 3_600_000) * 10) / 10)
+              : 0;
 
             return (
               <div
                 key={proposal.id}
                 className="rounded border p-3"
-              style={isMyProposal
-                ? { borderColor: "var(--color-border)", background: "var(--color-panel)" }
-                : { borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }
-              }
+                style={
+                  isMyProposal
+                    ? { borderColor: "var(--color-border)", background: "var(--color-panel)" }
+                    : {
+                        borderColor: "var(--color-warn-edge)",
+                        background: "var(--color-warn-soft)",
+                      }
+                }
               >
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -223,28 +318,43 @@ export function MatchTimeNegotiation({
                     </p>
                     <p className="text-xs text-[var(--color-fg-dim)] mt-0.5">
                       提议于 {formatCST(proposal.createdAt)}
-                      {currentScheduledAt ? " · 改期须对方明确接受，原定时间继续有效" :
-                        canStillAutoAccept ? (hoursLeft > 0 ? ` · ${hoursLeft}h 后具备自动采纳资格` : " · 等待系统安全校验后自动采纳") :
-                        scheduling.pending ? " · 需双方明确确认或联系管理员" : " · 提议时间已失效，请重新提议"}
+                      {currentScheduledAt
+                        ? " · 改期须对方明确接受，原定时间继续有效"
+                        : canStillAutoAccept
+                          ? hoursLeft > 0
+                            ? ` · ${hoursLeft}h 后具备自动采纳资格`
+                            : " · 等待系统安全校验后自动采纳"
+                          : scheduling.pending
+                            ? " · 需双方明确确认或联系管理员"
+                            : " · 提议时间已失效，请重新提议"}
                     </p>
                   </div>
                 </div>
 
-                {!proposal.isMine && shortNotice(new Date(proposal.proposedTime)) && <p className="mt-2 text-xs text-[var(--color-warn)]">{shortNoticeHint}</p>}
+                {!proposal.isMine && shortNotice(new Date(proposal.proposedTime)) && (
+                  <p className="mt-2 text-xs text-[var(--color-warn)]">{shortNoticeHint}</p>
+                )}
                 {/* 对方的提议才能接受/拒绝 */}
                 {!isMyProposal && isCaptain && (
                   <div className="mt-2 flex gap-2 flex-wrap">
                     <Button
                       size="sm"
                       onClick={() => handleRespond(proposal.id, "accept")}
-                      disabled={Boolean(outcomeGuidance) || isPending || isNegotiationClosed || !scheduling.pending}
+                      disabled={
+                        Boolean(outcomeGuidance) ||
+                        isPending ||
+                        isNegotiationClosed ||
+                        !scheduling.pending
+                      }
                     >
                       接受
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setRejectingId(rejectingId === proposal.id ? null : proposal.id)}
+                      onClick={() =>
+                        setRejectingId(rejectingId === proposal.id ? null : proposal.id)
+                      }
                       disabled={Boolean(outcomeGuidance) || isPending || isNegotiationClosed}
                     >
                       拒绝
@@ -263,7 +373,12 @@ export function MatchTimeNegotiation({
                           size="sm"
                           variant="destructive"
                           onClick={() => handleRespond(proposal.id, "reject")}
-                          disabled={Boolean(outcomeGuidance) || isPending || isNegotiationClosed || !(rejectReasons[proposal.id] ?? "").trim()}
+                          disabled={
+                            Boolean(outcomeGuidance) ||
+                            isPending ||
+                            isNegotiationClosed ||
+                            !(rejectReasons[proposal.id] ?? "").trim()
+                          }
                         >
                           确认拒绝
                         </Button>
@@ -287,7 +402,11 @@ export function MatchTimeNegotiation({
               type="datetime-local"
               value={proposedTime}
               onChange={(e) => setProposedTime(e.target.value)}
-              max={completionDeadline ? toCSTDateTimeInput(completionDeadline) ?? undefined : undefined}
+              max={
+                completionDeadline
+                  ? (toCSTDateTimeInput(completionDeadline) ?? undefined)
+                  : undefined
+              }
             />
             <Button
               onClick={handlePropose}
@@ -296,7 +415,9 @@ export function MatchTimeNegotiation({
               提议
             </Button>
           </div>
-          {shortNotice(selectedTime) && <p className="text-xs text-[var(--color-warn)]">{shortNoticeHint}</p>}
+          {shortNotice(selectedTime) && (
+            <p className="text-xs text-[var(--color-warn)]">{shortNoticeHint}</p>
+          )}
         </div>
       )}
 
@@ -321,16 +442,24 @@ export function MatchTimeNegotiation({
 
       {/* 管理员强制指定 */}
       {isAdmin && (
-        <div className="rounded border p-3" style={{ borderColor: "var(--color-danger-edge)", background: "var(--color-danger-soft)" }}>
-          <p className="text-sm font-medium text-[var(--color-danger)]">
-            管理员强制指定
-          </p>
+        <div
+          className="rounded border p-3"
+          style={{
+            borderColor: "var(--color-danger-edge)",
+            background: "var(--color-danger-soft)",
+          }}
+        >
+          <p className="text-sm font-medium text-[var(--color-danger)]">管理员强制指定</p>
           <div className="mt-2 flex gap-2">
             <Input
               type="datetime-local"
               value={proposedTime}
               onChange={(e) => setProposedTime(e.target.value)}
-              max={completionDeadline ? toCSTDateTimeInput(completionDeadline) ?? undefined : undefined}
+              max={
+                completionDeadline
+                  ? (toCSTDateTimeInput(completionDeadline) ?? undefined)
+                  : undefined
+              }
             />
             <Button
               variant="destructive"

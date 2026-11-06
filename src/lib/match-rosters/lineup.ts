@@ -53,15 +53,12 @@ function institutionLabel(code: string): string {
   return code === "4132010284" ? "南京大学" : code;
 }
 
-function isEligibleForRule(
-  fact: LineupMemberFact,
-  rule: InstitutionAffiliationRule,
-): boolean {
+function isEligibleForRule(fact: LineupMemberFact, rule: InstitutionAffiliationRule): boolean {
   return Boolean(
     fact.verification &&
-      fact.verification.status === "approved" &&
-      fact.verification.institutionCode === rule.institutionCode &&
-      rule.eligibleAcademicStatuses.includes(fact.verification.academicStatus),
+    fact.verification.status === "approved" &&
+    fact.verification.institutionCode === rule.institutionCode &&
+    rule.eligibleAcademicStatuses.includes(fact.verification.academicStatus),
   );
 }
 
@@ -78,9 +75,11 @@ export function evaluateStartingLineup(input: StartingLineupInput): StartingLine
     blockers.push(`必须选择 ${policy.starterCount} 名首发，当前选择了 ${starterIds.length} 名。`);
   }
   if (substituteIds.length > policy.maxSubstitutes) {
-    blockers.push(policy.maxSubstitutes === 0
-      ? `本赛事每队本场只能提交恰好 ${policy.starterCount} 名首发，不设置替补名单。`
-      : `替补不能超过 ${policy.maxSubstitutes} 人，当前选择了 ${substituteIds.length} 名。`);
+    blockers.push(
+      policy.maxSubstitutes === 0
+        ? `本赛事每队本场只能提交恰好 ${policy.starterCount} 名首发，不设置替补名单。`
+        : `替补不能超过 ${policy.maxSubstitutes} 人，当前选择了 ${substituteIds.length} 名。`,
+    );
   }
 
   const seen = new Set<string>();
@@ -93,13 +92,16 @@ export function evaluateStartingLineup(input: StartingLineupInput): StartingLine
     blockers.push("同一名队员被重复选择，不能提交。");
   }
 
-  const unknownCount = [...starterIds, ...substituteIds].filter((id) => !memberFacts.has(id)).length;
+  const unknownCount = [...starterIds, ...substituteIds].filter(
+    (id) => !memberFacts.has(id),
+  ).length;
   if (unknownCount > 0) {
     blockers.push(`有 ${unknownCount} 名所选队员不属于本队，不能提交。`);
   }
 
-  const blockedCount =
-    [...starterIds, ...substituteIds].filter((id) => memberFacts.get(id)?.participationBlocked).length;
+  const blockedCount = [...starterIds, ...substituteIds].filter(
+    (id) => memberFacts.get(id)?.participationBlocked,
+  ).length;
   if (blockedCount > 0) {
     blockers.push(`有 ${blockedCount} 名队员正在受纪律处罚禁赛期内，不能参加本场比赛。`);
   }
@@ -116,10 +118,9 @@ export function evaluateStartingLineup(input: StartingLineupInput): StartingLine
   }
 
   if (input.frozenRosterUserIds) {
-    const outsiders =
-      [...starterFacts, ...substituteFacts].filter(
-        (fact) => !input.frozenRosterUserIds!.has(fact.userId),
-      ).length;
+    const outsiders = [...starterFacts, ...substituteFacts].filter(
+      (fact) => !input.frozenRosterUserIds!.has(fact.userId),
+    ).length;
     if (outsiders > 0) {
       blockers.push(`有 ${outsiders} 名所选队员不在本届赛事冻结名单内，不能作为本场参赛选手。`);
     }

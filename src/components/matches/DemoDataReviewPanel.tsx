@@ -4,7 +4,13 @@ import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React, { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { confirmStoredDemoParticipantIdentity as telemetry_confirmStoredDemoParticipantIdentity, recheckSeasonStoredDemoImports as telemetry_recheckSeasonStoredDemoImports, recheckStoredDemoImport as telemetry_recheckStoredDemoImport, rejectStoredDemoImport as telemetry_rejectStoredDemoImport, retireGameplaySteamIdentity as telemetry_retireGameplaySteamIdentity } from "@/actions/demo-integration";
+import {
+  confirmStoredDemoParticipantIdentity as telemetry_confirmStoredDemoParticipantIdentity,
+  recheckSeasonStoredDemoImports as telemetry_recheckSeasonStoredDemoImports,
+  recheckStoredDemoImport as telemetry_recheckStoredDemoImport,
+  rejectStoredDemoImport as telemetry_rejectStoredDemoImport,
+  retireGameplaySteamIdentity as telemetry_retireGameplaySteamIdentity,
+} from "@/actions/demo-integration";
 import { InlineConfirm, Panel } from "@/components/rivalhub";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
@@ -14,34 +20,71 @@ import type { AdminDemoReviewMap, AdminDemoReviewParticipant } from "@/lib/admin
 import type { AdminDemoQuality } from "@/lib/admin/matches/demo-quality";
 import { observeAction } from "@/lib/telemetry/client";
 
-const confirmStoredDemoParticipantIdentity = observeAction("demo-integration.confirmStoredDemoParticipantIdentity", telemetry_confirmStoredDemoParticipantIdentity);
-const recheckSeasonStoredDemoImports = observeAction("demo-integration.recheckSeasonStoredDemoImports", telemetry_recheckSeasonStoredDemoImports);
-const recheckStoredDemoImport = observeAction("demo-integration.recheckStoredDemoImport", telemetry_recheckStoredDemoImport);
-const rejectStoredDemoImport = observeAction("demo-integration.rejectStoredDemoImport", telemetry_rejectStoredDemoImport);
-const retireGameplaySteamIdentity = observeAction("demo-integration.retireGameplaySteamIdentity", telemetry_retireGameplaySteamIdentity);
+const confirmStoredDemoParticipantIdentity = observeAction(
+  "demo-integration.confirmStoredDemoParticipantIdentity",
+  telemetry_confirmStoredDemoParticipantIdentity,
+);
+const recheckSeasonStoredDemoImports = observeAction(
+  "demo-integration.recheckSeasonStoredDemoImports",
+  telemetry_recheckSeasonStoredDemoImports,
+);
+const recheckStoredDemoImport = observeAction(
+  "demo-integration.recheckStoredDemoImport",
+  telemetry_recheckStoredDemoImport,
+);
+const rejectStoredDemoImport = observeAction(
+  "demo-integration.rejectStoredDemoImport",
+  telemetry_rejectStoredDemoImport,
+);
+const retireGameplaySteamIdentity = observeAction(
+  "demo-integration.retireGameplaySteamIdentity",
+  telemetry_retireGameplaySteamIdentity,
+);
 
-function ParticipantReview({ importId, participant }: { importId: string; participant: AdminDemoReviewParticipant }) {
+function ParticipantReview({
+  importId,
+  participant,
+}: {
+  importId: string;
+  participant: AdminDemoReviewParticipant;
+}) {
   const id = useId();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [selectedId, setSelectedId] = useState("");
   const [reason, setReason] = useState("");
   const [retiring, setRetiring] = useState(false);
-  const selected = participant.candidates.find((candidate) => candidate.eventRosterMemberId === selectedId);
+  const selected = participant.candidates.find(
+    (candidate) => candidate.eventRosterMemberId === selectedId,
+  );
 
   function confirmIdentity() {
     if (!selected || isPending || participant.state !== "confirmable") return;
     startTransition(async () => {
-      const result = await confirmStoredDemoParticipantIdentity({ importId, observedSteam64: participant.observedSteam64, eventRosterMemberId: selected.eventRosterMemberId });
+      const result = await confirmStoredDemoParticipantIdentity({
+        importId,
+        observedSteam64: participant.observedSteam64,
+        eventRosterMemberId: selected.eventRosterMemberId,
+      });
       if (result.success) {
-        const baseMessage = result.data.status === "confirmed"
-          ? "比赛 Steam 身份已确认，Demo 数据已重新检查。"
-          : "比赛 Steam 身份已保存，但这份 Demo 仍有其他问题需要处理。";
-        const related = result.data.relatedRechecks ?? { attempted: 0, confirmed: 0, remaining: 0, failed: 0 };
+        const baseMessage =
+          result.data.status === "confirmed"
+            ? "比赛 Steam 身份已确认，Demo 数据已重新检查。"
+            : "比赛 Steam 身份已保存，但这份 Demo 仍有其他问题需要处理。";
+        const related = result.data.relatedRechecks ?? {
+          attempted: 0,
+          confirmed: 0,
+          remaining: 0,
+          failed: 0,
+        };
         const relatedMessages = [
-          related.confirmed > 0 ? `另外自动确认了 ${related.confirmed} 张受同一身份影响的 Demo。` : "",
+          related.confirmed > 0
+            ? `另外自动确认了 ${related.confirmed} 张受同一身份影响的 Demo。`
+            : "",
           related.remaining > 0 ? `另有 ${related.remaining} 张相关 Demo 重新检查后仍需处理。` : "",
-          related.failed > 0 ? `另有 ${related.failed} 张自动重新检查失败，请刷新核对后使用“按当前资料重新检查”或赛事批量重检；无需重新上传或重复确认身份。${related.requestId ? `排查编号：${related.requestId}` : ""}` : "",
+          related.failed > 0
+            ? `另有 ${related.failed} 张自动重新检查失败，请刷新核对后使用“按当前资料重新检查”或赛事批量重检；无需重新上传或重复确认身份。${related.requestId ? `排查编号：${related.requestId}` : ""}`
+            : "",
         ].filter(Boolean);
         toast.success([baseMessage, ...relatedMessages].join(" "));
         setSelectedId("");
@@ -51,9 +94,19 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
   }
 
   function retire() {
-    if (isPending || reason.trim().length < 2 || reason.trim().length > 500 || participant.state !== "conflict-retirable" || !participant.retirableIdentityId) return;
+    if (
+      isPending ||
+      reason.trim().length < 2 ||
+      reason.trim().length > 500 ||
+      participant.state !== "conflict-retirable" ||
+      !participant.retirableIdentityId
+    )
+      return;
     startTransition(async () => {
-      const result = await retireGameplaySteamIdentity({ identityId: participant.retirableIdentityId, reason: reason.trim() });
+      const result = await retireGameplaySteamIdentity({
+        identityId: participant.retirableIdentityId,
+        reason: reason.trim(),
+      });
       if (result.success) {
         toast.success("比赛确认产生的 Steam 身份已撤销，请重新核对本场选手。");
         setRetiring(false);
@@ -64,10 +117,16 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
   }
 
   return (
-    <fieldset disabled={isPending} className="min-w-0 space-y-3 rounded border border-[var(--color-border)] p-3 text-sm [overflow-wrap:anywhere]">
+    <fieldset
+      disabled={isPending}
+      className="min-w-0 space-y-3 rounded border border-[var(--color-border)] p-3 text-sm [overflow-wrap:anywhere]"
+    >
       <legend className="px-1 font-medium">Demo 选手 · {participant.demoName}</legend>
       <p className="break-all font-mono text-xs">Steam64：{participant.observedSteam64}</p>
-      <p>队伍：<TeamProfileLink entryId={participant.entryId}>{participant.teamName}</TeamProfileLink></p>
+      <p>
+        队伍：
+        <TeamProfileLink entryId={participant.entryId}>{participant.teamName}</TeamProfileLink>
+      </p>
       {participant.observedSteamProfile && (
         <div className="flex flex-wrap items-center gap-2 rounded bg-[var(--color-bg-soft)] px-3 py-2 text-xs">
           <span className="text-[var(--color-fg-mid)]">Steam 官方当前资料：</span>
@@ -87,37 +146,95 @@ function ParticipantReview({ importId, participant }: { importId: string; partic
           </a>
         </div>
       )}
-      {participant.currentPlayer && <p>当前关联：<PlayerProfileLink userId={participant.currentPlayer.userId}>{participant.currentPlayer.name}</PlayerProfileLink></p>}
+      {participant.currentPlayer && (
+        <p>
+          当前关联：
+          <PlayerProfileLink userId={participant.currentPlayer.userId}>
+            {participant.currentPlayer.name}
+          </PlayerProfileLink>
+        </p>
+      )}
       {participant.state === "confirmable" && (
         <>
           <fieldset className="space-y-2">
             <legend className="mb-2 font-medium">对应本场哪位首发？</legend>
             {participant.candidates.map((candidate) => (
-              <label key={candidate.eventRosterMemberId} className="flex cursor-pointer flex-wrap items-center gap-2 rounded bg-[var(--color-bg-soft)] px-3 py-2">
-                <input type="radio" name={id} value={candidate.eventRosterMemberId} checked={selectedId === candidate.eventRosterMemberId} onChange={() => setSelectedId(candidate.eventRosterMemberId)} />
+              <label
+                key={candidate.eventRosterMemberId}
+                className="flex cursor-pointer flex-wrap items-center gap-2 rounded bg-[var(--color-bg-soft)] px-3 py-2"
+              >
+                <input
+                  type="radio"
+                  name={id}
+                  value={candidate.eventRosterMemberId}
+                  checked={selectedId === candidate.eventRosterMemberId}
+                  onChange={() => setSelectedId(candidate.eventRosterMemberId)}
+                />
                 <span>{candidate.name}</span>
-                <span className="break-all text-xs text-[var(--color-fg-mid)]">当前 Steam64：{candidate.steam64 ?? "未填写"}</span>
+                <span className="break-all text-xs text-[var(--color-fg-mid)]">
+                  当前 Steam64：{candidate.steam64 ?? "未填写"}
+                </span>
               </label>
             ))}
           </fieldset>
-          <p className="text-xs leading-5 text-[var(--color-fg-mid)]">确认后会保存这份 Demo 的选手对应关系并重新核验，通过后更新统计。</p>
-          <Button type="button" size="sm" disabled={!selected || isPending} onClick={confirmIdentity} className="h-auto whitespace-normal break-all">
-            {selected ? `确认 ${participant.observedSteam64} 是 ${selected.name}` : "请先选择本场首发"}
+          <p className="text-xs leading-5 text-[var(--color-fg-mid)]">
+            确认后会保存这份 Demo 的选手对应关系并重新核验，通过后更新统计。
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            disabled={!selected || isPending}
+            onClick={confirmIdentity}
+            className="h-auto whitespace-normal break-all"
+          >
+            {selected
+              ? `确认 ${participant.observedSteam64} 是 ${selected.name}`
+              : "请先选择本场首发"}
           </Button>
         </>
       )}
       {participant.state.startsWith("conflict-") && participant.candidates.length > 0 && (
-        <p className="text-xs leading-5">本队首发（需人工核对）：{participant.candidates.map((candidate) => candidate.name).join("、")}</p>
+        <p className="text-xs leading-5">
+          本队首发（需人工核对）：
+          {participant.candidates.map((candidate) => candidate.name).join("、")}
+        </p>
       )}
-      {participant.note && <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{participant.note}</p>}
+      {participant.note && (
+        <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{participant.note}</p>
+      )}
       {participant.state === "conflict-retirable" && (
         <div className="space-y-3">
-          <label htmlFor={`${id}-reason`} className="block">撤销原因（2–500 字）</label>
-          <Textarea id={`${id}-reason`} value={reason} maxLength={500} onChange={(event) => { setReason(event.target.value); setRetiring(false); }} />
-          <Button type="button" variant="outline" size="sm" disabled={reason.trim().length < 2 || isPending} onClick={() => setRetiring(true)}>撤销比赛确认的 Steam 身份</Button>
-          {retiring && <InlineConfirm danger title={`确认撤销 ${participant.currentPlayer?.name ?? "该选手"} 的比赛 Steam 身份？`}
-            sub="撤销后保留历史来源与审计记录，并将关联数据列为待核验。刷新后按最新差异处理。"
-            confirmLabel="确认撤销" onCancel={() => setRetiring(false)} onConfirm={retire} />}
+          <label htmlFor={`${id}-reason`} className="block">
+            撤销原因（2–500 字）
+          </label>
+          <Textarea
+            id={`${id}-reason`}
+            value={reason}
+            maxLength={500}
+            onChange={(event) => {
+              setReason(event.target.value);
+              setRetiring(false);
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={reason.trim().length < 2 || isPending}
+            onClick={() => setRetiring(true)}
+          >
+            撤销比赛确认的 Steam 身份
+          </Button>
+          {retiring && (
+            <InlineConfirm
+              danger
+              title={`确认撤销 ${participant.currentPlayer?.name ?? "该选手"} 的比赛 Steam 身份？`}
+              sub="撤销后保留历史来源与审计记录，并将关联数据列为待核验。刷新后按最新差异处理。"
+              confirmLabel="确认撤销"
+              onCancel={() => setRetiring(false)}
+              onConfirm={retire}
+            />
+          )}
         </div>
       )}
     </fieldset>
@@ -144,8 +261,16 @@ function SeasonRecheckControl({ importId }: { importId: string }) {
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3">
-      <p className="text-xs leading-5 text-[var(--color-fg-mid)]">选手对应关系或赛事资料修正后，重新核验本赛事的当前 Demo 数据。</p>
-      <Button type="button" variant="secondary" size="sm" disabled={isPending} onClick={recheckSeason}>
+      <p className="text-xs leading-5 text-[var(--color-fg-mid)]">
+        选手对应关系或赛事资料修正后，重新核验本赛事的当前 Demo 数据。
+      </p>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        disabled={isPending}
+        onClick={recheckSeason}
+      >
         {isPending ? "重新检查中..." : "重新检查本赛事全部待处理 Demo"}
       </Button>
     </div>
@@ -162,9 +287,11 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
     startTransition(async () => {
       const result = await recheckStoredDemoImport({ importId: review.importId });
       if (result.success) {
-        toast.success(result.data.status === "confirmed"
-          ? "已按当前资料重新检查，这份 Demo 已确认并更新统计。"
-          : "已按当前资料重新检查，仍有问题需要处理。");
+        toast.success(
+          result.data.status === "confirmed"
+            ? "已按当前资料重新检查，这份 Demo 已确认并更新统计。"
+            : "已按当前资料重新检查，仍有问题需要处理。",
+        );
         router.refresh();
       } else toast.error(result.error.message);
     });
@@ -184,66 +311,154 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
   return (
     <section className="min-w-0 space-y-4 rounded border border-[var(--color-border)] p-4">
       <header>
-        <h3 className="font-medium">第 {review.mapOrder} 图 · {review.mapName}</h3>
+        <h3 className="font-medium">
+          第 {review.mapOrder} 图 · {review.mapName}
+        </h3>
         <p className="mt-2 text-sm leading-6 text-[var(--color-warn)]">{review.message}</p>
       </header>
-      {!review.invalidPayload && review.participants.map((participant) => <ParticipantReview key={`${participant.observedSteam64}:${participant.state}`} importId={review.importId} participant={participant} />)}
-      {review.resolvedCount > 0 && <p className="text-sm text-[var(--color-fg-mid)]">{review.resolvedCount} 名选手身份已正常匹配</p>}
-      {review.blockingIssues.length > 0 && <ul className="list-disc space-y-1 pl-5 text-sm leading-6">{review.blockingIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}
-      {!!review.diagnostics?.length && <details className="text-sm leading-6">
-        <summary className="cursor-pointer">检查详情（{review.diagnostics.length} 条）</summary>
-        <ul className="mt-2 space-y-2 [overflow-wrap:anywhere]">{review.diagnostics.map((issue, index) => <li key={`${issue.source}:${index}`}>
-          <p className="text-[var(--color-fg-mid)]">{issue.source === "current" ? "当前检查" : "上传时记录"} · {issue.code}{issue.path ? ` · ${issue.path}` : ""}</p>
-          <p>{issue.message}</p>
-        </li>)}</ul>
-      </details>}
-      <fieldset disabled={isPending} className="space-y-3 border-t border-[var(--color-border)] pt-3">
+      {!review.invalidPayload &&
+        review.participants.map((participant) => (
+          <ParticipantReview
+            key={`${participant.observedSteam64}:${participant.state}`}
+            importId={review.importId}
+            participant={participant}
+          />
+        ))}
+      {review.resolvedCount > 0 && (
+        <p className="text-sm text-[var(--color-fg-mid)]">
+          {review.resolvedCount} 名选手身份已正常匹配
+        </p>
+      )}
+      {review.blockingIssues.length > 0 && (
+        <ul className="list-disc space-y-1 pl-5 text-sm leading-6">
+          {review.blockingIssues.map((issue) => (
+            <li key={issue}>{issue}</li>
+          ))}
+        </ul>
+      )}
+      {!!review.diagnostics?.length && (
+        <details className="text-sm leading-6">
+          <summary className="cursor-pointer">检查详情（{review.diagnostics.length} 条）</summary>
+          <ul className="mt-2 space-y-2 [overflow-wrap:anywhere]">
+            {review.diagnostics.map((issue, index) => (
+              <li key={`${issue.source}:${index}`}>
+                <p className="text-[var(--color-fg-mid)]">
+                  {issue.source === "current" ? "当前检查" : "上传时记录"} · {issue.code}
+                  {issue.path ? ` · ${issue.path}` : ""}
+                </p>
+                <p>{issue.message}</p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <fieldset
+        disabled={isPending}
+        className="space-y-3 border-t border-[var(--color-border)] pt-3"
+      >
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" size="sm" disabled={isPending} onClick={recheck}>按当前资料重新检查</Button>
-          <Button type="button" variant="ghost" size="sm" disabled={isPending} onClick={() => setRejecting(true)}>拒绝这份 Demo 数据</Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={isPending}
+            onClick={recheck}
+          >
+            按当前资料重新检查
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={isPending}
+            onClick={() => setRejecting(true)}
+          >
+            拒绝这份 Demo 数据
+          </Button>
         </div>
-        {rejecting && <InlineConfirm danger title="确认拒绝这份 Demo 数据？" sub="拒绝后保留原始 Demo 数据供追溯，比赛统计采用已确认的数据。" confirmLabel="确认拒绝" onCancel={() => setRejecting(false)} onConfirm={reject} />}
+        {rejecting && (
+          <InlineConfirm
+            danger
+            title="确认拒绝这份 Demo 数据？"
+            sub="拒绝后保留原始 Demo 数据供追溯，比赛统计采用已确认的数据。"
+            confirmLabel="确认拒绝"
+            onCancel={() => setRejecting(false)}
+            onConfirm={reject}
+          />
+        )}
       </fieldset>
     </section>
   );
 }
 
-export function DemoDataReviewPanel({ reviews = [], quality = [] }: { reviews?: AdminDemoReviewMap[]; quality?: AdminDemoQuality[] }) {
+export function DemoDataReviewPanel({
+  reviews = [],
+  quality = [],
+}: {
+  reviews?: AdminDemoReviewMap[];
+  quality?: AdminDemoQuality[];
+}) {
   if (reviews.length === 0 && quality.length === 0) return null;
   return (
     <>
-    {reviews.length > 0 && <Panel label="Demo 数据需要处理" contentClassName="space-y-5 p-4">
-      <SeasonRecheckControl importId={reviews[0]!.importId} />
-      {reviews.map((review) => <MapReview key={review.importId} review={review} />)}
-    </Panel>}
-    {quality.length > 0 && <details className="space-y-3 rounded border border-[var(--color-border)] p-3">
-      <summary className="cursor-pointer text-sm font-medium">Demo 数据质量 · {quality.length} 图</summary>
-      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">警告不代表上传失败；QA 错误会阻止自动确认。</p>
-      {quality.map((item) => <details key={item.importId} className="rounded border border-[var(--color-border)] p-3 text-sm">
-        <summary className="cursor-pointer">第 {item.mapOrder} 图 · {item.mapName} · {item.summary}</summary>
-        <DemoQualityDetails item={item} />
-      </details>)}
-    </details>}
+      {reviews.length > 0 && (
+        <Panel label="Demo 数据需要处理" contentClassName="space-y-5 p-4">
+          <SeasonRecheckControl importId={reviews[0]!.importId} />
+          {reviews.map((review) => (
+            <MapReview key={review.importId} review={review} />
+          ))}
+        </Panel>
+      )}
+      {quality.length > 0 && (
+        <details className="space-y-3 rounded border border-[var(--color-border)] p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            Demo 数据质量 · {quality.length} 图
+          </summary>
+          <p className="text-sm leading-6 text-[var(--color-fg-mid)]">
+            警告不代表上传失败；QA 错误会阻止自动确认。
+          </p>
+          {quality.map((item) => (
+            <details
+              key={item.importId}
+              className="rounded border border-[var(--color-border)] p-3 text-sm"
+            >
+              <summary className="cursor-pointer">
+                第 {item.mapOrder} 图 · {item.mapName} · {item.summary}
+              </summary>
+              <DemoQualityDetails item={item} />
+            </details>
+          ))}
+        </details>
+      )}
     </>
   );
 }
 
 export function DemoQualityDetails({ item }: { item: AdminDemoQuality }) {
   return (
-        <div className="mt-3 space-y-2 leading-6">
-          {item.notice && <p>{item.notice}</p>}
-          {item.capability && <p>{item.capability}</p>}
-          {item.capabilityReason && <p>{item.capabilityReason}</p>}
-          {item.coverage && <p>{item.coverage}</p>}
-          {item.issues.length > 0 && <details>
-            <summary className="cursor-pointer">QA 技术详情（{item.issues.length} 条）</summary>
-            <ul className="mt-2 list-disc space-y-2 pl-5">
-              {item.issues.map((issue, index) => <li key={index} className="break-words">
-                <span>{issue.label}：{issue.message}</span>
-                <p className="break-all font-mono text-xs text-[var(--color-fg-mid)]">{issue.code}{issue.path ? ` · ${issue.path}` : ""}</p>
-              </li>)}
-            </ul>
-          </details>}
-        </div>
+    <div className="mt-3 space-y-2 leading-6">
+      {item.notice && <p>{item.notice}</p>}
+      {item.capability && <p>{item.capability}</p>}
+      {item.capabilityReason && <p>{item.capabilityReason}</p>}
+      {item.coverage && <p>{item.coverage}</p>}
+      {item.issues.length > 0 && (
+        <details>
+          <summary className="cursor-pointer">QA 技术详情（{item.issues.length} 条）</summary>
+          <ul className="mt-2 list-disc space-y-2 pl-5">
+            {item.issues.map((issue, index) => (
+              <li key={index} className="break-words">
+                <span>
+                  {issue.label}：{issue.message}
+                </span>
+                <p className="break-all font-mono text-xs text-[var(--color-fg-mid)]">
+                  {issue.code}
+                  {issue.path ? ` · ${issue.path}` : ""}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
   );
 }

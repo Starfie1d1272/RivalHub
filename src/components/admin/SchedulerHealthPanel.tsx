@@ -9,10 +9,15 @@ import { hasUnconfirmedDispatch } from "@/lib/service-health/contract";
 import type { SchedulerHealthView } from "@/lib/scheduler/admin";
 import { observeAction } from "@/lib/telemetry/client";
 
-const runSchedulerJobManually = observeAction("scheduler.runSchedulerJobManually", telemetry_runSchedulerJobManually);
+const runSchedulerJobManually = observeAction(
+  "scheduler.runSchedulerJobManually",
+  telemetry_runSchedulerJobManually,
+);
 
 function formatHealthTime(value: string | null): string {
-  return value ? new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" }) : "暂无记录";
+  return value
+    ? new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })
+    : "暂无记录";
 }
 
 export function SchedulerHealthPanel({ jobs }: { jobs: SchedulerHealthView[] }) {
@@ -42,23 +47,74 @@ export function SchedulerHealthPanel({ jobs }: { jobs: SchedulerHealthView[] }) 
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-semibold text-[var(--color-fg)]">{job.label}</h3>
-                <StatusPill label={job.status === "normal" ? "正常" : hasUnconfirmedDispatch(job) ? "需要关注" : "未核验"} tone={job.status === "normal" ? "success" : hasUnconfirmedDispatch(job) ? "warn" : "neutral"} />
+                <StatusPill
+                  label={
+                    job.status === "normal"
+                      ? "正常"
+                      : hasUnconfirmedDispatch(job)
+                        ? "需要关注"
+                        : "未核验"
+                  }
+                  tone={
+                    job.status === "normal"
+                      ? "success"
+                      : hasUnconfirmedDispatch(job)
+                        ? "warn"
+                        : "neutral"
+                  }
+                />
               </div>
-              <p className="mt-1 text-xs text-[var(--color-fg-mid)]">最近主调度唤醒：{formatHealthTime(job.primaryTriggeredAt)}</p>
+              <p className="mt-1 text-xs text-[var(--color-fg-mid)]">
+                最近主调度唤醒：{formatHealthTime(job.primaryTriggeredAt)}
+              </p>
             </div>
-            <button type="button" className="text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline disabled:opacity-50" disabled={pending} onClick={() => setConfirming(job.jobKey)}>
+            <button
+              type="button"
+              className="text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline disabled:opacity-50"
+              disabled={pending}
+              onClick={() => setConfirming(job.jobKey)}
+            >
               立即运行一次
             </button>
           </div>
           <dl className="grid gap-2 text-xs text-[var(--color-fg-mid)] sm:grid-cols-2">
-            <div><dt className="inline">最近任务接口成功：</dt><dd className="inline">{formatHealthTime(job.endpointSucceededAt)}</dd></div>
-            <div><dt className="inline">最近真实推进：</dt><dd className="inline">{formatHealthTime(job.businessTransitionAt)}</dd></div>
-            <div><dt className="inline">最近兜底运行：</dt><dd className="inline">{formatHealthTime(job.watchdogSucceededAt)}</dd></div>
-            <div><dt className="inline">最近人工运行：</dt><dd className="inline">{formatHealthTime(job.manualSucceededAt)}</dd></div>
-            {job.failureAt && <div className="sm:col-span-2"><dt className="inline text-[var(--color-warn)]">最近失败：</dt><dd className="inline">{formatHealthTime(job.failureAt)}</dd></div>}
+            <div>
+              <dt className="inline">最近任务接口成功：</dt>
+              <dd className="inline">{formatHealthTime(job.endpointSucceededAt)}</dd>
+            </div>
+            <div>
+              <dt className="inline">最近真实推进：</dt>
+              <dd className="inline">{formatHealthTime(job.businessTransitionAt)}</dd>
+            </div>
+            <div>
+              <dt className="inline">最近兜底运行：</dt>
+              <dd className="inline">{formatHealthTime(job.watchdogSucceededAt)}</dd>
+            </div>
+            <div>
+              <dt className="inline">最近人工运行：</dt>
+              <dd className="inline">{formatHealthTime(job.manualSucceededAt)}</dd>
+            </div>
+            {job.failureAt && (
+              <div className="sm:col-span-2">
+                <dt className="inline text-[var(--color-warn)]">最近失败：</dt>
+                <dd className="inline">{formatHealthTime(job.failureAt)}</dd>
+              </div>
+            )}
           </dl>
-          {job.jobKey === "match-time-auto-award" && <p className="text-xs text-[var(--color-fg-mid)]">默认首发补齐故障时，先在比赛工作台核对已保存首发，按排查编号检查服务；恢复后可运行一次。名单资格未满足时，按比赛工作台提示处理。</p>}
-          {confirming === job.jobKey && <InlineConfirm title={`运行“${job.label}”？`} sub="这会立即执行该定时任务，并可能更新对应系统状态，仅用于故障恢复。" confirmLabel="确认运行" onCancel={() => setConfirming(null)} onConfirm={() => run(job.jobKey)} />}
+          {job.jobKey === "match-time-auto-award" && (
+            <p className="text-xs text-[var(--color-fg-mid)]">
+              默认首发补齐故障时，先在比赛工作台核对已保存首发，按排查编号检查服务；恢复后可运行一次。名单资格未满足时，按比赛工作台提示处理。
+            </p>
+          )}
+          {confirming === job.jobKey && (
+            <InlineConfirm
+              title={`运行“${job.label}”？`}
+              sub="这会立即执行该定时任务，并可能更新对应系统状态，仅用于故障恢复。"
+              confirmLabel="确认运行"
+              onCancel={() => setConfirming(null)}
+              onConfirm={() => run(job.jobKey)}
+            />
+          )}
         </Panel>
       ))}
     </div>

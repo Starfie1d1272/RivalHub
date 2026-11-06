@@ -65,10 +65,7 @@ import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";
 import { isExpectedAuthFailure } from "@/lib/errors";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
-import {
-  buildRoster,
-  type RosterPlayer,
-} from "@/lib/matches/detail-stats";
+import { buildRoster, type RosterPlayer } from "@/lib/matches/detail-stats";
 import { loadMatchPreAnalysis } from "@/lib/matches/pre-analysis";
 import { loadMatchScoreboard } from "@/lib/matches/detail-scoreboard";
 import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
@@ -76,7 +73,14 @@ import { MatchHeroHeader } from "@/components/matches/MatchHeroHeader";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { supportsRegistrationPositionDirectory } from "@/lib/players/directory-query";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
-import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { getPublicMatchPerformance } from "@/lib/stats/cached-query";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
 
@@ -85,7 +89,12 @@ interface MatchDetailPageProps {
   searchParams: Promise<MatchStatsQuery>;
 }
 
-const loadMatch = cache((matchId: string) => withDbTrafficSource("match.page", async () => await db.query.matches.findFirst({ where: eq(matches.id, matchId) })));
+const loadMatch = cache((matchId: string) =>
+  withDbTrafficSource(
+    "match.page",
+    async () => await db.query.matches.findFirst({ where: eq(matches.id, matchId) }),
+  ),
+);
 
 export async function generateMetadata({ params }: MatchDetailPageProps): Promise<Metadata> {
   await io();
@@ -111,53 +120,102 @@ async function readMatchCore(params: MatchDetailPageProps["params"]) {
   assertCompetitionMatch(match);
 
   const [teams, maps] = await Promise.all([
-    db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.id, [match.entryAId, match.entryBId])) }),
+    db.query.competitionEntries.findMany({
+      where: and(
+        eq(competitionEntries.competitionId, season.id),
+        inArray(competitionEntries.id, [match.entryAId, match.entryBId]),
+      ),
+    }),
     db.query.matchMaps.findMany({
       where: eq(matchMaps.matchId, matchId),
       orderBy: (t, { asc }) => [asc(t.mapOrder)],
     }),
   ]);
 
-  const teamA = teams.find(team => team.id === match.entryAId);
-  const teamB = teams.find(team => team.id === match.entryBId);
+  const teamA = teams.find((team) => team.id === match.entryAId);
+  const teamB = teams.find((team) => team.id === match.entryBId);
   return { seasonSlug, season, match, teamA, teamB, maps };
 }
 
 type MatchCore = Awaited<ReturnType<typeof loadMatchCore>>;
 
 export default function MatchDetailPage(props: MatchDetailPageProps) {
-  return <Suspense fallback={<MatchDetailLoading />}><MatchDetailShell {...props} /></Suspense>;
+  return (
+    <Suspense fallback={<MatchDetailLoading />}>
+      <MatchDetailShell {...props} />
+    </Suspense>
+  );
 }
 
 async function MatchDetailShell({ params, searchParams }: MatchDetailPageProps) {
   const core = await loadMatchCore(params);
   const { seasonSlug, season, match, teamA, teamB, maps } = core;
-  return <PageLayout variant="wide" className="space-y-8">
-    {match.testConfig && <p className="text-sm text-[var(--color-fg-mid)]">测试赛 · 不计入正式赛程与统计</p>}
-    <MatchContextRefresh enabled={match.status === "scheduled" || match.status === "in_progress"} seasonSlug={seasonSlug} scope={{ matchId: match.id }} />
-    <MatchHeroHeader seasonSlug={seasonSlug} stageName={presentMatchStage(match.stage, season.stagePlan)}
-      match={{ ...match, displayScore: projectDisplayScore(match, maps) }} teamA={teamA} teamB={teamB} isFinished={match.status === "finished"} />
-    <Suspense fallback={<div role="status" className="min-h-80 text-sm text-[var(--color-fg-mid)]">比赛内容加载中…</div>}>
-      <MatchDetailContent core={core} searchParams={searchParams} />
-    </Suspense>
-  </PageLayout>;
+  return (
+    <PageLayout variant="wide" className="space-y-8">
+      {match.testConfig && (
+        <p className="text-sm text-[var(--color-fg-mid)]">测试赛 · 不计入正式赛程与统计</p>
+      )}
+      <MatchContextRefresh
+        enabled={match.status === "scheduled" || match.status === "in_progress"}
+        seasonSlug={seasonSlug}
+        scope={{ matchId: match.id }}
+      />
+      <MatchHeroHeader
+        seasonSlug={seasonSlug}
+        stageName={presentMatchStage(match.stage, season.stagePlan)}
+        match={{ ...match, displayScore: projectDisplayScore(match, maps) }}
+        teamA={teamA}
+        teamB={teamB}
+        isFinished={match.status === "finished"}
+      />
+      <Suspense
+        fallback={
+          <div role="status" className="min-h-80 text-sm text-[var(--color-fg-mid)]">
+            比赛内容加载中…
+          </div>
+        }
+      >
+        <MatchDetailContent core={core} searchParams={searchParams} />
+      </Suspense>
+    </PageLayout>
+  );
 }
 
-function MatchDetailContent(props: { core: MatchCore; searchParams: MatchDetailPageProps["searchParams"] }) {
+function MatchDetailContent(props: {
+  core: MatchCore;
+  searchParams: MatchDetailPageProps["searchParams"];
+}) {
   return withDbTrafficSource("match.page", () => readMatchDetailContent(props));
 }
 
-async function readMatchDetailContent({ core, searchParams }: { core: MatchCore; searchParams: MatchDetailPageProps["searchParams"] }) {
+async function readMatchDetailContent({
+  core,
+  searchParams,
+}: {
+  core: MatchCore;
+  searchParams: MatchDetailPageProps["searchParams"];
+}) {
   const { seasonSlug, season, match, teamA, teamB, maps } = core;
   const statsQuery = await searchParams;
-  const mapPool = match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
-  const preAnalysisRead = match.status !== "finished"
-    ? (async () => loadMatchPreAnalysis(season.id, match.entryAId, match.entryBId, mapPool))() : Promise.resolve(null);
-  const [publicContext, userSession] = await Promise.all([loadPublicMatchPhase(match, maps), getUserSession()]);
-  const adminRead = userSession && (match.status === "scheduled" || match.status === "in_progress") ? requireSeasonAdmin(season.id).then(() => true).catch(error => {
-    if (!isExpectedAuthFailure(error)) throw error;
-    return false;
-  }) : Promise.resolve(false);
+  const mapPool =
+    match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
+  const preAnalysisRead =
+    match.status !== "finished"
+      ? (async () => loadMatchPreAnalysis(season.id, match.entryAId, match.entryBId, mapPool))()
+      : Promise.resolve(null);
+  const [publicContext, userSession] = await Promise.all([
+    loadPublicMatchPhase(match, maps),
+    getUserSession(),
+  ]);
+  const adminRead =
+    userSession && (match.status === "scheduled" || match.status === "in_progress")
+      ? requireSeasonAdmin(season.id)
+          .then(() => true)
+          .catch((error) => {
+            if (!isExpectedAuthFailure(error)) throw error;
+            return false;
+          })
+      : Promise.resolve(false);
   const phase = publicContext.phase;
   const afterVeto = phase === "awaiting_gameplay" || phase === "gameplay" || phase === "inter_map";
   const isFinished = match.status === "finished";
@@ -168,12 +226,7 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
   // POST scoreboard is queried only when finished or when maps have been completed.
   const needScoreboard = isFinished || hasCompletedMaps;
 
-  const [
-    rosters,
-    allTeamMemberRows,
-    commentatorRows,
-    timeProposals,
-  ] = await Promise.all([
+  const [rosters, allTeamMemberRows, commentatorRows, timeProposals] = await Promise.all([
     loadMatchRosters(match.id, [match.entryAId, match.entryBId]),
     db
       .select({
@@ -192,41 +245,81 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
       .innerJoin(users, eq(eventRosterMembers.userId, users.id))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(and(
-        inArray(eventRosters.entryId, [match.entryAId, match.entryBId]),
-        or(
-          eq(eventRosterMembers.isCurrent, true),
-          inArray(eventRosterMembers.id, db.select({ memberId: matchRosterPlayers.eventRosterMemberId })
-            .from(matchRosterPlayers)
-            .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
-            .where(eq(matchRosters.matchId, match.id))),
+      .where(
+        and(
+          inArray(eventRosters.entryId, [match.entryAId, match.entryBId]),
+          or(
+            eq(eventRosterMembers.isCurrent, true),
+            inArray(
+              eventRosterMembers.id,
+              db
+                .select({ memberId: matchRosterPlayers.eventRosterMemberId })
+                .from(matchRosterPlayers)
+                .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
+                .where(eq(matchRosters.matchId, match.id)),
+            ),
+          ),
         ),
-      )),
-    db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, liveStreamUrl: users.liveStreamUrl })
+      ),
+    db
+      .select({
+        userId: users.id,
+        displayName: users.displayName,
+        perfectName: users.perfectName,
+        personaName: steamProfiles.personaName,
+        liveStreamUrl: users.liveStreamUrl,
+      })
       .from(matchCommentators)
       .innerJoin(users, eq(matchCommentators.userId, users.id))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(matchCommentators.matchId, match.id)),
     match.status === "scheduled" && userSession
-      ? adminRead.then(admin => admin || teamA?.representativeUserId === userSession.userId || teamB?.representativeUserId === userSession.userId
-        ? getMatchTimeProposalViews(match.id, userSession.userId) : []) : Promise.resolve([]),
+      ? adminRead.then((admin) =>
+          admin ||
+          teamA?.representativeUserId === userSession.userId ||
+          teamB?.representativeUserId === userSession.userId
+            ? getMatchTimeProposalViews(match.id, userSession.userId)
+            : [],
+        )
+      : Promise.resolve([]),
   ]);
 
   const rosterA = rosters.get(match.entryAId) ?? null;
   const rosterB = rosters.get(match.entryBId) ?? null;
-  const commentatorPlayerIds = await getPublicPlayerIdentityIds(db, commentatorRows.map(row => row.userId));
-  const publicCommentators = commentatorRows.map(row => ({ ...row, playerUserId: commentatorPlayerIds.has(row.userId) ? row.userId : null }));
-
-  const liveCommentators = await Promise.all(publicCommentators.map(async person => {
-    const room = ["scheduled", "in_progress"].includes(match.status)
-      ? await readBilibiliRoom(person.liveStreamUrl) : { roomId: null, status: "unknown" as const };
-    return { ...person, bilibiliRoomId: room.roomId, broadcastStatus: room.status };
+  const commentatorPlayerIds = await getPublicPlayerIdentityIds(
+    db,
+    commentatorRows.map((row) => row.userId),
+  );
+  const publicCommentators = commentatorRows.map((row) => ({
+    ...row,
+    playerUserId: commentatorPlayerIds.has(row.userId) ? row.userId : null,
   }));
 
+  const liveCommentators = await Promise.all(
+    publicCommentators.map(async (person) => {
+      const room = ["scheduled", "in_progress"].includes(match.status)
+        ? await readBilibiliRoom(person.liveStreamUrl)
+        : { roomId: null, status: "unknown" as const };
+      return { ...person, bilibiliRoomId: room.roomId, broadcastStatus: room.status };
+    }),
+  );
+
   const registrationPositions = supportsRegistrationPositionDirectory(season.competitionTemplate)
-    ? await db.select({ userId: seasonRegistrations.userId, position: seasonRegistrations.primaryPosition })
-      .from(seasonRegistrations)
-      .where(and(eq(seasonRegistrations.seasonId, season.id), inArray(seasonRegistrations.userId, allTeamMemberRows.map((row) => row.userId))))
+    ? await db
+        .select({
+          userId: seasonRegistrations.userId,
+          position: seasonRegistrations.primaryPosition,
+        })
+        .from(seasonRegistrations)
+        .where(
+          and(
+            eq(seasonRegistrations.seasonId, season.id),
+            inArray(
+              seasonRegistrations.userId,
+              allTeamMemberRows.map((row) => row.userId),
+            ),
+          ),
+        )
     : [];
   const positionByUserId = new Map(registrationPositions.map((row) => [row.userId, row.position]));
   const allTeamMembers = allTeamMemberRows.map((row) => ({
@@ -236,12 +329,19 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
 
   // Public scoreboards use the persisted match lineup rather than today's team.
   const matchRosterMemberIds = new Set(
-    [rosterA, rosterB].flatMap(roster => roster && ["submitted", "confirmed"].includes(roster.status)
-      ? roster.players.filter(player => player.isStarter).map(player => player.eventRosterMemberId) : []),
+    [rosterA, rosterB].flatMap((roster) =>
+      roster && ["submitted", "confirmed"].includes(roster.status)
+        ? roster.players
+            .filter((player) => player.isStarter)
+            .map((player) => player.eventRosterMemberId)
+        : [],
+    ),
   );
   const userIdToTeamId = new Map<string, string>();
   const userIdToMember = new Map(
-    allTeamMembers.filter((member) => member.userId && member.isCurrent).map((member) => [member.userId as string, member]),
+    allTeamMembers
+      .filter((member) => member.userId && member.isCurrent)
+      .map((member) => [member.userId as string, member]),
   );
   for (const member of allTeamMembers) {
     if (!member.userId || !matchRosterMemberIds.has(member.id)) continue;
@@ -250,20 +350,38 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
   }
 
   const performanceRead = needScoreboard
-    ? readOptionalPublicStats("match_scoreboard", () => getPublicMatchPerformance(match.id, season.status === "draft" ? "draft" : "public"))
+    ? readOptionalPublicStats("match_scoreboard", () =>
+        getPublicMatchPerformance(match.id, season.status === "draft" ? "draft" : "public"),
+      )
     : Promise.resolve(null);
   const scoreboardFallbackRead = hasCompletedMaps
-    ? performanceRead.then(performance => performance ? null : readOptionalPublicStats("match_scoreboard_fallback", () => readMatchScoreboardFallback(match.id)))
+    ? performanceRead.then((performance) =>
+        performance
+          ? null
+          : readOptionalPublicStats("match_scoreboard_fallback", () =>
+              readMatchScoreboardFallback(match.id),
+            ),
+      )
     : Promise.resolve(null);
   const scoreboardRead = needScoreboard
-    ? Promise.all([performanceRead, scoreboardFallbackRead]).then(([performance, fallback]) => loadMatchScoreboard(match, maps, userIdToTeamId, performance, fallback?.currentImports))
+    ? Promise.all([performanceRead, scoreboardFallbackRead]).then(([performance, fallback]) =>
+        loadMatchScoreboard(match, maps, userIdToTeamId, performance, fallback?.currentImports),
+      )
     : Promise.resolve(null);
 
   // 队长 / 管理员权限检查
   let isCaptainA = false;
   let isCaptainB = false;
   let isSeasonAdmin = false;
-  let captainTeamMembers: { userId: string; id: string; personaName: string | null; avatarUrl: string | null; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
+  let captainTeamMembers: {
+    userId: string;
+    id: string;
+    personaName: string | null;
+    avatarUrl: string | null;
+    displayName: string | null;
+    perfectName: string | null;
+    primaryPosition: string;
+  }[] = [];
 
   if (userSession?.userId) {
     isSeasonAdmin = await adminRead;
@@ -287,9 +405,24 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
   }
 
   const captainRoster = isCaptainA ? rosterA : isCaptainB ? rosterB : null;
-  const canParticipateInVeto = isSeasonAdmin || isCaptainA || isCaptainB || Boolean(userSession && [rosterA, rosterB].some(roster =>
-    roster?.players.some(player => player.isVetoRepresentative && player.isStarter && allTeamMembers.some(member => member.id === player.eventRosterMemberId && member.userId === userSession.userId)),
-  ));
+  const canParticipateInVeto =
+    isSeasonAdmin ||
+    isCaptainA ||
+    isCaptainB ||
+    Boolean(
+      userSession &&
+      [rosterA, rosterB].some((roster) =>
+        roster?.players.some(
+          (player) =>
+            player.isVetoRepresentative &&
+            player.isStarter &&
+            allTeamMembers.some(
+              (member) =>
+                member.id === player.eventRosterMemberId && member.userId === userSession.userId,
+            ),
+        ),
+      ),
+    );
   const teamARoster: RosterPlayer[] | null = rosterA
     ? buildRoster(rosterA, allTeamMembers, match.entryAId)
     : null;
@@ -297,10 +430,21 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
     ? buildRoster(rosterB, allTeamMembers, match.entryBId)
     : null;
 
-  const allowExpected = match.status === "scheduled" && !match.startedAt && !match.gameplayStartedAt;
-  const registeredLineup = (entryId: string) => allTeamMembers.filter((member) => member.teamId === entryId && member.isCurrent)
-    .map((member) => ({ userId: member.userId, displayName: member.displayName, personaName: member.personaName,
-      perfectName: member.perfectName, avatarUrl: member.avatarUrl, hasActivePublicSanction: member.hasActivePublicSanction, isPrimaryStarter: member.isPrimaryStarter, isStarter: member.isPrimaryStarter }));
+  const allowExpected =
+    match.status === "scheduled" && !match.startedAt && !match.gameplayStartedAt;
+  const registeredLineup = (entryId: string) =>
+    allTeamMembers
+      .filter((member) => member.teamId === entryId && member.isCurrent)
+      .map((member) => ({
+        userId: member.userId,
+        displayName: member.displayName,
+        personaName: member.personaName,
+        perfectName: member.perfectName,
+        avatarUrl: member.avatarUrl,
+        hasActivePublicSanction: member.hasActivePublicSanction,
+        isPrimaryStarter: member.isPrimaryStarter,
+        isStarter: member.isPrimaryStarter,
+      }));
   const lineupA = resolveLineup(teamARoster, registeredLineup(match.entryAId), allowExpected);
   const lineupB = resolveLineup(teamBRoster, registeredLineup(match.entryBId), allowExpected);
   const comparisonCutoff = lineupComparisonCutoff(match);
@@ -321,45 +465,105 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
     we: number | null;
     avatarUrl: string | null;
   }[] = [];
-  const [scoreboard, performance, scoreboardFallback] = await Promise.all([scoreboardRead, performanceRead, scoreboardFallbackRead]);
-  const roundSegments = performance?.roundSegments ?? scoreboardFallback?.roundSegments ?? ({} as Record<string, never>);
+  const [scoreboard, performance, scoreboardFallback] = await Promise.all([
+    scoreboardRead,
+    performanceRead,
+    scoreboardFallbackRead,
+  ]);
+  const roundSegments =
+    performance?.roundSegments ??
+    scoreboardFallback?.roundSegments ??
+    ({} as Record<string, never>);
   const scoreboardIdentities = [
-    ...(teamARoster ?? []).filter(player => player.isStarter).flatMap(player => player.userId ? [{ userId: player.userId, perfectName: getPublicDisplayName(player), teamId: match.entryAId }] : []),
-    ...(teamBRoster ?? []).filter(player => player.isStarter).flatMap(player => player.userId ? [{ userId: player.userId, perfectName: getPublicDisplayName(player), teamId: match.entryBId }] : []),
+    ...(teamARoster ?? [])
+      .filter((player) => player.isStarter)
+      .flatMap((player) =>
+        player.userId
+          ? [
+              {
+                userId: player.userId,
+                perfectName: getPublicDisplayName(player),
+                teamId: match.entryAId,
+              },
+            ]
+          : [],
+      ),
+    ...(teamBRoster ?? [])
+      .filter((player) => player.isStarter)
+      .flatMap((player) =>
+        player.userId
+          ? [
+              {
+                userId: player.userId,
+                perfectName: getPublicDisplayName(player),
+                teamId: match.entryBId,
+              },
+            ]
+          : [],
+      ),
   ];
-  const hasStatistics = Boolean(scoreboard && (scoreboard.completed.length > 0 || scoreboardIdentities.length > 0));
+  const hasStatistics = Boolean(
+    scoreboard && (scoreboard.completed.length > 0 || scoreboardIdentities.length > 0),
+  );
   if (isFinished && scoreboard) {
     mvpCandidates = scoreboard.mvpCandidates.map((candidate) => ({
       ...candidate,
-      hasActivePublicSanction: candidate.userId ? userIdToMember.get(candidate.userId)?.hasActivePublicSanction ?? false : false,
-      avatarUrl: candidate.userId ? userIdToMember.get(candidate.userId)?.avatarUrl ?? null : null,
+      hasActivePublicSanction: candidate.userId
+        ? (userIdToMember.get(candidate.userId)?.hasActivePublicSanction ?? false)
+        : false,
+      avatarUrl: candidate.userId
+        ? (userIdToMember.get(candidate.userId)?.avatarUrl ?? null)
+        : null,
     }));
-
   }
 
-  const pendingTimeProposal = timeProposals.find(proposal => proposal.status === "pending") ?? null;
+  const pendingTimeProposal =
+    timeProposals.find((proposal) => proposal.status === "pending") ?? null;
   const scheduling = projectMatchScheduling(match, pendingTimeProposal);
-  const schedulingAction = scheduling.state === "confirmed" ? "查看比赛时间" :
-    presentSchedulingAction(scheduling.state, pendingTimeProposal?.isMine);
+  const schedulingAction =
+    scheduling.state === "confirmed"
+      ? "查看比赛时间"
+      : presentSchedulingAction(scheduling.state, pendingTimeProposal?.isMine);
 
   const showBpPrimary = phase === "veto" || phase === "awaiting_veto" || phase === "preparation";
-  const betReturn = safeBetReturn(typeof statsQuery.returnTo === "string" ? statsQuery.returnTo : undefined, seasonSlug);
-  const matchBet = !match.testConfig && season.competitionTemplate === "major" ? (
-    <div data-match-bet className="min-h-40">
-    <Suspense fallback={<div role="status" className="min-h-40" aria-busy="true">竞猜信息加载中…</div>}>
-      <MatchBetLink returnTo={betReturn} seasonId={season.id} matchId={match.id} slug={seasonSlug}
-        teamA={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A" }}
-        teamB={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B" }} />
-    </Suspense>
-    </div>
-  ) : null;
+  const betReturn = safeBetReturn(
+    typeof statsQuery.returnTo === "string" ? statsQuery.returnTo : undefined,
+    seasonSlug,
+  );
+  const matchBet =
+    !match.testConfig && season.competitionTemplate === "major" ? (
+      <div data-match-bet className="min-h-40">
+        <Suspense
+          fallback={
+            <div role="status" className="min-h-40" aria-busy="true">
+              竞猜信息加载中…
+            </div>
+          }
+        >
+          <MatchBetLink
+            returnTo={betReturn}
+            seasonId={season.id}
+            matchId={match.id}
+            slug={seasonSlug}
+            teamA={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A" }}
+            teamB={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B" }}
+          />
+        </Suspense>
+      </div>
+    ) : null;
 
   return (
     <>
-      <StatsReturnLink href={typeof statsQuery.fromStats === "string" ? statsQuery.fromStats : undefined} />
-      {betReturn && <Link href={betReturn as never} className="text-sm text-[var(--color-accent)]">← 返回预测与竞猜</Link>}
+      <StatsReturnLink
+        href={typeof statsQuery.fromStats === "string" ? statsQuery.fromStats : undefined}
+      />
+      {betReturn && (
+        <Link href={betReturn as never} className="text-sm text-[var(--color-accent)]">
+          ← 返回预测与竞猜
+        </Link>
+      )}
       {/* 赛前管理员 / 队长聚焦赛务弹窗 */}
-      {((isCaptainA || isCaptainB || isSeasonAdmin) && match.status === "scheduled") && (
+      {(isCaptainA || isCaptainB || isSeasonAdmin) && match.status === "scheduled" && (
         <Panel contentClassName="space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-semibold">你的赛务</p>
@@ -383,7 +587,10 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
                       currentScheduledAt={match.scheduledAt}
                       currentCompletionDeadline={match.completionDeadline}
                       initialProposals={timeProposals}
-                      hasSubmittedRoster={captainRoster?.status === "submitted" || captainRoster?.status === "confirmed"}
+                      hasSubmittedRoster={
+                        captainRoster?.status === "submitted" ||
+                        captainRoster?.status === "confirmed"
+                      }
                     />
                     <div className="mt-6">
                       <h3 className="mb-2 text-sm font-medium">协商历史</h3>
@@ -409,16 +616,30 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
                       hasExistingRoster={Boolean(captainRoster)}
                       matchStatus={match.status}
                       rosterStatus={captainRoster?.status ?? null}
-                      initialStarterIds={captainRoster?.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
-                      initialSubstituteIds={captainRoster?.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
-                      initialVetoRepresentativeEventRosterMemberId={captainRoster?.players.find((player) => player.isVetoRepresentative)?.eventRosterMemberId ?? null}
+                      initialStarterIds={
+                        captainRoster?.players
+                          .filter((player) => player.isStarter)
+                          .map((player) => player.eventRosterMemberId) ?? []
+                      }
+                      initialSubstituteIds={
+                        captainRoster?.players
+                          .filter((player) => !player.isStarter)
+                          .map((player) => player.eventRosterMemberId) ?? []
+                      }
+                      initialVetoRepresentativeEventRosterMemberId={
+                        captainRoster?.players.find((player) => player.isVetoRepresentative)
+                          ?.eventRosterMemberId ?? null
+                      }
                       allowSubstitutes={match.ownership !== "major_stage"}
                     />
                   </DialogBody>
                 </DialogContent>
               </Dialog>
             )}
-            <Link className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-3 text-sm" href={`/${seasonSlug}/matches/${match.id}/veto`}>
+            <Link
+              className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-3 text-sm"
+              href={`/${seasonSlug}/matches/${match.id}/veto`}
+            >
               进入 BP 房间
             </Link>
           </div>
@@ -427,179 +648,393 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
 
       {(showBpPrimary || (!isFinished && matchBet)) && (
         <div className={`grid min-w-0 gap-4 ${showBpPrimary && matchBet ? "lg:grid-cols-2" : ""}`}>
-          {showBpPrimary && <section className="min-w-0" data-testid="match-bp-primary">
-            <Panel label="BP 与开赛" className="flex h-full flex-col" contentClassName="flex flex-1 flex-col justify-center">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold text-[var(--color-fg)]">{phase === "veto" ? "BP 进行中" : "等待 BP"}</h2>
-                  <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-                    {match.status === "scheduled"
-                      ? "双方负责人确认后开始地图禁选。"
-                      : "查看当前地图禁选进度。"}
-                  </p>
+          {showBpPrimary && (
+            <section className="min-w-0" data-testid="match-bp-primary">
+              <Panel
+                label="BP 与开赛"
+                className="flex h-full flex-col"
+                contentClassName="flex flex-1 flex-col justify-center"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="font-semibold text-[var(--color-fg)]">
+                      {phase === "veto" ? "BP 进行中" : "等待 BP"}
+                    </h2>
+                    <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
+                      {match.status === "scheduled"
+                        ? "双方负责人确认后开始地图禁选。"
+                        : "查看当前地图禁选进度。"}
+                    </p>
+                  </div>
+                  <Link
+                    className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 text-sm font-medium hover:border-[var(--color-border-hover)]"
+                    href={`/${seasonSlug}/matches/${match.id}/veto`}
+                  >
+                    {canParticipateInVeto ? "进行 BP" : "查看 BP 进度"}
+                  </Link>
                 </div>
-                <Link
-                  className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 text-sm font-medium hover:border-[var(--color-border-hover)]"
-                  href={`/${seasonSlug}/matches/${match.id}/veto`}
-                >
-                  {canParticipateInVeto ? "进行 BP" : "查看 BP 进度"}
-                </Link>
-              </div>
-            </Panel>
-          </section>}
+              </Panel>
+            </section>
+          )}
           {!isFinished && matchBet}
         </div>
       )}
       {showBpPrimary && match.status !== "scheduled" && (
-            <VetoView seasonSlug={seasonSlug}
-              matchId={match.id}
-              teamAName={teamA?.name ?? "队伍 A"}
-              teamBName={teamB?.name ?? "队伍 B"}
-              entryAId={match.entryAId}
-              entryBId={match.entryBId}
-            />
+        <VetoView
+          seasonSlug={seasonSlug}
+          matchId={match.id}
+          teamAName={teamA?.name ?? "队伍 A"}
+          teamBName={teamB?.name ?? "队伍 B"}
+          entryAId={match.entryAId}
+          entryBId={match.entryBId}
+        />
       )}
       {(isSeasonAdmin || isCaptainA || isCaptainB) && afterVeto && !isFinished && (
-        <Link prefetch={false} className="inline-flex min-h-10 w-fit items-center rounded border border-[var(--color-border)] px-3 text-sm" href={`/${seasonSlug}/matches/${match.id}/veto`}>
+        <Link
+          prefetch={false}
+          className="inline-flex min-h-10 w-fit items-center rounded border border-[var(--color-border)] px-3 text-sm"
+          href={`/${seasonSlug}/matches/${match.id}/veto`}
+        >
           进入 BP 房间
         </Link>
       )}
       <MatchLiveProvider matchId={match.id} eligible={afterVeto}>
-      {(afterVeto || isFinished) && maps.length > 0 && <MatchMapSequence seasonSlug={seasonSlug}
-        maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null, segments: roundSegments[map.id] }))}
-        currentMapId={publicContext.currentMapId} entryAId={match.entryAId} entryBId={match.entryBId} phase={phase} seriesProgress={isFinished && match.scoreA !== null && match.scoreB !== null ? { scoreA: match.scoreA, scoreB: match.scoreB } : publicContext.seriesProgress}
-        teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} finished={isFinished}
-        teamALogoUrl={teamA?.logoUrl ?? null} teamBLogoUrl={teamB?.logoUrl ?? null}
-      />}
-      {(afterVeto || isFinished) && (maps.length > 0 || hasReplay) && (
-        <div className="flex flex-wrap items-start gap-3">
-          {maps.length > 0 && <details className="min-w-0 flex-1 basis-64 text-sm" data-testid="match-bp-record">
-            <summary className="flex min-h-11 w-fit cursor-pointer items-center rounded-sm border border-[var(--color-border)] px-4 text-[var(--color-fg-mid)] hover:border-[var(--color-border-hover)]">BP 记录</summary>
-            <div className="mt-3"><VetoView seasonSlug={seasonSlug} matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div>
-          </details>}
-          {hasReplay && <MatchRecordings recordings={match.recordings} legacyUrl={match.videoUrl} commentators={publicCommentators.map(person => ({ userId: person.userId, name: getPublicDisplayName(person) }))} />}
-        </div>
-      )}
-      <MatchLiveViewing status={match.status} commentators={liveCommentators} showEmpty={afterVeto} />
-      {afterVeto && <MatchRealtime matchId={match.id} phase={phase} currentMapId={publicContext.currentMapId} lastCompletedMap={publicContext.lastCompletedMap} seriesProgress={publicContext.seriesProgress} />}
+        {(afterVeto || isFinished) && maps.length > 0 && (
+          <MatchMapSequence
+            seasonSlug={seasonSlug}
+            maps={maps.map((map) => ({
+              id: map.id,
+              mapOrder: map.mapOrder,
+              mapName: map.mapName,
+              pickedByEntryId: map.pickedByEntryId,
+              scoreA: map.scoreA,
+              scoreB: map.scoreB,
+              completedAt: map.completedAt?.toISOString() ?? null,
+              segments: roundSegments[map.id],
+            }))}
+            currentMapId={publicContext.currentMapId}
+            entryAId={match.entryAId}
+            entryBId={match.entryBId}
+            phase={phase}
+            seriesProgress={
+              isFinished && match.scoreA !== null && match.scoreB !== null
+                ? { scoreA: match.scoreA, scoreB: match.scoreB }
+                : publicContext.seriesProgress
+            }
+            teamAName={teamA?.name ?? "队伍 A"}
+            teamBName={teamB?.name ?? "队伍 B"}
+            finished={isFinished}
+            teamALogoUrl={teamA?.logoUrl ?? null}
+            teamBLogoUrl={teamB?.logoUrl ?? null}
+          />
+        )}
+        {(afterVeto || isFinished) && (maps.length > 0 || hasReplay) && (
+          <div className="flex flex-wrap items-start gap-3">
+            {maps.length > 0 && (
+              <details className="min-w-0 flex-1 basis-64 text-sm" data-testid="match-bp-record">
+                <summary className="flex min-h-11 w-fit cursor-pointer items-center rounded-sm border border-[var(--color-border)] px-4 text-[var(--color-fg-mid)] hover:border-[var(--color-border-hover)]">
+                  BP 记录
+                </summary>
+                <div className="mt-3">
+                  <VetoView
+                    seasonSlug={seasonSlug}
+                    matchId={match.id}
+                    teamAName={teamA?.name ?? "队伍 A"}
+                    teamBName={teamB?.name ?? "队伍 B"}
+                    entryAId={match.entryAId}
+                    entryBId={match.entryBId}
+                  />
+                </div>
+              </details>
+            )}
+            {hasReplay && (
+              <MatchRecordings
+                recordings={match.recordings}
+                legacyUrl={match.videoUrl}
+                commentators={publicCommentators.map((person) => ({
+                  userId: person.userId,
+                  name: getPublicDisplayName(person),
+                }))}
+              />
+            )}
+          </div>
+        )}
+        <MatchLiveViewing
+          status={match.status}
+          commentators={liveCommentators}
+          showEmpty={afterVeto}
+        />
+        {afterVeto && (
+          <MatchRealtime
+            matchId={match.id}
+            phase={phase}
+            currentMapId={publicContext.currentMapId}
+            lastCompletedMap={publicContext.lastCompletedMap}
+            seriesProgress={publicContext.seriesProgress}
+          />
+        )}
 
+        {/* 赛前分析与预备信息（未结束时展示） */}
+        {!isFinished && (
+          <PreMatchContext phase={phase} currentMapId={publicContext.currentMapId}>
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
+              <Panel contentClassName="p-0 overflow-hidden">
+                <Suspense
+                  fallback={
+                    <div aria-busy="true" className="min-h-64 p-4">
+                      <p role="status">生涯对照加载中…</p>
+                      <MatchRosterView
+                        entryAId={match.entryAId}
+                        entryBId={match.entryBId}
+                        teamAName={teamA?.name ?? "队伍 A"}
+                        teamBName={teamB?.name ?? "队伍 B"}
+                        teamARoster={teamARoster}
+                        teamBRoster={teamBRoster}
+                      />
+                    </div>
+                  }
+                >
+                  <MatchLineupDetails
+                    a={{
+                      entryId: match.entryAId,
+                      name: teamA?.name ?? "队伍 A",
+                      logoUrl: teamA?.logoUrl ?? null,
+                      ...lineupA,
+                    }}
+                    b={{
+                      entryId: match.entryBId,
+                      name: teamB?.name ?? "队伍 B",
+                      logoUrl: teamB?.logoUrl ?? null,
+                      ...lineupB,
+                    }}
+                    matchId={match.id}
+                    cutoff={comparisonCutoff}
+                    allowExpected={allowExpected}
+                  />
+                </Suspense>
+              </Panel>
+            </section>
 
-      {/* 赛前分析与预备信息（未结束时展示） */}
-      {!isFinished && (
-        <PreMatchContext phase={phase} currentMapId={publicContext.currentMapId}>
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
-            <Panel contentClassName="p-0 overflow-hidden">
-              <Suspense fallback={<div aria-busy="true" className="min-h-64 p-4"><p role="status">生涯对照加载中…</p>
-                <MatchRosterView entryAId={match.entryAId} entryBId={match.entryBId} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} teamARoster={teamARoster} teamBRoster={teamBRoster} />
-              </div>}>
-                <MatchLineupDetails
-                  a={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A", logoUrl: teamA?.logoUrl ?? null, ...lineupA }}
-                  b={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B", logoUrl: teamB?.logoUrl ?? null, ...lineupB }}
-                  matchId={match.id} cutoff={comparisonCutoff} allowExpected={allowExpected} />
-              </Suspense>
-            </Panel>
-          </section>
-
-          <Suspense fallback={<section role="status" className="min-h-64">赛前分析加载中…</section>}>
-            <MatchScouting core={core} analysis={preAnalysisRead} />
-          </Suspense>
-
-        </PreMatchContext>
-      )}
-
+            <Suspense
+              fallback={
+                <section role="status" className="min-h-64">
+                  赛前分析加载中…
+                </section>
+              }
+            >
+              <MatchScouting core={core} analysis={preAnalysisRead} />
+            </Suspense>
+          </PreMatchContext>
+        )}
       </MatchLiveProvider>
 
-      {hasStatistics && scoreboard && <MatchStatistics
-        seasonSlug={seasonSlug} matchId={match.id} maps={maps}
-        entryAId={match.entryAId} entryBId={match.entryBId}
-        teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"}
-        preferredPlayerId={match.mvpWinnerUserId} query={statsQuery}
-        identities={scoreboardIdentities}
-        scoreboard={scoreboard} performance={performance} unavailable={performance === null} finished={isFinished}
-      />}
-      {!hasStatistics && isFinished && match.scoreA !== null && match.scoreB !== null && <Panel label="比赛结果" contentClassName="p-4">
-        <p className="text-sm text-[var(--color-fg-mid)]">{match.isForfeit ? "本场比赛以弃赛结束。" : `${MATCH_FORMAT_LABELS[match.format] ?? match.format.toUpperCase()} 系列赛总分：${match.scoreA} : ${match.scoreB}`}</p>
-      </Panel>}
+      {hasStatistics && scoreboard && (
+        <MatchStatistics
+          seasonSlug={seasonSlug}
+          matchId={match.id}
+          maps={maps}
+          entryAId={match.entryAId}
+          entryBId={match.entryBId}
+          teamAName={teamA?.name ?? "队伍 A"}
+          teamBName={teamB?.name ?? "队伍 B"}
+          preferredPlayerId={match.mvpWinnerUserId}
+          query={statsQuery}
+          identities={scoreboardIdentities}
+          scoreboard={scoreboard}
+          performance={performance}
+          unavailable={performance === null}
+          finished={isFinished}
+        />
+      )}
+      {!hasStatistics && isFinished && match.scoreA !== null && match.scoreB !== null && (
+        <Panel label="比赛结果" contentClassName="p-4">
+          <p className="text-sm text-[var(--color-fg-mid)]">
+            {match.isForfeit
+              ? "本场比赛以弃赛结束。"
+              : `${MATCH_FORMAT_LABELS[match.format] ?? match.format.toUpperCase()} 系列赛总分：${match.scoreA} : ${match.scoreB}`}
+          </p>
+        </Panel>
+      )}
       {isFinished && matchBet}
       <ContentReady module="match" phase="primary" />
       {isFinished && mvpCandidates.length > 0 && (
-        <Suspense fallback={<section aria-label="MVP 投票" aria-busy="true" className="min-h-64"><p role="status">MVP 投票加载中…</p></section>}>
-          <MatchMvpPanel returnTo={betReturn} core={core} candidates={mvpCandidates} userId={userSession?.userId ?? null} scoreboard={scoreboard!} performance={performance} />
+        <Suspense
+          fallback={
+            <section aria-label="MVP 投票" aria-busy="true" className="min-h-64">
+              <p role="status">MVP 投票加载中…</p>
+            </section>
+          }
+        >
+          <MatchMvpPanel
+            returnTo={betReturn}
+            core={core}
+            candidates={mvpCandidates}
+            userId={userSession?.userId ?? null}
+            scoreboard={scoreboard!}
+            performance={performance}
+          />
         </Suspense>
       )}
 
       {/* 弃赛且没有实际地图或阵容时，不展示空名单。 */}
-      {isFinished && (!match.isForfeit || maps.length > 0 || Boolean(teamARoster?.length || teamBRoster?.length)) && (
-        <>
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
-            <Panel contentClassName="p-4">
-              <MatchRosterView entryAId={match.entryAId} entryBId={match.entryBId}
-                teamAName={teamA?.name ?? "队伍 A"}
-                teamARoster={teamARoster}
-                teamBName={teamB?.name ?? "队伍 B"}
-                teamBRoster={teamBRoster}
-              />
-            </Panel>
-          </section>
-        </>
-      )}
+      {isFinished &&
+        (!match.isForfeit ||
+          maps.length > 0 ||
+          Boolean(teamARoster?.length || teamBRoster?.length)) && (
+          <>
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
+              <Panel contentClassName="p-4">
+                <MatchRosterView
+                  entryAId={match.entryAId}
+                  entryBId={match.entryBId}
+                  teamAName={teamA?.name ?? "队伍 A"}
+                  teamARoster={teamARoster}
+                  teamBName={teamB?.name ?? "队伍 B"}
+                  teamBRoster={teamBRoster}
+                />
+              </Panel>
+            </section>
+          </>
+        )}
 
       {/* 赛后解说名单；回放入口与 BP 记录同处顶部操作区。 */}
       {isFinished && commentatorRows.length > 0 && (
         <Panel label="解说" contentClassName="space-y-2 p-4">
-          <p className="text-sm">解说：{publicCommentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}{person.playerUserId ? <PlayerProfileLink userId={person.playerUserId}>{getPublicDisplayName(person)}</PlayerProfileLink> : getPublicDisplayName(person)}</React.Fragment>)}</p>
+          <p className="text-sm">
+            解说：
+            {publicCommentators.map((person, index) => (
+              <React.Fragment key={person.userId}>
+                {index > 0 ? "、" : null}
+                {person.playerUserId ? (
+                  <PlayerProfileLink userId={person.playerUserId}>
+                    {getPublicDisplayName(person)}
+                  </PlayerProfileLink>
+                ) : (
+                  getPublicDisplayName(person)
+                )}
+              </React.Fragment>
+            ))}
+          </p>
         </Panel>
       )}
     </>
   );
 }
 
-
 type Scoreboard = NonNullable<Awaited<ReturnType<typeof loadMatchScoreboard>>>;
 
 function MatchMvpPanel(props: {
-  core: MatchCore; candidates: React.ComponentProps<typeof MatchMvpVote>["candidates"]; returnTo: string | null;
-  userId: string | null; scoreboard: Scoreboard; performance: MatchPerformance | null;
+  core: MatchCore;
+  candidates: React.ComponentProps<typeof MatchMvpVote>["candidates"];
+  returnTo: string | null;
+  userId: string | null;
+  scoreboard: Scoreboard;
+  performance: MatchPerformance | null;
 }) {
   return withDbTrafficSource("match.page", () => readMatchMvpPanel(props));
 }
 
-async function readMatchMvpPanel({ core, candidates, userId, scoreboard, returnTo, performance }: {
-  core: MatchCore; candidates: React.ComponentProps<typeof MatchMvpVote>["candidates"]; returnTo: string | null;
-  userId: string | null; scoreboard: Scoreboard; performance: MatchPerformance | null;
+async function readMatchMvpPanel({
+  core,
+  candidates,
+  userId,
+  scoreboard,
+  returnTo,
+  performance,
+}: {
+  core: MatchCore;
+  candidates: React.ComponentProps<typeof MatchMvpVote>["candidates"];
+  returnTo: string | null;
+  userId: string | null;
+  scoreboard: Scoreboard;
+  performance: MatchPerformance | null;
 }) {
   const { seasonSlug, match } = core;
-  const winnerHasDetail = match.mvpWinnerUserId !== null && scoreboard.detailedPlayerIds.has(match.mvpWinnerUserId);
+  const winnerHasDetail =
+    match.mvpWinnerUserId !== null && scoreboard.detailedPlayerIds.has(match.mvpWinnerUserId);
   const { votes, userVotedPlayerName } = await readMatchMvpPanelResults(match.id, userId);
-  const winnerSlice = performance?.overall.find(player => player.player.entityKey === match.mvpWinnerUserId)?.slices.overall;
-  const winnerPerformance: MvpPerformance | null = winnerSlice ? {
-    playerId: match.mvpWinnerUserId!, rounds: winnerSlice.sample.rounds, kast: winnerSlice.kast,
-    trade: winnerSlice.trade.tradeKillsPerRound, utility: winnerSlice.utility.utilityDamagePerRound,
-    flashAssist: winnerSlice.utility.flashAssistsPerRound,
-  } : null;
-  return <><MatchMvpVote matchId={match.id} candidates={candidates} currentVotes={votes}
-    userVotedPlayerName={userVotedPlayerName} completedAt={match.completedAt?.toISOString() ?? null}
-    winnerUserId={match.mvpWinnerUserId} winnerPerformance={winnerPerformance}
-    winnerDetailsHref={winnerHasDetail ? `/${seasonSlug}/matches/${match.id}?statsPlayer=${match.mvpWinnerUserId}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}#detailed-stats` : undefined} /><ContentReady module="match" phase="form" /></>;
+  const winnerSlice = performance?.overall.find(
+    (player) => player.player.entityKey === match.mvpWinnerUserId,
+  )?.slices.overall;
+  const winnerPerformance: MvpPerformance | null = winnerSlice
+    ? {
+        playerId: match.mvpWinnerUserId!,
+        rounds: winnerSlice.sample.rounds,
+        kast: winnerSlice.kast,
+        trade: winnerSlice.trade.tradeKillsPerRound,
+        utility: winnerSlice.utility.utilityDamagePerRound,
+        flashAssist: winnerSlice.utility.flashAssistsPerRound,
+      }
+    : null;
+  return (
+    <>
+      <MatchMvpVote
+        matchId={match.id}
+        candidates={candidates}
+        currentVotes={votes}
+        userVotedPlayerName={userVotedPlayerName}
+        completedAt={match.completedAt?.toISOString() ?? null}
+        winnerUserId={match.mvpWinnerUserId}
+        winnerPerformance={winnerPerformance}
+        winnerDetailsHref={
+          winnerHasDetail
+            ? `/${seasonSlug}/matches/${match.id}?statsPlayer=${match.mvpWinnerUserId}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}#detailed-stats`
+            : undefined
+        }
+      />
+      <ContentReady module="match" phase="form" />
+    </>
+  );
 }
 
-async function MatchLineupDetails({ a, b, matchId, cutoff, allowExpected }: {
+async function MatchLineupDetails({
+  a,
+  b,
+  matchId,
+  cutoff,
+  allowExpected,
+}: {
   a: React.ComponentProps<typeof MatchLineupComparison>["a"];
   b: React.ComponentProps<typeof MatchLineupComparison>["b"];
-  matchId: string; cutoff: Date | null; allowExpected: boolean;
+  matchId: string;
+  cutoff: Date | null;
+  allowExpected: boolean;
 }) {
-  const careers = allowExpected || cutoff
-    ? await readOptionalPublicStats("match-lineup-comparison", async () => getLineupCareers(
-      [...new Set([...(a.players ?? []), ...(b.players ?? [])].filter(player => player.isStarter)
-        .flatMap(player => player.userId ? [player.userId] : []))].sort(), matchId, cutoff?.toISOString() ?? null,
-    )) : [];
-  return <MatchLineupComparison a={a} b={b} careers={careers ?? []} historical={cutoff !== null} unavailable={careers === null} />;
+  const careers =
+    allowExpected || cutoff
+      ? await readOptionalPublicStats("match-lineup-comparison", async () =>
+          getLineupCareers(
+            [
+              ...new Set(
+                [...(a.players ?? []), ...(b.players ?? [])]
+                  .filter((player) => player.isStarter)
+                  .flatMap((player) => (player.userId ? [player.userId] : [])),
+              ),
+            ].sort(),
+            matchId,
+            cutoff?.toISOString() ?? null,
+          ),
+        )
+      : [];
+  return (
+    <MatchLineupComparison
+      a={a}
+      b={b}
+      careers={careers ?? []}
+      historical={cutoff !== null}
+      unavailable={careers === null}
+    />
+  );
 }
 
-async function MatchScouting({ core, analysis }: {
-  core: MatchCore; analysis: Promise<Awaited<ReturnType<typeof loadMatchPreAnalysis>> | null>;
+async function MatchScouting({
+  core,
+  analysis,
+}: {
+  core: MatchCore;
+  analysis: Promise<Awaited<ReturnType<typeof loadMatchPreAnalysis>> | null>;
 }) {
   const { seasonSlug, season, match, teamA, teamB } = core;
   const preAnalysis = await analysis;
@@ -610,35 +1045,44 @@ async function MatchScouting({ core, analysis }: {
   const h2hWinsA = preAnalysis?.h2hWinsA ?? 0;
   const h2hWinsB = preAnalysis?.h2hWinsB ?? 0;
 
-  return <>
-          {mapProfileRows.length > 0 && (
-            <MatchMapProfile entryAId={match.entryAId} entryBId={match.entryBId} seasonSlug={seasonSlug}
-              rows={mapProfileRows}
-              teamAName={teamA?.name ?? "队伍 A"}
-              teamBName={teamB?.name ?? "队伍 B"}
-            />
-          )}
+  return (
+    <>
+      {mapProfileRows.length > 0 && (
+        <MatchMapProfile
+          entryAId={match.entryAId}
+          entryBId={match.entryBId}
+          seasonSlug={seasonSlug}
+          rows={mapProfileRows}
+          teamAName={teamA?.name ?? "队伍 A"}
+          teamBName={teamB?.name ?? "队伍 B"}
+        />
+      )}
 
-          {(recentResultsA.length > 0 || recentResultsB.length > 0) && (
-            <MatchRecentResults entryAId={match.entryAId} entryBId={match.entryBId}
-              teamAName={teamA?.name ?? "队伍 A"}
-              teamBName={teamB?.name ?? "队伍 B"}
-              teamA={recentResultsA}
-              teamB={recentResultsB}
-              seasonSlug={seasonSlug}
-            />
-          )}
+      {(recentResultsA.length > 0 || recentResultsB.length > 0) && (
+        <MatchRecentResults
+          entryAId={match.entryAId}
+          entryBId={match.entryBId}
+          teamAName={teamA?.name ?? "队伍 A"}
+          teamBName={teamB?.name ?? "队伍 B"}
+          teamA={recentResultsA}
+          teamB={recentResultsB}
+          seasonSlug={seasonSlug}
+        />
+      )}
 
-          {h2hMatches.length > 0 && (
-            <MatchHeadToHead stagePlan={season.stagePlan} entryAId={match.entryAId} entryBId={match.entryBId}
-              teamAName={teamA?.name ?? "队伍 A"}
-              teamBName={teamB?.name ?? "队伍 B"}
-              teamAWins={h2hWinsA}
-              teamBWins={h2hWinsB}
-              matches={h2hMatches}
-              seasonSlug={seasonSlug}
-            />
-          )}
-
-  </>;
+      {h2hMatches.length > 0 && (
+        <MatchHeadToHead
+          stagePlan={season.stagePlan}
+          entryAId={match.entryAId}
+          entryBId={match.entryBId}
+          teamAName={teamA?.name ?? "队伍 A"}
+          teamBName={teamB?.name ?? "队伍 B"}
+          teamAWins={h2hWinsA}
+          teamBWins={h2hWinsB}
+          matches={h2hMatches}
+          seasonSlug={seasonSlug}
+        />
+      )}
+    </>
+  );
 }

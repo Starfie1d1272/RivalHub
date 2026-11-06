@@ -16,7 +16,13 @@ export function TeamLogo({
   const dimensions = size === "lg" ? "h-20 w-20" : "h-10 w-10";
 
   return (
-    <div className={cn("relative shrink-0 overflow-hidden rounded-md border border-[var(--color-border)] bg-[var(--color-panel-low)]", dimensions, className)}>
+    <div
+      className={cn(
+        "relative shrink-0 overflow-hidden rounded-md border border-[var(--color-border)] bg-[var(--color-panel-low)]",
+        dimensions,
+        className,
+      )}
+    >
       <TeamLogoImage
         logoUrl={logoUrl}
         teamName={teamName}

@@ -42,7 +42,9 @@ export function assessEntryRosterReadiness(input: {
 }): EntryRosterReadiness {
   const blockers: string[] = [];
   const rosterSize = input.members.length;
-  const confirmedCount = input.members.filter((member) => member.participantStatus === "confirmed").length;
+  const confirmedCount = input.members.filter(
+    (member) => member.participantStatus === "confirmed",
+  ).length;
   const primaryStarterCount = input.members.filter((member) => member.primary).length;
   const config = normalizeTeamRegistrationConfig(input.season.teamRegistrationConfig);
 
@@ -52,18 +54,25 @@ export function assessEntryRosterReadiness(input: {
   if (confirmedCount !== rosterSize) {
     blockers.push("所有名单成员都需确认代表本届赛事参赛。");
   }
-  const primaryIds = input.members.filter((member) => member.primary).map((member) => member.userId);
-  if (input.season.starterCount > 0 && (primaryIds.length !== input.season.starterCount || new Set(primaryIds).size !== input.season.starterCount)) {
+  const primaryIds = input.members
+    .filter((member) => member.primary)
+    .map((member) => member.userId);
+  if (
+    input.season.starterCount > 0 &&
+    (primaryIds.length !== input.season.starterCount ||
+      new Set(primaryIds).size !== input.season.starterCount)
+  ) {
     blockers.push(`必须指定恰好 ${input.season.starterCount} 名预定主力。`);
   }
 
-  const labelsFor = (userIds: ReadonlySet<string>) => input.members
-    .filter((member) => userIds.has(member.userId))
-    .map((member) => member.label);
+  const labelsFor = (userIds: ReadonlySet<string>) =>
+    input.members.filter((member) => userIds.has(member.userId)).map((member) => member.label);
   const registrationBlockedLabels = labelsFor(input.registrationBlockedUserIds);
-  if (registrationBlockedLabels.length > 0) blockers.push(`以下成员当前被禁止报名：${registrationBlockedLabels.join("、")}`);
+  if (registrationBlockedLabels.length > 0)
+    blockers.push(`以下成员当前被禁止报名：${registrationBlockedLabels.join("、")}`);
   const rosterBlockedLabels = labelsFor(input.rosterBlockedUserIds);
-  if (rosterBlockedLabels.length > 0) blockers.push(`以下成员当前不能进入赛事名单：${rosterBlockedLabels.join("、")}`);
+  if (rosterBlockedLabels.length > 0)
+    blockers.push(`以下成员当前不能进入赛事名单：${rosterBlockedLabels.join("、")}`);
 
   if (input.requireCurrentTeamMembership && input.entry.teamId) {
     const currentMembers = input.currentTeamMemberUserIds ?? new Set<string>();
@@ -72,13 +81,18 @@ export function assessEntryRosterReadiness(input: {
     }
   }
   if (config.requireTeamLogo && !input.entry.logoUrl) {
-    blockers.push(input.currentTeamLogoUrl
-      ? "队伍图标已更新，请保存本届名单以用于本届赛事。"
-      : "请先上传队伍图标并保存本届名单。");
+    blockers.push(
+      input.currentTeamLogoUrl
+        ? "队伍图标已更新，请保存本届名单以用于本届赛事。"
+        : "请先上传队伍图标并保存本届名单。",
+    );
   }
   if (input.qualificationFindings.length > 0) {
     const unresolved = input.requireActiveRestrictionOverrides
-      ? unresolvedQualificationFindings(input.qualificationFindings, input.activeRestrictionOverrides ?? [])
+      ? unresolvedQualificationFindings(
+          input.qualificationFindings,
+          input.activeRestrictionOverrides ?? [],
+        )
       : input.qualificationFindings.filter((finding) => !finding.waivable);
     blockers.push(...unresolved.map((finding) => finding.message));
   }

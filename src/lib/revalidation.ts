@@ -1,5 +1,8 @@
 import { revalidatePath, revalidateTag, updateTag } from "next/cache";
-import { recordStatsInvalidation, type StatsInvalidationReason } from "@/lib/observability/read-budget";
+import {
+  recordStatsInvalidation,
+  type StatsInvalidationReason,
+} from "@/lib/observability/read-budget";
 
 import {
   PUBLIC_ANNOUNCEMENTS_TAG,
@@ -31,7 +34,10 @@ const seasonPages = {
 
 type SeasonPage = keyof typeof seasonPages;
 type RevalidationMode = "action" | "route";
-type StatisticsRevalidationOptions = { statistics?: boolean; statisticsReason?: StatsInvalidationReason };
+type StatisticsRevalidationOptions = {
+  statistics?: boolean;
+  statisticsReason?: StatsInvalidationReason;
+};
 type RevalidationOptions = StatisticsRevalidationOptions & { mode?: RevalidationMode };
 
 /** Server Action semantics: invalidate immediately for read-your-own-writes. */
@@ -100,15 +106,27 @@ export function updatePublicPlayerTag(userId: string): void {
 /** Includes removals and identity corrections; never serve a stale statistical attribution. */
 export function updatePublicStatsTag(reason: StatsInvalidationReason = "season_or_other"): void {
   recordStatsInvalidation(reason, "attempted");
-  try { updateTag(PUBLIC_STATS_TAG); recordStatsInvalidation(reason, "completed"); }
-  catch (error) { recordStatsInvalidation(reason, "failed"); throw error; }
+  try {
+    updateTag(PUBLIC_STATS_TAG);
+    recordStatsInvalidation(reason, "completed");
+  } catch (error) {
+    recordStatsInvalidation(reason, "failed");
+    throw error;
+  }
 }
 
 /** Route/webhook equivalent of updateTag, which is only legal inside Server Actions. */
-export function revalidatePublicStatsTag(reason: StatsInvalidationReason = "season_or_other"): void {
+export function revalidatePublicStatsTag(
+  reason: StatsInvalidationReason = "season_or_other",
+): void {
   recordStatsInvalidation(reason, "attempted");
-  try { revalidateTag(PUBLIC_STATS_TAG, { expire: 0 }); recordStatsInvalidation(reason, "completed"); }
-  catch (error) { recordStatsInvalidation(reason, "failed"); throw error; }
+  try {
+    revalidateTag(PUBLIC_STATS_TAG, { expire: 0 });
+    recordStatsInvalidation(reason, "completed");
+  } catch (error) {
+    recordStatsInvalidation(reason, "failed");
+    throw error;
+  }
 }
 
 export function revalidateSeasonPaths(

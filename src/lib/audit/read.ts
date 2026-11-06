@@ -6,24 +6,53 @@ import { matches, seasons, steamProfiles, users, type AuditLog } from "@/db/sche
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { auditActorKey, resolveAuditActors } from "./actors";
 import { describeAuditDetail } from "./detail";
-import { getAuditContextUserReferences, isAuditUserEmail, isAuditUserId, summarizeAuditPeople } from "./people";
-import { getAuditActionPresentation, getAuditTargetTypeLabel, summarizeAuditMeta, type AuditLogDetail, type AuditLogView } from "./presentation";
+import {
+  getAuditContextUserReferences,
+  isAuditUserEmail,
+  isAuditUserId,
+  summarizeAuditPeople,
+} from "./people";
+import {
+  getAuditActionPresentation,
+  getAuditTargetTypeLabel,
+  summarizeAuditMeta,
+  type AuditLogDetail,
+  type AuditLogView,
+} from "./presentation";
 import { auditTargetKey, normalizeAuditTarget, resolveAuditTargets } from "./targets";
 
 async function projectAuditRows(rows: readonly AuditLog[]) {
-  const actorIds = [...new Set(rows.flatMap(row => row.actorId ? [row.actorId] : []))];
-  const contextUserIds = rows.flatMap(row => [...getAuditContextUserReferences(row.action, row.meta).values()]);
+  const actorIds = [...new Set(rows.flatMap((row) => (row.actorId ? [row.actorId] : [])))];
+  const contextUserIds = rows.flatMap((row) => [
+    ...getAuditContextUserReferences(row.action, row.meta).values(),
+  ]);
   const uuidIds = [...new Set([...actorIds.filter(isAuditUserId), ...contextUserIds])];
   const emailIds = actorIds.filter(isAuditUserEmail);
   const userClauses = [
     ...(uuidIds.length ? [inArray(users.id, uuidIds)] : []),
     ...(emailIds.length ? [inArray(users.email, emailIds)] : []),
   ];
-  const seasonIds = [...new Set(rows.flatMap(row => row.seasonId ? [row.seasonId] : []))];
+  const seasonIds = [...new Set(rows.flatMap((row) => (row.seasonId ? [row.seasonId] : [])))];
   const [actorUsers, seasonRows, targets] = await Promise.all([
-    userClauses.length ? db.select({ id: users.id, email: users.email, personaName: steamProfiles.personaName, displayName: users.displayName, perfectName: users.perfectName })
-      .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(or(...userClauses)) : [],
-    seasonIds.length ? db.select({ id: seasons.id, name: seasons.name, slug: seasons.slug }).from(seasons).where(inArray(seasons.id, seasonIds)) : [],
+    userClauses.length
+      ? db
+          .select({
+            id: users.id,
+            email: users.email,
+            personaName: steamProfiles.personaName,
+            displayName: users.displayName,
+            perfectName: users.perfectName,
+          })
+          .from(users)
+          .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+          .where(or(...userClauses))
+      : [],
+    seasonIds.length
+      ? db
+          .select({ id: seasons.id, name: seasons.name, slug: seasons.slug })
+          .from(seasons)
+          .where(inArray(seasons.id, seasonIds))
+      : [],
     resolveAuditTargets(rows),
   ]);
   const names = new Map<string, string>();
@@ -32,12 +61,15 @@ async function projectAuditRows(rows: readonly AuditLog[]) {
     names.set(user.id, name);
     if (user.email) names.set(user.email, name);
   }
-  const seasonMap = new Map(seasonRows.map(season => [season.id, season]));
+  const seasonMap = new Map(seasonRows.map((season) => [season.id, season]));
   const actors = await resolveAuditActors(rows, names);
-  const logs: AuditLogView[] = rows.map(row => {
+  const logs: AuditLogView[] = rows.map((row) => {
     const action = getAuditActionPresentation(row.action);
     const ref = normalizeAuditTarget(row);
-    const target = ref.targetType && ref.targetId ? targets[auditTargetKey(ref.targetType, ref.targetId)] : undefined;
+    const target =
+      ref.targetType && ref.targetId
+        ? targets[auditTargetKey(ref.targetType, ref.targetId)]
+        : undefined;
     const peopleSummary = summarizeAuditPeople(row.action, row.meta, names);
     const metaSummary = summarizeAuditMeta(row.action, row.meta);
     return {
@@ -50,8 +82,11 @@ async function projectAuditRows(rows: readonly AuditLog[]) {
       actorLabel: actors.get(auditActorKey(row))?.label ?? "未知来源",
       targetTypeLabel: target?.typeLabel ?? getAuditTargetTypeLabel(ref.targetType),
       targetLabel: target?.label ?? "未指定目标",
-      summary: [peopleSummary, metaSummary === "已记录" && peopleSummary ? null : metaSummary].filter(Boolean).join(" · ") || null,
-      seasonLabel: row.seasonId ? seasonMap.get(row.seasonId)?.name ?? "历史赛事" : "全局操作",
+      summary:
+        [peopleSummary, metaSummary === "已记录" && peopleSummary ? null : metaSummary]
+          .filter(Boolean)
+          .join(" · ") || null,
+      seasonLabel: row.seasonId ? (seasonMap.get(row.seasonId)?.name ?? "历史赛事") : "全局操作",
     };
   });
   return { logs, names, actors, targets, seasonMap };
@@ -65,16 +100,27 @@ export async function readAuditLogViews(rows: readonly AuditLog[]): Promise<Audi
 export async function readAuditLogDetail(row: AuditLog): Promise<AuditLogDetail> {
   const result = await projectAuditRows([row]);
   const ref = normalizeAuditTarget(row);
-  const target = ref.targetType && ref.targetId ? result.targets[auditTargetKey(ref.targetType, ref.targetId)] : undefined;
+  const target =
+    ref.targetType && ref.targetId
+      ? result.targets[auditTargetKey(ref.targetType, ref.targetId)]
+      : undefined;
   const season = row.seasonId ? result.seasonMap.get(row.seasonId) : undefined;
-  const linkedMatch = target?.found && ref.targetType === "match" && ref.targetId && season
-    ? await db.select({ id: matches.id }).from(matches).where(and(eq(matches.id, ref.targetId), eq(matches.seasonId, season.id))).limit(1) : [];
+  const linkedMatch =
+    target?.found && ref.targetType === "match" && ref.targetId && season
+      ? await db
+          .select({ id: matches.id })
+          .from(matches)
+          .where(and(eq(matches.id, ref.targetId), eq(matches.seasonId, season.id)))
+          .limit(1)
+      : [];
   return {
     ...result.logs[0]!,
     ...describeAuditDetail(row.action, row.meta, result.names),
     authorizedByLabel: result.actors.get(auditActorKey(row))?.authorizedByLabel ?? null,
     targetContext: target?.context ?? null,
-    targetHref: linkedMatch.length > 0 && ref.targetId && season
-      ? `/admin/${encodeURIComponent(season.slug)}/matches/${encodeURIComponent(ref.targetId)}` : null,
+    targetHref:
+      linkedMatch.length > 0 && ref.targetId && season
+        ? `/admin/${encodeURIComponent(season.slug)}/matches/${encodeURIComponent(ref.targetId)}`
+        : null,
   };
 }

@@ -15,6 +15,10 @@ export async function authorizeMizarPairingAction(formData: FormData) {
     if (!parsed.success) return failValidation("连接请求无效");
     const authorization = await requireAdmin();
     await authorizeMizarPairing(parsed.data.pairingId, parsed.data.competitionId, authorization);
-    return ok({ redirectTo: `/integrations/mizar/connect?pairingId=${encodeURIComponent(parsed.data.pairingId)}&authorized=1` });
-  } catch (error) { return actionError("integrations.mizar.authorize", error); }
+    return ok({
+      redirectTo: `/integrations/mizar/connect?pairingId=${encodeURIComponent(parsed.data.pairingId)}&authorized=1`,
+    });
+  } catch (error) {
+    return actionError("integrations.mizar.authorize", error);
+  }
 }

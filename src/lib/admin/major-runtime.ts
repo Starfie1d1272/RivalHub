@@ -60,9 +60,7 @@ export function buildMajorRuntimeData({
       order: snapshot.stagePlan.findIndex((stage) => stage.key === run.stageKey),
     };
   });
-  const activeRun = [...runsWithSnapshots]
-    .sort((a, b) => b.order - a.order)
-    .at(0) ?? null;
+  const activeRun = [...runsWithSnapshots].sort((a, b) => b.order - a.order).at(0) ?? null;
   const stageRun = activeRun?.run ?? null;
   const frozenSnapshot = activeRun?.snapshot ?? null;
   const configuredStage = frozenSnapshot?.stage ?? null;
@@ -70,13 +68,25 @@ export function buildMajorRuntimeData({
   let swissRuntime: MajorSwissRuntimeData | null = null;
   let playoffRuntime: MajorPlayoffRuntimeData | null = null;
 
-  if (stageRun && configuredStage?.type === "swiss" && isMajorSwissFinalizedRound(stageRun.finalizedRound)) {
+  if (
+    stageRun &&
+    configuredStage?.type === "swiss" &&
+    isMajorSwissFinalizedRound(stageRun.finalizedRound)
+  ) {
     const finalizedRound = stageRun.finalizedRound;
     const currentRound = (finalizedRound === 5 ? 5 : finalizedRound + 1) as 1 | 2 | 3 | 4 | 5;
-    const currentMatches = matches.filter((match) => match.majorStageRunId === stageRun.id && match.ownership === "major_stage" && match.round === currentRound);
-    const nextStage = finalizedRound === 5
-      ? frozenStagePlan[frozenStagePlan.findIndex((stage) => stage.key === stageRun.stageKey) + 1] ?? null
-      : null;
+    const currentMatches = matches.filter(
+      (match) =>
+        match.majorStageRunId === stageRun.id &&
+        match.ownership === "major_stage" &&
+        match.round === currentRound,
+    );
+    const nextStage =
+      finalizedRound === 5
+        ? (frozenStagePlan[
+            frozenStagePlan.findIndex((stage) => stage.key === stageRun.stageKey) + 1
+          ] ?? null)
+        : null;
     swissRuntime = {
       seasonId,
       stageRunId: stageRun.id,
@@ -88,22 +98,33 @@ export function buildMajorRuntimeData({
       completedMatchCount: currentMatches.filter((match) => match.status === "finished").length,
       stageComplete: finalizedRound === 5,
       nextStageName: nextStage?.name ?? null,
-      nextStageType: nextStage?.type === "swiss" ? "swiss" : nextStage?.type === "single_elim" ? "playoff" : null,
+      nextStageType:
+        nextStage?.type === "swiss"
+          ? "swiss"
+          : nextStage?.type === "single_elim"
+            ? "playoff"
+            : null,
     };
   }
 
   if (stageRun && configuredStage?.type === "single_elim") {
-    const playoffMatches = matches.filter((match) => match.majorStageRunId === stageRun.id && match.ownership === "major_stage");
-    const inRound = (round: "quarterfinal" | "semifinal" | "final") => playoffMatches.filter((match) => match.entryRound === round);
+    const playoffMatches = matches.filter(
+      (match) => match.majorStageRunId === stageRun.id && match.ownership === "major_stage",
+    );
+    const inRound = (round: "quarterfinal" | "semifinal" | "final") =>
+      playoffMatches.filter((match) => match.entryRound === round);
     const complete = (round: "quarterfinal" | "semifinal" | "final", count: number) => {
       const rows = inRound(round);
       return rows.length === count && rows.every((match) => match.status === "finished");
     };
-    const currentRound = finalResultStatus === "pending_confirmation"
-      ? null
-      : !complete("quarterfinal", 4) ? "quarterfinal"
-        : !complete("semifinal", 2) ? "semifinal"
-          : "final";
+    const currentRound =
+      finalResultStatus === "pending_confirmation"
+        ? null
+        : !complete("quarterfinal", 4)
+          ? "quarterfinal"
+          : !complete("semifinal", 2)
+            ? "semifinal"
+            : "final";
     const currentMatches = currentRound ? inRound(currentRound) : [];
     playoffRuntime = {
       seasonId,

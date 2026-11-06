@@ -21,7 +21,8 @@ export async function GET(request: NextRequest) {
       const requestId = url.searchParams.get("request");
       const state = url.searchParams.get("state");
       const otpType = url.searchParams.get("type");
-      if (!requestId || !state || !isSecondaryEmailOtpType(otpType)) return confirmationFailure(applicationOrigin);
+      if (!requestId || !state || !isSecondaryEmailOtpType(otpType))
+        return confirmationFailure(applicationOrigin);
       confirmationUrl.searchParams.set("request", requestId);
       confirmationUrl.searchParams.set("state", state);
       confirmationUrl.searchParams.set("type", otpType);
@@ -36,7 +37,10 @@ function confirmationFailure(applicationOrigin: string): NextResponse {
 
 function callbackFlow(url: URL): "signup" | "reverify" | "link_identity" | null {
   const queryFlow = url.searchParams.get("flow");
-  if (queryFlow === "signup" || queryFlow === "reverify" || queryFlow === "link_identity") return queryFlow;
+  if (queryFlow === "signup" || queryFlow === "reverify" || queryFlow === "link_identity")
+    return queryFlow;
   const pathFlow = url.pathname.split("/").at(-1);
-  return pathFlow === "signup" || pathFlow === "reverify" || pathFlow === "link_identity" ? pathFlow : null;
+  return pathFlow === "signup" || pathFlow === "reverify" || pathFlow === "link_identity"
+    ? pathFlow
+    : null;
 }

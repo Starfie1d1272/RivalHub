@@ -29,8 +29,18 @@ export type AnnouncementAdminRow = {
 };
 
 type PublicRow = {
-  announcement: Pick<Announcement,
-    "id" | "scope" | "type" | "title" | "body" | "status" | "requiresAttention" | "attentionUntil" | "publishedAt" | "updatedAt"
+  announcement: Pick<
+    Announcement,
+    | "id"
+    | "scope"
+    | "type"
+    | "title"
+    | "body"
+    | "status"
+    | "requiresAttention"
+    | "attentionUntil"
+    | "publishedAt"
+    | "updatedAt"
   >;
   season: { slug: string; name: string } | null;
 };
@@ -67,7 +77,9 @@ export async function listAllPublicAnnouncements(): Promise<PublicAnnouncement[]
   return rows.map(toPublic);
 }
 
-export async function getLatestSeasonAnnouncement(seasonId: string): Promise<PublicAnnouncement | null> {
+export async function getLatestSeasonAnnouncement(
+  seasonId: string,
+): Promise<PublicAnnouncement | null> {
   "use cache: remote";
   cacheLife("minutes");
   cacheTag(PUBLIC_ANNOUNCEMENTS_TAG, publicAnnouncementsSeasonTag(seasonId));
@@ -80,11 +92,21 @@ export async function getPublicAnnouncementPage(seasonId: string | undefined, pa
   cacheLife("minutes");
   cacheTag(PUBLIC_ANNOUNCEMENTS_TAG, ...(seasonId ? [publicAnnouncementsSeasonTag(seasonId)] : []));
   const current = Number.isSafeInteger(page) && page > 0 && page <= 10000 ? page : 1;
-  const rows = await readPublicAnnouncementRows(seasonId, { limit: 21, offset: (current - 1) * 20 });
-  return { announcements: rows.slice(0, 20).map(toPublic), page: current, hasNext: rows.length > 20 };
+  const rows = await readPublicAnnouncementRows(seasonId, {
+    limit: 21,
+    offset: (current - 1) * 20,
+  });
+  return {
+    announcements: rows.slice(0, 20).map(toPublic),
+    page: current,
+    hasNext: rows.length > 20,
+  };
 }
 
-async function readPublicAnnouncementRows(seasonId?: string, pagination?: { limit: number; offset: number }) {
+async function readPublicAnnouncementRows(
+  seasonId?: string,
+  pagination?: { limit: number; offset: number },
+) {
   const query = db
     .select({
       announcement: {
@@ -103,11 +125,13 @@ async function readPublicAnnouncementRows(seasonId?: string, pagination?: { limi
     })
     .from(announcements)
     .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
-    .where(and(
-      eq(announcements.status, "published"),
-      publicAnnouncementSeasonCondition(),
-      seasonId ? eq(announcements.seasonId, seasonId) : undefined,
-    ))
+    .where(
+      and(
+        eq(announcements.status, "published"),
+        publicAnnouncementSeasonCondition(),
+        seasonId ? eq(announcements.seasonId, seasonId) : undefined,
+      ),
+    )
     .orderBy(...publicAnnouncementOrder());
   return pagination ? query.limit(pagination.limit).offset(pagination.offset) : query;
 }
@@ -135,13 +159,21 @@ export async function getLatestSiteAnnouncement(): Promise<PublicAnnouncement | 
     })
     .from(announcements)
     .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
-    .where(and(eq(announcements.status, "published"), eq(announcements.scope, "site"), isNull(announcements.seasonId)))
+    .where(
+      and(
+        eq(announcements.status, "published"),
+        eq(announcements.scope, "site"),
+        isNull(announcements.seasonId),
+      ),
+    )
     .orderBy(...publicAnnouncementOrder())
     .limit(1);
   return rows[0] ? toPublic(rows[0]) : null;
 }
 
-export async function getRelevantAnnouncement(seasonId?: string): Promise<PublicAnnouncement | null> {
+export async function getRelevantAnnouncement(
+  seasonId?: string,
+): Promise<PublicAnnouncement | null> {
   if (seasonId) {
     const seasonAnnouncement = await getLatestSeasonAnnouncement(seasonId);
     if (seasonAnnouncement) return seasonAnnouncement;
@@ -149,10 +181,16 @@ export async function getRelevantAnnouncement(seasonId?: string): Promise<Public
   return getLatestSiteAnnouncement();
 }
 
-export async function getRelevantAttentionAnnouncement(seasonId?: string): Promise<PublicAnnouncement | null> {
+export async function getRelevantAttentionAnnouncement(
+  seasonId?: string,
+): Promise<PublicAnnouncement | null> {
   const now = new Date(Math.floor(Date.now() / 60_000) * 60_000);
   const rows = await getCachedAttentionCandidates(seasonId ?? null);
-  const selected = selectAttentionAnnouncement(rows.map((row) => row.announcement), seasonId, now);
+  const selected = selectAttentionAnnouncement(
+    rows.map((row) => row.announcement),
+    seasonId,
+    now,
+  );
   return selected ? toPublic(rows.find((row) => row.announcement.id === selected.id)!) : null;
 }
 
@@ -161,18 +199,22 @@ export async function getRelevantAttentionAnnouncement(seasonId?: string): Promi
 async function getCachedAttentionCandidates(seasonId: string | null): Promise<PublicRow[]> {
   "use cache: remote";
   cacheLife("minutes");
-  cacheTag(
-    PUBLIC_ANNOUNCEMENTS_TAG,
-    ...(seasonId ? [publicAnnouncementsSeasonTag(seasonId)] : []),
-  );
+  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG, ...(seasonId ? [publicAnnouncementsSeasonTag(seasonId)] : []));
 
   const where = seasonId
     ? and(
         eq(announcements.status, "published"),
         eq(announcements.requiresAttention, true),
-        or(eq(announcements.scope, "site"), and(eq(announcements.scope, "season"), eq(announcements.seasonId, seasonId))),
+        or(
+          eq(announcements.scope, "site"),
+          and(eq(announcements.scope, "season"), eq(announcements.seasonId, seasonId)),
+        ),
       )
-    : and(eq(announcements.status, "published"), eq(announcements.requiresAttention, true), eq(announcements.scope, "site"));
+    : and(
+        eq(announcements.status, "published"),
+        eq(announcements.requiresAttention, true),
+        eq(announcements.scope, "site"),
+      );
   const rows = await db
     .select({
       announcement: {
@@ -196,7 +238,9 @@ async function getCachedAttentionCandidates(seasonId: string | null): Promise<Pu
   return rows;
 }
 
-export async function getPublicAnnouncementHistory(seasonId?: string): Promise<PublicAnnouncement[]> {
+export async function getPublicAnnouncementHistory(
+  seasonId?: string,
+): Promise<PublicAnnouncement[]> {
   return seasonId ? listPublicAnnouncements(seasonId) : listAllPublicAnnouncements();
 }
 
@@ -213,11 +257,17 @@ function announcementAdminConditions(input: AnnouncementAdminFilters) {
     input.seasonId ? eq(announcements.seasonId, input.seasonId) : undefined,
     input.status ? eq(announcements.status, input.status) : undefined,
     input.scope ? eq(announcements.scope, input.scope) : undefined,
-    input.role === "super_admin" ? undefined : input.seasonIds.length > 0 ? inArray(announcements.seasonId, input.seasonIds) : eq(announcements.id, "00000000-0000-0000-0000-000000000000"),
+    input.role === "super_admin"
+      ? undefined
+      : input.seasonIds.length > 0
+        ? inArray(announcements.seasonId, input.seasonIds)
+        : eq(announcements.id, "00000000-0000-0000-0000-000000000000"),
   ];
 }
 
-export async function listAnnouncementsForAdmin(input: AnnouncementAdminFilters): Promise<AnnouncementAdminRow[]> {
+export async function listAnnouncementsForAdmin(
+  input: AnnouncementAdminFilters,
+): Promise<AnnouncementAdminRow[]> {
   const rows = await db
     .select({
       id: announcements.id,
@@ -244,37 +294,57 @@ export async function listAnnouncementsForAdmin(input: AnnouncementAdminFilters)
 
 export type AnnouncementAdminSummary = Omit<AnnouncementAdminRow, "body">;
 
-export async function listAnnouncementAdminSummaries(input: AnnouncementAdminFilters & { page?: number; pageSize?: number }): Promise<{
-  items: AnnouncementAdminSummary[]; total: number; page: number; pageSize: number;
+export async function listAnnouncementAdminSummaries(
+  input: AnnouncementAdminFilters & { page?: number; pageSize?: number },
+): Promise<{
+  items: AnnouncementAdminSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
 }> {
-  const page = Number.isSafeInteger(input.page) && input.page! > 0 && input.page! <= 10000 ? input.page! : 1;
-  const pageSize = Number.isSafeInteger(input.pageSize) && input.pageSize! > 0 && input.pageSize! <= 100 ? input.pageSize! : 20;
-  const totalRead = db.select({ value: count() }).from(announcements).where(and(...announcementAdminConditions(input))).execute();
-  const [rows, [total]] = await Promise.all([db
-    .select({
-      id: announcements.id,
-      scope: announcements.scope,
-      seasonId: announcements.seasonId,
-      seasonName: seasons.name,
-      seasonSlug: seasons.slug,
-      type: announcements.type,
-      title: announcements.title,
-      status: announcements.status,
-      requiresAttention: announcements.requiresAttention,
-      attentionUntil: announcements.attentionUntil,
-      publishedAt: announcements.publishedAt,
-      createdAt: announcements.createdAt,
-      updatedAt: announcements.updatedAt,
-    })
+  const page =
+    Number.isSafeInteger(input.page) && input.page! > 0 && input.page! <= 10000 ? input.page! : 1;
+  const pageSize =
+    Number.isSafeInteger(input.pageSize) && input.pageSize! > 0 && input.pageSize! <= 100
+      ? input.pageSize!
+      : 20;
+  const totalRead = db
+    .select({ value: count() })
     .from(announcements)
-    .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
     .where(and(...announcementAdminConditions(input)))
-    .orderBy(desc(announcements.updatedAt), desc(announcements.id))
-    .limit(pageSize).offset((page - 1) * pageSize), totalRead]);
+    .execute();
+  const [rows, [total]] = await Promise.all([
+    db
+      .select({
+        id: announcements.id,
+        scope: announcements.scope,
+        seasonId: announcements.seasonId,
+        seasonName: seasons.name,
+        seasonSlug: seasons.slug,
+        type: announcements.type,
+        title: announcements.title,
+        status: announcements.status,
+        requiresAttention: announcements.requiresAttention,
+        attentionUntil: announcements.attentionUntil,
+        publishedAt: announcements.publishedAt,
+        createdAt: announcements.createdAt,
+        updatedAt: announcements.updatedAt,
+      })
+      .from(announcements)
+      .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
+      .where(and(...announcementAdminConditions(input)))
+      .orderBy(desc(announcements.updatedAt), desc(announcements.id))
+      .limit(pageSize)
+      .offset((page - 1) * pageSize),
+    totalRead,
+  ]);
   return { items: rows, total: Number(total?.value ?? 0), page, pageSize };
 }
 
-export async function getAnnouncementForAdmin(id: string, input: AnnouncementAdminFilters): Promise<AnnouncementAdminRow | null> {
+export async function getAnnouncementForAdmin(
+  id: string,
+  input: AnnouncementAdminFilters,
+): Promise<AnnouncementAdminRow | null> {
   const [row] = await db
     .select({
       id: announcements.id,

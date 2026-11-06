@@ -3,7 +3,13 @@ import "server-only";
 
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { matchDemoImports, matchPlayerStats, matchRoundFacts, matchMaps, matches } from "@/db/schema";
+import {
+  matchDemoImports,
+  matchPlayerStats,
+  matchRoundFacts,
+  matchMaps,
+  matches,
+} from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { materializeStatisticsProjectionInTx } from "@/lib/stats/projection";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -26,7 +32,8 @@ export interface PromoteDemoImportInput {
   retryPromotion: boolean;
 }
 
-export const DEMO_CONTENT_CONFLICT_MESSAGE = "该地图已有另一份已确认 Demo；不同内容必须显式进入冲突处理，不能静默覆盖。";
+export const DEMO_CONTENT_CONFLICT_MESSAGE =
+  "该地图已有另一份已确认 Demo；不同内容必须显式进入冲突处理，不能静默覆盖。";
 
 /**
  * Serializes every mutable Demo-import workflow for one map before row locks.
@@ -36,19 +43,24 @@ export const DEMO_CONTENT_CONFLICT_MESSAGE = "该地图已有另一份已确认 
  */
 export async function lockDemoImportLineageInTx(tx: TxDb, matchMapId: string): Promise<void> {
   await lockGameplayIdentityWriteInTx(tx);
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`demo-map:${matchMapId}`}, 0))`);
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`demo-map:${matchMapId}`}, 0))`,
+  );
   // Preserve the empty-lineage advisory fence and canonical missing-target
   // classification. Existing targets acquire the event fence before imports
   // or matches; every event writer retains UPDATE, so those children cannot
   // form an import/match cycle with an official correction.
-  const [scope] = await tx.select({ seasonId: matches.seasonId }).from(matchMaps)
-    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(eq(matchMaps.id, matchMapId));
+  const [scope] = await tx
+    .select({ seasonId: matches.seasonId })
+    .from(matchMaps)
+    .innerJoin(matches, eq(matches.id, matchMaps.matchId))
+    .where(eq(matchMaps.id, matchMapId));
   if (scope?.seasonId) await lockSeasonForTournamentInTx(tx, scope.seasonId);
 }
 
 const LINEAGE_ACTIVE_STATUSES = ["confirmed", "needs_attention", "stale"] as const;
 
-type LineageActiveStatus = typeof LINEAGE_ACTIVE_STATUSES[number];
+type LineageActiveStatus = (typeof LINEAGE_ACTIVE_STATUSES)[number];
 
 export interface DemoImportLineage {
   sameContent?: DemoImportMetadata;
@@ -75,26 +87,30 @@ export async function resolveDemoImportLineageInTx(
   tx: TxDb,
   input: DemoImportLineageInput,
 ): Promise<DemoImportLineage> {
-  const rows = await tx.select(demoImportMetadataSelection).from(matchDemoImports)
+  const rows = await tx
+    .select(demoImportMetadataSelection)
+    .from(matchDemoImports)
     .where(eq(matchDemoImports.matchMapId, input.matchMapId))
     .orderBy(desc(matchDemoImports.createdAt), desc(matchDemoImports.id))
     .for("update");
   const priorRows = rows.filter((row) => row.id !== input.currentImportId);
-  const sameDemoPriors = priorRows.filter((row): row is typeof row & { status: LineageActiveStatus } =>
-    row.demoSha256 === input.demoSha256 && LINEAGE_ACTIVE_STATUSES.includes(row.status as LineageActiveStatus),
+  const sameDemoPriors = priorRows.filter(
+    (row): row is typeof row & { status: LineageActiveStatus } =>
+      row.demoSha256 === input.demoSha256 &&
+      LINEAGE_ACTIVE_STATUSES.includes(row.status as LineageActiveStatus),
   );
   return {
     sameContent: priorRows.find((row) => isSameDemoImportContent(row, input)),
     sameDemoPriors,
-    sameDemoPredecessor: sameDemoPriors.find((row) => row.status === "confirmed") ?? sameDemoPriors[0],
-    differentDemoConfirmed: priorRows.find((row) => row.status === "confirmed" && row.demoSha256 !== input.demoSha256),
+    sameDemoPredecessor:
+      sameDemoPriors.find((row) => row.status === "confirmed") ?? sameDemoPriors[0],
+    differentDemoConfirmed: priorRows.find(
+      (row) => row.status === "confirmed" && row.demoSha256 !== input.demoSha256,
+    ),
   };
 }
 
-function roundFactValues(
-  importId: string,
-  evidence: RivalHubEvidenceSubmission,
-) {
+function roundFactValues(importId: string, evidence: RivalHubEvidenceSubmission) {
   return evidence.sourceFacts.rounds.map((row) => ({
     importId,
     roundSeq: row.roundSeq,
@@ -121,7 +137,9 @@ async function materializeRoundFacts(
   evidence: RivalHubEvidenceSubmission,
 ): Promise<void> {
   const expected = roundFactValues(importId, evidence);
-  const existing = await tx.select().from(matchRoundFacts)
+  const existing = await tx
+    .select()
+    .from(matchRoundFacts)
     .where(eq(matchRoundFacts.importId, importId))
     .for("update");
   const comparable = (row: typeof matchRoundFacts.$inferSelect) => ({
@@ -145,7 +163,12 @@ async function materializeRoundFacts(
   if (existing.length > 0) {
     const actualBySeq = new Map(existing.map((row) => [row.roundSeq, comparable(row)]));
     const expectedBySeq = new Map(expected.map((row) => [row.roundSeq, row]));
-    if (actualBySeq.size !== expectedBySeq.size || [...expectedBySeq].some(([seq, row]) => JSON.stringify(actualBySeq.get(seq)) !== JSON.stringify(row))) {
+    if (
+      actualBySeq.size !== expectedBySeq.size ||
+      [...expectedBySeq].some(
+        ([seq, row]) => JSON.stringify(actualBySeq.get(seq)) !== JSON.stringify(row),
+      )
+    ) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, "已保存的 Demo 回合事实与当前 payload 不一致。");
     }
     return;
@@ -153,26 +176,28 @@ async function materializeRoundFacts(
   await tx.insert(matchRoundFacts).values(expected);
 }
 
-async function materializePlayerStats(
-  tx: TxDb,
-  input: PromoteDemoImportInput,
-): Promise<number> {
+async function materializePlayerStats(tx: TxDb, input: PromoteDemoImportInput): Promise<number> {
   const { evidence, target, resolutions } = input;
-  const existing = await tx.select().from(matchPlayerStats)
+  const existing = await tx
+    .select()
+    .from(matchPlayerStats)
     .where(eq(matchPlayerStats.mapId, target.map.id))
     .for("update");
-  const byUser = new Map<string, typeof existing[number]>();
-  const byName = new Map<string, typeof existing[number]>();
+  const byUser = new Map<string, (typeof existing)[number]>();
+  const byName = new Map<string, (typeof existing)[number]>();
   for (const row of existing) {
     if (row.userId) {
-      if (byUser.has(row.userId)) throw new AppError(ErrorCode.INTERNAL_ERROR, "同一地图存在重复的选手统计记录。");
+      if (byUser.has(row.userId))
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "同一地图存在重复的选手统计记录。");
       byUser.set(row.userId, row);
     } else if (!byName.has(row.perfectName)) {
       byName.set(row.perfectName, row);
     }
   }
 
-  const participantBySteam = new Map(evidence.participants.map((participant) => [participant.steamId64, participant]));
+  const participantBySteam = new Map(
+    evidence.participants.map((participant) => [participant.steamId64, participant]),
+  );
   let count = 0;
   for (const summary of evidence.summaries.playerMaps) {
     const participant = participantBySteam.get(summary.steamId64);
@@ -201,8 +226,11 @@ async function materializePlayerStats(
       verifiedByAdmin: input.verifiedBy,
       verifiedAt: new Date(),
     };
-    const existingRow = byUser.get(resolution.userId)
-      ?? (byName.get(participant.nameSnapshot)?.userId == null ? byName.get(participant.nameSnapshot) : undefined);
+    const existingRow =
+      byUser.get(resolution.userId) ??
+      (byName.get(participant.nameSnapshot)?.userId == null
+        ? byName.get(participant.nameSnapshot)
+        : undefined);
     if (existingRow) {
       await tx.update(matchPlayerStats).set(values).where(eq(matchPlayerStats.id, existingRow.id));
     } else {
@@ -213,7 +241,9 @@ async function materializePlayerStats(
   return count;
 }
 
-export async function promoteDemoImportInTx(input: PromoteDemoImportInput): Promise<{ playerCount: number; roundCount: number }> {
+export async function promoteDemoImportInTx(
+  input: PromoteDemoImportInput,
+): Promise<{ playerCount: number; roundCount: number }> {
   const lineage = await resolveDemoImportLineageInTx(input.tx, {
     matchMapId: input.row.matchMapId,
     demoSha256: input.row.demoSha256,
@@ -226,20 +256,29 @@ export async function promoteDemoImportInTx(input: PromoteDemoImportInput): Prom
 
   const supersededImportIds = lineage.sameDemoPriors.map((row) => row.id);
   if (supersededImportIds.length > 0) {
-    await input.tx.update(matchDemoImports).set({ status: "superseded" }).where(and(
-      eq(matchDemoImports.matchMapId, input.row.matchMapId),
-      inArray(matchDemoImports.id, supersededImportIds),
-    ));
+    await input.tx
+      .update(matchDemoImports)
+      .set({ status: "superseded" })
+      .where(
+        and(
+          eq(matchDemoImports.matchMapId, input.row.matchMapId),
+          inArray(matchDemoImports.id, supersededImportIds),
+        ),
+      );
   }
 
-  const supersedesImportId = lineage.sameDemoPredecessor?.id ?? input.row.supersedesImportId ?? null;
+  const supersedesImportId =
+    lineage.sameDemoPredecessor?.id ?? input.row.supersedesImportId ?? null;
 
-  await input.tx.update(matchDemoImports).set({
-    status: "confirmed",
-    issues: [],
-    confirmedAt: input.row.confirmedAt ?? new Date(),
-    supersedesImportId,
-  }).where(eq(matchDemoImports.id, input.row.id));
+  await input.tx
+    .update(matchDemoImports)
+    .set({
+      status: "confirmed",
+      issues: [],
+      confirmedAt: input.row.confirmedAt ?? new Date(),
+      supersedesImportId,
+    })
+    .where(eq(matchDemoImports.id, input.row.id));
   await materializeStatisticsProjectionInTx(input);
   await materializeRoundFacts(input.tx, input.row.id, input.evidence);
   const playerCount = await materializePlayerStats(input.tx, input);

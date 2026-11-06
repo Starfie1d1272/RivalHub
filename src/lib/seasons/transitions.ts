@@ -13,10 +13,7 @@ async function getApprovedCountInTx(tx: TxDb, seasonId: string): Promise<number>
     .select({ count: count() })
     .from(seasonRegistrations)
     .where(
-      and(
-        eq(seasonRegistrations.seasonId, seasonId),
-        eq(seasonRegistrations.status, "approved"),
-      ),
+      and(eq(seasonRegistrations.seasonId, seasonId), eq(seasonRegistrations.status, "approved")),
     );
   return Number(row?.count ?? 0);
 }
@@ -37,7 +34,8 @@ export async function maybeAdvanceFromRegistration(
     season.status !== "registration" ||
     season.registrationMode !== "solo" ||
     !season.registrationOpenedAt
-  ) return null;
+  )
+    return null;
 
   const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
   const approvedCount = await getApprovedCountInTx(tx, seasonId);
@@ -60,7 +58,8 @@ export async function maybeAdvanceFromRegistration(
     seasonId,
     action: "season.auto_advance",
     actorId: "system",
-    targetId: seasonId,meta: {
+    targetId: seasonId,
+    meta: {
       from: "registration",
       to: nextStatus,
       reason: full ? "capacity_reached" : "deadline_passed",
@@ -77,10 +76,7 @@ export async function maybeAdvanceFromRegistration(
  * 如果赛季是 playing 状态且所有比赛都已结束（finished 或 cancelled），
  * 自动将赛季推进到 finished。必须在事务中调用；缓存刷新由 entrypoint 负责。
  */
-export async function maybeFinishSeason(
-  tx: TxDb,
-  seasonId: string,
-): Promise<string | null> {
+export async function maybeFinishSeason(tx: TxDb, seasonId: string): Promise<string | null> {
   const season = await tx.query.seasons.findFirst({
     where: eq(seasons.id, seasonId),
   });
@@ -88,16 +84,20 @@ export async function maybeFinishSeason(
     !season ||
     season.status !== "playing" ||
     normalizeStagePlan(season.stagePlan).some((stage) => stage.type === "swiss")
-  ) return null;
+  )
+    return null;
 
   const [pendingMatch] = await tx
     .select({ count: count() })
     .from(matches)
     .where(
-      and(officialMatchCondition(), and(
-        eq(matches.seasonId, seasonId),
-        not(inArray(matches.status, ["finished", "cancelled"])),
-      )),
+      and(
+        officialMatchCondition(),
+        and(
+          eq(matches.seasonId, seasonId),
+          not(inArray(matches.status, ["finished", "cancelled"])),
+        ),
+      ),
     );
 
   if (Number(pendingMatch?.count ?? 0) > 0) return null;
@@ -111,7 +111,8 @@ export async function maybeFinishSeason(
     seasonId,
     action: "season.auto_finish",
     actorId: "system",
-    targetId: seasonId,meta: { from: "playing", to: "finished", reason: "all_matches_completed" },
+    targetId: seasonId,
+    meta: { from: "playing", to: "finished", reason: "all_matches_completed" },
   });
 
   return season.slug;

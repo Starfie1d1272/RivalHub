@@ -4,17 +4,15 @@ import { and, eq, ne } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
-import {
-    majorFinalResults,
-  majorStageRuns,
-  matches,
-  type Match,
-} from "@/db/schema";
+import { majorFinalResults, majorStageRuns, matches, type Match } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { lockMatchInTx, lockMatchForInspectionInTx } from "@/lib/matches/locking";
-import { matchCorrectionBlockedError, type MatchCorrectionBlocker } from "@/lib/match-corrections/errors";
+import {
+  matchCorrectionBlockedError,
+  type MatchCorrectionBlocker,
+} from "@/lib/match-corrections/errors";
 import { planCompetitionQualificationResultCorrectionInTx } from "@/lib/competition-qualification/runtime";
 import { deleteScheduledMatchAndDependentsInTx } from "@/lib/matches/deletion";
 
@@ -109,7 +107,12 @@ export interface DownstreamImpactItem {
  */
 export function classifyDownstreamManagedMatches(
   candidates: readonly DownstreamCandidateRow[],
-  sourceMatch: { id: string; managedKey?: string | null; round: number | null; entryRound: string | null },
+  sourceMatch: {
+    id: string;
+    managedKey?: string | null;
+    round: number | null;
+    entryRound: string | null;
+  },
   stageType: "swiss" | "single_elim",
 ): DownstreamImpactItem[] {
   const isSwiss = stageType === "swiss";
@@ -121,7 +124,10 @@ export function classifyDownstreamManagedMatches(
     let isDownstream = false;
     let dependencyKnown = true;
     if (isSwiss) {
-      isDownstream = candidate.round !== null && sourceMatch.round !== null && candidate.round > sourceMatch.round;
+      isDownstream =
+        candidate.round !== null &&
+        sourceMatch.round !== null &&
+        candidate.round > sourceMatch.round;
     } else {
       const sourceKey = parsePlayoffManagedKey(sourceMatch.managedKey, sourceMatch.entryRound);
       const candidateKey = parsePlayoffManagedKey(candidate.managedKey, candidate.entryRound);
@@ -151,25 +157,32 @@ export function classifyDownstreamManagedMatches(
   return impacts;
 }
 
-
-
-function parsePlayoffManagedKey(value: string | null | undefined, entryRound: string | null): PlayoffManagedKey | null {
+function parsePlayoffManagedKey(
+  value: string | null | undefined,
+  entryRound: string | null,
+): PlayoffManagedKey | null {
   if (!value || !entryRound) return null;
   const match = /^(qf|sf|third|final)-([1-4])$/.exec(value);
   if (!match) return null;
   const prefix = match[1];
   const slot = Number(match[2]);
-  const expectedPrefix = entryRound === "quarterfinal"
-    ? "qf"
-    : entryRound === "semifinal"
-      ? "sf"
-      : entryRound === "third_place"
-        ? "third"
-        : entryRound === "final"
-          ? "final"
-          : null;
+  const expectedPrefix =
+    entryRound === "quarterfinal"
+      ? "qf"
+      : entryRound === "semifinal"
+        ? "sf"
+        : entryRound === "third_place"
+          ? "third"
+          : entryRound === "final"
+            ? "final"
+            : null;
   if (prefix !== expectedPrefix) return null;
-  if ((prefix === "qf" && slot > 4) || (prefix === "sf" && slot > 2) || (prefix === "third" && slot !== 1) || (prefix === "final" && slot !== 1)) {
+  if (
+    (prefix === "qf" && slot > 4) ||
+    (prefix === "sf" && slot > 2) ||
+    (prefix === "third" && slot !== 1) ||
+    (prefix === "final" && slot !== 1)
+  ) {
     return null;
   }
   return value as PlayoffManagedKey;
@@ -181,7 +194,6 @@ function playoffStepRank(entryRound: string | null): 0 | 1 | 2 | null {
   if (entryRound === "third_place" || entryRound === "final") return 2;
   return null;
 }
-
 
 /**
  * The acceptance cursor a swiss correction must roll back to, or null when no
@@ -196,19 +208,21 @@ export function deriveSwissFinalizedRollback(
 }
 
 export function loadFrozenRunFacts(
-  stageRun: Pick<typeof majorStageRuns.$inferSelect, "stageKey" | "ruleSnapshot" | "finalizedRound">,
+  stageRun: Pick<
+    typeof majorStageRuns.$inferSelect,
+    "stageKey" | "ruleSnapshot" | "finalizedRound"
+  >,
 ): FrozenRunFacts {
   const snapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageRun.stageKey);
   const stage = snapshot.stage;
-  if (
-    stage.key !== stageRun.stageKey ||
-    (stage.type !== "swiss" && stage.type !== "single_elim")
-  ) {
+  if (stage.key !== stageRun.stageKey || (stage.type !== "swiss" && stage.type !== "single_elim")) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 规则快照缺失或不可识别。");
   }
   const rawPlan = snapshot.stagePlan;
   const stagePlanKeys = rawPlan
-    .map((entry) => (entry && typeof entry === "object" ? (entry as { key?: unknown }).key : undefined))
+    .map((entry) =>
+      entry && typeof entry === "object" ? (entry as { key?: unknown }).key : undefined,
+    )
     .filter((key): key is string => typeof key === "string");
   return {
     stageKey: stageRun.stageKey,
@@ -218,7 +232,9 @@ export function loadFrozenRunFacts(
   };
 }
 
-export function resolveWinnerTeamId(match: Pick<Match, "entryAId" | "entryBId" | "scoreA" | "scoreB">): string | null {
+export function resolveWinnerTeamId(
+  match: Pick<Match, "entryAId" | "entryBId" | "scoreA" | "scoreB">,
+): string | null {
   if (match.scoreA === null || match.scoreB === null || match.scoreA === match.scoreB) return null;
   return match.scoreA > match.scoreB ? match.entryAId : match.entryBId;
 }
@@ -286,15 +302,15 @@ async function planLockedResultCorrectionInTx(
   proposal: ResultCorrectionProposal,
 ): Promise<ResultCorrectionPlan> {
   assertCompetitionMatch(match);
-  if (match.testConfig) throw new AppError(ErrorCode.VALIDATION_FAILED, "测试赛请使用本场结果更正入口。");
+  if (match.testConfig)
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "测试赛请使用本场结果更正入口。");
   if (match.status !== "finished") {
     throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只能修正已结束的比赛结果。");
   }
 
   const proposed = validateResultCorrectionProposal(match, proposal);
   const currentWinner = resolveWinnerTeamId(match);
-  const winnerChanges =
-    currentWinner !== null && currentWinner !== proposed.winnerTeamId;
+  const winnerChanges = currentWinner !== null && currentWinner !== proposed.winnerTeamId;
 
   const plan: ResultCorrectionPlan = {
     matchId: match.id,
@@ -328,26 +344,39 @@ async function planLockedResultCorrectionInTx(
       round: match.round,
     });
     plan.affectsQualificationRun = true;
-    plan.impacts.push(...qualificationPlan.downstreamMatches.map((impact) => ({
-      kind: "downstream_match" as const,
-      matchId: impact.matchId,
-      managedKey: null,
-      status: impact.status,
-      invalidatable: impact.invalidatable,
-      dependencyKnown: true,
-    })));
+    plan.impacts.push(
+      ...qualificationPlan.downstreamMatches.map((impact) => ({
+        kind: "downstream_match" as const,
+        matchId: impact.matchId,
+        managedKey: null,
+        status: impact.status,
+        invalidatable: impact.invalidatable,
+        dependencyKnown: true,
+      })),
+    );
     if (qualificationPlan.finalMainEntrantsExist) {
       plan.blockedReasons.push({ code: "qualificationFinalEntrants", params: {} });
     }
     if (qualificationPlan.startedDownstreamCount > 0) {
-      plan.blockedReasons.push({ code: "qualificationMatchStarted", params: { count: qualificationPlan.startedDownstreamCount } });
+      plan.blockedReasons.push({
+        code: "qualificationMatchStarted",
+        params: { count: qualificationPlan.startedDownstreamCount },
+      });
     }
-    const invalidatableCount = qualificationPlan.downstreamMatches.filter((impact) => impact.invalidatable).length;
+    const invalidatableCount = qualificationPlan.downstreamMatches.filter(
+      (impact) => impact.invalidatable,
+    ).length;
     if (invalidatableCount > 0) {
-      plan.requiredRecoveryActions.push({ code: "invalidateDownstreamMatches", params: { count: invalidatableCount } });
+      plan.requiredRecoveryActions.push({
+        code: "invalidateDownstreamMatches",
+        params: { count: invalidatableCount },
+      });
     }
     if (qualificationPlan.rebuildFromRound !== null) {
-      plan.requiredRecoveryActions.push({ code: "rebuildQualificationRounds", params: { fromRound: qualificationPlan.rebuildFromRound } });
+      plan.requiredRecoveryActions.push({
+        code: "rebuildQualificationRounds",
+        params: { fromRound: qualificationPlan.rebuildFromRound },
+      });
     }
     plan.requiredRecoveryActions.push({ code: "reprojectQualification", params: {} });
     return plan;
@@ -359,7 +388,10 @@ async function planLockedResultCorrectionInTx(
   }
 
   plan.affectsManagedRun = true;
-  const [run] = await tx.select().from(majorStageRuns).where(eq(majorStageRuns.id, match.majorStageRunId));
+  const [run] = await tx
+    .select()
+    .from(majorStageRuns)
+    .where(eq(majorStageRuns.id, match.majorStageRunId));
   if (!run) throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
   const frozen = loadFrozenRunFacts(run);
   plan.stageKey = frozen.stageKey;
@@ -367,13 +399,19 @@ async function planLockedResultCorrectionInTx(
 
   // Cross-stage hazard: any later stage materialized for this season means the
   // current stage's outcome already produced derived truth elsewhere.
-  const allRuns = await tx.select().from(majorStageRuns).where(eq(majorStageRuns.seasonId, match.seasonId));
+  const allRuns = await tx
+    .select()
+    .from(majorStageRuns)
+    .where(eq(majorStageRuns.seasonId, match.seasonId));
   const myIndex = frozen.stagePlanKeys.indexOf(frozen.stageKey);
   for (const other of allRuns) {
     if (other.id === run.id) continue;
     const otherIndex = frozen.stagePlanKeys.indexOf(other.stageKey);
     if (myIndex >= 0 && otherIndex > myIndex) {
-      plan.blockedReasons.push({ code: "downstreamStageMaterialized", params: { stageKey: other.stageKey } });
+      plan.blockedReasons.push({
+        code: "downstreamStageMaterialized",
+        params: { stageKey: other.stageKey },
+      });
     }
   }
 
@@ -391,7 +429,10 @@ async function planLockedResultCorrectionInTx(
   // pairings ripple through entire standings buckets, so even matches whose
   // participants did not change may be stale after regeneration.
   const isSwiss = frozen.stageType === "swiss";
-  const runMatches = await tx.select().from(matches).where(and(eq(matches.majorStageRunId, run.id)));
+  const runMatches = await tx
+    .select()
+    .from(matches)
+    .where(and(eq(matches.majorStageRunId, run.id)));
   const downstream = classifyDownstreamManagedMatches(
     runMatches.map((row) => ({
       id: row.id,
@@ -400,7 +441,12 @@ async function planLockedResultCorrectionInTx(
       round: row.round,
       status: row.status,
     })),
-    { id: match.id, managedKey: match.managedKey, round: match.round, entryRound: match.entryRound },
+    {
+      id: match.id,
+      managedKey: match.managedKey,
+      round: match.round,
+      entryRound: match.entryRound,
+    },
     frozen.stageType,
   );
   let startedDownstream = 0;
@@ -416,7 +462,10 @@ async function planLockedResultCorrectionInTx(
     if (!impact.invalidatable) startedDownstream += 1;
   }
   if (startedDownstream > 0) {
-    plan.blockedReasons.push({ code: "downstreamMatchStarted", params: { count: startedDownstream } });
+    plan.blockedReasons.push({
+      code: "downstreamMatchStarted",
+      params: { count: startedDownstream },
+    });
   }
 
   if (isSwiss) {
@@ -508,8 +557,6 @@ export async function applyResultCorrectionInTx(
     }
   }
 
-
-
   await tx
     .update(matches)
     .set({
@@ -531,7 +578,8 @@ export async function applyResultCorrectionInTx(
     seasonId: locked.seasonId,
     action: "match.result.corrected",
     actorId: args.actorId,
-    targetId: locked.id,meta: {
+    targetId: locked.id,
+    meta: {
       prevScoreA: locked.scoreA,
       prevScoreB: locked.scoreB,
       prevIsForfeit: locked.isForfeit,
@@ -560,17 +608,20 @@ export async function applyResultCorrectionInTx(
     const deleted = plan.affectsQualificationRun
       ? [await deleteScheduledMatchAndDependentsInTx(tx, impact.matchId!)]
       : await tx
-        .delete(matches)
-        .where(and(eq(matches.id, impact.matchId!), eq(matches.status, "scheduled")))
-        .returning({ id: matches.id, managedKey: matches.managedKey });
+          .delete(matches)
+          .where(and(eq(matches.id, impact.matchId!), eq(matches.status, "scheduled")))
+          .returning({ id: matches.id, managedKey: matches.managedKey });
     if (deleted.length === 0) continue;
     const deletedMatch = deleted[0]!;
     applied.invalidatedDownstreamMatches.push(deletedMatch.id);
     await writeAuditInTx(tx, {
       seasonId: locked.seasonId,
-      action: plan.affectsQualificationRun ? "competition_qualification.invalidate_match" : "match.managed.invalidated",
+      action: plan.affectsQualificationRun
+        ? "competition_qualification.invalidate_match"
+        : "match.managed.invalidated",
       actorId: args.actorId,
-      targetId: deletedMatch.id,meta: {
+      targetId: deletedMatch.id,
+      meta: {
         reason: "upstream_result_correction",
         sourceMatchId: locked.id,
         managedKey: "managedKey" in deletedMatch ? deletedMatch.managedKey : impact.managedKey,
@@ -588,13 +639,23 @@ export async function applyResultCorrectionInTx(
       await tx
         .update(majorStageRuns)
         .set({ finalizedRound: rollbackTo })
-        .where(and(eq(majorStageRuns.id, locked.majorStageRunId), ne(majorStageRuns.finalizedRound, rollbackTo)));
+        .where(
+          and(
+            eq(majorStageRuns.id, locked.majorStageRunId),
+            ne(majorStageRuns.finalizedRound, rollbackTo),
+          ),
+        );
       applied.rolledBackToFinalized = rollbackTo;
       await writeAuditInTx(tx, {
         seasonId: locked.seasonId,
         action: "major.stage.finalized_round.revoked",
         actorId: args.actorId,
-        targetId: locked.majorStageRunId,meta: { stageKey: plan.stageKey, revokedFrom: target.previousFinalizedRound, rolledBackTo: rollbackTo },
+        targetId: locked.majorStageRunId,
+        meta: {
+          stageKey: plan.stageKey,
+          revokedFrom: target.previousFinalizedRound,
+          rolledBackTo: rollbackTo,
+        },
       });
     }
   }
@@ -620,7 +681,8 @@ export async function recordRecoveryAdjudicationInTx(
     seasonId: locked.seasonId,
     action: "match.recovery.adjudicated",
     actorId: args.actorId,
-    targetId: locked.id,meta: {
+    targetId: locked.id,
+    meta: {
       note: args.note.trim(),
       stageKey: locked.stage,
       scoreA: locked.scoreA,

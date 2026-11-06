@@ -3,13 +3,27 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import type { AuditAction } from "@/lib/audit/presentation";
 
 import type { db as dbClient } from "@/db/client";
-import { competitionEntries, conversionPolicies, matches, seasonRegistrations, seasons } from "@/db/schema";
+import {
+  competitionEntries,
+  conversionPolicies,
+  matches,
+  seasonRegistrations,
+  seasons,
+} from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { fallbackCatalogReferencesExist, resolveLiveCompetitiveContext, type ResolvedCatalogContext } from "@/lib/competitive/catalog";
+import {
+  fallbackCatalogReferencesExist,
+  resolveLiveCompetitiveContext,
+  type ResolvedCatalogContext,
+} from "@/lib/competitive/catalog";
 import { resolveCompetitiveContext } from "@/lib/qualification/service";
 import { createCompetitionTemplate } from "@/lib/competition/templates";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
-import type { CompetitiveFallbackConversion, SeasonStatus, TeamRegistrationConfig } from "@/types/season";
+import type {
+  CompetitiveFallbackConversion,
+  SeasonStatus,
+  TeamRegistrationConfig,
+} from "@/types/season";
 
 type Transaction = Parameters<Parameters<typeof dbClient.transaction>[0]>[0];
 
@@ -25,9 +39,18 @@ export async function assertSeasonHasNoHistoricalFacts(
   seasonId: string,
   message: string = SEASON_HAS_FACTS_DELETE_MESSAGE,
 ): Promise<void> {
-  const registrations = await tx.select({ value: count() }).from(seasonRegistrations).where(eq(seasonRegistrations.seasonId, seasonId));
-  const entries = await tx.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, seasonId));
-  const scheduledMatches = await tx.select({ value: count() }).from(matches).where(eq(matches.seasonId, seasonId));
+  const registrations = await tx
+    .select({ value: count() })
+    .from(seasonRegistrations)
+    .where(eq(seasonRegistrations.seasonId, seasonId));
+  const entries = await tx
+    .select({ value: count() })
+    .from(competitionEntries)
+    .where(eq(competitionEntries.competitionId, seasonId));
+  const scheduledMatches = await tx
+    .select({ value: count() })
+    .from(matches)
+    .where(eq(matches.seasonId, seasonId));
   if ([registrations, entries, scheduledMatches].some(([row]) => Number(row?.value ?? 0) > 0)) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, message);
   }
@@ -42,14 +65,20 @@ export function unfreezeBuiltInCompetitiveContext(season: {
   competitionTemplate: "rivals" | "major" | "custom";
   teamRegistrationConfig: Partial<TeamRegistrationConfig> | null;
 }): TeamRegistrationConfig | null {
-  if (season.competitionTemplate !== "major" && season.competitionTemplate !== "rivals") return null;
+  if (season.competitionTemplate !== "major" && season.competitionTemplate !== "rivals")
+    return null;
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   if (!config.requireCompetitiveProfile) return null;
-  const draftTemplate = createCompetitionTemplate(season.competitionTemplate).teamRegistrationConfig;
+  const draftTemplate = createCompetitionTemplate(
+    season.competitionTemplate,
+  ).teamRegistrationConfig;
   return {
     ...config,
     competitiveProfile: draftTemplate.competitiveProfile
-      ? { ...draftTemplate.competitiveProfile, fallbackConversion: config.competitiveProfile?.fallbackConversion }
+      ? {
+          ...draftTemplate.competitiveProfile,
+          fallbackConversion: config.competitiveProfile?.fallbackConversion,
+        }
       : undefined,
   };
 }
@@ -62,17 +91,33 @@ export function unfreezeBuiltInCompetitiveContext(season: {
  */
 export async function transitionSeasonStatusInTx(
   tx: Transaction,
-  input: { seasonId: string; from: SeasonStatus; to: SeasonStatus; action: AuditAction; actorId: string; failureMessage: string },
+  input: {
+    seasonId: string;
+    from: SeasonStatus;
+    to: SeasonStatus;
+    action: AuditAction;
+    actorId: string;
+    failureMessage: string;
+  },
 ): Promise<{ slug: string }> {
-  const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
+  const [season] = await tx
+    .select()
+    .from(seasons)
+    .where(eq(seasons.id, input.seasonId))
+    .for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。");
-  if (season.status !== input.from) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, input.failureMessage);
-  await tx.update(seasons).set({ status: input.to, updatedAt: new Date() }).where(eq(seasons.id, season.id));
+  if (season.status !== input.from)
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, input.failureMessage);
+  await tx
+    .update(seasons)
+    .set({ status: input.to, updatedAt: new Date() })
+    .where(eq(seasons.id, season.id));
   await writeAuditInTx(tx, {
     seasonId: season.id,
     action: input.action,
     actorId: input.actorId,
-    targetId: season.id,meta: { slug: season.slug, from: season.status, to: input.to },
+    targetId: season.id,
+    meta: { slug: season.slug, from: season.status, to: input.to },
   });
   return { slug: season.slug };
 }
@@ -89,58 +134,83 @@ export async function resolveConversionPolicyForPublish(
   requestedPolicyVersion?: string,
 ): Promise<{ id: string; version: string }> {
   if (requestedPolicyId) {
-    const [policy] = await tx.select().from(conversionPolicies)
-      .where(and(
-        eq(conversionPolicies.id, requestedPolicyId),
-        eq(conversionPolicies.sourcePlatform, "fivee"),
-        eq(conversionPolicies.targetPlatform, platform),
-      ))
+    const [policy] = await tx
+      .select()
+      .from(conversionPolicies)
+      .where(
+        and(
+          eq(conversionPolicies.id, requestedPolicyId),
+          eq(conversionPolicies.sourcePlatform, "fivee"),
+          eq(conversionPolicies.targetPlatform, platform),
+        ),
+      )
       .limit(1);
     if (!policy) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "指定的 5E 换算策略不存在。");
     }
     if (policy.status !== "approved") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `指定的 5E 换算策略 (${policy.version}) 尚未启用或已被废弃。`);
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        `指定的 5E 换算策略 (${policy.version}) 尚未启用或已被废弃。`,
+      );
     }
     return { id: policy.id, version: policy.version };
   }
 
   if (requestedPolicyVersion) {
-    const [policy] = await tx.select().from(conversionPolicies)
-      .where(and(
-        eq(conversionPolicies.version, requestedPolicyVersion),
-        eq(conversionPolicies.sourcePlatform, "fivee"),
-        eq(conversionPolicies.targetPlatform, platform),
-      ))
+    const [policy] = await tx
+      .select()
+      .from(conversionPolicies)
+      .where(
+        and(
+          eq(conversionPolicies.version, requestedPolicyVersion),
+          eq(conversionPolicies.sourcePlatform, "fivee"),
+          eq(conversionPolicies.targetPlatform, platform),
+        ),
+      )
       .limit(1);
     if (!policy) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `指定的 5E 换算策略版本 (${requestedPolicyVersion}) 不存在。`);
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        `指定的 5E 换算策略版本 (${requestedPolicyVersion}) 不存在。`,
+      );
     }
     if (policy.status !== "approved") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `指定的 5E 换算策略版本 (${policy.version}) 尚未启用或已被废弃。`);
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        `指定的 5E 换算策略版本 (${policy.version}) 尚未启用或已被废弃。`,
+      );
     }
     return { id: policy.id, version: policy.version };
   }
 
-  const [currentPolicy] = await tx.select().from(conversionPolicies)
-    .where(and(
-      eq(conversionPolicies.sourcePlatform, "fivee"),
-      eq(conversionPolicies.targetPlatform, platform),
-      eq(conversionPolicies.status, "approved"),
-      eq(conversionPolicies.isCurrent, true),
-    ))
+  const [currentPolicy] = await tx
+    .select()
+    .from(conversionPolicies)
+    .where(
+      and(
+        eq(conversionPolicies.sourcePlatform, "fivee"),
+        eq(conversionPolicies.targetPlatform, platform),
+        eq(conversionPolicies.status, "approved"),
+        eq(conversionPolicies.isCurrent, true),
+      ),
+    )
     .limit(1);
 
   if (currentPolicy) {
     return { id: currentPolicy.id, version: currentPolicy.version };
   }
 
-  const [latestApproved] = await tx.select().from(conversionPolicies)
-    .where(and(
-      eq(conversionPolicies.sourcePlatform, "fivee"),
-      eq(conversionPolicies.targetPlatform, platform),
-      eq(conversionPolicies.status, "approved"),
-    ))
+  const [latestApproved] = await tx
+    .select()
+    .from(conversionPolicies)
+    .where(
+      and(
+        eq(conversionPolicies.sourcePlatform, "fivee"),
+        eq(conversionPolicies.targetPlatform, platform),
+        eq(conversionPolicies.status, "approved"),
+      ),
+    )
     .orderBy(desc(conversionPolicies.approvedAt))
     .limit(1);
 
@@ -169,53 +239,81 @@ async function resolveFallbackConversionForFreeze(
   let policy: typeof conversionPolicies.$inferSelect | undefined;
 
   if (selectedPolicyId) {
-    const [found] = await tx.select().from(conversionPolicies)
-      .where(and(
-        eq(conversionPolicies.id, selectedPolicyId),
-        eq(conversionPolicies.sourcePlatform, "fivee"),
-        eq(conversionPolicies.targetPlatform, platform),
-      ))
+    const [found] = await tx
+      .select()
+      .from(conversionPolicies)
+      .where(
+        and(
+          eq(conversionPolicies.id, selectedPolicyId),
+          eq(conversionPolicies.sourcePlatform, "fivee"),
+          eq(conversionPolicies.targetPlatform, platform),
+        ),
+      )
       .limit(1);
     if (!found) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事选用的 5E 换算策略不存在，不能开放报名。");
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        "赛事选用的 5E 换算策略不存在，不能开放报名。",
+      );
     }
     if (found.status !== "approved") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 尚未批准或已停用；请选用已批准的换算规则后开放报名。`);
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        `赛事选用的 5E 换算策略 (${found.version}) 尚未批准或已停用；请选用已批准的换算规则后开放报名。`,
+      );
     }
     policy = found;
   } else if (selectedPolicyVersion) {
-    const [found] = await tx.select().from(conversionPolicies)
-      .where(and(
-        eq(conversionPolicies.version, selectedPolicyVersion),
-        eq(conversionPolicies.sourcePlatform, "fivee"),
-        eq(conversionPolicies.targetPlatform, platform),
-      ))
+    const [found] = await tx
+      .select()
+      .from(conversionPolicies)
+      .where(
+        and(
+          eq(conversionPolicies.version, selectedPolicyVersion),
+          eq(conversionPolicies.sourcePlatform, "fivee"),
+          eq(conversionPolicies.targetPlatform, platform),
+        ),
+      )
       .limit(1);
     if (!found) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略版本 (${selectedPolicyVersion}) 不存在，不能开放报名。`);
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        `赛事选用的 5E 换算策略版本 (${selectedPolicyVersion}) 不存在，不能开放报名。`,
+      );
     }
     if (found.status !== "approved") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 尚未批准或已停用；请选用已批准的换算规则后开放报名。`);
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        `赛事选用的 5E 换算策略 (${found.version}) 尚未批准或已停用；请选用已批准的换算规则后开放报名。`,
+      );
     }
     policy = found;
   } else {
-    const [current] = await tx.select().from(conversionPolicies)
-      .where(and(
-        eq(conversionPolicies.sourcePlatform, "fivee"),
-        eq(conversionPolicies.targetPlatform, platform),
-        eq(conversionPolicies.status, "approved"),
-        eq(conversionPolicies.isCurrent, true),
-      ))
+    const [current] = await tx
+      .select()
+      .from(conversionPolicies)
+      .where(
+        and(
+          eq(conversionPolicies.sourcePlatform, "fivee"),
+          eq(conversionPolicies.targetPlatform, platform),
+          eq(conversionPolicies.status, "approved"),
+          eq(conversionPolicies.isCurrent, true),
+        ),
+      )
       .limit(1);
     if (current) {
       policy = current;
     } else {
-      const [latest] = await tx.select().from(conversionPolicies)
-        .where(and(
-          eq(conversionPolicies.sourcePlatform, "fivee"),
-          eq(conversionPolicies.targetPlatform, platform),
-          eq(conversionPolicies.status, "approved"),
-        ))
+      const [latest] = await tx
+        .select()
+        .from(conversionPolicies)
+        .where(
+          and(
+            eq(conversionPolicies.sourcePlatform, "fivee"),
+            eq(conversionPolicies.targetPlatform, platform),
+            eq(conversionPolicies.status, "approved"),
+          ),
+        )
         .orderBy(desc(conversionPolicies.approvedAt))
         .limit(1);
       policy = latest;
@@ -225,8 +323,16 @@ async function resolveFallbackConversionForFreeze(
   if (!policy) return undefined;
 
   const fiveeContext = await resolveLiveCompetitiveContext(tx, "fivee");
-  if (!fiveeContext || !fiveeContext.currentSeasonKey || !fiveeContext.previousSeasonKey || !fiveeContext.priorSeasonKey) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 平台竞技目录未配置完整的当前赛季、上一赛季或前一赛季，无法完成相对赛季对齐。");
+  if (
+    !fiveeContext ||
+    !fiveeContext.currentSeasonKey ||
+    !fiveeContext.previousSeasonKey ||
+    !fiveeContext.priorSeasonKey
+  ) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "5E 平台竞技目录未配置完整的当前赛季、上一赛季或前一赛季，无法完成相对赛季对齐。",
+    );
   }
 
   return {
@@ -235,7 +341,9 @@ async function resolveFallbackConversionForFreeze(
     seasonKeyMap: {
       [context.currentSeasonKey]: fiveeContext.currentSeasonKey,
       [context.previousSeasonKey]: fiveeContext.previousSeasonKey,
-      ...(context.priorSeasonKey && fiveeContext.priorSeasonKey ? { [context.priorSeasonKey]: fiveeContext.priorSeasonKey } : {}),
+      ...(context.priorSeasonKey && fiveeContext.priorSeasonKey
+        ? { [context.priorSeasonKey]: fiveeContext.priorSeasonKey }
+        : {}),
     },
     mapping: policy.mapping,
   };
@@ -256,7 +364,10 @@ export async function freezeCompetitiveContext(
   const platform = config.competitiveProfile?.platform ?? "perfect_world";
   const context = await resolveLiveCompetitiveContext(tx, platform);
   if (!context || !context.priorSeasonKey) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `请先在竞技平台目录中为 ${platform} 配置唯一的当前赛季、两届启用的历史赛季和平台段位表。`);
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      `请先在竞技平台目录中为 ${platform} 配置唯一的当前赛季、两届启用的历史赛季和平台段位表。`,
+    );
   }
   const fallbackConversion = await resolveFallbackConversionForFreeze(
     tx,
@@ -278,17 +389,29 @@ export async function freezeCompetitiveContext(
       referenceSeasonWeight: 20 as const,
       recentSeasonKeys: [context.previousSeasonKey, context.currentSeasonKey],
       recentSeasonWeight: 30 as const,
-      ...(season.competitionTemplate === "major" ? { sourceSelection: "strongest_equivalent" as const } : {}),
+      ...(season.competitionTemplate === "major"
+        ? { sourceSelection: "strongest_equivalent" as const }
+        : {}),
     },
-    conversionPolicyVersion: fallbackConversion?.version ?? config.competitiveProfile?.conversionPolicyVersion,
+    conversionPolicyVersion:
+      fallbackConversion?.version ?? config.competitiveProfile?.conversionPolicyVersion,
     conversionPolicyId: config.competitiveProfile?.conversionPolicyId,
     fallbackConversion,
   };
-  if (!await resolveCompetitiveContext(competitiveProfile)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 换算规则须覆盖本届所需的全部赛季，并对应到已公布的 Perfect World 段位后才能开放报名。");
+  if (!(await resolveCompetitiveContext(competitiveProfile))) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "5E 换算规则须覆盖本届所需的全部赛季，并对应到已公布的 Perfect World 段位后才能开放报名。",
+    );
   }
-  if (competitiveProfile.fallbackConversion && !await fallbackCatalogReferencesExist(tx, competitiveProfile.fallbackConversion)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 换算规则引用的赛季或段位已不在竞技目录中，不能开放报名。");
+  if (
+    competitiveProfile.fallbackConversion &&
+    !(await fallbackCatalogReferencesExist(tx, competitiveProfile.fallbackConversion))
+  ) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "5E 换算规则引用的赛季或段位已不在竞技目录中，不能开放报名。",
+    );
   }
   return {
     ...config,
@@ -296,10 +419,7 @@ export async function freezeCompetitiveContext(
   };
 }
 
-export type RegistrationOpeningMode =
-  | "scheduled"
-  | "explicit_immediate"
-  | "explicit_early_force";
+export type RegistrationOpeningMode = "scheduled" | "explicit_immediate" | "explicit_early_force";
 
 /**
  * Canonical participation-open transition. It row-locks the published event,
@@ -313,9 +433,14 @@ export async function openSeasonRegistrationInTx(
   input: { seasonId: string; actorId: string; now?: Date; mode: RegistrationOpeningMode },
 ): Promise<{ slug: string; opened: boolean }> {
   const now = input.now ?? new Date();
-  const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
+  const [season] = await tx
+    .select()
+    .from(seasons)
+    .where(eq(seasons.id, input.seasonId))
+    .for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
-  if (season.status !== "registration") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已发布赛事可以开放报名。");
+  if (season.status !== "registration")
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已发布赛事可以开放报名。");
   if (season.registrationOpenedAt) return { slug: season.slug, opened: false };
 
   let configuredOpenAt: Date | null;
@@ -332,7 +457,10 @@ export async function openSeasonRegistrationInTx(
         break;
       }
       if (season.registrationOpensAt.getTime() > now.getTime()) {
-        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "报名尚未到计划开放时间；如需提前开放，请使用提前开放报名操作。");
+        throw new AppError(
+          ErrorCode.SEASON_INVALID_STATUS,
+          "报名尚未到计划开放时间；如需提前开放，请使用提前开放报名操作。",
+        );
       }
       configuredOpenAt = season.registrationOpensAt;
       break;
@@ -347,12 +475,15 @@ export async function openSeasonRegistrationInTx(
   const teamRegistrationConfig = config.requireCompetitiveProfile
     ? await freezeCompetitiveContext(tx, season)
     : config;
-  await tx.update(seasons).set({
-    registrationOpensAt: configuredOpenAt,
-    registrationOpenedAt: now,
-    teamRegistrationConfig,
-    updatedAt: now,
-  }).where(eq(seasons.id, season.id));
+  await tx
+    .update(seasons)
+    .set({
+      registrationOpensAt: configuredOpenAt,
+      registrationOpenedAt: now,
+      teamRegistrationConfig,
+      updatedAt: now,
+    })
+    .where(eq(seasons.id, season.id));
   await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "season.registration_open",

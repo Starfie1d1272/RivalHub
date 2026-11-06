@@ -12,7 +12,10 @@ import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entri
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { getPublicSeasonStagePresentation, type PublicStageSeason } from "@/lib/seasons/public-stage";
+import {
+  getPublicSeasonStagePresentation,
+  type PublicStageSeason,
+} from "@/lib/seasons/public-stage";
 import { isOfficialStageKey } from "@/lib/seasons/official-stages";
 import {
   getLongTeamCareerDetail,
@@ -25,7 +28,8 @@ import {
   type PlatformStatsScope,
 } from "./tournament-query";
 
-type TournamentViewScope = TournamentStatsScope & Pick<PlatformStatsScope, "view" | "mapDetail" | "weaponTeamId">;
+type TournamentViewScope = TournamentStatsScope &
+  Pick<PlatformStatsScope, "view" | "mapDetail" | "weaponTeamId">;
 type Visibility = "public" | "draft";
 type PlayerCareerScope = Parameters<typeof getPlayerCareerDetail>[0];
 type TeamScope = Parameters<typeof getTournamentTeamDetail>[0];
@@ -33,8 +37,15 @@ type MapScope = Parameters<typeof getTournamentMapDetail>[0];
 
 /** Kept outside the cached scope: withdrawing an event must close access immediately. */
 async function requirePublicSeason(seasonId: string) {
-  const [season] = await db.select({ id: seasons.id, stagePlan: seasons.stagePlan, competitionTemplate: seasons.competitionTemplate }).from(seasons)
-    .where(and(eq(seasons.id, seasonId), ne(seasons.status, "draft"))).limit(1);
+  const [season] = await db
+    .select({
+      id: seasons.id,
+      stagePlan: seasons.stagePlan,
+      competitionTemplate: seasons.competitionTemplate,
+    })
+    .from(seasons)
+    .where(and(eq(seasons.id, seasonId), ne(seasons.status, "draft")))
+    .limit(1);
   if (!season) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在或尚未公开。");
   return season;
 }
@@ -43,22 +54,44 @@ const knownMaps = new Set<string>(CS2_MAP_CATALOG.map(({ key }) => key));
 // All unknown map filters represent the same empty sample, without unbounded cache keys.
 const EMPTY_MAP_FILTER = "__unknown_map__";
 
-async function normalizeScope(scope: TournamentStatsScope, season: PublicStageSeason): Promise<TournamentStatsScope> {
-  if (scope.stage && !isOfficialStageKey((await getPublicSeasonStagePresentation(season)).officialStages, scope.stage)) {
+async function normalizeScope(
+  scope: TournamentStatsScope,
+  season: PublicStageSeason,
+): Promise<TournamentStatsScope> {
+  if (
+    scope.stage &&
+    !isOfficialStageKey(
+      (await getPublicSeasonStagePresentation(season)).officialStages,
+      scope.stage,
+    )
+  ) {
     throw new AppError(ErrorCode.NOT_FOUND, "统计阶段不可用。");
   }
   return {
     seasonId: scope.seasonId,
     stage: scope.stage,
     format: scope.format,
-    mapFilter: scope.mapFilter ? knownMaps.has(scope.mapFilter) ? scope.mapFilter : EMPTY_MAP_FILTER : undefined,
+    mapFilter: scope.mapFilter
+      ? knownMaps.has(scope.mapFilter)
+        ? scope.mapFilter
+        : EMPTY_MAP_FILTER
+      : undefined,
     teamFilter: scope.teamFilter?.toLowerCase() || undefined,
   };
 }
 
 async function requirePublicEntry(seasonId: string, entryId: string): Promise<void> {
-  const [entry] = await db.select({ id: competitionEntries.id }).from(competitionEntries)
-    .where(and(eq(competitionEntries.id, entryId), eq(competitionEntries.competitionId, seasonId), publicCompetitionEntryIdentityCondition())).limit(1);
+  const [entry] = await db
+    .select({ id: competitionEntries.id })
+    .from(competitionEntries)
+    .where(
+      and(
+        eq(competitionEntries.id, entryId),
+        eq(competitionEntries.competitionId, seasonId),
+        publicCompetitionEntryIdentityCondition(),
+      ),
+    )
+    .limit(1);
   if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "参赛队伍不存在或尚未公开。");
 }
 
@@ -70,19 +103,25 @@ function statsCachePolicy(): void {
 async function cachedTournamentStats(scope: TournamentViewScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill("stats.tournament", async () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope)));
+  return observePublicStatsFill("stats.tournament", async () =>
+    preservePublicStatsDependencyFailure(() => getTournamentStats(scope)),
+  );
 }
 
 async function cachedTournamentTeam(scope: TeamScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill("stats.tournament", async () => preservePublicStatsDependencyFailure(() => getTournamentTeamDetail(scope)));
+  return observePublicStatsFill("stats.tournament", async () =>
+    preservePublicStatsDependencyFailure(() => getTournamentTeamDetail(scope)),
+  );
 }
 
 async function cachedTournamentMap(scope: MapScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill("stats.tournament", async () => preservePublicStatsDependencyFailure(() => getTournamentMapDetail(scope)));
+  return observePublicStatsFill("stats.tournament", async () =>
+    preservePublicStatsDependencyFailure(() => getTournamentMapDetail(scope)),
+  );
 }
 
 /** Entrypoints authorize draft access before calling; draft results never enter the remote cache. */
@@ -91,14 +130,19 @@ export async function getPublicTournamentStats(scope: TournamentViewScope, visib
   const season = await requirePublicSeason(scope.seasonId);
   if (scope.teamFilter) await requirePublicEntry(scope.seasonId, scope.teamFilter);
   if (scope.weaponTeamId) await requirePublicEntry(scope.seasonId, scope.weaponTeamId);
-  return cachedTournamentStats({ ...await normalizeScope(scope, season), view: scope.view, mapDetail: scope.mapDetail, weaponTeamId: scope.weaponTeamId });
+  return cachedTournamentStats({
+    ...(await normalizeScope(scope, season)),
+    view: scope.view,
+    mapDetail: scope.mapDetail,
+    weaponTeamId: scope.weaponTeamId,
+  });
 }
 
 export async function getPublicTournamentTeamDetail(scope: TeamScope, visibility: Visibility) {
   if (visibility === "draft") return getTournamentTeamDetail(scope);
   const season = await requirePublicSeason(scope.seasonId);
   await requirePublicEntry(scope.seasonId, scope.teamId);
-  return cachedTournamentTeam({ ...await normalizeScope(scope, season), teamId: scope.teamId });
+  return cachedTournamentTeam({ ...(await normalizeScope(scope, season)), teamId: scope.teamId });
 }
 
 export async function getPublicTournamentMapDetail(scope: MapScope, visibility: Visibility) {
@@ -113,13 +157,17 @@ export async function getPublicTournamentMapDetail(scope: MapScope, visibility: 
 async function cachedPlayerCareerDetail(scope: PlayerCareerScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill("stats.career", async () => preservePublicStatsDependencyFailure(() => getPlayerCareerDetail(scope)));
+  return observePublicStatsFill("stats.career", async () =>
+    preservePublicStatsDependencyFailure(() => getPlayerCareerDetail(scope)),
+  );
 }
 
 async function cachedPlayerFilterOptions(playerId: string) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill("stats.career", () => preservePublicStatsDependencyFailure(() => getPlayerCareerFilterOptions(playerId)));
+  return observePublicStatsFill("stats.career", () =>
+    preservePublicStatsDependencyFailure(() => getPlayerCareerFilterOptions(playerId)),
+  );
 }
 
 export async function getPublicPlayerCareerDetail(scope: PlayerCareerScope) {
@@ -130,7 +178,8 @@ export async function getPublicPlayerCareerDetail(scope: PlayerCareerScope) {
     const event = events.find(({ slug }) => slug === scope.eventSlug);
     eventSlug = event?.slug;
     const allowedMaps = event?.maps ?? events.flatMap(({ maps }) => maps);
-    mapFilter = scope.mapFilter && allowedMaps.includes(scope.mapFilter) ? scope.mapFilter : undefined;
+    mapFilter =
+      scope.mapFilter && allowedMaps.includes(scope.mapFilter) ? scope.mapFilter : undefined;
   }
   return cachedPlayerCareerDetail({ playerId: scope.playerId, eventSlug, mapFilter });
 }
@@ -138,25 +187,32 @@ export async function getPublicPlayerCareerDetail(scope: PlayerCareerScope) {
 export async function getPublicLongTeamCareerDetail(teamId: string) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill("stats.career", async () => preservePublicStatsDependencyFailure(() => getLongTeamCareerDetail(teamId)));
+  return observePublicStatsFill("stats.career", async () =>
+    preservePublicStatsDependencyFailure(() => getLongTeamCareerDetail(teamId)),
+  );
 }
 
 // Share only the public visibility probe within a server render; never cache draft access.
 const isPublicMatch = cache(async (matchId: string) => {
-  const [match] = await db.select({ id: matches.id }).from(matches)
+  const [match] = await db
+    .select({ id: matches.id })
+    .from(matches)
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
-    .where(and(eq(matches.id, matchId), ne(seasons.status, "draft"))).limit(1);
+    .where(and(eq(matches.id, matchId), ne(seasons.status, "draft")))
+    .limit(1);
   return Boolean(match);
 });
 
 async function cachedMatchPerformance(matchId: string) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill("stats.match", () => preservePublicStatsDependencyFailure(() => getMatchPerformance(matchId)));
+  return observePublicStatsFill("stats.match", () =>
+    preservePublicStatsDependencyFailure(() => getMatchPerformance(matchId)),
+  );
 }
 
 /** One match-scoped cache entry is shared by the scoreboard, all players and MVP. */
 export async function getPublicMatchPerformance(matchId: string, visibility: Visibility) {
   if (visibility === "draft") return getMatchPerformance(matchId);
-  return await isPublicMatch(matchId) ? cachedMatchPerformance(matchId) : null;
+  return (await isPublicMatch(matchId)) ? cachedMatchPerformance(matchId) : null;
 }

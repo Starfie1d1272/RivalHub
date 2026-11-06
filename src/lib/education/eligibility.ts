@@ -15,7 +15,9 @@ export type EducationEligibilityMember = {
   verificationHistory?: readonly SeasonEducationVerification[];
 };
 
-export type SeasonEducationVerification = NonNullable<EducationEligibilityMember["verification"]> & {
+export type SeasonEducationVerification = NonNullable<
+  EducationEligibilityMember["verification"]
+> & {
   submittedAt?: Date | null;
 };
 
@@ -34,21 +36,36 @@ export function resolveSeasonEducationVerification(
   history: readonly SeasonEducationVerification[],
   rules: readonly InstitutionAffiliationRule[],
 ): SeasonAffiliationResolution {
-  const newestFirst = [...history].sort((left, right) =>
-    (right.submittedAt?.getTime() ?? 0) - (left.submittedAt?.getTime() ?? 0),
+  const newestFirst = [...history].sort(
+    (left, right) => (right.submittedAt?.getTime() ?? 0) - (left.submittedAt?.getTime() ?? 0),
   );
   const approved = newestFirst.filter((item) => item.status === "approved");
-  const matching = approved.find((item) => rules.some((rule) =>
-    rule.institutionCode === item.institutionCode && rule.eligibleAcademicStatuses.includes(item.academicStatus),
-  ));
+  const matching = approved.find((item) =>
+    rules.some(
+      (rule) =>
+        rule.institutionCode === item.institutionCode &&
+        rule.eligibleAcademicStatuses.includes(item.academicStatus),
+    ),
+  );
   const selectedVerification = matching ?? approved[0] ?? newestFirst[0] ?? null;
   const matchedRule = selectedVerification
-    ? rules.find((rule) => rule.institutionCode === selectedVerification.institutionCode && rule.eligibleAcademicStatuses.includes(selectedVerification.academicStatus)) ?? null
+    ? (rules.find(
+        (rule) =>
+          rule.institutionCode === selectedVerification.institutionCode &&
+          rule.eligibleAcademicStatuses.includes(selectedVerification.academicStatus),
+      ) ?? null)
     : null;
-  if (!selectedVerification) return { selectedVerification, matchedRule, eligibilityState: "missing" };
-  if (selectedVerification.status === "pending") return { selectedVerification, matchedRule, eligibilityState: "pending" };
-  if (selectedVerification.status === "rejected") return { selectedVerification, matchedRule, eligibilityState: "rejected" };
-  return { selectedVerification, matchedRule, eligibilityState: rules.length === 0 || matchedRule ? "approved" : "unmatched" };
+  if (!selectedVerification)
+    return { selectedVerification, matchedRule, eligibilityState: "missing" };
+  if (selectedVerification.status === "pending")
+    return { selectedVerification, matchedRule, eligibilityState: "pending" };
+  if (selectedVerification.status === "rejected")
+    return { selectedVerification, matchedRule, eligibilityState: "rejected" };
+  return {
+    selectedVerification,
+    matchedRule,
+    eligibilityState: rules.length === 0 || matchedRule ? "approved" : "unmatched",
+  };
 }
 
 export interface EducationEligibilityResult {
@@ -75,7 +92,10 @@ export function evaluateRosterEducationEligibility(
       blockers.push(`${member.label} 的邮箱尚未验证，请先验证当前账号邮箱。`);
       continue;
     }
-    const resolution = resolveSeasonEducationVerification(member.verificationHistory ?? (member.verification ? [member.verification] : []), rules);
+    const resolution = resolveSeasonEducationVerification(
+      member.verificationHistory ?? (member.verification ? [member.verification] : []),
+      rules,
+    );
     const verification = resolution.selectedVerification;
     if (!verification) {
       blockers.push(`${member.label} 尚未完成教育身份认证。`);
@@ -99,15 +119,21 @@ export function evaluateRosterEducationEligibility(
   }
 
   for (const rule of rules) {
-    const count = members.filter((member) =>
-      member.emailVerifiedAt !== null &&
-      resolveSeasonEducationVerification(member.verificationHistory ?? (member.verification ? [member.verification] : []), rules).matchedRule === rule,
+    const count = members.filter(
+      (member) =>
+        member.emailVerifiedAt !== null &&
+        resolveSeasonEducationVerification(
+          member.verificationHistory ?? (member.verification ? [member.verification] : []),
+          rules,
+        ).matchedRule === rule,
     ).length;
     affiliationCounts.set(rule.institutionCode, count);
     if (count < rule.minRosterMembers) {
       const shortfall = rule.minRosterMembers - count;
       const label = rule.institutionCode === "4132010284" ? "南京大学" : rule.institutionCode;
-      blockers.push(`当前已认证${label}成员 ${count} 人，Major 正式名单至少需要 ${rule.minRosterMembers} 人；还缺 ${shortfall} 人。`);
+      blockers.push(
+        `当前已认证${label}成员 ${count} 人，Major 正式名单至少需要 ${rule.minRosterMembers} 人；还缺 ${shortfall} 人。`,
+      );
     }
   }
 

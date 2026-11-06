@@ -9,7 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { observeAction } from "@/lib/telemetry/client";
 
-const createManualInstitution = observeAction("education-verifications.createManualInstitution", telemetry_createManualInstitution);
+const createManualInstitution = observeAction(
+  "education-verifications.createManualInstitution",
+  telemetry_createManualInstitution,
+);
 
 export function ManualInstitutionCreateForm() {
   const [pending, startTransition] = useTransition();
@@ -42,13 +45,25 @@ export function ManualInstitutionCreateForm() {
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-end">
           <div className="space-y-1.5">
             <Label htmlFor="manual-institution-name">正式学校名称</Label>
-            <Input id="manual-institution-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="按学信网 / 正式学籍材料填写" />
+            <Input
+              id="manual-institution-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="按学信网 / 正式学籍材料填写"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="manual-institution-province">省份（可选）</Label>
-            <Input id="manual-institution-province" value={province} onChange={(event) => setProvince(event.target.value)} placeholder="例如：江苏" />
+            <Input
+              id="manual-institution-province"
+              value={province}
+              onChange={(event) => setProvince(event.target.value)}
+              placeholder="例如：江苏"
+            />
           </div>
-          <Button type="button" disabled={pending || !name.trim()} onClick={submit}>{pending ? "保存中…" : "添加到目录"}</Button>
+          <Button type="button" disabled={pending || !name.trim()} onClick={submit}>
+            {pending ? "保存中…" : "添加到目录"}
+          </Button>
         </div>
       </div>
     </Panel>

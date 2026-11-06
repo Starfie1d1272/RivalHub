@@ -7,6 +7,10 @@ export async function GET(_request: Request, context: { params: Promise<{ matchI
   try {
     const { matchId } = await context.params;
     const id = z.uuid().parse(matchId);
-    return Response.json(await issueLiveViewerToken(id, await getOpaqueSessionCachePartition()), { headers: { "Cache-Control": "no-store" } });
-  } catch (error) { return mizarHttpError(error); }
+    return Response.json(await issueLiveViewerToken(id, await getOpaqueSessionCachePartition()), {
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch (error) {
+    return mizarHttpError(error);
+  }
 }

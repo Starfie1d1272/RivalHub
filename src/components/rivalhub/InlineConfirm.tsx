@@ -41,16 +41,19 @@ export function InlineConfirm({
           {title}
         </div>
         {sub && (
-          <p className="mt-1 font-sans text-sm leading-6 text-[var(--color-fg-secondary)]">
-            {sub}
-          </p>
+          <p className="mt-1 font-sans text-sm leading-6 text-[var(--color-fg-secondary)]">{sub}</p>
         )}
       </div>
       <div className="ml-auto flex flex-wrap gap-1.5">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           取消
         </Button>
-        <Button type="button" size="sm" variant={danger ? "destructive" : "default"} onClick={onConfirm}>
+        <Button
+          type="button"
+          size="sm"
+          variant={danger ? "destructive" : "default"}
+          onClick={onConfirm}
+        >
           {confirmLabel ?? (danger ? "确认" : "确认")}
         </Button>
       </div>

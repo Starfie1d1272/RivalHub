@@ -56,9 +56,10 @@ function deriveStageEntrants(input: {
   const { stage, previousStage } = input.topology;
   const entryById = new Map(input.entries.map((entry) => [entry.id, entry]));
   const qualifierIds = new Set(input.qualifiers.map((qualifier) => qualifier.teamId));
-  const directEntries = (stage.entrySeeds ?? 0) > 0
-    ? input.entries.filter((entry) => !qualifierIds.has(entry.id)).slice(0, stage.entrySeeds)
-    : [];
+  const directEntries =
+    (stage.entrySeeds ?? 0) > 0
+      ? input.entries.filter((entry) => !qualifierIds.has(entry.id)).slice(0, stage.entrySeeds)
+      : [];
 
   const directEntrants = directEntries.map((entry, index) => ({
     entry,
@@ -69,12 +70,14 @@ function deriveStageEntrants(input: {
   const qualifiedEntrants = input.qualifiers.flatMap((qualifier, index): StageEntrantSeed[] => {
     const entry = entryById.get(qualifier.teamId);
     if (!entry) return [];
-    return [{
-      entry,
-      stageSeed: directEntrants.length + index + 1,
-      source: "qualified" as const,
-      qualifier,
-    }];
+    return [
+      {
+        entry,
+        stageSeed: directEntrants.length + index + 1,
+        source: "qualified" as const,
+        qualifier,
+      },
+    ];
   });
 
   if (previousStage) return [...directEntrants, ...qualifiedEntrants];
@@ -99,7 +102,8 @@ function evaluateStageTransitionReadiness(input: {
   if (!input.topology.previousStage) return "first_stage";
   if (input.previousComplete === false) return "previous_stage_incomplete";
   if ((input.existingMatchCount ?? 0) > 0) return "already_initialized";
-  if (input.orderedEntrants.length !== input.topology.stage.teamCount) return "invalid_entrant_count";
+  if (input.orderedEntrants.length !== input.topology.stage.teamCount)
+    return "invalid_entrant_count";
   return "ready";
 }
 

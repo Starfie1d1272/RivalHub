@@ -17,7 +17,10 @@ function isActive(pathname: string, href: string): boolean {
 export function MyWorkspaceNav() {
   const pathname = usePathname() ?? "";
   return (
-    <nav aria-label="个人工作区导航" className="flex flex-wrap gap-2 border-b border-[var(--color-border)] pb-2">
+    <nav
+      aria-label="个人工作区导航"
+      className="flex flex-wrap gap-2 border-b border-[var(--color-border)] pb-2"
+    >
       {LINKS.map((link) => {
         const active = isActive(pathname, link.href);
         return (

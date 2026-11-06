@@ -47,13 +47,16 @@ const SORT_OPTIONS = [
   { value: "newest", label: "最近提交" },
 ] as const;
 
-const SELECT_CLASS_NAME = "min-w-0 max-w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 py-2 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
+const SELECT_CLASS_NAME =
+  "min-w-0 max-w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 py-2 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-[var(--color-warn-soft)] text-[var(--color-warn)] border-[var(--color-warn-edge)]",
   approved: "bg-[var(--color-ok-soft)] text-[var(--color-ok)] border-[var(--color-ok-edge)]",
-  rejected: "bg-[var(--color-danger-soft)] text-[var(--color-danger)] border-[var(--color-danger-edge)]",
-  waitlisted: "bg-[var(--color-info-soft)] text-[var(--color-info)] border-[var(--color-info-edge)]",
+  rejected:
+    "bg-[var(--color-danger-soft)] text-[var(--color-danger)] border-[var(--color-danger-edge)]",
+  waitlisted:
+    "bg-[var(--color-info-soft)] text-[var(--color-info)] border-[var(--color-info-edge)]",
 };
 
 interface Props {
@@ -91,16 +94,21 @@ export function RegistrationReviewList({
 
   const requestedStatus = searchParams.get("status");
   const currentStatus = STATUS_OPTIONS.some((option) => option.value === requestedStatus)
-    ? requestedStatus as SoloRegistrationReviewQuery["status"]
+    ? (requestedStatus as SoloRegistrationReviewQuery["status"])
     : normalizedQuery.status;
   const requestedPosition = searchParams.get("position") ?? "";
-  const currentPosition = availablePositions.includes(requestedPosition) ? requestedPosition : normalizedQuery.position ?? "";
+  const currentPosition = availablePositions.includes(requestedPosition)
+    ? requestedPosition
+    : (normalizedQuery.position ?? "");
   const requestedSort = searchParams.get("sort");
   const currentSort = SORT_OPTIONS.some((option) => option.value === requestedSort)
-    ? requestedSort as SoloRegistrationReviewQuery["sort"]
+    ? (requestedSort as SoloRegistrationReviewQuery["sort"])
     : normalizedQuery.sort;
 
-  function handleReview(registrationId: string, status: "pending" | "approved" | "rejected" | "waitlisted") {
+  function handleReview(
+    registrationId: string,
+    status: "pending" | "approved" | "rejected" | "waitlisted",
+  ) {
     const label = REGISTRATION_STATUS_LABELS[status];
     startTransition(async () => {
       const result = await reviewRegistration({ registrationId, status });
@@ -133,7 +141,11 @@ export function RegistrationReviewList({
             onChange={(event) => update({ status: event.target.value })}
             className={SELECT_CLASS_NAME}
           >
-            {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
         <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[22%]">
@@ -145,7 +157,11 @@ export function RegistrationReviewList({
             className={SELECT_CLASS_NAME}
           >
             <option value="">全部位置</option>
-            {availablePositions.map((position) => <option key={position} value={position}>{positionLabel(position)}</option>)}
+            {availablePositions.map((position) => (
+              <option key={position} value={position}>
+                {positionLabel(position)}
+              </option>
+            ))}
           </select>
         </label>
         <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[16%]">
@@ -156,7 +172,11 @@ export function RegistrationReviewList({
             onChange={(event) => update({ sort: event.target.value })}
             className={SELECT_CLASS_NAME}
           >
-            {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
         <ClearFilters
@@ -182,42 +202,146 @@ export function RegistrationReviewList({
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <PlayerProfileLink userId={r.userId} className="font-medium">{getDisplayName(r)}</PlayerProfileLink>
+                    <PlayerProfileLink userId={r.userId} className="font-medium">
+                      {getDisplayName(r)}
+                    </PlayerProfileLink>
                     <Badge variant="outline" className={STATUS_STYLES[r.status]}>
-                      {REGISTRATION_STATUS_LABELS[r.status as keyof typeof REGISTRATION_STATUS_LABELS]}
+                      {
+                        REGISTRATION_STATUS_LABELS[
+                          r.status as keyof typeof REGISTRATION_STATUS_LABELS
+                        ]
+                      }
                     </Badge>
-                    {r.willingToBeCaptain && <Badge variant="secondary" className="text-xs">队长意向</Badge>}
+                    {r.willingToBeCaptain && (
+                      <Badge variant="secondary" className="text-xs">
+                        队长意向
+                      </Badge>
+                    )}
                   </div>
 
                   <div className="space-y-0.5 text-sm text-[var(--color-fg-mid)]">
-                    <p>位置：{positionLabel(r.primaryPosition)}（主）| {positionLabel(r.secondaryPosition)}（次）</p>
-                    <p>最高段位：{r.peakRank}（{r.peakRankSeason}）Rating {r.peakRating}{" | "}当前赛季：{r.currentSeasonPeakRank} Rating {r.currentRating}</p>
-                    <p>{r.email}{r.studentId && ` | 学号: ${r.studentId}`}</p>
-                    <AdminPlayerContact email={r.email} qq={r.qq} steam64={r.steam64} steamProfileUrl={r.steamProfileUrl} />
+                    <p>
+                      位置：{positionLabel(r.primaryPosition)}（主）|{" "}
+                      {positionLabel(r.secondaryPosition)}（次）
+                    </p>
+                    <p>
+                      最高段位：{r.peakRank}（{r.peakRankSeason}）Rating {r.peakRating}
+                      {" | "}当前赛季：{r.currentSeasonPeakRank} Rating {r.currentRating}
+                    </p>
+                    <p>
+                      {r.email}
+                      {r.studentId && ` | 学号: ${r.studentId}`}
+                    </p>
+                    <AdminPlayerContact
+                      email={r.email}
+                      qq={r.qq}
+                      steam64={r.steam64}
+                      steamProfileUrl={r.steamProfileUrl}
+                    />
                     {r.gameplayStyle && <p>风格：{r.gameplayStyle}</p>}
                     {r.competitionHistory && <p>比赛经历：{r.competitionHistory}</p>}
                     {r.notes && <p>备注：{r.notes}</p>}
                   </div>
 
-                  <div className="mt-2"><MapPreferenceChips preferences={r.mapPreferences} minLevel="playable" /></div>
-                  {r.screenshotUrls.length > 0 && <div className="mt-1 flex flex-wrap gap-2">{r.screenshotUrls.map((url, index) => <a key={index} href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--color-fg-mid)] underline hover:text-[var(--color-fg)]">截图 {index + 1}</a>)}</div>}
+                  <div className="mt-2">
+                    <MapPreferenceChips preferences={r.mapPreferences} minLevel="playable" />
+                  </div>
+                  {r.screenshotUrls.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {r.screenshotUrls.map((url, index) => (
+                        <a
+                          key={index}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-[var(--color-fg-mid)] underline hover:text-[var(--color-fg)]"
+                        >
+                          截图 {index + 1}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex shrink-0 flex-col gap-1.5">
-                  {r.status === "pending" && <>
-                    <Button size="sm" variant="default" disabled={isPending} onClick={() => handleReview(r.id, "approved")}>通过</Button>
-                    <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleReview(r.id, "waitlisted")}>候补</Button>
-                    <Button size="sm" variant="ghost" disabled={isPending} onClick={() => handleReview(r.id, "rejected")}>拒绝</Button>
-                  </>}
-                  {r.status === "waitlisted" && <>
-                    <Button size="sm" variant="default" disabled={isPending} onClick={() => handleReview(r.id, "approved")}>通过</Button>
-                    <Button size="sm" variant="ghost" disabled={isPending} onClick={() => handleReview(r.id, "rejected")}>拒绝</Button>
-                  </>}
-                  {r.status === "approved" && <Button size="sm" variant="ghost" disabled={isPending} onClick={() => handleReview(r.id, "pending")}>撤回待审</Button>}
-                  {r.status === "rejected" && <>
-                    <Button size="sm" variant="default" disabled={isPending} onClick={() => handleReview(r.id, "approved")}>改为通过</Button>
-                    <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleReview(r.id, "pending")}>回到待审</Button>
-                  </>}
+                  {r.status === "pending" && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        disabled={isPending}
+                        onClick={() => handleReview(r.id, "approved")}
+                      >
+                        通过
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isPending}
+                        onClick={() => handleReview(r.id, "waitlisted")}
+                      >
+                        候补
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={isPending}
+                        onClick={() => handleReview(r.id, "rejected")}
+                      >
+                        拒绝
+                      </Button>
+                    </>
+                  )}
+                  {r.status === "waitlisted" && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        disabled={isPending}
+                        onClick={() => handleReview(r.id, "approved")}
+                      >
+                        通过
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={isPending}
+                        onClick={() => handleReview(r.id, "rejected")}
+                      >
+                        拒绝
+                      </Button>
+                    </>
+                  )}
+                  {r.status === "approved" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={isPending}
+                      onClick={() => handleReview(r.id, "pending")}
+                    >
+                      撤回待审
+                    </Button>
+                  )}
+                  {r.status === "rejected" && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        disabled={isPending}
+                        onClick={() => handleReview(r.id, "approved")}
+                      >
+                        改为通过
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isPending}
+                        onClick={() => handleReview(r.id, "pending")}
+                      >
+                        回到待审
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </Card>
@@ -231,7 +355,9 @@ export function RegistrationReviewList({
       <PaginationControls
         page={page}
         totalPages={totalPages}
-        onPageChange={(nextPage) => update({ page: nextPage }, { defaults: { page: 1 }, history: "push" })}
+        onPageChange={(nextPage) =>
+          update({ page: nextPage }, { defaults: { page: 1 }, history: "push" })
+        }
         className="mt-4"
       />
     </div>

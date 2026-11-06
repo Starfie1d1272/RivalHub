@@ -62,9 +62,10 @@ export function projectStage(
     : context.standings
       ? projectRoundRobinStandings(context.standings)
       : undefined;
-  const bracketNodes = context.bracketNodes && context.bracketNodes.length > 0
-    ? projectBracketNodes(context.bracketNodes)
-    : undefined;
+  const bracketNodes =
+    context.bracketNodes && context.bracketNodes.length > 0
+      ? projectBracketNodes(context.bracketNodes)
+      : undefined;
   return {
     key: stage.key,
     name: stage.name,
@@ -84,16 +85,22 @@ export function projectOfficialStage(stage: OfficialStage): RivalHubRemoteStage 
   if (stage.config) return projectStage(stage.config);
   if (!stage.qualification) return null;
   return {
-    key: stage.key, name: stage.name,
+    key: stage.key,
+    name: stage.name,
     type: stage.qualification.format === "short_swiss_2w2l" ? "swiss" : "single_elim",
     teamCount: stage.qualification.playInEntryCount,
     advanceCount: stage.qualification.qualifierCount,
-    matchFormat: stage.qualification.format === "short_swiss_2w2l" ? "bo1" : "bo3", finalFormat: null,
+    matchFormat: stage.qualification.format === "short_swiss_2w2l" ? "bo1" : "bo3",
+    finalFormat: null,
   };
 }
 
 function stageType(type: string): RivalHubRemoteStage["type"] {
-  return type === "round_robin" || type === "swiss" || type === "single_elim" || type === "double_elim" || type === "gsl_group"
+  return type === "round_robin" ||
+    type === "swiss" ||
+    type === "single_elim" ||
+    type === "double_elim" ||
+    type === "gsl_group"
     ? type
     : "round_robin";
 }

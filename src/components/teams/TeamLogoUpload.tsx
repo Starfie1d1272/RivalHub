@@ -99,7 +99,9 @@ export function TeamLogoUpload({
       {canEdit && !isPending && (
         <div className="absolute inset-0 hidden items-center justify-center bg-[color-mix(in_srgb,var(--color-panel)_74%,transparent)] group-hover:flex">
           <span className="px-1 text-center text-[10px] font-medium leading-tight text-[var(--color-fg)]">
-            更换<br />图标
+            更换
+            <br />
+            图标
           </span>
         </div>
       )}
@@ -112,7 +114,10 @@ export function TeamLogoUpload({
       {canEdit ? (
         <button
           type="button"
-          className={[surfaceClassName, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-panel)]"].join(" ")}
+          className={[
+            surfaceClassName,
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-panel)]",
+          ].join(" ")}
           onClick={() => inputRef.current?.click()}
           disabled={isPending}
           aria-label="更换队伍图标"

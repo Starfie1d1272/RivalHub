@@ -14,35 +14,60 @@ import { purgeExpiredEducationEvidence as purgeWithStore } from "./retention-cor
  * 清空；缺失 object 由 Storage owner 按幂等删除成功处理。
  */
 export async function purgeExpiredEducationEvidence(now = new Date()): Promise<number> {
-  return purgeWithStore({
-    findExpiredManualEvidence: async (reviewedBefore) => db
-      .select({ id: educationVerifications.id, evidenceObjectKey: educationVerifications.evidenceObjectKey })
-      .from(educationVerifications)
-      .where(and(
-        ne(educationVerifications.status, "pending"),
-        lte(educationVerifications.reviewedAt, reviewedBefore),
-        eq(educationVerifications.evidenceType, "manual_other"),
-        isNotNull(educationVerifications.evidenceObjectKey),
-      ))
-      .then((rows) => rows.flatMap((row) => row.evidenceObjectKey ? [{ id: row.id, evidenceObjectKey: row.evidenceObjectKey }] : [])),
-    removeEvidenceObject: (objectKey) => educationEvidenceStorage.remove(objectKey),
-    clearManualEvidence: async (id, objectKey) => (await db
-      .update(educationVerifications)
-      .set({ evidenceObjectKey: null })
-      .where(and(
-        eq(educationVerifications.id, id),
-        eq(educationVerifications.evidenceObjectKey, objectKey),
-      ))
-      .returning({ id: educationVerifications.id })).length,
-    clearExpiredChsiCodes: async (reviewedBefore) => (await db
-      .update(educationVerifications)
-      .set({ evidenceCode: null })
-      .where(and(
-        ne(educationVerifications.status, "pending"),
-        lte(educationVerifications.reviewedAt, reviewedBefore),
-        ne(educationVerifications.evidenceType, "manual_other"),
-        isNotNull(educationVerifications.evidenceCode),
-      ))
-      .returning({ id: educationVerifications.id })).length,
-  }, now);
+  return purgeWithStore(
+    {
+      findExpiredManualEvidence: async (reviewedBefore) =>
+        db
+          .select({
+            id: educationVerifications.id,
+            evidenceObjectKey: educationVerifications.evidenceObjectKey,
+          })
+          .from(educationVerifications)
+          .where(
+            and(
+              ne(educationVerifications.status, "pending"),
+              lte(educationVerifications.reviewedAt, reviewedBefore),
+              eq(educationVerifications.evidenceType, "manual_other"),
+              isNotNull(educationVerifications.evidenceObjectKey),
+            ),
+          )
+          .then((rows) =>
+            rows.flatMap((row) =>
+              row.evidenceObjectKey
+                ? [{ id: row.id, evidenceObjectKey: row.evidenceObjectKey }]
+                : [],
+            ),
+          ),
+      removeEvidenceObject: (objectKey) => educationEvidenceStorage.remove(objectKey),
+      clearManualEvidence: async (id, objectKey) =>
+        (
+          await db
+            .update(educationVerifications)
+            .set({ evidenceObjectKey: null })
+            .where(
+              and(
+                eq(educationVerifications.id, id),
+                eq(educationVerifications.evidenceObjectKey, objectKey),
+              ),
+            )
+            .returning({ id: educationVerifications.id })
+        ).length,
+      clearExpiredChsiCodes: async (reviewedBefore) =>
+        (
+          await db
+            .update(educationVerifications)
+            .set({ evidenceCode: null })
+            .where(
+              and(
+                ne(educationVerifications.status, "pending"),
+                lte(educationVerifications.reviewedAt, reviewedBefore),
+                ne(educationVerifications.evidenceType, "manual_other"),
+                isNotNull(educationVerifications.evidenceCode),
+              ),
+            )
+            .returning({ id: educationVerifications.id })
+        ).length,
+    },
+    now,
+  );
 }

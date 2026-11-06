@@ -17,22 +17,18 @@ import {
 import { AppError, ErrorCode } from "@/lib/errors";
 import { officialWinner } from "./baseline";
 import { predictionMatchSelection, type PredictionMatch } from "./match-selection";
-import {
-  SIMULATION_VERSION,
-  type Baseline,
-  type QualificationShortSwissContext,
-} from "./types";
+import { SIMULATION_VERSION, type Baseline, type QualificationShortSwissContext } from "./types";
 
 export async function loadQualificationRead(
   tx: TxDb,
   seasonId: string,
   name: string,
-): Promise<{context:QualificationShortSwissContext|null;official:PredictionMatch[]}> {
+): Promise<{ context: QualificationShortSwissContext | null; official: PredictionMatch[] }> {
   const [run] = await tx
     .select()
     .from(competitionQualificationRuns)
     .where(eq(competitionQualificationRuns.seasonId, seasonId));
-  if (!run || run.format !== "short_swiss_2w2l") return {context:null,official:[]};
+  if (!run || run.format !== "short_swiss_2w2l") return { context: null, official: [] };
   const entrantRows = await tx
     .select({
       competitionEntryId: competitionQualificationEntrants.competitionEntryId,
@@ -51,7 +47,8 @@ export async function loadQualificationRead(
     .where(eq(competitionQualificationEntrants.runId, run.id))
     .orderBy(asc(competitionQualificationEntrants.preliminarySeed));
   const entrants = entrantRows.map(({ competitionEntryId, preliminarySeed }) => ({
-    competitionEntryId, preliminarySeed,
+    competitionEntryId,
+    preliminarySeed,
   }));
   assertRunSnapshot(run, entrants);
   const rawOfficial = await tx
@@ -62,25 +59,14 @@ export async function loadQualificationRead(
   const official = rawOfficial.map(requireCompetitionMatch);
   if (
     official.some(
-      (m) =>
-        m.status === "cancelled" ||
-        (m.status === "finished" && !officialWinner(m)),
+      (m) => m.status === "cancelled" || (m.status === "finished" && !officialWinner(m)),
     )
   ) {
-    throw new AppError(
-      ErrorCode.INTERNAL_ERROR,
-      "Play-in 官方赛况不完整，请等待赛事方修正。",
-    );
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 官方赛况不完整，请等待赛事方修正。");
   }
   const history = validateShortSwissHistory(run, entrants, official);
-  if (
-    (run.startedAt && !official.length) ||
-    (run.completedAt && !history.projection.isComplete)
-  ) {
-    throw new AppError(
-      ErrorCode.INTERNAL_ERROR,
-      "Play-in 运行状态与官方赛况不一致。",
-    );
+  if ((run.startedAt && !official.length) || (run.completedAt && !history.projection.isComplete)) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 运行状态与官方赛况不一致。");
   }
   const teamRows = entrantRows.flatMap(({ entry, preliminarySeed }) =>
     entry ? [{ ...entry, tournamentSeed: preliminarySeed }] : [],
@@ -132,13 +118,16 @@ export async function loadQualificationRead(
       }),
     )
     .digest("hex");
-  return {official:rawOfficial,context:{
-    kind: "qualification-short-swiss",
-    baseline,
-    runId: run.id,
-    entrants: playing,
-  }};
+  return {
+    official: rawOfficial,
+    context: {
+      kind: "qualification-short-swiss",
+      baseline,
+      runId: run.id,
+      entrants: playing,
+    },
+  };
 }
-export async function loadQualificationContext(tx:TxDb,seasonId:string,name:string) {
-  return (await loadQualificationRead(tx,seasonId,name)).context;
+export async function loadQualificationContext(tx: TxDb, seasonId: string, name: string) {
+  return (await loadQualificationRead(tx, seasonId, name)).context;
 }

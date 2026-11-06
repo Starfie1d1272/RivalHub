@@ -45,7 +45,9 @@ function hasCompleteZeroRematchMatching(teams: readonly SwissTeamState[]): boole
 }
 
 /** Exact-record, feasibility-aware high-low pairing with no cross-record fallback. */
-export function pairSwissHighLowZeroRematch(teams: readonly SwissTeamState[]): readonly SwissPair[] {
+export function pairSwissHighLowZeroRematch(
+  teams: readonly SwissTeamState[],
+): readonly SwissPair[] {
   validateUniqueTeams(teams);
   if (teams.length < 2 || teams.length % 2 !== 0) {
     throw new Error("Swiss high-low pairing requires a positive even team count");
@@ -69,7 +71,9 @@ export function pairSwissHighLowZeroRematch(teams: readonly SwissTeamState[]): r
       }
     }
     if (lowerIndex < 0) {
-      throw new Error(`no complete zero-rematch pairing exists for the ${first.wins}-${first.losses} group`);
+      throw new Error(
+        `no complete zero-rematch pairing exists for the ${first.wins}-${first.losses} group`,
+      );
     }
     pairs.push(toPair(higher, available.splice(lowerIndex, 1)[0]!));
   }
@@ -95,6 +99,9 @@ export function groupSwissByRecord(teams: readonly SwissTeamState[]): readonly {
     })
     .map(([key, groupedTeams]) => {
       const [wins, losses] = key.split("-").map(Number);
-      return { record: { wins: wins!, losses: losses! }, teams: [...groupedTeams].sort((a, b) => a.currentSeed - b.currentSeed) };
+      return {
+        record: { wins: wins!, losses: losses! },
+        teams: [...groupedTeams].sort((a, b) => a.currentSeed - b.currentSeed),
+      };
     });
 }

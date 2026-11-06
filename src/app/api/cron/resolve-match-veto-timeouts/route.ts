@@ -9,7 +9,11 @@ export async function GET(request: Request) {
     const authError = validateCronAuth(request);
     if (authError) return authError;
 
-    const result = await executeScheduledJob(request, "resolve-match-veto-timeouts", runMatchVetoScheduledJob);
+    const result = await executeScheduledJob(
+      request,
+      "resolve-match-veto-timeouts",
+      runMatchVetoScheduledJob,
+    );
     if (result instanceof Response) return result;
     if (result.skipped) return NextResponse.json({ ok: true, skipped: result.skipReason });
     return NextResponse.json({ ok: true, ...result.result });

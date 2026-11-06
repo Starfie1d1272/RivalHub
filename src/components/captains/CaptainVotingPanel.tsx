@@ -7,7 +7,10 @@ import { useGuardedVisiblePolling } from "@/components/use-visible-polling";
 import { RefreshCw, Undo2, Vote } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { castVote as telemetry_castVote, retractVote as telemetry_retractVote } from "@/actions/captains";
+import {
+  castVote as telemetry_castVote,
+  retractVote as telemetry_retractVote,
+} from "@/actions/captains";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
@@ -19,7 +22,10 @@ import type {
   PublicCaptainVoter,
 } from "@/lib/captains/data";
 import { observeAction } from "@/lib/telemetry/client";
-import { readPublicCaptainVoting, type CaptainVotingSnapshot } from "@/actions/public-captain-voting";
+import {
+  readPublicCaptainVoting,
+  type CaptainVotingSnapshot,
+} from "@/actions/public-captain-voting";
 
 const castVote = observeAction("captains.castVote", telemetry_castVote);
 const retractVote = observeAction("captains.retractVote", telemetry_retractVote);
@@ -44,23 +50,52 @@ export function CaptainVotingPanel({
   viewerPending = false,
 }: CaptainVotingPanelProps) {
   const router = useRouter();
-  const [polled, setPolled] = useState<{ source: typeof initialCandidates; sourceStatus: string; sourceVoter: typeof initialVoter; sourceVotes: typeof initialVotes; data: CaptainVotingSnapshot } | null>(null);
+  const [polled, setPolled] = useState<{
+    source: typeof initialCandidates;
+    sourceStatus: string;
+    sourceVoter: typeof initialVoter;
+    sourceVotes: typeof initialVotes;
+    data: CaptainVotingSnapshot;
+  } | null>(null);
   // New RSC props supersede any response started against the old candidate set.
-  const { seasonStatus, currentVoter, candidates, votes } = polled?.source === initialCandidates && polled.sourceStatus === initialStatus && polled.sourceVoter === initialVoter && polled.sourceVotes === initialVotes
-    ? polled.data : { seasonStatus: initialStatus, currentVoter: initialVoter, candidates: initialCandidates, votes: initialVotes };
+  const { seasonStatus, currentVoter, candidates, votes } =
+    polled?.source === initialCandidates &&
+    polled.sourceStatus === initialStatus &&
+    polled.sourceVoter === initialVoter &&
+    polled.sourceVotes === initialVotes
+      ? polled.data
+      : {
+          seasonStatus: initialStatus,
+          currentVoter: initialVoter,
+          candidates: initialCandidates,
+          votes: initialVotes,
+        };
   const [isPending, startTransition] = useTransition();
   const isVotingOpen = seasonStatus === "voting";
 
-  useGuardedVisiblePolling(async (isCurrent) => {
-    if (isPending) return;
-    const result = await readPublicCaptainVoting(seasonSlug).catch(error => { reportDeploymentUpdate(error); return null; });
-    if (!isCurrent()) return;
-    if (result?.success) {
-      setPolled({ source: initialCandidates, sourceStatus: initialStatus, sourceVoter: initialVoter, sourceVotes: initialVotes, data: result.data });
-      if (result.data.seasonStatus !== seasonStatus) router.refresh();
-    }
-    else router.refresh();
-  }, isVotingOpen && !viewerPending ? 10_000 : null, seasonSlug, true);
+  useGuardedVisiblePolling(
+    async (isCurrent) => {
+      if (isPending) return;
+      const result = await readPublicCaptainVoting(seasonSlug).catch((error) => {
+        reportDeploymentUpdate(error);
+        return null;
+      });
+      if (!isCurrent()) return;
+      if (result?.success) {
+        setPolled({
+          source: initialCandidates,
+          sourceStatus: initialStatus,
+          sourceVoter: initialVoter,
+          sourceVotes: initialVotes,
+          data: result.data,
+        });
+        if (result.data.seasonStatus !== seasonStatus) router.refresh();
+      } else router.refresh();
+    },
+    isVotingOpen && !viewerPending ? 10_000 : null,
+    seasonSlug,
+    true,
+  );
 
   // votes 已在服务端按当前用户过滤
   const votedCandidateIds = new Set(votes.map((vote) => vote.candidateRegistrationId));
@@ -165,7 +200,9 @@ export function CaptainVotingPanel({
                         #{index + 1}
                       </span>
                       <span className="text-sm font-semibold text-[var(--color-fg)] truncate">
-                        <PlayerProfileLink userId={candidate.userId}>{candidate.displayName}</PlayerProfileLink>
+                        <PlayerProfileLink userId={candidate.userId}>
+                          {candidate.displayName}
+                        </PlayerProfileLink>
                       </span>
                       {index < 8 && (
                         <span className="shrink-0 text-[10px] font-mono text-[var(--color-accent)] border border-[var(--color-accent)]/40 rounded-sm px-1">
@@ -181,7 +218,8 @@ export function CaptainVotingPanel({
 
                   {/* 位置信息 */}
                   <p className="text-xs text-[var(--color-fg-mid)] mb-2">
-                    {positionLabel(candidate.primaryPosition)} · Peak {candidate.peakRank} · RT {candidate.peakRating} · Current RT {candidate.currentRating}
+                    {positionLabel(candidate.primaryPosition)} · Peak {candidate.peakRank} · RT{" "}
+                    {candidate.peakRating} · Current RT {candidate.currentRating}
                   </p>
 
                   {/* 票数进度条 */}
@@ -197,7 +235,9 @@ export function CaptainVotingPanel({
                     <button
                       type="button"
                       disabled={voteDisabled}
-                      onClick={() => hasVoted ? handleRetract(candidate.id) : handleCast(candidate.id)}
+                      onClick={() =>
+                        hasVoted ? handleRetract(candidate.id) : handleCast(candidate.id)
+                      }
                       className={`w-full py-2 text-xs font-mono tracking-wide border rounded-sm transition-colors disabled:opacity-50 ${
                         hasVoted
                           ? "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:border-[var(--color-fg-dim)] hover:text-[var(--color-fg)]"
@@ -229,9 +269,14 @@ export function CaptainVotingPanel({
               {currentVoter ? (
                 <>
                   <div className="rounded-md border border-[var(--color-border)] p-3 text-sm">
-                    <p className="font-medium"><PlayerProfileLink userId={currentVoter.userId}>{currentVoter.displayName}</PlayerProfileLink></p>
+                    <p className="font-medium">
+                      <PlayerProfileLink userId={currentVoter.userId}>
+                        {currentVoter.displayName}
+                      </PlayerProfileLink>
+                    </p>
                     <p className="mt-0.5 text-[var(--color-fg-mid)]">
-                      {positionLabel(currentVoter.primaryPosition)} · Peak {currentVoter.peakRank} · RT {currentVoter.peakRating}
+                      {positionLabel(currentVoter.primaryPosition)} · Peak {currentVoter.peakRank} ·
+                      RT {currentVoter.peakRating}
                     </p>
                   </div>
 
@@ -273,9 +318,7 @@ export function CaptainVotingPanel({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-semibold">{seasonName} 队长候选</h2>
-              <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-                当前状态：{seasonStatus}
-              </p>
+              <p className="mt-1 text-sm text-[var(--color-fg-mid)]">当前状态：{seasonStatus}</p>
             </div>
             <Badge variant={isVotingOpen ? "default" : "secondary"}>
               {isVotingOpen ? "投票开放" : "结果展示"}
@@ -302,10 +345,12 @@ export function CaptainVotingPanel({
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={index < 8 ? "default" : "outline"}>
-                            #{index + 1}
-                          </Badge>
-                          <h3 className="font-semibold"><PlayerProfileLink userId={candidate.userId}>{candidate.displayName}</PlayerProfileLink></h3>
+                          <Badge variant={index < 8 ? "default" : "outline"}>#{index + 1}</Badge>
+                          <h3 className="font-semibold">
+                            <PlayerProfileLink userId={candidate.userId}>
+                              {candidate.displayName}
+                            </PlayerProfileLink>
+                          </h3>
                           {index < 8 && (
                             <Badge variant="secondary" className="text-xs">
                               当前前 8
