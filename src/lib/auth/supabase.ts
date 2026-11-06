@@ -8,12 +8,19 @@ import { createClient } from "@supabase/supabase-js";
 export function createBrowserClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL)
+    requireSupabasePublicKey(
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+    ),
   );
 }
 
 /** Dedicated receive-only identity; never persists or replaces the signed-in user's Auth session. */
-export function createLiveViewerClient(url: string, publishableKey: string, accessToken: () => Promise<string>) {
+export function createLiveViewerClient(
+  url: string,
+  publishableKey: string,
+  accessToken: () => Promise<string>,
+) {
   return createClient(url, publishableKey, {
     accessToken,
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },

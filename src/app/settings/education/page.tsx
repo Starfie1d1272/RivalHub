@@ -10,36 +10,102 @@ import { getUserSession } from "@/lib/auth/session";
 import { emailDomain } from "@/lib/education/validation";
 import { listVerifiedEmailIdentities } from "@/lib/identity/linking";
 
-export default function EducationSettingsPage(props: { searchParams?: Promise<{ returnTo?: string | string[] }> }) {
-  return <Suspense fallback={<p role="status" aria-busy="true">正在读取账号资料…</p>}><EducationSettingsContent {...props} /></Suspense>;
+export default function EducationSettingsPage(props: {
+  searchParams?: Promise<{ returnTo?: string | string[] }>;
+}) {
+  return (
+    <Suspense
+      fallback={
+        <p role="status" aria-busy="true">
+          正在读取账号资料…
+        </p>
+      }
+    >
+      <EducationSettingsContent {...props} />
+    </Suspense>
+  );
 }
 
-async function EducationSettingsContent({ searchParams }: { searchParams?: Promise<{ returnTo?: string | string[] }> }) {
+async function EducationSettingsContent({
+  searchParams,
+}: {
+  searchParams?: Promise<{ returnTo?: string | string[] }>;
+}) {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/settings/education");
-  const [user] = await db.select({ id: users.id, email: users.email, emailVerifiedAt: users.emailVerifiedAt }).from(users).where(and(eq(users.id, session.userId), eq(users.status, "active"))).limit(1);
+  const [user] = await db
+    .select({ id: users.id, email: users.email, emailVerifiedAt: users.emailVerifiedAt })
+    .from(users)
+    .where(and(eq(users.id, session.userId), eq(users.status, "active")))
+    .limit(1);
   if (!user) redirect("/login");
   const [rows, identities] = await Promise.all([
-    db.select({ id: educationVerifications.id, institutionId: educationVerifications.institutionId, institution: institutions.name, institutionCode: institutions.moeInstitutionCode, province: institutions.province, evidenceType: educationVerifications.evidenceType, academicStatus: educationVerifications.academicStatus, status: educationVerifications.status, reviewNote: educationVerifications.reviewNote, submittedAt: educationVerifications.submittedAt }).from(educationVerifications).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id)).where(eq(educationVerifications.userId, user.id)).orderBy(desc(educationVerifications.submittedAt)),
+    db
+      .select({
+        id: educationVerifications.id,
+        institutionId: educationVerifications.institutionId,
+        institution: institutions.name,
+        institutionCode: institutions.moeInstitutionCode,
+        province: institutions.province,
+        evidenceType: educationVerifications.evidenceType,
+        academicStatus: educationVerifications.academicStatus,
+        status: educationVerifications.status,
+        reviewNote: educationVerifications.reviewNote,
+        submittedAt: educationVerifications.submittedAt,
+      })
+      .from(educationVerifications)
+      .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
+      .where(eq(educationVerifications.userId, user.id))
+      .orderBy(desc(educationVerifications.submittedAt)),
     listVerifiedEmailIdentities(db, user.id),
   ]);
-  const identityDomains = [...new Set(identities.map((identity) => emailDomain(identity.email)).filter((domain): domain is string => Boolean(domain)))];
-  const mappings = identityDomains.length === 0 ? [] : await db.select({
-    domain: institutionEmailDomains.domain,
-    institution: institutions.name,
-  }).from(institutionEmailDomains)
-    .innerJoin(institutions, eq(institutionEmailDomains.institutionId, institutions.id))
-    .where(and(
-      inArray(institutionEmailDomains.domain, identityDomains),
-      eq(institutionEmailDomains.active, true),
-      eq(institutionEmailDomains.autoVerify, true),
-      eq(institutionEmailDomains.credentialType, "student"),
-    ));
-  const institutionByDomain = new Map(mappings.map((mapping) => [mapping.domain, mapping.institution]));
+  const identityDomains = [
+    ...new Set(
+      identities
+        .map((identity) => emailDomain(identity.email))
+        .filter((domain): domain is string => Boolean(domain)),
+    ),
+  ];
+  const mappings =
+    identityDomains.length === 0
+      ? []
+      : await db
+          .select({
+            domain: institutionEmailDomains.domain,
+            institution: institutions.name,
+          })
+          .from(institutionEmailDomains)
+          .innerJoin(institutions, eq(institutionEmailDomains.institutionId, institutions.id))
+          .where(
+            and(
+              inArray(institutionEmailDomains.domain, identityDomains),
+              eq(institutionEmailDomains.active, true),
+              eq(institutionEmailDomains.autoVerify, true),
+              eq(institutionEmailDomains.credentialType, "student"),
+            ),
+          );
+  const institutionByDomain = new Map(
+    mappings.map((mapping) => [mapping.domain, mapping.institution]),
+  );
   const institutionalIdentities = identities.flatMap((identity) => {
     const domain = emailDomain(identity.email);
     const institution = domain ? institutionByDomain.get(domain) : undefined;
     return institution ? [{ identityId: identity.id, email: identity.email, institution }] : [];
   });
-  return <div><RegistrationReturnLink href={(await searchParams)?.returnTo} /><h1 className="mb-2 text-3xl font-semibold">教育身份认证</h1><p className="mb-6 text-sm text-[var(--color-fg-mid)]">教育认证只用于赛事资格审核；公开页面不会展示你的学信网在线验证码或审核备注。</p><ContentReady module="account" phase="form" /><EducationVerificationPanel email={user.email} emailVerified={Boolean(user.emailVerifiedAt)} institutionalIdentities={institutionalIdentities} verifications={rows.map((row) => ({ ...row, submittedAt: row.submittedAt.toISOString() }))} /></div>;
+  return (
+    <div>
+      <RegistrationReturnLink href={(await searchParams)?.returnTo} />
+      <h1 className="mb-2 text-3xl font-semibold">教育身份认证</h1>
+      <p className="mb-6 text-sm text-[var(--color-fg-mid)]">
+        教育认证只用于赛事资格审核；公开页面不会展示你的学信网在线验证码或审核备注。
+      </p>
+      <ContentReady module="account" phase="form" />
+      <EducationVerificationPanel
+        email={user.email}
+        emailVerified={Boolean(user.emailVerifiedAt)}
+        institutionalIdentities={institutionalIdentities}
+        verifications={rows.map((row) => ({ ...row, submittedAt: row.submittedAt.toISOString() }))}
+      />
+    </div>
+  );
 }

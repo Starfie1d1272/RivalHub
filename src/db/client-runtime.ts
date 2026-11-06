@@ -3,7 +3,12 @@ import { postgresConnection } from "./postgres-connection";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { DatabasePool } from "./pool";
-import { databaseRuntimeSlot, type DatabaseRuntimeOwner, type RuntimeEntry, type RuntimeConfiguration } from "./runtime-owner";
+import {
+  databaseRuntimeSlot,
+  type DatabaseRuntimeOwner,
+  type RuntimeEntry,
+  type RuntimeConfiguration,
+} from "./runtime-owner";
 import * as schema from "./schema";
 // This module is reserved for Node application/CLI entrypoints; the relative
 // imports intentionally bypass the Next server-only facade.
@@ -12,8 +17,14 @@ import { assertPreviewDatabaseUrl } from "../lib/runtime/preview";
 
 let configurationCache: { source: string; value: RuntimeConfiguration } | null = null;
 function readConfiguration(): RuntimeConfiguration {
-  const source = JSON.stringify([process.env.DATABASE_URL, process.env.NODE_ENV, process.env.VERCEL,
-    process.env.NEXT_RUNTIME, process.env.VERCEL_ENV, process.env.RIVALHUB_RELEASE_COMMIT]);
+  const source = JSON.stringify([
+    process.env.DATABASE_URL,
+    process.env.NODE_ENV,
+    process.env.VERCEL,
+    process.env.NEXT_RUNTIME,
+    process.env.VERCEL_ENV,
+    process.env.RIVALHUB_RELEASE_COMMIT,
+  ]);
   if (configurationCache?.source === source) return configurationCache.value;
   const connectionString = requireDatabaseUrl();
   const url = new URL(connectionString);
@@ -25,24 +36,40 @@ function readConfiguration(): RuntimeConfiguration {
     max: process.env.NODE_ENV === "production" && process.env.VERCEL === "1" ? 3 : 10,
     // Retain two established application connections across quiet page visits.
     // CLI and serverless pools retain their existing shutdown behavior.
-    min: process.env.NODE_ENV === "production" && process.env.NEXT_RUNTIME === "nodejs" && process.env.VERCEL !== "1" ? 2 : 0,
+    min:
+      process.env.NODE_ENV === "production" &&
+      process.env.NEXT_RUNTIME === "nodejs" &&
+      process.env.VERCEL !== "1"
+        ? 2
+        : 0,
     // Persistent Node hosts reuse TLS connections between page visits.
-    idleTimeoutMillis: process.env.NEXT_RUNTIME === "nodejs" && process.env.VERCEL !== "1" ? 30000 : 5000,
+    idleTimeoutMillis:
+      process.env.NEXT_RUNTIME === "nodejs" && process.env.VERCEL !== "1" ? 30000 : 5000,
     connectionTimeoutMillis: 10000,
   };
 
   const scopeUrl = new URL(connection.connectionString);
   scopeUrl.password = "";
   scopeUrl.searchParams.delete("password");
-  const version = { protocol: 1, environment: process.env.NODE_ENV, deployment: process.env.VERCEL_ENV,
-    release: process.env.RIVALHUB_RELEASE_COMMIT || "unknown" };
-  const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  const version = {
+    protocol: 1,
+    environment: process.env.NODE_ENV,
+    deployment: process.env.VERCEL_ENV,
+    release: process.env.RIVALHUB_RELEASE_COMMIT || "unknown",
+  };
+  const digest = (value: unknown) =>
+    createHash("sha256").update(JSON.stringify(value)).digest("hex");
   const value: RuntimeConfiguration = {
     identity: digest({ ...pgConfig, version }),
     scope: digest({ ...pgConfig, connectionString: scopeUrl.href, version }),
     createPool() {
-      logEvent({ level: "info", event: "db.pool.created", scope: "database", operation: "pool.create",
-        safeContext: { host: url.hostname, ssl: connection.ssl !== false } });
+      logEvent({
+        level: "info",
+        event: "db.pool.created",
+        scope: "database",
+        operation: "pool.create",
+        safeContext: { host: url.hostname, ssl: connection.ssl !== false },
+      });
       return new DatabasePool(pgConfig);
     },
   };
@@ -63,13 +90,18 @@ export function getDatabasePoolSnapshot() {
 /** HMR/tests release this module binding; the final binding closes its owner. */
 export async function disposeDatabaseBinding(): Promise<void> {
   const previous = binding;
-  binding = null; _db = null; databaseGeneration = 0; configurationCache = null;
+  binding = null;
+  _db = null;
+  databaseGeneration = 0;
+  configurationCache = null;
   await previous?.release();
 }
 
 if (process.env.NODE_ENV === "development" && typeof module !== "undefined") {
   const hot = (module as NodeModule & { hot?: { dispose(callback: () => void): void } }).hot;
-  hot?.dispose(() => { void disposeDatabaseBinding(); });
+  hot?.dispose(() => {
+    void disposeDatabaseBinding();
+  });
 }
 
 // Proxy 确保 Pool 重建后 db 始终指向新 drizzle 实例
@@ -87,16 +119,28 @@ export type TxDb = Parameters<Parameters<DB["transaction"]>[0]>[0];
 // re-reads it on recovery; only same-scope credential rotation can be retried.
 function getRuntimeOwner(): DatabaseRuntimeOwner {
   const owner = runtime.acquire(readConfiguration(), {
-    readConfiguration, installGuard: setupPoolGuard,
-    rebuilt: () => logEvent({ level: "warn", event: "db.pool.rebuilt", scope: "database", operation: "pool.rebuild" }),
-    rebuildFailed: (error) => captureException("db.pool.rebuild_failure", error, {
-      scope: "database", operation: "pool.rebuild", errorClass: "database", retryable: true,
-    }),
+    readConfiguration,
+    installGuard: setupPoolGuard,
+    rebuilt: () =>
+      logEvent({
+        level: "warn",
+        event: "db.pool.rebuilt",
+        scope: "database",
+        operation: "pool.rebuild",
+      }),
+    rebuildFailed: (error) =>
+      captureException("db.pool.rebuild_failure", error, {
+        scope: "database",
+        operation: "pool.rebuild",
+        errorClass: "database",
+        retryable: true,
+      }),
   });
   if (binding?.owner !== owner) {
     const previous = binding;
     binding = { owner, release: owner.retain() };
-    _db = null; databaseGeneration = 0;
+    _db = null;
+    databaseGeneration = 0;
     void previous?.release();
   }
   return owner;
@@ -203,18 +247,23 @@ function isPreConnectionError(error: unknown): boolean {
 function isConnectionError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const candidate = error as { code?: unknown; message?: unknown };
-  return isPreConnectionError(error) || candidate.code === "ECONNRESET" ||
-    candidate.code === "EPIPE" || candidate.code === "ETIMEDOUT" ||
-    (typeof candidate.message === "string" && candidate.message.includes("Connection terminated"));
+  return (
+    isPreConnectionError(error) ||
+    candidate.code === "ECONNRESET" ||
+    candidate.code === "EPIPE" ||
+    candidate.code === "ETIMEDOUT" ||
+    (typeof candidate.message === "string" && candidate.message.includes("Connection terminated"))
+  );
 }
 
 function getQueryOperation(args: unknown[]): string {
   const first = args[0];
-  const text = typeof first === "string"
-    ? first
-    : first && typeof first === "object" && "text" in first && typeof first.text === "string"
-      ? first.text
-      : "unknown";
+  const text =
+    typeof first === "string"
+      ? first
+      : first && typeof first === "object" && "text" in first && typeof first.text === "string"
+        ? first.text
+        : "unknown";
   const operation = text.trim().split(/\s+/, 1)[0]?.toLowerCase();
   return operation && /^[a-z]+$/.test(operation) ? operation : "unknown";
 }

@@ -8,7 +8,11 @@ export async function GET(request: Request) {
   return withRouteObservability(request, "/api/cron/refresh-steam-profiles", async () => {
     const authError = validateCronAuth(request);
     if (authError) return authError;
-    const result = await executeScheduledJob(request, "refresh-steam-profiles", runSteamProfileRefreshJob);
+    const result = await executeScheduledJob(
+      request,
+      "refresh-steam-profiles",
+      runSteamProfileRefreshJob,
+    );
     if (result instanceof Response) return result;
     if (result.skipped) return NextResponse.json({ ok: true, skipped: result.skipReason });
     return NextResponse.json({ ok: true, ...result.result });

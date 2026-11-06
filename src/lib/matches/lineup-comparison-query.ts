@@ -12,22 +12,45 @@ import type { LineupCareer } from "./lineup-comparison";
 /** One aggregate for both lineups and the historical baseline.
  * Confirmed per-map facts are reused without revalidating each import at read time.
  */
-export async function loadLineupPopulation(matchId: string, before: Date, database: DB = db): Promise<LineupCareer[]> {
+export async function loadLineupPopulation(
+  matchId: string,
+  before: Date,
+  database: DB = db,
+): Promise<LineupCareer[]> {
   const population = await getLineupStatsPopulation(matchId, before, database);
-  const { ranked } = partitionRankingPopulation(population, (row) => row.avgRating, (row) => row.rounds);
+  const { ranked } = partitionRankingPopulation(
+    population,
+    (row) => row.avgRating,
+    (row) => row.rounds,
+  );
   const qualified = new Set(ranked.map((row) => row.userId));
-  return population.filter((row) => row.userId).map((row) => ({
-    userId: row.userId!, maps: row.maps, rounds: row.rounds, qualified: qualified.has(row.userId),
-    rating: row.avgRating, adr: row.avgAdr, kpr: row.kpr, kast: row.kast, firstKill: row.fkpr, trade: row.tradeKpr,
-  }));
+  return population
+    .filter((row) => row.userId)
+    .map((row) => ({
+      userId: row.userId!,
+      maps: row.maps,
+      rounds: row.rounds,
+      qualified: qualified.has(row.userId),
+      rating: row.avgRating,
+      adr: row.avgAdr,
+      kpr: row.kpr,
+      kast: row.kast,
+      firstKill: row.fkpr,
+      trade: row.tradeKpr,
+    }));
 }
 
 function projectLineupCareers(population: LineupCareer[], playerIds: readonly string[]) {
   const requested = new Set(playerIds);
-  return population.filter(row => requested.has(row.userId));
+  return population.filter((row) => requested.has(row.userId));
 }
 
-export async function loadLineupCareers(playerIds: readonly string[], matchId: string, before: Date, database: DB = db): Promise<LineupCareer[]> {
+export async function loadLineupCareers(
+  playerIds: readonly string[],
+  matchId: string,
+  before: Date,
+  database: DB = db,
+): Promise<LineupCareer[]> {
   if (!playerIds.length) return [];
   return projectLineupCareers(await loadLineupPopulation(matchId, before, database), playerIds);
 }
@@ -38,10 +61,18 @@ async function getLineupPopulation(matchId: string, cutoff: string | null) {
   // A future completedAt crossing the rolling cutoff is reflected on the next
   // tagged write, rather than triggering periodic population reads.
   cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
-  return observeStatsCacheFill(cutoff ? "lineup.historical" : "lineup.realtime", () => observePublicStatsFill("stats.lineup", () => loadLineupPopulation(matchId, cutoff ? new Date(cutoff) : new Date())));
+  return observeStatsCacheFill(cutoff ? "lineup.historical" : "lineup.realtime", () =>
+    observePublicStatsFill("stats.lineup", () =>
+      loadLineupPopulation(matchId, cutoff ? new Date(cutoff) : new Date()),
+    ),
+  );
 }
 
-export async function getLineupCareers(playerIds: string[], matchId: string, cutoff: string | null) {
+export async function getLineupCareers(
+  playerIds: string[],
+  matchId: string,
+  cutoff: string | null,
+) {
   if (!playerIds.length) return [];
   recordStatsCache(cutoff ? "lineup.historical" : "lineup.realtime", "readCalls");
   return projectLineupCareers(await getLineupPopulation(matchId, cutoff), playerIds);

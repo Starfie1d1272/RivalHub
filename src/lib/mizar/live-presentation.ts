@@ -1,17 +1,38 @@
 import type { PublicLiveMatchProjection } from "./live-projection";
 
 const PHASES: Record<string, string> = {
-  live: "对局中", freezetime: "准备回合", freeze: "准备回合", warmup: "热身中",
-  over: "回合结束", gameover: "地图结束", intermission: "中场休息",
-  paused: "比赛暂停", paused_ct: "CT 暂停", paused_t: "T 暂停",
-  timeout_ct: "CT 暂停", timeout_t: "T 暂停", bomb: "C4 倒计时", defuse: "正在拆除",
+  live: "对局中",
+  freezetime: "准备回合",
+  freeze: "准备回合",
+  warmup: "热身中",
+  over: "回合结束",
+  gameover: "地图结束",
+  intermission: "中场休息",
+  paused: "比赛暂停",
+  paused_ct: "CT 暂停",
+  paused_t: "T 暂停",
+  timeout_ct: "CT 暂停",
+  timeout_t: "T 暂停",
+  bomb: "C4 倒计时",
+  defuse: "正在拆除",
 };
-export function presentLivePhase(phase: string | null): string { return phase ? PHASES[phase] ?? "比赛进行中" : "比赛进行中"; }
+export function presentLivePhase(phase: string | null): string {
+  return phase ? (PHASES[phase] ?? "比赛进行中") : "比赛进行中";
+}
 export function presentBomb(bomb: PublicLiveMatchProjection["bomb"]): string | null {
   if (!bomb) return null;
   if (bomb.action?.kind === "plant") return "正在安放 C4";
   if (bomb.action?.kind === "defuse") return "正在拆除 C4";
-  return ({ dropped: "C4 已掉落", planted: "C4 已安放", defused: "C4 已拆除", exploded: "C4 已爆炸" } as Record<string, string>)[bomb.state ?? ""] ?? null;
+  return (
+    (
+      {
+        dropped: "C4 已掉落",
+        planted: "C4 已安放",
+        defused: "C4 已拆除",
+        exploded: "C4 已爆炸",
+      } as Record<string, string>
+    )[bomb.state ?? ""] ?? null
+  );
 }
 export function formatLiveClock(seconds: number | null): string {
   if (seconds === null) return "—";
@@ -20,21 +41,38 @@ export function formatLiveClock(seconds: number | null): string {
 }
 
 /** CT/T can swap at halftime: public A/B scores follow canonical entry IDs. */
-export function publicRoundScore(snapshot: PublicLiveMatchProjection, entryAId: string, entryBId: string) {
+export function publicRoundScore(
+  snapshot: PublicLiveMatchProjection,
+  entryAId: string,
+  entryBId: string,
+) {
   const { ct, t } = snapshot.teams;
-  if (ct.entryId === entryAId && t.entryId === entryBId) return { scoreA: snapshot.map.scoreCT, scoreB: snapshot.map.scoreT };
-  if (t.entryId === entryAId && ct.entryId === entryBId) return { scoreA: snapshot.map.scoreT, scoreB: snapshot.map.scoreCT };
+  if (ct.entryId === entryAId && t.entryId === entryBId)
+    return { scoreA: snapshot.map.scoreCT, scoreB: snapshot.map.scoreT };
+  if (t.entryId === entryAId && ct.entryId === entryBId)
+    return { scoreA: snapshot.map.scoreT, scoreB: snapshot.map.scoreCT };
   return null;
 }
 
 /** Stable numeric markers shared by the table and radar; independent of names and CT/T. */
-export function publicPlayerLabels(players: PublicLiveMatchProjection["players"]): Map<string, string> {
-  return new Map([...players].sort((a, b) => a.sourcePlayerId.localeCompare(b.sourcePlayerId))
-    .map((player, index) => [player.sourcePlayerId, String(index + 1)]));
+export function publicPlayerLabels(
+  players: PublicLiveMatchProjection["players"],
+): Map<string, string> {
+  return new Map(
+    [...players]
+      .sort((a, b) => a.sourcePlayerId.localeCompare(b.sourcePlayerId))
+      .map((player, index) => [player.sourcePlayerId, String(index + 1)]),
+  );
 }
 
 /** Subscription failure differs from a connected viewer waiting for a fresh frame. */
-export function presentLiveConnection(connection: import("./live-viewer-state").LiveViewerState["connection"]): string {
-  const labels = { connecting: "正在连接实时数据", subscribed: "等待实时数据", unavailable: "实时连接暂不可用" };
+export function presentLiveConnection(
+  connection: import("./live-viewer-state").LiveViewerState["connection"],
+): string {
+  const labels = {
+    connecting: "正在连接实时数据",
+    subscribed: "等待实时数据",
+    unavailable: "实时连接暂不可用",
+  };
   return labels[connection];
 }

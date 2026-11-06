@@ -17,7 +17,7 @@ export const captainVotes = pgTable(
   },
   (t) => ({
     uniqueVote: unique().on(t.voterRegistrationId, t.candidateRegistrationId),
-  })
+  }),
 );
 
 export type CaptainVote = typeof captainVotes.$inferSelect;

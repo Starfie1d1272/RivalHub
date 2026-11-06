@@ -3,9 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const PRESET_COLORS = [
-  "#ff6b1a", "#3b82f6", "#22c55e", "#8b5cf6", "#ef4444", "#14b8a6",
-];
+const PRESET_COLORS = ["#ff6b1a", "#3b82f6", "#22c55e", "#8b5cf6", "#ef4444", "#14b8a6"];
 
 interface ThemeColorPickerProps {
   value: string;

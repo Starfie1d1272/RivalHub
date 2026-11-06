@@ -26,16 +26,22 @@ export async function applyMatchStatusTransitionInTx(
   const locked = await lockMatchInTx(tx, args.matchId);
   const now = args.now ?? new Date();
   const patch = transitionMatchExecution(locked, args.nextStatus, now);
-  const lineups = await prepareCompetitionMatchTransitionInTx(tx, locked, args.nextStatus, now, args.actorId);
+  const lineups = await prepareCompetitionMatchTransitionInTx(
+    tx,
+    locked,
+    args.nextStatus,
+    now,
+    args.actorId,
+  );
   const clearedCommentators =
     args.nextStatus === "cancelled"
-      ? await tx.delete(matchCommentators).where(eq(matchCommentators.matchId, locked.id)).returning({ userId: matchCommentators.userId })
+      ? await tx
+          .delete(matchCommentators)
+          .where(eq(matchCommentators.matchId, locked.id))
+          .returning({ userId: matchCommentators.userId })
       : [];
 
-  await tx
-    .update(matches)
-    .set(patch)
-    .where(eq(matches.id, args.matchId));
+  await tx.update(matches).set(patch).where(eq(matches.id, args.matchId));
 
   await writeAuditInTx(tx, {
     seasonId: locked.seasonId,
@@ -56,11 +62,12 @@ export async function applyMatchStatusTransitionInTx(
           }
         : {}),
       ...(clearedCommentators.length > 0
-        ? { clearedCommentatorUserIds: clearedCommentators.map((commentator) => commentator.userId) }
+        ? {
+            clearedCommentatorUserIds: clearedCommentators.map((commentator) => commentator.userId),
+          }
         : {}),
     },
   });
 
   return { from: locked.status, to: args.nextStatus, lineups };
 }
-

@@ -11,7 +11,9 @@ export function getDynamicRankingFloor(
   share = 0.25,
 ): DynamicRankingFloor | null {
   const values = samples
-    .filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0)
+    .filter(
+      (value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0,
+    )
     .sort((left, right) => left - right);
   if (values.length === 0) return null;
 
@@ -38,11 +40,14 @@ export function partitionRankingPopulation<T>(
   baseline: readonly T[] = rows,
 ) {
   const hasValue = (row: T) => valueFor(row) !== null && valueFor(row) !== undefined;
-  const dynamicFloor = getDynamicRankingFloor(baseline.map((row) => hasValue(row) ? sampleFor(row) : null));
+  const dynamicFloor = getDynamicRankingFloor(
+    baseline.map((row) => (hasValue(row) ? sampleFor(row) : null)),
+  );
   const ranked: T[] = [];
   const limited: T[] = [];
   for (const row of rows) {
-    if (dynamicFloor && hasValue(row) && isRankingEligible(sampleFor(row), dynamicFloor.floor)) ranked.push(row);
+    if (dynamicFloor && hasValue(row) && isRankingEligible(sampleFor(row), dynamicFloor.floor))
+      ranked.push(row);
     else limited.push(row);
   }
   return { dynamicFloor, ranked, limited };

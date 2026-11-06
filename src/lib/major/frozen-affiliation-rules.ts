@@ -30,11 +30,21 @@ export function frozenStageRunAffiliationRules(
   const structurallyValid = rules.every((rule) => {
     if (!rule || typeof rule !== "object") return false;
     const candidate = rule as Partial<InstitutionAffiliationRule>;
-    return typeof candidate.institutionCode === "string" && candidate.institutionCode.trim().length > 0 &&
-      Array.isArray(candidate.eligibleAcademicStatuses) && candidate.eligibleAcademicStatuses.length > 0 &&
-      candidate.eligibleAcademicStatuses.every((status) => status === "enrolled" || status === "graduated") &&
-      typeof candidate.minRosterMembers === "number" && Number.isInteger(candidate.minRosterMembers) && candidate.minRosterMembers >= 0 &&
-      typeof candidate.minStartingMembers === "number" && Number.isInteger(candidate.minStartingMembers) && candidate.minStartingMembers >= 0;
+    return (
+      typeof candidate.institutionCode === "string" &&
+      candidate.institutionCode.trim().length > 0 &&
+      Array.isArray(candidate.eligibleAcademicStatuses) &&
+      candidate.eligibleAcademicStatuses.length > 0 &&
+      candidate.eligibleAcademicStatuses.every(
+        (status) => status === "enrolled" || status === "graduated",
+      ) &&
+      typeof candidate.minRosterMembers === "number" &&
+      Number.isInteger(candidate.minRosterMembers) &&
+      candidate.minRosterMembers >= 0 &&
+      typeof candidate.minStartingMembers === "number" &&
+      Number.isInteger(candidate.minStartingMembers) &&
+      candidate.minStartingMembers >= 0
+    );
   });
   if (!structurallyValid) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的高校归属规则不可用。");

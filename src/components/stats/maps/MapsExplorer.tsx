@@ -1,7 +1,6 @@
 "use client";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 
-
 import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
@@ -13,9 +12,19 @@ import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
 import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
-type ViewData = Pick<TournamentStats, "coverage" | "options" | "teamLinks" | "selection" | "veto"> & { analytics: Pick<TournamentStats["analytics"], "maps">; results: Pick<TournamentStats["results"], "maps"> };
+type ViewData = Pick<
+  TournamentStats,
+  "coverage" | "options" | "teamLinks" | "selection" | "veto"
+> & {
+  analytics: Pick<TournamentStats["analytics"], "maps">;
+  results: Pick<TournamentStats["results"], "maps">;
+};
 import { navigateStatsScope, statsHref, type StatsQuery } from "@/lib/stats/view-state";
-import { compareStatsValues, type StatsSortDirection, type StatsSortValue } from "@/lib/stats/sorting";
+import {
+  compareStatsValues,
+  type StatsSortDirection,
+  type StatsSortValue,
+} from "@/lib/stats/sorting";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
 interface MapDirectoryRow {
@@ -49,7 +58,11 @@ function mapLabel(mapName: string) {
 
 function orderedMaps(maps: readonly string[]) {
   const order = new Map<string, number>(CS2_MAP_CATALOG.map((map, index) => [map.key, index]));
-  return [...maps].sort((left, right) => (order.get(left) ?? 999) - (order.get(right) ?? 999) || mapLabel(left).localeCompare(mapLabel(right)));
+  return [...maps].sort(
+    (left, right) =>
+      (order.get(left) ?? 999) - (order.get(right) ?? 999) ||
+      mapLabel(left).localeCompare(mapLabel(right)),
+  );
 }
 
 function rowsFor(data: ViewData): MapDirectoryRow[] {
@@ -57,7 +70,12 @@ function rowsFor(data: ViewData): MapDirectoryRow[] {
   const selections = new Map(data.selection.map((row) => [row.mapName, row]));
   const analytics = new Map(data.analytics.maps.map((row) => [row.mapName, row]));
   const coverage = new Map(data.coverage.maps.map((row) => [row.mapName, row]));
-  const names = new Set([...results.keys(), ...selections.keys(), ...analytics.keys(), ...coverage.keys()]);
+  const names = new Set([
+    ...results.keys(),
+    ...selections.keys(),
+    ...analytics.keys(),
+    ...coverage.keys(),
+  ]);
 
   return [...names].map((mapName) => {
     const result = results.get(mapName);
@@ -82,10 +100,17 @@ function vetoRowsFor(data: ViewData, maps: readonly string[]): VetoMatrixRow[] {
   const selectionByMap = new Map(data.selection.map((row) => [row.mapName, row]));
   return data.veto.teams.map((team) => ({
     ...team,
-    cells: Object.fromEntries(maps.map((mapName) => {
-      const teamCell = selectionByMap.get(mapName)?.teams.find((row) => row.entryId === team.entryId);
-      return [mapName, teamCell ? { picks: teamCell.picks, bans: teamCell.bans } : { picks: 0, bans: 0 }];
-    })),
+    cells: Object.fromEntries(
+      maps.map((mapName) => {
+        const teamCell = selectionByMap
+          .get(mapName)
+          ?.teams.find((row) => row.entryId === team.entryId);
+        return [
+          mapName,
+          teamCell ? { picks: teamCell.picks, bans: teamCell.bans } : { picks: 0, bans: 0 },
+        ];
+      }),
+    ),
   }));
 }
 
@@ -120,25 +145,42 @@ function VetoMatrix({
   const columnCount = 2 + maps.length * 2;
   const params = useSearchParams();
   const requested = params.get("sort") ?? "team";
-  const validKeys: VetoSortKey[] = ["team", "vetoes", ...maps.flatMap(map => [`pick:${map}` as const, `ban:${map}` as const])];
-  const sortKey = validKeys.includes(requested as VetoSortKey) ? requested as VetoSortKey : "team";
+  const validKeys: VetoSortKey[] = [
+    "team",
+    "vetoes",
+    ...maps.flatMap((map) => [`pick:${map}` as const, `ban:${map}` as const]),
+  ];
+  const sortKey = validKeys.includes(requested as VetoSortKey)
+    ? (requested as VetoSortKey)
+    : "team";
   const direction: StatsSortDirection = params.get("direction") === "desc" ? "desc" : "asc";
   const sortedRows = useMemo(
-    () => [...rows].sort((left, right) => compareStatsValues(vetoSortValue(left, sortKey), vetoSortValue(right, sortKey), direction)),
+    () =>
+      [...rows].sort((left, right) =>
+        compareStatsValues(vetoSortValue(left, sortKey), vetoSortValue(right, sortKey), direction),
+      ),
     [direction, rows, sortKey],
   );
 
   function sortBy(key: VetoSortKey) {
     const next = new URLSearchParams(params.toString());
     next.set("sort", key);
-    next.set("direction", sortKey === key ? direction === "desc" ? "asc" : "desc" : key === "team" ? "asc" : "desc");
+    next.set(
+      "direction",
+      sortKey === key ? (direction === "desc" ? "asc" : "desc") : key === "team" ? "asc" : "desc",
+    );
     window.history.replaceState(null, "", `?${next}`);
   }
 
-  function sortButton(key: VetoSortKey, label: string, align: "left" | "right" | "center" = "center") {
+  function sortButton(
+    key: VetoSortKey,
+    label: string,
+    align: "left" | "right" | "center" = "center",
+  ) {
     const active = sortKey === key;
     const arrow = direction === "desc" ? "↓" : "↑";
-    const justify = align === "left" ? "justify-start" : align === "right" ? "justify-end" : "justify-center";
+    const justify =
+      align === "left" ? "justify-start" : align === "right" ? "justify-end" : "justify-center";
     return (
       <button
         type="button"
@@ -147,7 +189,11 @@ function VetoMatrix({
         className={`inline-flex w-full items-center gap-1.5 ${justify} transition-colors hover:text-[var(--color-fg)] ${active ? "text-[var(--color-fg)]" : ""}`}
       >
         <span>{label}</span>
-        {active && <span aria-hidden="true" className="text-[var(--color-accent)]">{arrow}</span>}
+        {active && (
+          <span aria-hidden="true" className="text-[var(--color-accent)]">
+            {arrow}
+          </span>
+        )}
       </button>
     );
   }
@@ -158,14 +204,34 @@ function VetoMatrix({
         <table className="w-full min-w-max border-collapse text-sm">
           <thead className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
             <tr className="border-b border-[var(--color-border)]">
-              <th rowSpan={2} aria-sort={sortKey === "team" ? direction === "desc" ? "descending" : "ascending" : "none"} className="sticky left-0 z-30 min-w-56 bg-[var(--color-panel)] px-4 py-3 text-left align-middle">
+              <th
+                rowSpan={2}
+                aria-sort={
+                  sortKey === "team" ? (direction === "desc" ? "descending" : "ascending") : "none"
+                }
+                className="sticky left-0 z-30 min-w-56 bg-[var(--color-panel)] px-4 py-3 text-left align-middle"
+              >
                 {sortButton("team", "Team", "left")}
               </th>
-              <th rowSpan={2} aria-sort={sortKey === "vetoes" ? direction === "desc" ? "descending" : "ascending" : "none"} className="w-20 min-w-20 px-3 py-3 text-right align-middle">
+              <th
+                rowSpan={2}
+                aria-sort={
+                  sortKey === "vetoes"
+                    ? direction === "desc"
+                      ? "descending"
+                      : "ascending"
+                    : "none"
+                }
+                className="w-20 min-w-20 px-3 py-3 text-right align-middle"
+              >
                 {sortButton("vetoes", "Vetoes", "right")}
               </th>
               {maps.map((mapName) => (
-                <th key={mapName} colSpan={2} className="border-l border-[var(--color-border)] px-2 py-2.5 text-center">
+                <th
+                  key={mapName}
+                  colSpan={2}
+                  className="border-l border-[var(--color-border)] px-2 py-2.5 text-center"
+                >
                   <Link
                     href={statsHref(seasonSlug, query, { map: mapName })}
                     scroll={false}
@@ -181,10 +247,30 @@ function VetoMatrix({
                 const pickKey = `pick:${mapName}` as VetoSortKey;
                 const banKey = `ban:${mapName}` as VetoSortKey;
                 return [
-                  <th key={`${mapName}:pick`} aria-sort={sortKey === pickKey ? direction === "desc" ? "descending" : "ascending" : "none"} className="w-14 min-w-14 border-l border-[var(--color-border)] px-2 py-2 text-center">
+                  <th
+                    key={`${mapName}:pick`}
+                    aria-sort={
+                      sortKey === pickKey
+                        ? direction === "desc"
+                          ? "descending"
+                          : "ascending"
+                        : "none"
+                    }
+                    className="w-14 min-w-14 border-l border-[var(--color-border)] px-2 py-2 text-center"
+                  >
                     {sortButton(pickKey, "Pick")}
                   </th>,
-                  <th key={`${mapName}:ban`} aria-sort={sortKey === banKey ? direction === "desc" ? "descending" : "ascending" : "none"} className="w-14 min-w-14 px-2 py-2 text-center">
+                  <th
+                    key={`${mapName}:ban`}
+                    aria-sort={
+                      sortKey === banKey
+                        ? direction === "desc"
+                          ? "descending"
+                          : "ascending"
+                        : "none"
+                    }
+                    className="w-14 min-w-14 px-2 py-2 text-center"
+                  >
                     {sortButton(banKey, "Ban")}
                   </th>,
                 ];
@@ -193,18 +279,36 @@ function VetoMatrix({
           </thead>
           <tbody className="divide-y divide-[var(--color-border)]">
             {sortedRows.map((row) => (
-              <tr key={row.entryId} className="group transition-colors hover:bg-[var(--color-panel-hi)]">
+              <tr
+                key={row.entryId}
+                className="group transition-colors hover:bg-[var(--color-panel-hi)]"
+              >
                 <td className="sticky left-0 z-20 min-w-56 bg-[var(--color-panel)] px-4 py-3 font-medium transition-colors group-hover:bg-[var(--color-panel-hi)]">
-                  <TeamProfileLink profileHref={teamLinks[row.entryId]} className="hover:text-[var(--color-accent)]">{row.name}</TeamProfileLink>
+                  <TeamProfileLink
+                    profileHref={teamLinks[row.entryId]}
+                    className="hover:text-[var(--color-accent)]"
+                  >
+                    {row.name}
+                  </TeamProfileLink>
                 </td>
-                <td className="w-20 min-w-20 px-3 py-3 text-right font-mono tabular-nums text-[var(--color-fg-mid)]">{row.vetoes}</td>
+                <td className="w-20 min-w-20 px-3 py-3 text-right font-mono tabular-nums text-[var(--color-fg-mid)]">
+                  {row.vetoes}
+                </td>
                 {maps.flatMap((mapName) => {
                   const cell = row.cells[mapName] ?? { picks: 0, bans: 0 };
                   return [
-                    <td key={`${mapName}:pick`} aria-label={`${mapLabel(mapName)} Pick ${cell.picks}`} className="w-14 min-w-14 border-l border-[var(--color-border)] px-2 py-3 text-center font-mono">
+                    <td
+                      key={`${mapName}:pick`}
+                      aria-label={`${mapLabel(mapName)} Pick ${cell.picks}`}
+                      className="w-14 min-w-14 border-l border-[var(--color-border)] px-2 py-3 text-center font-mono"
+                    >
                       <VetoValue value={cell.picks} />
                     </td>,
-                    <td key={`${mapName}:ban`} aria-label={`${mapLabel(mapName)} Ban ${cell.bans}`} className="w-14 min-w-14 px-2 py-3 text-center font-mono">
+                    <td
+                      key={`${mapName}:ban`}
+                      aria-label={`${mapLabel(mapName)} Ban ${cell.bans}`}
+                      className="w-14 min-w-14 px-2 py-3 text-center font-mono"
+                    >
                       <VetoValue value={cell.bans} />
                     </td>,
                   ];
@@ -213,7 +317,12 @@ function VetoMatrix({
             ))}
             {sortedRows.length === 0 && (
               <tr>
-                <td colSpan={columnCount} className="px-4 py-8 text-center text-[var(--color-fg-mid)]">调整范围查看队伍与 BP</td>
+                <td
+                  colSpan={columnCount}
+                  className="px-4 py-8 text-center text-[var(--color-fg-mid)]"
+                >
+                  调整范围查看队伍与 BP
+                </td>
               </tr>
             )}
           </tbody>
@@ -223,80 +332,184 @@ function VetoMatrix({
   );
 }
 
-export function MapsExplorer({ data, query, seasonSlug }: { data: ViewData; query: StatsQuery; seasonSlug: string }) {
+export function MapsExplorer({
+  data,
+  query,
+  seasonSlug,
+}: {
+  data: ViewData;
+  query: StatsQuery;
+  seasonSlug: string;
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const search = String(params.get("q") ?? "").slice(0, 128);
   function setSearch(value: string) {
     const next = new URLSearchParams(params.toString());
-    if (value) next.set("q", value); else next.delete("q");
+    if (value) next.set("q", value);
+    else next.delete("q");
     window.history.replaceState(null, "", `?${next}`);
   }
   const rows = rowsFor(data);
   const mapNames = useMemo(() => orderedMaps(data.options.maps), [data.options.maps]);
   const normalizedSearch = search.trim().toLocaleLowerCase();
-  const vetoRows = vetoRowsFor(data, mapNames).filter((row) => row.name.toLocaleLowerCase().includes(normalizedSearch));
-  const partialCoverage = data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
+  const vetoRows = vetoRowsFor(data, mapNames).filter((row) =>
+    row.name.toLocaleLowerCase().includes(normalizedSearch),
+  );
+  const partialCoverage =
+    data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
   const poolColumns: StatsDataColumn<MapDirectoryRow>[] = [
-    { key: "map", label: "Map", className: "w-[28%]", render: (row) => <Link href={statsHref(seasonSlug, query, { map: row.mapName })} scroll={false} className="font-medium hover:text-[var(--color-accent)]">{mapLabel(row.mapName)}</Link> },
-    { key: "played", label: "Played", numeric: true, className: "w-[10%]", sortable: true, sortValue: (row) => row.played, render: (row) => row.played },
-    { key: "rounds", label: "Rounds", numeric: true, className: "w-[11%]", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
-    { key: "pick", label: "Picks", numeric: true, className: "hidden w-[8%] sm:table-cell", sortable: true, sortValue: (row) => row.picks, render: (row) => row.picks },
-    { key: "ban", label: "Bans", numeric: true, className: "hidden w-[8%] sm:table-cell", sortable: true, sortValue: (row) => row.bans, render: (row) => row.bans },
-    { key: "decider", label: "Deciders", numeric: true, className: "hidden w-[9%] lg:table-cell", sortable: true, sortValue: (row) => row.deciders, render: (row) => row.deciders },
-    ...(partialCoverage ? [{
-      key: "coverage",
-      label: "Coverage",
+    {
+      key: "map",
+      label: "Map",
+      className: "w-[28%]",
+      render: (row) => (
+        <Link
+          href={statsHref(seasonSlug, query, { map: row.mapName })}
+          scroll={false}
+          className="font-medium hover:text-[var(--color-accent)]"
+        >
+          {mapLabel(row.mapName)}
+        </Link>
+      ),
+    },
+    {
+      key: "played",
+      label: "Played",
       numeric: true,
-      className: "hidden w-[10%] lg:table-cell",
+      className: "w-[10%]",
       sortable: true,
-      sortValue: (row: MapDirectoryRow) => row.detailedMaps,
-      render: (row: MapDirectoryRow) => `${row.detailedMaps}/${row.completedMaps}`,
-    } satisfies StatsDataColumn<MapDirectoryRow>] : []),
-    { key: "ctT", label: "CT / T", className: "hidden w-[26%] sm:table-cell", sortable: true, sortValue: (row) => row.ct?.rate, render: (row) => <StatsSideSplit ct={row.ct} t={row.t} compact /> },
+      sortValue: (row) => row.played,
+      render: (row) => row.played,
+    },
+    {
+      key: "rounds",
+      label: "Rounds",
+      numeric: true,
+      className: "w-[11%]",
+      sortable: true,
+      sortValue: (row) => row.rounds,
+      render: (row) => row.rounds,
+    },
+    {
+      key: "pick",
+      label: "Picks",
+      numeric: true,
+      className: "hidden w-[8%] sm:table-cell",
+      sortable: true,
+      sortValue: (row) => row.picks,
+      render: (row) => row.picks,
+    },
+    {
+      key: "ban",
+      label: "Bans",
+      numeric: true,
+      className: "hidden w-[8%] sm:table-cell",
+      sortable: true,
+      sortValue: (row) => row.bans,
+      render: (row) => row.bans,
+    },
+    {
+      key: "decider",
+      label: "Deciders",
+      numeric: true,
+      className: "hidden w-[9%] lg:table-cell",
+      sortable: true,
+      sortValue: (row) => row.deciders,
+      render: (row) => row.deciders,
+    },
+    ...(partialCoverage
+      ? [
+          {
+            key: "coverage",
+            label: "Coverage",
+            numeric: true,
+            className: "hidden w-[10%] lg:table-cell",
+            sortable: true,
+            sortValue: (row: MapDirectoryRow) => row.detailedMaps,
+            render: (row: MapDirectoryRow) => `${row.detailedMaps}/${row.completedMaps}`,
+          } satisfies StatsDataColumn<MapDirectoryRow>,
+        ]
+      : []),
+    {
+      key: "ctT",
+      label: "CT / T",
+      className: "hidden w-[26%] sm:table-cell",
+      sortable: true,
+      sortValue: (row) => row.ct?.rate,
+      render: (row) => <StatsSideSplit ct={row.ct} t={row.t} compact />,
+    },
   ];
 
   return (
     <>
-    <section className="space-y-4">
-      <MetricFamilyTabs
-        label="Map stats"
-        value={query.mapsView}
-        options={views}
-        onChange={(value) => navigateStatsScope(router, seasonSlug, query, { mapsView: value })}
-      />
+      <section className="space-y-4">
+        <MetricFamilyTabs
+          label="Map stats"
+          value={query.mapsView}
+          options={views}
+          onChange={(value) => navigateStatsScope(router, seasonSlug, query, { mapsView: value })}
+        />
 
-      {query.mapsView === "pool" ? (
-        <>
-          <div className="flex items-center justify-end gap-3 text-xs text-[var(--color-fg-dim)]">
-            {partialCoverage && <span>Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}</span>}
-            <span>{rows.length} map{rows.length === 1 ? "" : "s"}</span>
-          </div>
-          <StatsExplorerTable
-            rows={rows}
-            columns={poolColumns}
-            rowKey={(row) => row.mapName}
-            initialSortKey="played"
-            tableClassName="min-w-[320px] sm:min-w-[860px] table-fixed"
-            emptyLabel="暂无赛果或 BP 数据"
-          />
-        </>
-      ) : (
-        <>
-          <div className="flex min-w-0 flex-wrap items-end gap-3">
-            <label className="grid w-full gap-1 sm:w-64">
-              <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Search team</span>
-              <input value={search} onChange={(event) => setSearch(event.target.value)} type="search" className="min-h-8 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm" placeholder="Team" />
-            </label>
-            <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
-              {data.veto.sample.missingMatches > 0 && <span>BP {data.veto.sample.recordedMatches}/{data.veto.sample.applicableMatches} matches</span>}
-              <span>{vetoRows.length} team{vetoRows.length === 1 ? "" : "s"} · {mapNames.length} map{mapNames.length === 1 ? "" : "s"}</span>
+        {query.mapsView === "pool" ? (
+          <>
+            <div className="flex items-center justify-end gap-3 text-xs text-[var(--color-fg-dim)]">
+              {partialCoverage && (
+                <span>
+                  Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}
+                </span>
+              )}
+              <span>
+                {rows.length} map{rows.length === 1 ? "" : "s"}
+              </span>
             </div>
-          </div>
-          <VetoMatrix rows={vetoRows} teamLinks={data.teamLinks ?? {}} maps={mapNames} seasonSlug={seasonSlug} query={query} />
-        </>
-      )}
-    </section>
+            <StatsExplorerTable
+              rows={rows}
+              columns={poolColumns}
+              rowKey={(row) => row.mapName}
+              initialSortKey="played"
+              tableClassName="min-w-[320px] sm:min-w-[860px] table-fixed"
+              emptyLabel="暂无赛果或 BP 数据"
+            />
+          </>
+        ) : (
+          <>
+            <div className="flex min-w-0 flex-wrap items-end gap-3">
+              <label className="grid w-full gap-1 sm:w-64">
+                <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
+                  Search team
+                </span>
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  type="search"
+                  className="min-h-8 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm"
+                  placeholder="Team"
+                />
+              </label>
+              <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
+                {data.veto.sample.missingMatches > 0 && (
+                  <span>
+                    BP {data.veto.sample.recordedMatches}/{data.veto.sample.applicableMatches}{" "}
+                    matches
+                  </span>
+                )}
+                <span>
+                  {vetoRows.length} team{vetoRows.length === 1 ? "" : "s"} · {mapNames.length} map
+                  {mapNames.length === 1 ? "" : "s"}
+                </span>
+              </div>
+            </div>
+            <VetoMatrix
+              rows={vetoRows}
+              teamLinks={data.teamLinks ?? {}}
+              maps={mapNames}
+              seasonSlug={seasonSlug}
+              query={query}
+            />
+          </>
+        )}
+      </section>
       <ContentReady module="statistics" phase="primary" />
     </>
   );

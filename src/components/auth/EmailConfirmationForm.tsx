@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
-const confirmEmailVerification = observeAction("auth-confirmation.confirmEmailVerification", telemetry_confirmEmailVerification);
+const confirmEmailVerification = observeAction(
+  "auth-confirmation.confirmEmailVerification",
+  telemetry_confirmEmailVerification,
+);
 
 interface Props {
   flow: "signup" | "reverify";
@@ -37,7 +40,10 @@ export function EmailConfirmationForm({ flow, tokenHash, next }: Props) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-[var(--color-fg-mid)]">{failure}</p>
-        <Link href="/login" className="inline-flex text-sm underline hover:text-[var(--color-accent)]">
+        <Link
+          href="/login"
+          className="inline-flex text-sm underline hover:text-[var(--color-accent)]"
+        >
           返回登录
         </Link>
       </div>

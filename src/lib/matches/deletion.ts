@@ -20,7 +20,10 @@ export function assertGenericMatchCanBeDeleted(match: Pick<Match, "qualification
 }
 
 /** Remove a scheduled match and its replaceable pre-match facts in one transaction. */
-export async function deleteScheduledMatchAndDependentsInTx(tx: TxDb, matchId: string): Promise<{ id: string }> {
+export async function deleteScheduledMatchAndDependentsInTx(
+  tx: TxDb,
+  matchId: string,
+): Promise<{ id: string }> {
   const match = await lockMatchInTx(tx, matchId);
   if (match.status !== "scheduled") {
     throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有尚未开始的比赛可以从赛程中作废。");
@@ -30,12 +33,24 @@ export async function deleteScheduledMatchAndDependentsInTx(tx: TxDb, matchId: s
   await tx.delete(matchCommentators).where(eq(matchCommentators.matchId, matchId));
   await tx.delete(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId));
   await tx.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
-  const rosterIds = await tx.select({ id: matchRosters.id }).from(matchRosters).where(eq(matchRosters.matchId, matchId));
+  const rosterIds = await tx
+    .select({ id: matchRosters.id })
+    .from(matchRosters)
+    .where(eq(matchRosters.matchId, matchId));
   if (rosterIds.length > 0) {
-    await tx.delete(matchRosterPlayers).where(inArray(matchRosterPlayers.rosterId, rosterIds.map((roster) => roster.id)));
+    await tx.delete(matchRosterPlayers).where(
+      inArray(
+        matchRosterPlayers.rosterId,
+        rosterIds.map((roster) => roster.id),
+      ),
+    );
   }
   await tx.delete(matchRosters).where(eq(matchRosters.matchId, matchId));
-  const [deleted] = await tx.delete(matches).where(eq(matches.id, matchId)).returning({ id: matches.id });
-  if (!deleted) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态已变化，不能作废该场比赛。");
+  const [deleted] = await tx
+    .delete(matches)
+    .where(eq(matches.id, matchId))
+    .returning({ id: matches.id });
+  if (!deleted)
+    throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态已变化，不能作废该场比赛。");
   return deleted;
 }

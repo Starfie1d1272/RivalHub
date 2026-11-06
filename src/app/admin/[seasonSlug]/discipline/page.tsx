@@ -34,7 +34,7 @@ export default async function AdminDisciplinePage({
     return <AdminAccessDenied />;
   }
 
-  const query: DisciplineAdminSearchParams = await searchParams ?? {};
+  const query: DisciplineAdminSearchParams = (await searchParams) ?? {};
   const result = await getSeasonSanctions(season.id, normalizeDisciplineAdminQuery(query));
   if (!result.success) {
     return (

@@ -3,7 +3,13 @@ import "server-only";
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionQualificationRuns, matchLiveSessions, matchPlayerStats as playerStats, type Match as DbMatch, type MatchMap } from "@/db/schema";
+import {
+  competitionQualificationRuns,
+  matchLiveSessions,
+  matchPlayerStats as playerStats,
+  type Match as DbMatch,
+  type MatchMap,
+} from "@/db/schema";
 import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { loadMajorSwissMatchRecord } from "@/lib/matches/stage-read-model";
 import { loadQualificationSwissMatchRecord } from "@/lib/matches/qualification-stage-read-model";
@@ -30,74 +36,202 @@ export async function loadOperatorContext(input: {
   vetoComplete: boolean;
 }) {
   const { match, maps, roster } = input;
-  const qualificationRun = match.qualificationRunId ? db.query.competitionQualificationRuns.findFirst({
-    where: eq(competitionQualificationRuns.seasonId, match.seasonId),
-    columns: { id: true, seasonId: true, format: true, directEntryCount: true },
-  }).execute() : Promise.resolve(null);
+  const qualificationRun = match.qualificationRunId
+    ? db.query.competitionQualificationRuns
+        .findFirst({
+          where: eq(competitionQualificationRuns.seasonId, match.seasonId),
+          columns: { id: true, seasonId: true, format: true, directEntryCount: true },
+        })
+        .execute()
+    : Promise.resolve(null);
   const [scoreboards, liveSession, swiss, run] = await Promise.all([
-    maps.length ? db.select()
-      .from(playerStats).where(inArray(playerStats.mapId, maps.map(map => map.id))) : Promise.resolve([]),
+    maps.length
+      ? db
+          .select()
+          .from(playerStats)
+          .where(
+            inArray(
+              playerStats.mapId,
+              maps.map((map) => map.id),
+            ),
+          )
+      : Promise.resolve([]),
     db.query.matchLiveSessions.findFirst({
       where: and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)),
-      columns: { id: true, authorityRevision: true, programSourceGeneration: true, lastReliableSeq: true, currentMapId: true, mapExecutionPhase: true, mapEpoch: true, manualTakeoverMapEpoch: true, identityHealth: true, lineupHealth: true, continuityHealth: true, autoCanonicalizationArmed: true },
+      columns: {
+        id: true,
+        authorityRevision: true,
+        programSourceGeneration: true,
+        lastReliableSeq: true,
+        currentMapId: true,
+        mapExecutionPhase: true,
+        mapEpoch: true,
+        manualTakeoverMapEpoch: true,
+        identityHealth: true,
+        lineupHealth: true,
+        continuityHealth: true,
+        autoCanonicalizationArmed: true,
+      },
     }),
-    match.qualificationRunId ? qualificationRun.then(run => loadQualificationSwissMatchRecord(match.seasonId, match.id, run ?? null))
+    match.qualificationRunId
+      ? qualificationRun.then((run) =>
+          loadQualificationSwissMatchRecord(match.seasonId, match.id, run ?? null),
+        )
       : input.isSwiss && match.ownership === "major_stage"
-        ? loadMajorSwissMatchRecord(match.seasonId, match.stage, match.id) : Promise.resolve(null),
+        ? loadMajorSwissMatchRecord(match.seasonId, match.stage, match.id)
+        : Promise.resolve(null),
     qualificationRun,
   ]);
   const qualification = run?.id === match.qualificationRunId ? run : null;
-  const operatorMaps = projectOperatorMaps({ match, maps, imports: input.imports, roster, scoreboards });
+  const operatorMaps = projectOperatorMaps({
+    match,
+    maps,
+    imports: input.imports,
+    roster,
+    scoreboards,
+  });
   const workflow = projectOperatorWorkflow({
     source: liveSession,
-    scheduledAt: match.scheduledAt?.toISOString(), startedAt: match.startedAt?.toISOString(), completedAt: match.completedAt?.toISOString(),
-    status: match.status, isForfeit: match.isForfeit, vetoComplete: input.vetoComplete,
+    scheduledAt: match.scheduledAt?.toISOString(),
+    startedAt: match.startedAt?.toISOString(),
+    completedAt: match.completedAt?.toISOString(),
+    status: match.status,
+    isForfeit: match.isForfeit,
+    vetoComplete: input.vetoComplete,
     maps: operatorMaps,
     observedGameplayMapId: resolveGameplayMapId(maps, liveSession),
   });
-  const roomMap = operatorMaps.find(map => map.id === workflow.roomMapId);
+  const roomMap = operatorMaps.find((map) => map.id === workflow.roomMapId);
   const record = swiss?.record;
-  const playoffLabel: Record<string, string> = { quarterfinal: "四分之一决赛", semifinal: "半决赛", third_place: "季军赛", final: "决赛" };
-  const description = input.isSwiss || (match.qualificationRunId && qualification?.format !== "direct_bo3") ? (record && !record.includes("待定") ? record.replaceAll(":", "-") : null)
-    : match.entryRound ? playoffLabel[match.entryRound] ?? null : match.round !== null ? `第 ${match.round} 轮` : null;
-  const roundLabel = ({ stage1: "Stage1", stage2: "Stage2", stage3: "Stage3" } as Record<string, string>)[match.stage] ?? swiss?.stageName ?? (qualification?.format === "direct_bo3" ? "Play-in" : input.stageName);
-  const recoveryMap = input.vetoComplete && liveSession && liveSession.currentMapId === null && !liveSession.autoCanonicalizationArmed && ["execution_conflict", "conflict"].includes(liveSession.continuityHealth)
-    ? [...maps].sort((a, b) => a.mapOrder - b.mapOrder).find(map => map.completedAt === null) : null;
-  const takeoverMap = maps.find(map => map.id === liveSession?.currentMapId && map.completedAt === null) ?? recoveryMap;
-  const currentMap = maps.find(map => map.id === liveSession?.currentMapId);
-  const evidence = liveSession && workflow.reviewReasons.length
-    ? await loadOperatorEvidence(match.seasonId, match.id, liveSession.id, liveSession.mapEpoch,
-      currentMap && workflow.reviewReasons.includes("execution_mismatch") ? { id: currentMap.id, name: currentMap.mapName } : undefined)
-    : null;
-  const reportedMap = maps.find(map => map.id === evidence?.mapId);
-  const mapBinding = !evidence?.mapId ? "未提供地图绑定"
-    : reportedMap ? `Map ${reportedMap.mapOrder} · ${mapLabel(reportedMap.mapName)}` : "不属于本场正式地图";
-  const nextMap = [...maps].sort((a, b) => a.mapOrder - b.mapOrder).find(map => map.completedAt === null);
-  const problemRecovery = input.vetoComplete && match.status === "in_progress" && liveSession && nextMap
-    && (liveSession.currentMapId === null || liveSession.currentMapId === nextMap.id)
-    && !(workflow.sourceMode === "manual_map" && liveSession.currentMapId === nextMap.id)
-    ? { sessionId: liveSession.id, mapEpoch: liveSession.mapEpoch, mapId: nextMap.id,
-      recoverMapBinding: liveSession.currentMapId === null,
-      reportContext: { programSourceGeneration: liveSession.programSourceGeneration, lastReliableSeq: liveSession.lastReliableSeq, currentMapId: liveSession.currentMapId },
-      mapLabel: `Map ${nextMap.mapOrder} · ${mapLabel(nextMap.mapName)}` } : null;
+  const playoffLabel: Record<string, string> = {
+    quarterfinal: "四分之一决赛",
+    semifinal: "半决赛",
+    third_place: "季军赛",
+    final: "决赛",
+  };
+  const description =
+    input.isSwiss || (match.qualificationRunId && qualification?.format !== "direct_bo3")
+      ? record && !record.includes("待定")
+        ? record.replaceAll(":", "-")
+        : null
+      : match.entryRound
+        ? (playoffLabel[match.entryRound] ?? null)
+        : match.round !== null
+          ? `第 ${match.round} 轮`
+          : null;
+  const roundLabel =
+    ({ stage1: "Stage1", stage2: "Stage2", stage3: "Stage3" } as Record<string, string>)[
+      match.stage
+    ] ??
+    swiss?.stageName ??
+    (qualification?.format === "direct_bo3" ? "Play-in" : input.stageName);
+  const recoveryMap =
+    input.vetoComplete &&
+    liveSession &&
+    liveSession.currentMapId === null &&
+    !liveSession.autoCanonicalizationArmed &&
+    ["execution_conflict", "conflict"].includes(liveSession.continuityHealth)
+      ? [...maps].sort((a, b) => a.mapOrder - b.mapOrder).find((map) => map.completedAt === null)
+      : null;
+  const takeoverMap =
+    maps.find((map) => map.id === liveSession?.currentMapId && map.completedAt === null) ??
+    recoveryMap;
+  const currentMap = maps.find((map) => map.id === liveSession?.currentMapId);
+  const evidence =
+    liveSession && workflow.reviewReasons.length
+      ? await loadOperatorEvidence(
+          match.seasonId,
+          match.id,
+          liveSession.id,
+          liveSession.mapEpoch,
+          currentMap && workflow.reviewReasons.includes("execution_mismatch")
+            ? { id: currentMap.id, name: currentMap.mapName }
+            : undefined,
+        )
+      : null;
+  const reportedMap = maps.find((map) => map.id === evidence?.mapId);
+  const mapBinding = !evidence?.mapId
+    ? "未提供地图绑定"
+    : reportedMap
+      ? `Map ${reportedMap.mapOrder} · ${mapLabel(reportedMap.mapName)}`
+      : "不属于本场正式地图";
+  const nextMap = [...maps]
+    .sort((a, b) => a.mapOrder - b.mapOrder)
+    .find((map) => map.completedAt === null);
+  const problemRecovery =
+    input.vetoComplete &&
+    match.status === "in_progress" &&
+    liveSession &&
+    nextMap &&
+    (liveSession.currentMapId === null || liveSession.currentMapId === nextMap.id) &&
+    !(workflow.sourceMode === "manual_map" && liveSession.currentMapId === nextMap.id)
+      ? {
+          sessionId: liveSession.id,
+          mapEpoch: liveSession.mapEpoch,
+          mapId: nextMap.id,
+          recoverMapBinding: liveSession.currentMapId === null,
+          reportContext: {
+            programSourceGeneration: liveSession.programSourceGeneration,
+            lastReliableSeq: liveSession.lastReliableSeq,
+            currentMapId: liveSession.currentMapId,
+          },
+          mapLabel: `Map ${nextMap.mapOrder} · ${mapLabel(nextMap.mapName)}`,
+        }
+      : null;
   return {
     problemRecovery,
-    liveScope: liveSession && match.status === "in_progress" ? {
-      authorityRevision: liveSession.authorityRevision, generation: liveSession.programSourceGeneration,
-      epoch: liveSession.mapEpoch, mapId: liveSession.currentMapId,
-    } : null,
+    liveScope:
+      liveSession && match.status === "in_progress"
+        ? {
+            authorityRevision: liveSession.authorityRevision,
+            generation: liveSession.programSourceGeneration,
+            epoch: liveSession.mapEpoch,
+            mapId: liveSession.currentMapId,
+          }
+        : null,
     review: {
-      evidence: evidence ? { at: evidence.at, lineupDifference: evidence.lineupDifference, mapName: evidence.mapName, scoreA: evidence.scoreA, scoreB: evidence.scoreB, mapBinding } : null,
+      evidence: evidence
+        ? {
+            at: evidence.at,
+            lineupDifference: evidence.lineupDifference,
+            mapName: evidence.mapName,
+            scoreA: evidence.scoreA,
+            scoreB: evidence.scoreB,
+            mapBinding,
+          }
+        : null,
       expectedTeams: `${input.teamAName} vs ${input.teamBName}`,
-      currentMap: currentMap ? `Map ${currentMap.mapOrder} · ${mapLabel(currentMap.mapName)}` : null,
+      currentMap: currentMap
+        ? `Map ${currentMap.mapOrder} · ${mapLabel(currentMap.mapName)}`
+        : null,
       officialScore: currentMap?.completedAt ? `${currentMap.scoreA}:${currentMap.scoreB}` : null,
     },
     workflow,
-    recoveryMapLabel: recoveryMap ? `Map ${recoveryMap.mapOrder} · ${mapLabel(recoveryMap.mapName)}` : null,
-    takeover: liveSession && takeoverMap && (workflow.sourceMode !== "manual_map" || recoveryMap != null) && (workflow.reviewReasons.length > 0 || workflow.sourceHealth === "stale") && match.status === "in_progress" ? { sessionId: liveSession.id, mapEpoch: liveSession.mapEpoch, mapId: takeoverMap.id, ...(recoveryMap ? { recoverMapBinding: true } : {}) } : null,
-    roomGuide: roomMap ? buildPerfectRoomGuide({
-      seasonName: input.seasonName, roundLabel, description,
-      teamAName: input.teamAName, teamBName: input.teamBName, map: roomMap,
-    }) : null,
+    recoveryMapLabel: recoveryMap
+      ? `Map ${recoveryMap.mapOrder} · ${mapLabel(recoveryMap.mapName)}`
+      : null,
+    takeover:
+      liveSession &&
+      takeoverMap &&
+      (workflow.sourceMode !== "manual_map" || recoveryMap != null) &&
+      (workflow.reviewReasons.length > 0 || workflow.sourceHealth === "stale") &&
+      match.status === "in_progress"
+        ? {
+            sessionId: liveSession.id,
+            mapEpoch: liveSession.mapEpoch,
+            mapId: takeoverMap.id,
+            ...(recoveryMap ? { recoverMapBinding: true } : {}),
+          }
+        : null,
+    roomGuide: roomMap
+      ? buildPerfectRoomGuide({
+          seasonName: input.seasonName,
+          roundLabel,
+          description,
+          teamAName: input.teamAName,
+          teamBName: input.teamBName,
+          map: roomMap,
+        })
+      : null,
   };
 }

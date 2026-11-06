@@ -1,21 +1,39 @@
 import { publicAsset } from "./public-asset";
-import { pgTable, uuid, text, integer, boolean, timestamp, pgEnum, json } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  boolean,
+  timestamp,
+  pgEnum,
+  json,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { InstitutionAffiliationRule, RegistrationConfig, StagePlan, TeamRegistrationConfig } from "@/types/season";
+import type {
+  InstitutionAffiliationRule,
+  RegistrationConfig,
+  StagePlan,
+  TeamRegistrationConfig,
+} from "@/types/season";
 
 export const seasonStatusEnum = pgEnum("season_status", [
-  "draft",        // 未发布
+  "draft", // 未发布
   "registration", // 报名开放
-  "voting",       // 队长投票
-  "drafting",     // 蛇形选秀
-  "playing",      // 正赛进行
-  "finished",     // 赛季结束
-  "archived",     // 历史归档
+  "voting", // 队长投票
+  "drafting", // 蛇形选秀
+  "playing", // 正赛进行
+  "finished", // 赛季结束
+  "archived", // 历史归档
 ]);
 
 // 报名模式：solo = 个人报名，team = 队伍整体报名
 export const registrationModeEnum = pgEnum("registration_mode", ["solo", "team"]);
-export const competitionTemplateEnum = pgEnum("competition_template", ["rivals", "major", "custom"]);
+export const competitionTemplateEnum = pgEnum("competition_template", [
+  "rivals",
+  "major",
+  "custom",
+]);
 
 export const seasons = pgTable("seasons", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -40,7 +58,10 @@ export const seasons = pgTable("seasons", {
   // 是否启用社区奖能力；默认开启，发布后由赛季公开规则生命周期锁定
   hasCommunityAwards: boolean("has_community_awards").notNull().default(true),
   // 赛制阶段计划；matches.stage 存这里的 StageConfig.key
-  stagePlan: json("stage_plan").$type<StagePlan>().notNull().default(sql`'[]'::json`),
+  stagePlan: json("stage_plan")
+    .$type<StagePlan>()
+    .notNull()
+    .default(sql`'[]'::json`),
   // 报名配置；缺失字段由应用层 fallback 到默认配置
   registrationConfig: json("registration_config")
     .$type<RegistrationConfig>()
@@ -62,7 +83,10 @@ export const seasons = pgTable("seasons", {
   // 首发人数
   starterCount: integer("starter_count").notNull().default(5),
   // 该赛季可用的位置标识符列表（应用层 Zod 校验报名时引用此列表）
-  positions: text("positions").array().notNull().default(sql`ARRAY['igl','awper','opener','closer','anchor']`),
+  positions: text("positions")
+    .array()
+    .notNull()
+    .default(sql`ARRAY['igl','awper','opener','closer','anchor']`),
   // ──────────────────────────────────────────────────────────────────────
 
   // Participation dates belong to the published event, not its tournament

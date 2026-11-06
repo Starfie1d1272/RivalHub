@@ -7,7 +7,11 @@ import type { DB, TxDb } from "@/db/client";
 import { steamProfiles, users } from "@/db/schema";
 import { getSteamPlayerSummaries, type SteamProfileSummary } from "@/lib/steam";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { revalidatePublicHomeTag, revalidatePublicPlayerTag, revalidatePublicStatsTag } from "@/lib/revalidation";
+import {
+  revalidatePublicHomeTag,
+  revalidatePublicPlayerTag,
+  revalidatePublicStatsTag,
+} from "@/lib/revalidation";
 
 type SteamProfileDatabase = DB | TxDb;
 
@@ -27,20 +31,32 @@ export async function loadSteamProfilesBySteam64(
 ): Promise<Map<string, SteamProfileSummary>> {
   const values = [...new Set(steam64Values.filter((value) => /^\d{17}$/.test(value)))];
   if (values.length === 0) return new Map();
-  const rows = await database.select({
-    steam64: steamProfiles.steam64,
-    personaName: steamProfiles.personaName,
-    profileUrl: steamProfiles.profileUrl,
-    avatarUrl: steamProfiles.avatarUrl,
-  }).from(steamProfiles).where(inArray(steamProfiles.steam64, values));
-  return new Map(rows.flatMap((row) => row.personaName && row.profileUrl
-    ? [[row.steam64, {
-        steam64: row.steam64,
-        personaName: row.personaName,
-        profileUrl: row.profileUrl,
-        avatarUrl: row.avatarUrl ?? null,
-      } satisfies SteamProfileSummary]]
-    : []));
+  const rows = await database
+    .select({
+      steam64: steamProfiles.steam64,
+      personaName: steamProfiles.personaName,
+      profileUrl: steamProfiles.profileUrl,
+      avatarUrl: steamProfiles.avatarUrl,
+    })
+    .from(steamProfiles)
+    .where(inArray(steamProfiles.steam64, values));
+  return new Map(
+    rows.flatMap((row) =>
+      row.personaName && row.profileUrl
+        ? [
+            [
+              row.steam64,
+              {
+                steam64: row.steam64,
+                personaName: row.personaName,
+                profileUrl: row.profileUrl,
+                avatarUrl: row.avatarUrl ?? null,
+              } satisfies SteamProfileSummary,
+            ],
+          ]
+        : [],
+    ),
+  );
 }
 
 export async function loadSteamProfile(
@@ -55,25 +71,33 @@ export async function upsertSteamProfile(
   profile: SteamProfileSummary,
 ): Promise<boolean> {
   const fetchedAt = new Date();
-  const changed = await database.insert(steamProfiles).values({
-    steam64: profile.steam64,
-    personaName: profile.personaName,
-    profileUrl: profile.profileUrl,
-    avatarUrl: profile.avatarUrl,
-    fetchedAt,
-  }).onConflictDoUpdate({
-    target: steamProfiles.steam64,
-    set: {
-      personaName: sql`excluded.persona_name`,
-      profileUrl: sql`excluded.profile_url`,
-      avatarUrl: sql`excluded.avatar_url`,
-      fetchedAt: sql`excluded.fetched_at`,
-    },
-    setWhere: sql`(${steamProfiles.personaName}, ${steamProfiles.profileUrl}, ${steamProfiles.avatarUrl}) IS DISTINCT FROM (excluded.persona_name, excluded.profile_url, excluded.avatar_url)`,
-  }).returning({ steam64: steamProfiles.steam64 });
+  const changed = await database
+    .insert(steamProfiles)
+    .values({
+      steam64: profile.steam64,
+      personaName: profile.personaName,
+      profileUrl: profile.profileUrl,
+      avatarUrl: profile.avatarUrl,
+      fetchedAt,
+    })
+    .onConflictDoUpdate({
+      target: steamProfiles.steam64,
+      set: {
+        personaName: sql`excluded.persona_name`,
+        profileUrl: sql`excluded.profile_url`,
+        avatarUrl: sql`excluded.avatar_url`,
+        fetchedAt: sql`excluded.fetched_at`,
+      },
+      setWhere: sql`(${steamProfiles.personaName}, ${steamProfiles.profileUrl}, ${steamProfiles.avatarUrl}) IS DISTINCT FROM (excluded.persona_name, excluded.profile_url, excluded.avatar_url)`,
+    })
+    .returning({ steam64: steamProfiles.steam64 });
   // Preserve the last successful fetch timestamp even when the display fields
   // are unchanged. This timestamp is not a public statistics dependency.
-  if (changed.length === 0) await database.update(steamProfiles).set({ fetchedAt: sql`greatest(${steamProfiles.fetchedAt}, ${fetchedAt})` }).where(eq(steamProfiles.steam64, profile.steam64));
+  if (changed.length === 0)
+    await database
+      .update(steamProfiles)
+      .set({ fetchedAt: sql`greatest(${steamProfiles.fetchedAt}, ${fetchedAt})` })
+      .where(eq(steamProfiles.steam64, profile.steam64));
   return changed.length > 0;
 }
 
@@ -109,34 +133,45 @@ export async function loadOrFetchSteamProfiles(
 
   const fetchedProfiles = [...result.profiles.values()];
   const fetchedAt = new Date();
-  const changed = await db.insert(steamProfiles).values(fetchedProfiles.map((p) => ({
-    steam64: p.steam64,
-    personaName: p.personaName,
-    profileUrl: p.profileUrl,
-    avatarUrl: p.avatarUrl,
-    fetchedAt,
-  }))).onConflictDoUpdate({
-    target: steamProfiles.steam64,
-    set: {
-      personaName: sql`excluded.persona_name`,
-      profileUrl: sql`excluded.profile_url`,
-      avatarUrl: sql`excluded.avatar_url`,
-      fetchedAt: sql`excluded.fetched_at`,
-    },
-    setWhere: sql`(${steamProfiles.personaName}, ${steamProfiles.profileUrl}, ${steamProfiles.avatarUrl}) IS DISTINCT FROM (excluded.persona_name, excluded.profile_url, excluded.avatar_url)`,
-  }).returning({ steam64: steamProfiles.steam64 });
+  const changed = await db
+    .insert(steamProfiles)
+    .values(
+      fetchedProfiles.map((p) => ({
+        steam64: p.steam64,
+        personaName: p.personaName,
+        profileUrl: p.profileUrl,
+        avatarUrl: p.avatarUrl,
+        fetchedAt,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: steamProfiles.steam64,
+      set: {
+        personaName: sql`excluded.persona_name`,
+        profileUrl: sql`excluded.profile_url`,
+        avatarUrl: sql`excluded.avatar_url`,
+        fetchedAt: sql`excluded.fetched_at`,
+      },
+      setWhere: sql`(${steamProfiles.personaName}, ${steamProfiles.profileUrl}, ${steamProfiles.avatarUrl}) IS DISTINCT FROM (excluded.persona_name, excluded.profile_url, excluded.avatar_url)`,
+    })
+    .returning({ steam64: steamProfiles.steam64 });
   // This owner is also used while rendering the admin workbench. Invalidate
   // after the response rather than invoking revalidateTag during render.
-  if (changed.length > 0) after(() => {
-    revalidatePublicHomeTag();
-    revalidatePublicStatsTag("identity");
-  });
+  if (changed.length > 0)
+    after(() => {
+      revalidatePublicHomeTag();
+      revalidatePublicStatsTag("identity");
+    });
   // A concurrent insert may have already stored identical display fields.
   // Preserve the successful fetch time without counting it as a display change.
   const changedIds = new Set(changed.map((row) => row.steam64));
-  const unchangedIds = fetchedProfiles.map((profile) => profile.steam64).filter((id) => !changedIds.has(id));
+  const unchangedIds = fetchedProfiles
+    .map((profile) => profile.steam64)
+    .filter((id) => !changedIds.has(id));
   if (unchangedIds.length > 0) {
-    await db.update(steamProfiles).set({ fetchedAt: sql`greatest(${steamProfiles.fetchedAt}, ${fetchedAt})` })
+    await db
+      .update(steamProfiles)
+      .set({ fetchedAt: sql`greatest(${steamProfiles.fetchedAt}, ${fetchedAt})` })
       .where(inArray(steamProfiles.steam64, unchangedIds));
   }
   for (const profile of fetchedProfiles) cached.set(profile.steam64, profile);
@@ -151,7 +186,11 @@ export async function lookupAndCacheSteamProfile(
   const result = await getSteamPlayerSummaries([steam64]);
   if (result.status !== "ok") return { result: { status: "unavailable" }, changed: false };
   const profile = result.profiles.get(steam64);
-  if (!profile) return { result: { status: "not_found", diagnosticUrl: steamProfileDiagnosticUrl(steam64) }, changed: false };
+  if (!profile)
+    return {
+      result: { status: "not_found", diagnosticUrl: steamProfileDiagnosticUrl(steam64) },
+      changed: false,
+    };
   const changed = await upsertSteamProfile(database, profile);
   return { result: { status: "ok", profile }, changed };
 }
@@ -170,20 +209,39 @@ export async function getSteamProfileForPrimary(
     if (cached) return cached;
   }
   const result = await getSteamPlayerSummaries([nextSteam64]);
-  if (result.status !== "ok") throw new AppError(ErrorCode.STEAM_PROVIDER_UNAVAILABLE, "暂时无法连接 Steam，请稍后重试。", { providerStatus: result.status });
+  if (result.status !== "ok")
+    throw new AppError(ErrorCode.STEAM_PROVIDER_UNAVAILABLE, "暂时无法连接 Steam，请稍后重试。", {
+      providerStatus: result.status,
+    });
   const profile = result.profiles.get(nextSteam64);
-  if (!profile) throw new AppError(ErrorCode.STEAM_PROFILE_NOT_FOUND, "未找到该 Steam 账号，请检查 Steam64 ID 是否填写正确。", { diagnosticUrl: steamProfileDiagnosticUrl(nextSteam64) });
+  if (!profile)
+    throw new AppError(
+      ErrorCode.STEAM_PROFILE_NOT_FOUND,
+      "未找到该 Steam 账号，请检查 Steam64 ID 是否填写正确。",
+      { diagnosticUrl: steamProfileDiagnosticUrl(nextSteam64) },
+    );
   return profile;
 }
 
 export async function refreshSteamProfiles() {
-  const candidates = await db.select({ id: users.id, steam64: users.steam64 }).from(users)
+  const candidates = await db
+    .select({ id: users.id, steam64: users.steam64 })
+    .from(users)
     .where(and(eq(users.status, "active"), isNotNull(users.steam64)));
-  const steam64s = [...new Set(candidates.map((user) => user.steam64).filter((value): value is string => value !== null))];
+  const steam64s = [
+    ...new Set(
+      candidates.map((user) => user.steam64).filter((value): value is string => value !== null),
+    ),
+  ];
   if (steam64s.length === 0) return { processed: 0, updated: 0, unresolved: 0 };
 
   const result = await getSteamPlayerSummaries(steam64s);
-  if (result.status !== "ok") throw new Error(result.status === "unconfigured" ? "STEAM_PROFILE_UNCONFIGURED" : "STEAM_PROFILE_PROVIDER_FAILED");
+  if (result.status !== "ok")
+    throw new Error(
+      result.status === "unconfigured"
+        ? "STEAM_PROFILE_UNCONFIGURED"
+        : "STEAM_PROFILE_PROVIDER_FAILED",
+    );
 
   const cached = await loadSteamProfilesBySteam64(db, steam64s);
   const changedProfiles: SteamProfileSummary[] = [];
@@ -196,31 +254,39 @@ export async function refreshSteamProfiles() {
       continue;
     }
     const previous = cached.get(steam64);
-    if (previous?.personaName === profile.personaName && previous.profileUrl === profile.profileUrl && previous.avatarUrl === profile.avatarUrl) continue;
+    if (
+      previous?.personaName === profile.personaName &&
+      previous.profileUrl === profile.profileUrl &&
+      previous.avatarUrl === profile.avatarUrl
+    )
+      continue;
     changedProfiles.push(profile);
     changedSteam64s.add(steam64);
   }
 
   if (changedProfiles.length > 0) {
     const fetchedAt = new Date();
-    await db.insert(steamProfiles).values(changedProfiles.map((profile) => ({
-      steam64: profile.steam64,
-      personaName: profile.personaName,
-      profileUrl: profile.profileUrl,
-      avatarUrl: profile.avatarUrl,
-      fetchedAt,
-    }))).onConflictDoUpdate({
-      target: steamProfiles.steam64,
-      set: {
-        personaName: sql`excluded.persona_name`,
-        profileUrl: sql`excluded.profile_url`,
-        avatarUrl: sql`excluded.avatar_url`,
-        fetchedAt: sql`excluded.fetched_at`,
-      },
-    });
+    await db
+      .insert(steamProfiles)
+      .values(
+        changedProfiles.map((profile) => ({
+          steam64: profile.steam64,
+          personaName: profile.personaName,
+          profileUrl: profile.profileUrl,
+          avatarUrl: profile.avatarUrl,
+          fetchedAt,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: steamProfiles.steam64,
+        set: {
+          personaName: sql`excluded.persona_name`,
+          profileUrl: sql`excluded.profile_url`,
+          avatarUrl: sql`excluded.avatar_url`,
+          fetchedAt: sql`excluded.fetched_at`,
+        },
+      });
   }
-
-
 
   const changedUserIds = candidates
     .filter((candidate) => candidate.steam64 && changedSteam64s.has(candidate.steam64))

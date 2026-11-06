@@ -30,12 +30,7 @@ export function DeleteMatchButton({ matchId }: DeleteMatchButtonProps) {
 
   if (!showConfirm) {
     return (
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => setShowConfirm(true)}
-        disabled={isPending}
-      >
+      <Button size="sm" variant="outline" onClick={() => setShowConfirm(true)} disabled={isPending}>
         删除
       </Button>
     );

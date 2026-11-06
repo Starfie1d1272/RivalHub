@@ -15,7 +15,10 @@ import {
   steamProfiles,
   users,
 } from "@/db/schema";
-import { publicCompetitionEntryCondition, publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
+import {
+  publicCompetitionEntryCondition,
+  publicCompetitionEntryIdentityCondition,
+} from "@/lib/competition-entries/public-visibility";
 import {
   presentCompetitionEntryRegistration,
   type CompetitionEntryRegistrationStatus,
@@ -68,9 +71,11 @@ export interface PublicEventTeamContext {
     tone: StatusPresentation["tone"];
     detail: string;
   };
-  roster: Array<PublicPlayerIdentity & {
-    isStarter: boolean;
-  }>;
+  roster: Array<
+    PublicPlayerIdentity & {
+      isStarter: boolean;
+    }
+  >;
   rosterLabel: string;
   rosterStatus: "preparing" | "confirmed" | "frozen" | null;
   seed: number | null;
@@ -100,11 +105,15 @@ export function createEmptyPublicEventTeamRecord(): PublicEventTeamRecord {
 function finishRecord(record: Omit<PublicEventTeamRecord, "winRate">): PublicEventTeamRecord {
   return {
     ...record,
-    winRate: record.played > 0 ? `${Math.round(record.wins / record.played * 100)}%` : "—",
+    winRate: record.played > 0 ? `${Math.round((record.wins / record.played) * 100)}%` : "—",
   };
 }
 
-function addResult(record: Omit<PublicEventTeamRecord, "winRate">, ownScore: number | null, opponentScore: number | null): void {
+function addResult(
+  record: Omit<PublicEventTeamRecord, "winRate">,
+  ownScore: number | null,
+  opponentScore: number | null,
+): void {
   if (ownScore === null || opponentScore === null) return;
   if (ownScore > opponentScore) {
     record.wins += 1;
@@ -141,7 +150,10 @@ type PublicMatchRow = {
 function collectMatchFacts(
   entryMatches: readonly PublicMatchRow[],
   entryIds: readonly string[],
-  options: { publicEntryIds?: ReadonlySet<string>; opponentNames?: ReadonlyMap<string, string> } = {},
+  options: {
+    publicEntryIds?: ReadonlySet<string>;
+    opponentNames?: ReadonlyMap<string, string>;
+  } = {},
 ): CollectedMatchFacts {
   const targetIds = new Set(entryIds);
   const factsByEntryId = new Map<string, PublicEventTeamMatchFacts>();
@@ -152,17 +164,35 @@ function collectMatchFacts(
   let total = 0;
   let finished = 0;
   for (const match of entryMatches) {
-    if (options.publicEntryIds && (!options.publicEntryIds.has(match.entryAId) || !options.publicEntryIds.has(match.entryBId))) continue;
+    if (
+      options.publicEntryIds &&
+      (!options.publicEntryIds.has(match.entryAId) || !options.publicEntryIds.has(match.entryBId))
+    )
+      continue;
     total += 1;
     if (match.status === "finished") finished += 1;
     for (const side of [
-      { entryId: match.entryAId, opponentId: match.entryBId, ownScore: match.scoreA, opponentScore: match.scoreB },
-      { entryId: match.entryBId, opponentId: match.entryAId, ownScore: match.scoreB, opponentScore: match.scoreA },
+      {
+        entryId: match.entryAId,
+        opponentId: match.entryBId,
+        ownScore: match.scoreA,
+        opponentScore: match.scoreB,
+      },
+      {
+        entryId: match.entryBId,
+        opponentId: match.entryAId,
+        ownScore: match.scoreB,
+        opponentScore: match.scoreA,
+      },
     ]) {
       if (!targetIds.has(side.entryId)) continue;
       const facts = factsByEntryId.get(side.entryId)!;
       if (match.status === "finished") {
-        const record = { played: facts.record.played, wins: facts.record.wins, losses: facts.record.losses };
+        const record = {
+          played: facts.record.played,
+          wins: facts.record.wins,
+          losses: facts.record.losses,
+        };
         addResult(record, side.ownScore, side.opponentScore);
         facts.record = finishRecord(record);
       }
@@ -176,7 +206,18 @@ function collectMatchFacts(
           scheduledAt: match.scheduledAt,
           completedAt: match.completedAt,
           stage: match.stage,
-          displayScore: match.displayScore ? { own: side.entryId === match.entryAId ? match.displayScore.scoreA : match.displayScore.scoreB, opponent: side.entryId === match.entryAId ? match.displayScore.scoreB : match.displayScore.scoreA } : undefined,
+          displayScore: match.displayScore
+            ? {
+                own:
+                  side.entryId === match.entryAId
+                    ? match.displayScore.scoreA
+                    : match.displayScore.scoreB,
+                opponent:
+                  side.entryId === match.entryAId
+                    ? match.displayScore.scoreB
+                    : match.displayScore.scoreA,
+              }
+            : undefined,
           ownScore: side.ownScore,
           opponentScore: side.opponentScore,
         });
@@ -189,33 +230,50 @@ function collectMatchFacts(
 type PublicEventTeamMatchScope = { seasonId: string; entryIds: readonly string[] };
 
 async function loadMatchRows(scopes: readonly PublicEventTeamMatchScope[]) {
-  const targets = scopes.map(scope => ({ seasonId: scope.seasonId, entryIds: uniqueIds(scope.entryIds) }))
-    .filter(scope => scope.entryIds.length > 0);
+  const targets = scopes
+    .map((scope) => ({ seasonId: scope.seasonId, entryIds: uniqueIds(scope.entryIds) }))
+    .filter((scope) => scope.entryIds.length > 0);
   return targets.length === 0
     ? []
-    : db.query.matches.findMany({
-      where: and(
-        officialMatchCondition(),
-        or(...targets.map(scope => and(eq(matches.seasonId, scope.seasonId),
-          or(inArray(matches.entryAId, scope.entryIds), inArray(matches.entryBId, scope.entryIds))))),
-      ),
-      columns: {
-        id: true,
-        seasonId: true,
-        stage: true,
-        entryAId: true,
-        entryBId: true,
-        status: true,
-        format: true,
-        resultDisposition: true,
-        isForfeit: true,
-        scheduledAt: true,
-        completedAt: true,
-        scoreA: true,
-        scoreB: true,
-      },
-      orderBy: [asc(matches.seasonId), asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
-    }).then(rows => rows.map(requireCompetitionFields));
+    : db.query.matches
+        .findMany({
+          where: and(
+            officialMatchCondition(),
+            or(
+              ...targets.map((scope) =>
+                and(
+                  eq(matches.seasonId, scope.seasonId),
+                  or(
+                    inArray(matches.entryAId, scope.entryIds),
+                    inArray(matches.entryBId, scope.entryIds),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          columns: {
+            id: true,
+            seasonId: true,
+            stage: true,
+            entryAId: true,
+            entryBId: true,
+            status: true,
+            format: true,
+            resultDisposition: true,
+            isForfeit: true,
+            scheduledAt: true,
+            completedAt: true,
+            scoreA: true,
+            scoreB: true,
+          },
+          orderBy: [
+            asc(matches.seasonId),
+            asc(matches.completedAt),
+            asc(matches.scheduledAt),
+            asc(matches.id),
+          ],
+        })
+        .then((rows) => rows.map(requireCompetitionFields));
 }
 
 /** Load match rows for one or more public entries and present them per entry. */
@@ -238,34 +296,45 @@ export async function getPublicEventTeamMatchFactsBatch(
     for (const id of entryIds) ids.add(id);
     targetIdsBySeason.set(seasonId, ids);
   }
-  const normalized = [...targetIdsBySeason].map(([seasonId, ids]) => ({ seasonId, entryIds: [...ids] }));
-  const entryMatches = await withDisplayScores(await loadMatchRows(normalized));
-  const opponentIds = uniqueIds(entryMatches.flatMap(match => {
-    const targets = targetIdsBySeason.get(match.seasonId)!;
-    return [
-      ...(targets.has(match.entryAId) ? [match.entryBId] : []),
-      ...(targets.has(match.entryBId) ? [match.entryAId] : []),
-    ];
+  const normalized = [...targetIdsBySeason].map(([seasonId, ids]) => ({
+    seasonId,
+    entryIds: [...ids],
   }));
+  const entryMatches = await withDisplayScores(await loadMatchRows(normalized));
+  const opponentIds = uniqueIds(
+    entryMatches.flatMap((match) => {
+      const targets = targetIdsBySeason.get(match.seasonId)!;
+      return [
+        ...(targets.has(match.entryAId) ? [match.entryBId] : []),
+        ...(targets.has(match.entryBId) ? [match.entryAId] : []),
+      ];
+    }),
+  );
   const opponents = opponentIds.length
     ? await db.query.competitionEntries.findMany({
-      where: and(inArray(competitionEntries.id, opponentIds), publicCompetitionEntryIdentityCondition()),
-      columns: { id: true, name: true },
-    })
+        where: and(
+          inArray(competitionEntries.id, opponentIds),
+          publicCompetitionEntryIdentityCondition(),
+        ),
+        columns: { id: true, name: true },
+      })
     : [];
-  const opponentNames = new Map(opponents.map(opponent => [opponent.id, opponent.name]));
+  const opponentNames = new Map(opponents.map((opponent) => [opponent.id, opponent.name]));
   const matchesBySeason = new Map<string, typeof entryMatches>();
   for (const match of entryMatches) {
     const rows = matchesBySeason.get(match.seasonId) ?? [];
     rows.push(match);
     matchesBySeason.set(match.seasonId, rows);
   }
-  return new Map(normalized.map(({ seasonId, entryIds }) => [seasonId,
-    collectMatchFacts(matchesBySeason.get(seasonId) ?? [], entryIds, {
-      publicEntryIds: new Set([...entryIds, ...opponentNames.keys()]),
-      opponentNames,
-    }).factsByEntryId,
-  ]));
+  return new Map(
+    normalized.map(({ seasonId, entryIds }) => [
+      seasonId,
+      collectMatchFacts(matchesBySeason.get(seasonId) ?? [], entryIds, {
+        publicEntryIds: new Set([...entryIds, ...opponentNames.keys()]),
+        opponentNames,
+      }).factsByEntryId,
+    ]),
+  );
 }
 
 /** Load only the record/count data needed by a public team list or overview. */
@@ -284,7 +353,9 @@ export async function getPublicEventTeamMatchSummary(
     { publicEntryIds: new Set(publicEntryIds) },
   );
   return {
-    records: new Map([...collected.factsByEntryId].map(([entryId, facts]) => [entryId, facts.record])),
+    records: new Map(
+      [...collected.factsByEntryId].map(([entryId, facts]) => [entryId, facts.record]),
+    ),
     total: collected.total,
     finished: collected.finished,
   };
@@ -350,7 +421,8 @@ export async function getPublicCompetitionEntryTeamContext(
     roster: rosterRows.map((member) => ({
       userId: member.userId,
       name: getPublicDisplayName(member),
-      avatarUrl: member.avatarUrl, hasActivePublicSanction: member.hasActivePublicSanction,
+      avatarUrl: member.avatarUrl,
+      hasActivePublicSanction: member.hasActivePublicSanction,
       isStarter: member.isStarter,
     })),
     rosterLabel: "本届参赛名单",

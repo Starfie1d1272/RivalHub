@@ -4,7 +4,16 @@ import type { StatRowInput } from "@/lib/stats/aggregate";
 
 export type MatchPlayerStatsRow = typeof matchPlayerStats.$inferSelect;
 
-const TEAM_COLORS = ["#ff6b1a", "#3aa1ff", "#a8ff3a", "#ff3a7a", "#9b6bff", "#ffd23a", "#3affc7", "#ff8a3a"];
+const TEAM_COLORS = [
+  "#ff6b1a",
+  "#3aa1ff",
+  "#a8ff3a",
+  "#ff3a7a",
+  "#9b6bff",
+  "#ffd23a",
+  "#3affc7",
+  "#ff8a3a",
+];
 
 export function teamBadgeData(name: string, idx: number): { tag: string; color: string } {
   return { tag: name.slice(0, 3).toUpperCase(), color: TEAM_COLORS[idx % TEAM_COLORS.length] };
@@ -74,7 +83,9 @@ export function buildRoster(
 }
 
 /** Ambiguous same-player/same-map facts never become a summed or arbitrarily chosen row. */
-export function selectUnambiguousMatchStatsRows<T extends { mapId: string; userId: string | null }>(rows: readonly T[]) {
+export function selectUnambiguousMatchStatsRows<T extends { mapId: string; userId: string | null }>(
+  rows: readonly T[],
+) {
   const counts = new Map<string, number>();
   for (const row of rows) {
     if (row.userId) {
@@ -83,7 +94,9 @@ export function selectUnambiguousMatchStatsRows<T extends { mapId: string; userI
     }
   }
   return {
-    rows: rows.filter(row => row.userId !== null && counts.get(`${row.mapId}:${row.userId}`) === 1),
+    rows: rows.filter(
+      (row) => row.userId !== null && counts.get(`${row.mapId}:${row.userId}`) === 1,
+    ),
     conflicts: new Set([...counts].filter(([, count]) => count > 1).map(([key]) => key)),
   };
 }
@@ -139,7 +152,7 @@ export function aggregateFinishedPlayerStats(
       ...p,
       teamId: p.userId ? (userIdToTeamId.get(p.userId) ?? "") : "",
       mapsPlayed: groupMap.get(p.userId ?? `name:${p.perfectName}`)?.length ?? 0,
-      mapIds: groupMap.get(p.userId ?? `name:${p.perfectName}`)?.map(row => row.mapId) ?? [],
+      mapIds: groupMap.get(p.userId ?? `name:${p.perfectName}`)?.map((row) => row.mapId) ?? [],
     }))
     .filter((p) => p.teamId === entryAId || p.teamId === entryBId);
 

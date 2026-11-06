@@ -11,7 +11,9 @@ export function preserveLoginUpdateEmail(email: string): boolean {
     if (email.length > 254) return false;
     sessionStorage.setItem(KEY, JSON.stringify({ email, expiresAt: Date.now() + TTL_MS }));
     return true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 /** Consume once in the same tab after the user explicitly chose to update. */
@@ -23,8 +25,14 @@ export function takeLoginUpdateEmail(): string | null {
     const value: unknown = JSON.parse(raw);
     if (!value || typeof value !== "object") return null;
     const draft = value as { email?: unknown; expiresAt?: unknown };
-    return typeof draft.email === "string" && draft.email.length <= 254
-      && typeof draft.expiresAt === "number" && draft.expiresAt > Date.now()
-      && draft.expiresAt <= Date.now() + TTL_MS ? draft.email : null;
-  } catch { return null; }
+    return typeof draft.email === "string" &&
+      draft.email.length <= 254 &&
+      typeof draft.expiresAt === "number" &&
+      draft.expiresAt > Date.now() &&
+      draft.expiresAt <= Date.now() + TTL_MS
+      ? draft.email
+      : null;
+  } catch {
+    return null;
+  }
 }

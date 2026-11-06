@@ -11,23 +11,26 @@ import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
-import {
-  assertMatchTransition,
-} from "@/lib/match-transitions";
+import { assertMatchTransition } from "@/lib/match-transitions";
 import { getMaxMaps, isMatchStatus } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
 import { applyMatchStatusTransitionInTx } from "@/lib/matches/lifecycle";
 import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { finishCompetitionSeriesInTx } from "@/lib/matches/competition-results";
 import { maybeFinishSeason } from "@/lib/seasons/transitions";
-import { revalidateMatchPaths, revalidateSeasonPaths, updatePublicSeasonTags } from "@/lib/revalidation";
+import {
+  revalidateMatchPaths,
+  revalidateSeasonPaths,
+  updatePublicSeasonTags,
+} from "@/lib/revalidation";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
-import {
-  validateMapScore,
-} from "@/lib/matches/result-rules";
+import { validateMapScore } from "@/lib/matches/result-rules";
 import { recordManualMapResultInTx } from "@/lib/matches/manual-result";
-import { assertGenericMatchCanBeDeleted, deleteScheduledMatchAndDependentsInTx } from "@/lib/matches/deletion";
+import {
+  assertGenericMatchCanBeDeleted,
+  deleteScheduledMatchAndDependentsInTx,
+} from "@/lib/matches/deletion";
 
 // ── 更新比赛状态 ──────────────────────────────────────────────────────────
 
@@ -37,13 +40,16 @@ import { assertGenericMatchCanBeDeleted, deleteScheduledMatchAndDependentsInTx }
  */
 export async function updateMatchStatus(
   matchId: string,
-  nextStatus: "in_progress" | "cancelled"
+  nextStatus: "in_progress" | "cancelled",
 ): Promise<ActionResult<void>> {
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
     if (nextStatus === "in_progress") {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛须由双方在 Veto Room 确认后开始。");
+      throw new AppError(
+        ErrorCode.MATCH_INVALID_TRANSITION,
+        "比赛须由双方在 Veto Room 确认后开始。",
+      );
     }
     if (!isMatchStatus(match.status)) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, `无效的比赛状态: ${match.status}`);
@@ -90,7 +96,7 @@ export async function recordMapResult(
   scoreA: number,
   scoreB: number,
   pickedByEntryId: string | null,
-  teamAStartSide: "t" | "ct" | null
+  teamAStartSide: "t" | "ct" | null,
 ): Promise<ActionResult<{ seriesFinished: boolean }>> {
   try {
     validateMapScore(scoreA, scoreB);
@@ -98,12 +104,20 @@ export async function recordMapResult(
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
 
-    if (match.status !== "in_progress" && !(match.testConfig && match.status === "finished" && ["pending", "recorded"].includes(match.resultDisposition ?? ""))) {
+    if (
+      match.status !== "in_progress" &&
+      !(
+        match.testConfig &&
+        match.status === "finished" &&
+        ["pending", "recorded"].includes(match.resultDisposition ?? "")
+      )
+    ) {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
     }
 
     const season = await getSeasonOrThrow(match.seasonId);
-    const mapPool = match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
+    const mapPool =
+      match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
     if (!mapPool.includes(mapName)) {
       throw new AppError(ErrorCode.MATCH_MAP_INVALID, "地图不在当前赛季图池中");
     }
@@ -111,7 +125,10 @@ export async function recordMapResult(
     const maxMaps = getMaxMaps(match.format);
 
     if (mapOrder < 1 || mapOrder > maxMaps) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `${match.format.toUpperCase()} 图序号须在 1-${maxMaps} 之间`);
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        `${match.format.toUpperCase()} 图序号须在 1-${maxMaps} 之间`,
+      );
     }
 
     // 所有写操作及其依赖的读操作放入同一事务，防止 TOCTOU
@@ -119,7 +136,16 @@ export async function recordMapResult(
     let finishedSlug: string | null = null;
 
     await db.transaction(async (tx) => {
-      const result = await recordManualMapResultInTx(tx, { matchId, mapOrder, mapName, scoreA, scoreB, pickedByEntryId, teamAStartSide, actorId: auditActorId(session) });
+      const result = await recordManualMapResultInTx(tx, {
+        matchId,
+        mapOrder,
+        mapName,
+        scoreA,
+        scoreB,
+        pickedByEntryId,
+        teamAStartSide,
+        actorId: auditActorId(session),
+      });
       seriesFinished = result.seriesFinished;
       finishedSlug = result.finishedSlug;
     });
@@ -144,14 +170,17 @@ export async function recordMapResult(
  */
 export async function updateMatchCompletionDeadline(
   matchId: string,
-  completionDeadline: Date | null
+  completionDeadline: Date | null,
 ): Promise<ActionResult<void>> {
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
 
     if (match.status === "finished" || match.status === "cancelled") {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已结束或已取消的比赛不能修改最晚完成时间");
+      throw new AppError(
+        ErrorCode.MATCH_INVALID_TRANSITION,
+        "已结束或已取消的比赛不能修改最晚完成时间",
+      );
     }
     if (completionDeadline && completionDeadline.getTime() <= Date.now()) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "最晚完成时间必须晚于当前时间");
@@ -176,7 +205,8 @@ export async function updateMatchCompletionDeadline(
         seasonId: match.seasonId,
         action: "match.update_completion_deadline",
         actorId: session.email,
-        targetId: matchId,meta: { completionDeadline: completionDeadline?.toISOString() ?? null },
+        targetId: matchId,
+        meta: { completionDeadline: completionDeadline?.toISOString() ?? null },
       });
     });
 
@@ -243,7 +273,8 @@ export async function batchSetCompletionDeadline(input: {
         seasonId: input.seasonId,
         action: "match.batch_set_completion_deadline",
         actorId: admin.email,
-        targetId: input.seasonId,meta: {
+        targetId: input.seasonId,
+        meta: {
           stage: input.stage,
           round: input.round ?? null,
           entryRound: input.entryRound ?? null,
@@ -287,7 +318,13 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
         seasonId: match.seasonId,
         action: "match.delete",
         actorId: auditActorId(session),
-        targetId: matchId,meta: { stage: match.stage, format: match.format, entryAId: match.entryAId, entryBId: match.entryBId },
+        targetId: matchId,
+        meta: {
+          stage: match.stage,
+          format: match.format,
+          entryAId: match.entryAId,
+          entryBId: match.entryBId,
+        },
       });
     });
 
@@ -332,7 +369,8 @@ export async function updateMatchCompletedAt(
         seasonId: match.seasonId,
         action: "update_match_completed_at",
         actorId: auditActorId(session),
-        targetId: matchId,meta: { completedAt: completedAt?.toISOString() ?? null },
+        targetId: matchId,
+        meta: { completedAt: completedAt?.toISOString() ?? null },
       });
     });
 
@@ -346,7 +384,12 @@ export async function updateMatchCompletedAt(
 // ── 修正单图比分 ──────────────────────────────────────────────────────────────
 
 /** Correct a reviewed completed map through the shared official-result owner. */
-export async function correctMapScore(mapId: string, scoreA: number, scoreB: number, reviewed: unknown): Promise<ActionResult<void>> {
+export async function correctMapScore(
+  mapId: string,
+  scoreA: number,
+  scoreB: number,
+  reviewed: unknown,
+): Promise<ActionResult<void>> {
   try {
     validateMapScore(scoreA, scoreB);
     const review = mapCorrectionReviewSchema.parse(reviewed);
@@ -355,10 +398,21 @@ export async function correctMapScore(mapId: string, scoreA: number, scoreB: num
     const match = await getMatchOrThrow(map.matchId);
     const session = await requireSeasonAdmin(match.seasonId);
     const season = await getSeasonOrThrow(match.seasonId);
-    await db.transaction(tx => correctMapScoreInTx(tx, { matchId: match.id, mapId, scoreA, scoreB, review, actorId: auditActorId(session) }));
+    await db.transaction((tx) =>
+      correctMapScoreInTx(tx, {
+        matchId: match.id,
+        mapId,
+        scoreA,
+        scoreB,
+        review,
+        actorId: auditActorId(session),
+      }),
+    );
     revalidateMatchPaths(season.slug, match.id);
     return ok(undefined);
-  } catch (error) { return actionError("correctMapScore", error); }
+  } catch (error) {
+    return actionError("correctMapScore", error);
+  }
 }
 
 // ── 弃赛判负 ─────────────────────────────────────────────────────────────────
@@ -404,15 +458,25 @@ export async function forfeitMatch(
       const lockedScoreA = lockedLoserIsA ? 0 : lockedWinnerScore;
       const lockedScoreB = lockedLoserIsA ? lockedWinnerScore : 0;
       finishedSlug = await finishCompetitionSeriesInTx(tx, {
-        match: locked, scoreA: lockedScoreA, scoreB: lockedScoreB,
-        completedAt: new Date(), isForfeit: true,
+        match: locked,
+        scoreA: lockedScoreA,
+        scoreB: lockedScoreB,
+        completedAt: new Date(),
+        isForfeit: true,
       });
 
       await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.forfeit",
         actorId: auditActorId(session),
-        targetId: matchId,meta: { loserTeamId, scoreA: lockedScoreA, scoreB: lockedScoreB, format: locked.format, reason: normalizedReason },
+        targetId: matchId,
+        meta: {
+          loserTeamId,
+          scoreA: lockedScoreA,
+          scoreB: lockedScoreB,
+          format: locked.format,
+          reason: normalizedReason,
+        },
       });
     });
 

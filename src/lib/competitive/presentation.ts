@@ -50,17 +50,44 @@ export function presentPublicCompetitiveProfile(
         if (fact.status === "unranked") {
           const season = fact.platformSeasonKey ? seasons.get(fact.platformSeasonKey) : undefined;
           if (!season) return [];
-          return [{ label: season.label, rankLabel: "未定级", stars: null, ratingLabel: fact.rating === null ? null : platform.ratingLabel, rating: fact.rating === null ? null : String(fact.rating), order: season.sortOrder }];
+          return [
+            {
+              label: season.label,
+              rankLabel: "未定级",
+              stars: null,
+              ratingLabel: fact.rating === null ? null : platform.ratingLabel,
+              rating: fact.rating === null ? null : String(fact.rating),
+              order: season.sortOrder,
+            },
+          ];
         }
         const rank = fact.rank ? ranks.get(fact.rank) : undefined;
         if (!rank) return [];
         if (fact.kind === "historical_peak") {
           const achieved = fact.achievedSeasonKey ? seasons.get(fact.achievedSeasonKey) : undefined;
-          return [{ label: achieved ? `历史最高 · ${achieved.label}` : "历史最高", rankLabel: rank.label, stars: rank.starMin === null ? null : fact.stars, ratingLabel: platform.ratingLabel, rating: String(fact.rating), order: Number.POSITIVE_INFINITY }];
+          return [
+            {
+              label: achieved ? `历史最高 · ${achieved.label}` : "历史最高",
+              rankLabel: rank.label,
+              stars: rank.starMin === null ? null : fact.stars,
+              ratingLabel: platform.ratingLabel,
+              rating: String(fact.rating),
+              order: Number.POSITIVE_INFINITY,
+            },
+          ];
         }
         const season = fact.platformSeasonKey ? seasons.get(fact.platformSeasonKey) : undefined;
         if (!season) return [];
-        return [{ label: `${season.label} · 最高`, rankLabel: rank.label, stars: rank.starMin === null ? null : fact.stars, ratingLabel: platform.ratingLabel, rating: String(fact.rating), order: season.sortOrder }];
+        return [
+          {
+            label: `${season.label} · 最高`,
+            rankLabel: rank.label,
+            stars: rank.starMin === null ? null : fact.stars,
+            ratingLabel: platform.ratingLabel,
+            rating: String(fact.rating),
+            order: season.sortOrder,
+          },
+        ];
       })
       .sort((a, b) => b.order - a.order)
       .map((fact) => ({
@@ -91,9 +118,15 @@ export function presentPublicCompetitiveSummary(
     const recentFact = currentFact
       ? undefined
       : [...seasonFacts]
-        .filter((fact) => fact.platformSeasonKey !== null && seasons.has(fact.platformSeasonKey))
-        .sort((left, right) => (seasons.get(right.platformSeasonKey!)?.sortOrder ?? Number.NEGATIVE_INFINITY) - (seasons.get(left.platformSeasonKey!)?.sortOrder ?? Number.NEGATIVE_INFINITY))[0];
-    return [historical, currentFact ?? recentFact].filter((fact): fact is CompetitiveProfileFactForPresentation => Boolean(fact));
+          .filter((fact) => fact.platformSeasonKey !== null && seasons.has(fact.platformSeasonKey))
+          .sort(
+            (left, right) =>
+              (seasons.get(right.platformSeasonKey!)?.sortOrder ?? Number.NEGATIVE_INFINITY) -
+              (seasons.get(left.platformSeasonKey!)?.sortOrder ?? Number.NEGATIVE_INFINITY),
+          )[0];
+    return [historical, currentFact ?? recentFact].filter(
+      (fact): fact is CompetitiveProfileFactForPresentation => Boolean(fact),
+    );
   });
 
   return presentPublicCompetitiveProfile(catalog, selectedFacts);

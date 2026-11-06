@@ -47,8 +47,9 @@ export function resolveCatalogSeasonRoles(
 ): CatalogSeasonRoles {
   const current = entry?.seasons.find((season) => season.isCurrent && season.active) ?? null;
   if (!current) return { current: null, previous: null };
-  const previous = entry!.seasons
-    .filter((season) => season.active && season.sortOrder < current.sortOrder)
-    .sort((a, b) => b.sortOrder - a.sortOrder)[0] ?? null;
+  const previous =
+    entry!.seasons
+      .filter((season) => season.active && season.sortOrder < current.sortOrder)
+      .sort((a, b) => b.sortOrder - a.sortOrder)[0] ?? null;
   return { current, previous };
 }

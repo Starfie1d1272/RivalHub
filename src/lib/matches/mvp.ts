@@ -11,25 +11,43 @@ const publicVoteFields = {
   playerName: sql<string>`min(${matchMvpVotes.playerName})`,
   count: sql<number>`count(*)::int`,
 };
-const voteGroups = [matchMvpVotes.playerUserId,
-  sql`case when ${matchMvpVotes.playerUserId} is null then ${matchMvpVotes.playerName} end`] as const;
-const voteOrder = [desc(sql`count(*)`), asc(sql`min(${matchMvpVotes.createdAt})`), asc(matchMvpVotes.playerUserId)] as const;
+const voteGroups = [
+  matchMvpVotes.playerUserId,
+  sql`case when ${matchMvpVotes.playerUserId} is null then ${matchMvpVotes.playerName} end`,
+] as const;
+const voteOrder = [
+  desc(sql`count(*)`),
+  asc(sql`min(${matchMvpVotes.createdAt})`),
+  asc(matchMvpVotes.playerUserId),
+] as const;
 
 /** A renamed player remains one candidate. Legacy unbound votes retain names. */
 export function readMatchMvpResults(matchId: string, database: Pick<TxDb, "select"> = db) {
-  return database.select(publicVoteFields).from(matchMvpVotes)
-    .where(eq(matchMvpVotes.matchId, matchId)).groupBy(...voteGroups).orderBy(...voteOrder);
+  return database
+    .select(publicVoteFields)
+    .from(matchMvpVotes)
+    .where(eq(matchMvpVotes.matchId, matchId))
+    .groupBy(...voteGroups)
+    .orderBy(...voteOrder);
 }
 
 /** The viewer's original vote name is kept separate from the public results DTO. */
 export async function readMatchMvpPanelResults(matchId: string, viewerUserId: string | null) {
-  const rows = await db.select({
-    ...publicVoteFields,
-    viewerPlayerName: sql<string | null>`min(${matchMvpVotes.playerName}) filter (where ${matchMvpVotes.voterUserId} = ${viewerUserId})`,
-  }).from(matchMvpVotes).where(eq(matchMvpVotes.matchId, matchId)).groupBy(...voteGroups).orderBy(...voteOrder);
+  const rows = await db
+    .select({
+      ...publicVoteFields,
+      viewerPlayerName: sql<
+        string | null
+      >`min(${matchMvpVotes.playerName}) filter (where ${matchMvpVotes.voterUserId} = ${viewerUserId})`,
+    })
+    .from(matchMvpVotes)
+    .where(eq(matchMvpVotes.matchId, matchId))
+    .groupBy(...voteGroups)
+    .orderBy(...voteOrder);
   return {
     votes: rows.map(({ playerUserId, playerName, count }) => ({ playerUserId, playerName, count })),
-    userVotedPlayerName: rows.find((row) => row.viewerPlayerName !== null)?.viewerPlayerName ?? null,
+    userVotedPlayerName:
+      rows.find((row) => row.viewerPlayerName !== null)?.viewerPlayerName ?? null,
   };
 }
 
@@ -40,15 +58,21 @@ export async function settleExpiredMatchMvpVotes(now = new Date(), database: DB 
     .select({ matchId: matches.id, seasonId: seasons.id, seasonSlug: seasons.slug })
     .from(matches)
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
-    .where(and(
-      eq(matches.status, "finished"),
-      isNull(matches.mvpWinnerUserId),
-      lte(matches.completedAt, cutoff),
-      exists(database.select({ id: matchMvpVotes.id }).from(matchMvpVotes).where(and(
-        eq(matchMvpVotes.matchId, matches.id),
-        isNotNull(matchMvpVotes.playerUserId),
-      ))),
-    ))
+    .where(
+      and(
+        eq(matches.status, "finished"),
+        isNull(matches.mvpWinnerUserId),
+        lte(matches.completedAt, cutoff),
+        exists(
+          database
+            .select({ id: matchMvpVotes.id })
+            .from(matchMvpVotes)
+            .where(
+              and(eq(matchMvpVotes.matchId, matches.id), isNotNull(matchMvpVotes.playerUserId)),
+            ),
+        ),
+      ),
+    )
     .orderBy(asc(matches.completedAt), asc(matches.id))
     .limit(100);
 
@@ -59,24 +83,40 @@ export async function settleExpiredMatchMvpVotes(now = new Date(), database: DB 
       const settled = await database.transaction(async (tx) => {
         // Keep nonblocking worker admission while ordering the season before
         // the match and the audit row's season foreign-key check.
-        const [season] = await tx.select({ id: seasons.id }).from(seasons)
-          .where(eq(seasons.id, candidate.seasonId)).for("update", { skipLocked: true });
+        const [season] = await tx
+          .select({ id: seasons.id })
+          .from(seasons)
+          .where(eq(seasons.id, candidate.seasonId))
+          .for("update", { skipLocked: true });
         if (!season) return false;
-        const [match] = await tx.select({
-          id: matches.id,
-          seasonId: matches.seasonId,
-          completedAt: matches.completedAt,
-          status: matches.status,
-          winner: matches.mvpWinnerUserId,
-        }).from(matches).where(eq(matches.id, candidate.matchId)).for("update", { skipLocked: true });
-        if (!match || match.seasonId !== candidate.seasonId || match.status !== "finished" || match.winner || !match.completedAt
-          || match.completedAt.getTime() > cutoff.getTime()) return false;
+        const [match] = await tx
+          .select({
+            id: matches.id,
+            seasonId: matches.seasonId,
+            completedAt: matches.completedAt,
+            status: matches.status,
+            winner: matches.mvpWinnerUserId,
+          })
+          .from(matches)
+          .where(eq(matches.id, candidate.matchId))
+          .for("update", { skipLocked: true });
+        if (
+          !match ||
+          match.seasonId !== candidate.seasonId ||
+          match.status !== "finished" ||
+          match.winner ||
+          !match.completedAt ||
+          match.completedAt.getTime() > cutoff.getTime()
+        )
+          return false;
 
         const results = await readMatchMvpResults(match.id, tx);
         const winner = results.find((result) => result.playerUserId !== null);
         if (!winner?.playerUserId) return false;
 
-        await tx.update(matches).set({ mvpWinnerUserId: winner.playerUserId, updatedAt: now })
+        await tx
+          .update(matches)
+          .set({ mvpWinnerUserId: winner.playerUserId, updatedAt: now })
           .where(eq(matches.id, match.id));
         await writeAuditInTx(tx, {
           action: "match.mvp.settle",
@@ -87,10 +127,16 @@ export async function settleExpiredMatchMvpVotes(now = new Date(), database: DB 
         });
         return true;
       });
-      if (settled) affectedMatches.push({ matchId: candidate.matchId, seasonSlug: candidate.seasonSlug });
+      if (settled)
+        affectedMatches.push({ matchId: candidate.matchId, seasonSlug: candidate.seasonSlug });
     } catch (error) {
       failures.push(error);
     }
   }
-  return { processed: candidates.length, settled: affectedMatches.length, affectedMatches, failures };
+  return {
+    processed: candidates.length,
+    settled: affectedMatches.length,
+    affectedMatches,
+    failures,
+  };
 }

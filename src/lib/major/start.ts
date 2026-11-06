@@ -22,7 +22,10 @@ import { assertPrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence"
 import { ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
-import { loadActiveRestrictionOverridesInTx, unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
+import {
+  loadActiveRestrictionOverridesInTx,
+  unresolvedQualificationFindings,
+} from "@/lib/competition-entries/restriction-overrides";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { getDisplayName } from "@/lib/identity/display-name";
@@ -57,8 +60,11 @@ export async function startMajorInTransaction(
   input: { seasonId: string; actorId: string },
 ): Promise<MajorStartResult> {
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
-  const [season] = await tx.select().from(seasons)
-    .where(eq(seasons.id, input.seasonId)).for("update");
+  const [season] = await tx
+    .select()
+    .from(seasons)
+    .where(eq(seasons.id, input.seasonId))
+    .for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
   const { capabilities, entrantCapacity } = getStandardMajorDefinition(season, {
     notMajor: "当前赛事不是 Major 赛事模板，不能正式开赛。",
@@ -66,23 +72,45 @@ export async function startMajorInTransaction(
   });
   const stage = capabilities.stagePlan[0];
   if (!stage || (stage.matchFormat !== "bo1" && stage.matchFormat !== "bo3")) {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "标准 Major 的阶段一赛制不可用于正式开赛。");
+    throw new AppError(
+      ErrorCode.SEASON_CAPABILITY_DISABLED,
+      "标准 Major 的阶段一赛制不可用于正式开赛。",
+    );
   }
 
-  const [existingRun] = await tx.select({ id: majorStageRuns.id }).from(majorStageRuns)
-    .where(and(eq(majorStageRuns.seasonId, season.id), eq(majorStageRuns.stageKey, stage.key))).for("update");
+  const [existingRun] = await tx
+    .select({ id: majorStageRuns.id })
+    .from(majorStageRuns)
+    .where(and(eq(majorStageRuns.seasonId, season.id), eq(majorStageRuns.stageKey, stage.key)))
+    .for("update");
   if (existingRun) {
-    const [{ value: entrantCount }] = await tx.select({ value: count() }).from(majorStageEntrants)
+    const [{ value: entrantCount }] = await tx
+      .select({ value: count() })
+      .from(majorStageEntrants)
       .where(eq(majorStageEntrants.stageRunId, existingRun.id));
-    const [{ value: matchCount }] = await tx.select({ value: count() }).from(matches)
-      .where(and(eq(matches.majorStageRunId, existingRun.id), eq(matches.ownership, "major_stage")));
-    if (season.status !== "playing" || Number(entrantCount) !== 16 || Number(matchCount) !== STAGE_ONE_MANAGED_MATCH_COUNT) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, "已存在不完整的 Major Stage 1 运行记录，拒绝静默重建。");
+    const [{ value: matchCount }] = await tx
+      .select({ value: count() })
+      .from(matches)
+      .where(
+        and(eq(matches.majorStageRunId, existingRun.id), eq(matches.ownership, "major_stage")),
+      );
+    if (
+      season.status !== "playing" ||
+      Number(entrantCount) !== 16 ||
+      Number(matchCount) !== STAGE_ONE_MANAGED_MATCH_COUNT
+    ) {
+      throw new AppError(
+        ErrorCode.INTERNAL_ERROR,
+        "已存在不完整的 Major Stage 1 运行记录，拒绝静默重建。",
+      );
     }
     return { stageRunId: existingRun.id, created: false, matchCount: Number(matchCount) };
   }
   if (season.status !== "registration") {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Major 只能从报名阶段由管理员显式正式开赛。");
+    throw new AppError(
+      ErrorCode.SEASON_INVALID_STATUS,
+      "Major 只能从报名阶段由管理员显式正式开赛。",
+    );
   }
 
   const state = await ensureMajorPrestartStateInTx(tx, season.id);
@@ -92,12 +120,15 @@ export async function startMajorInTransaction(
   // entrant → Entry 的锁顺序反转与 roster change 形成死锁窗口。prestart
   // state 行锁已在上方串行化所有 prestart 管理 mutation，锁定期间 entrant
   // 集合不可能漂移；仍显式校验，一旦漂移按 invariant fail closed。
-  const entrantRefs = await tx.select({
-    id: majorTournamentEntrants.id,
-    seasonId: majorTournamentEntrants.seasonId,
-    competitionEntryId: majorTournamentEntrants.competitionEntryId,
-  }).from(majorTournamentEntrants)
-    .where(eq(majorTournamentEntrants.seasonId, season.id)).orderBy(asc(majorTournamentEntrants.id));
+  const entrantRefs = await tx
+    .select({
+      id: majorTournamentEntrants.id,
+      seasonId: majorTournamentEntrants.seasonId,
+      competitionEntryId: majorTournamentEntrants.competitionEntryId,
+    })
+    .from(majorTournamentEntrants)
+    .where(eq(majorTournamentEntrants.seasonId, season.id))
+    .orderBy(asc(majorTournamentEntrants.id));
   // Fail closed before freezing anything when an entrant's registration fact
   // and its prestart event roster have drifted (reopened remediation, stale
   // approved revision, or a broken roster binding).
@@ -107,42 +138,86 @@ export async function startMajorInTransaction(
     entrantRefs.map((entrant) => ({ competitionEntryId: entrant.competitionEntryId })),
   );
   const entryNameByEntryId = new Map(coherenceRows.map((row) => [row.entry.id, row.entry.name]));
-  const entrantRows = await tx.select({
-    id: majorTournamentEntrants.id,
-    seasonId: majorTournamentEntrants.seasonId,
-    competitionEntryId: majorTournamentEntrants.competitionEntryId,
-  }).from(majorTournamentEntrants)
-    .where(eq(majorTournamentEntrants.seasonId, season.id)).orderBy(asc(majorTournamentEntrants.id)).for("update");
+  const entrantRows = await tx
+    .select({
+      id: majorTournamentEntrants.id,
+      seasonId: majorTournamentEntrants.seasonId,
+      competitionEntryId: majorTournamentEntrants.competitionEntryId,
+    })
+    .from(majorTournamentEntrants)
+    .where(eq(majorTournamentEntrants.seasonId, season.id))
+    .orderBy(asc(majorTournamentEntrants.id))
+    .for("update");
   const refById = new Map(entrantRefs.map((ref) => [ref.id, ref]));
-  if (entrantRows.length !== entrantRefs.length || entrantRows.some((entrant) => {
-    const ref = refById.get(entrant.id);
-    return !ref || ref.seasonId !== entrant.seasonId || ref.competitionEntryId !== entrant.competitionEntryId;
-  })) {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "赛前参赛队集合在开赛校验期间发生变化，拒绝继续开赛。");
+  if (
+    entrantRows.length !== entrantRefs.length ||
+    entrantRows.some((entrant) => {
+      const ref = refById.get(entrant.id);
+      return (
+        !ref ||
+        ref.seasonId !== entrant.seasonId ||
+        ref.competitionEntryId !== entrant.competitionEntryId
+      );
+    })
+  ) {
+    throw new AppError(
+      ErrorCode.INTERNAL_ERROR,
+      "赛前参赛队集合在开赛校验期间发生变化，拒绝继续开赛。",
+    );
   }
   const eventRosterIds = coherenceRows.map((row) => row.eventRoster.id);
-  const rosterRows = eventRosterIds.length === 0 ? [] : await tx.select({
-    eventRosterId: eventRosterMembers.eventRosterId,
-    userId: eventRosterMembers.userId,
-    participantId: eventRosterMembers.participantId,
-    educationVerificationId: eventRosterMembers.educationVerificationId,
-    isPrimaryStarter: eventRosterMembers.isPrimaryStarter,
-  }).from(eventRosterMembers)
-    .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-    .where(and(inArray(eventRosterMembers.eventRosterId, eventRosterIds), eq(eventRosters.status, "frozen"), eq(eventRosterMembers.isCurrent, true))).for("update");
-  const seedRows = await tx.select({
-    entrantId: majorTournamentSeeds.tournamentEntrantId,
-    tournamentSeed: majorTournamentSeeds.seed,
-  }).from(majorTournamentSeeds)
-    .where(eq(majorTournamentSeeds.seasonId, season.id)).for("update");
+  const rosterRows =
+    eventRosterIds.length === 0
+      ? []
+      : await tx
+          .select({
+            eventRosterId: eventRosterMembers.eventRosterId,
+            userId: eventRosterMembers.userId,
+            participantId: eventRosterMembers.participantId,
+            educationVerificationId: eventRosterMembers.educationVerificationId,
+            isPrimaryStarter: eventRosterMembers.isPrimaryStarter,
+          })
+          .from(eventRosterMembers)
+          .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+          .where(
+            and(
+              inArray(eventRosterMembers.eventRosterId, eventRosterIds),
+              eq(eventRosters.status, "frozen"),
+              eq(eventRosterMembers.isCurrent, true),
+            ),
+          )
+          .for("update");
+  const seedRows = await tx
+    .select({
+      entrantId: majorTournamentSeeds.tournamentEntrantId,
+      tournamentSeed: majorTournamentSeeds.seed,
+    })
+    .from(majorTournamentSeeds)
+    .where(eq(majorTournamentSeeds.seasonId, season.id))
+    .for("update");
 
-  const rosterByEventRoster = new Map<string, Array<{ userId: string; participantId: string | null; educationVerificationId: string | null; isPrimaryStarter: boolean }>>();
+  const rosterByEventRoster = new Map<
+    string,
+    Array<{
+      userId: string;
+      participantId: string | null;
+      educationVerificationId: string | null;
+      isPrimaryStarter: boolean;
+    }>
+  >();
   for (const roster of rosterRows) {
     const members = rosterByEventRoster.get(roster.eventRosterId) ?? [];
-    members.push({ userId: roster.userId, participantId: roster.participantId, educationVerificationId: roster.educationVerificationId, isPrimaryStarter: roster.isPrimaryStarter });
+    members.push({
+      userId: roster.userId,
+      participantId: roster.participantId,
+      educationVerificationId: roster.educationVerificationId,
+      isPrimaryStarter: roster.isPrimaryStarter,
+    });
     rosterByEventRoster.set(roster.eventRosterId, members);
   }
-  const entryIdByEntrantId = new Map(entrantRows.map((entrant) => [entrant.id, entrant.competitionEntryId]));
+  const entryIdByEntrantId = new Map(
+    entrantRows.map((entrant) => [entrant.id, entrant.competitionEntryId]),
+  );
   const seeds = seedRows.flatMap((seed) => {
     const entryId = entryIdByEntrantId.get(seed.entrantId);
     return entryId ? [{ teamId: entryId, tournamentSeed: seed.tournamentSeed }] : [];
@@ -151,14 +226,16 @@ export async function startMajorInTransaction(
   const entrantIdByEventRosterId = new Map(
     entrantRows.map((entrant) => {
       const coherence = coherenceByEntryId.get(entrant.competitionEntryId);
-      if (!coherence) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。");
+      if (!coherence)
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。");
       return [coherence.eventRoster.id, entrant.id] as const;
     }),
   );
   const frozenTeams = frozenTeamsForSnapshot(
     entrantRows.map((entrant) => {
       const coherence = coherenceByEntryId.get(entrant.competitionEntryId);
-      if (!coherence) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。");
+      if (!coherence)
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。");
       return {
         id: entrant.id,
         teamId: entrant.competitionEntryId,
@@ -169,7 +246,8 @@ export async function startMajorInTransaction(
     }),
     rosterRows.map((member) => {
       const entrantId = entrantIdByEventRosterId.get(member.eventRosterId);
-      if (!entrantId) throw new AppError(ErrorCode.INTERNAL_ERROR, "冻结 EventRoster 缺少正式参赛队绑定。");
+      if (!entrantId)
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "冻结 EventRoster 缺少正式参赛队绑定。");
       return {
         entrantId,
         userId: member.userId,
@@ -180,8 +258,11 @@ export async function startMajorInTransaction(
     }),
   );
   const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);
-  const [snapshot] = await tx.select().from(majorSeedRecommendationSnapshots)
-    .where(eq(majorSeedRecommendationSnapshots.seasonId, season.id)).for("update");
+  const [snapshot] = await tx
+    .select()
+    .from(majorSeedRecommendationSnapshots)
+    .where(eq(majorSeedRecommendationSnapshots.seasonId, season.id))
+    .for("update");
   const recommendationStatus = getSeedRecommendationSnapshotStatus({
     snapshot,
     seasonId: season.id,
@@ -191,7 +272,11 @@ export async function startMajorInTransaction(
     competitionTemplate: season.competitionTemplate,
     capabilities,
     teams: entrantRows.map((entrant) => {
-      const roster = rosterByEventRoster.get(coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId)?.eventRoster.id ?? "") ?? [];
+      const roster =
+        rosterByEventRoster.get(
+          coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId)?.eventRoster
+            .id ?? "",
+        ) ?? [];
       return {
         teamId: entrant.competitionEntryId,
         playerIds: roster.map((member) => member.userId),
@@ -199,28 +284,47 @@ export async function startMajorInTransaction(
       };
     }),
     entrantsLocked: Boolean(state.entrantsLockedAt),
-    confirmations: entrantRows.map((entrant) => ({ teamId: entrant.competitionEntryId, confirmed: coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId)?.eventRoster.status === "frozen" })),
+    confirmations: entrantRows.map((entrant) => ({
+      teamId: entrant.competitionEntryId,
+      confirmed:
+        coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId)?.eventRoster
+          .status === "frozen",
+    })),
     tournamentSeeds: seeds,
-    seedConfirmation: { confirmed: state.seedsConfirmedAt !== null && state.seedsConfirmedBy !== null },
+    seedConfirmation: {
+      confirmed: state.seedsConfirmedAt !== null && state.seedsConfirmedBy !== null,
+    },
     seedRecommendation: { status: recommendationStatus },
   });
   if (!readiness.canStart || !readiness.openingPlan) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, readiness.blockers[0] ?? "Major 赛前检查未通过。");
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      readiness.blockers[0] ?? "Major 赛前检查未通过。",
+    );
   }
   if (state.seedsLockedAt) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事种子已经锁定，但 Stage 1 尚未形成；拒绝继续写入。");
+    throw new AppError(
+      ErrorCode.SEASON_INVALID_STATUS,
+      "赛事种子已经锁定，但 Stage 1 尚未形成；拒绝继续写入。",
+    );
   }
 
   const now = new Date();
   const openingPlan = buildMajorOpeningPlan({ teams: seeds, stagePlan: capabilities.stagePlan });
-  const entrantByEntryId = new Map(entrantRows.map((entrant) => [entrant.competitionEntryId, entrant]));
+  const entrantByEntryId = new Map(
+    entrantRows.map((entrant) => [entrant.competitionEntryId, entrant]),
+  );
   const requiresCompetitiveProfile = capabilities.teamRegistrationConfig.requireCompetitiveProfile;
-  const configuredCompetitiveProfile = capabilities.teamRegistrationConfig.competitiveProfile ?? null;
+  const configuredCompetitiveProfile =
+    capabilities.teamRegistrationConfig.competitiveProfile ?? null;
   const competitiveProfile = configuredCompetitiveProfile
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
   if (requiresCompetitiveProfile && !competitiveProfile) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但实际开放报名时冻结的竞技平台目录不完整，不能正式开赛。");
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "本届赛事要求竞技资料，但实际开放报名时冻结的竞技平台目录不完整，不能正式开赛。",
+    );
   }
   const affiliationRules = capabilities.affiliationRules;
   const frozenParticipantIds = [...new Set(rosterRows.map((row) => row.userId))];
@@ -230,18 +334,21 @@ export async function startMajorInTransaction(
   // re-evaluated against the exact batch of facts that is about to be frozen.
   // One batched load feeds both the qualification decision and the
   // frozenCompetitiveFacts snapshot — never two different reads.
-  const needsQualificationLoad = (competitiveProfile !== null || affiliationRules.length > 0) && frozenParticipantIds.length > 0;
-  const qualificationFacts: ReadonlyMap<string, ParticipantQualificationFacts> = needsQualificationLoad
-    ? await loadParticipantQualificationFacts(frozenParticipantIds, {
-        executor: tx,
-        platform: competitiveProfile
-          ? competitiveProfile.platform
-          : undefined,
-        fallbackPlatform: competitiveProfile?.fallbackConversion?.sourcePlatform,
-        includeCompetitiveFacts: competitiveProfile !== null,
-      })
-    : new Map<string, ParticipantQualificationFacts>();
-  const membersByEventRoster = new Map<string, Array<{ userId: string; isPrimaryStarter: boolean }>>();
+  const needsQualificationLoad =
+    (competitiveProfile !== null || affiliationRules.length > 0) && frozenParticipantIds.length > 0;
+  const qualificationFacts: ReadonlyMap<string, ParticipantQualificationFacts> =
+    needsQualificationLoad
+      ? await loadParticipantQualificationFacts(frozenParticipantIds, {
+          executor: tx,
+          platform: competitiveProfile ? competitiveProfile.platform : undefined,
+          fallbackPlatform: competitiveProfile?.fallbackConversion?.sourcePlatform,
+          includeCompetitiveFacts: competitiveProfile !== null,
+        })
+      : new Map<string, ParticipantQualificationFacts>();
+  const membersByEventRoster = new Map<
+    string,
+    Array<{ userId: string; isPrimaryStarter: boolean }>
+  >();
   for (const row of rosterRows) {
     const members = membersByEventRoster.get(row.eventRosterId) ?? [];
     members.push({ userId: row.userId, isPrimaryStarter: row.isPrimaryStarter });
@@ -255,11 +362,18 @@ export async function startMajorInTransaction(
   const overridesByEntryAndRevision = new Map<string, typeof activeRestrictionOverrides>();
   for (const override of activeRestrictionOverrides) {
     const key = `${override.entryId}:${override.rosterRevisionId}`;
-    overridesByEntryAndRevision.set(key, [...(overridesByEntryAndRevision.get(key) ?? []), override]);
+    overridesByEntryAndRevision.set(key, [
+      ...(overridesByEntryAndRevision.get(key) ?? []),
+      override,
+    ]);
   }
   const qualificationBlockers: string[] = [];
   for (const entrant of entrantRows) {
-    const rosterMembers = membersByEventRoster.get(coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId)?.eventRoster.id ?? "") ?? [];
+    const rosterMembers =
+      membersByEventRoster.get(
+        coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId)?.eventRoster.id ??
+          "",
+      ) ?? [];
     if (rosterMembers.length === 0) continue; // readiness already blocks empty/absent frozen rosters.
     const qualification = await evaluateRosterQualificationFromFacts({
       members: rosterMembers.map((member) => {
@@ -274,15 +388,21 @@ export async function startMajorInTransaction(
       facts: qualificationFacts,
       affiliationRules,
       competitiveProfile,
-      primaryStarterUserIds: rosterMembers.filter((member) => member.isPrimaryStarter).map((member) => member.userId),
+      primaryStarterUserIds: rosterMembers
+        .filter((member) => member.isPrimaryStarter)
+        .map((member) => member.userId),
     });
     const coherence = coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId);
     const overrides = coherence
-      ? overridesByEntryAndRevision.get(`${entrant.competitionEntryId}:${coherence.approvedRevision.id}`) ?? []
+      ? (overridesByEntryAndRevision.get(
+          `${entrant.competitionEntryId}:${coherence.approvedRevision.id}`,
+        ) ?? [])
       : [];
     const unresolved = unresolvedQualificationFindings(qualification.findings, overrides);
     if (unresolved.length > 0) {
-      qualificationBlockers.push(`参赛条目「${entryNameByEntryId.get(entrant.competitionEntryId) ?? entrant.competitionEntryId}」：${unresolved.map((finding) => finding.message).join(" ")}`);
+      qualificationBlockers.push(
+        `参赛条目「${entryNameByEntryId.get(entrant.competitionEntryId) ?? entrant.competitionEntryId}」：${unresolved.map((finding) => finding.message).join(" ")}`,
+      );
     }
   }
   if (qualificationBlockers.length > 0) {
@@ -290,8 +410,11 @@ export async function startMajorInTransaction(
   }
   const frozenCompetitiveFacts = frozenParticipantIds.map((userId) => {
     const fact = qualificationFacts.get(userId);
-    const effective = competitiveProfile && fact ? toPlayerStrengthInput(fact, competitiveProfile) : null;
-    const serialize = (peak: ReturnType<typeof toPlayerStrengthInput>["historicalPeak"] | null | undefined) => (
+    const effective =
+      competitiveProfile && fact ? toPlayerStrengthInput(fact, competitiveProfile) : null;
+    const serialize = (
+      peak: ReturnType<typeof toPlayerStrengthInput>["historicalPeak"] | null | undefined,
+    ) =>
       peak?.rank && peak.rating !== null && peak.rating !== undefined
         ? {
             rank: peak.rank,
@@ -304,20 +427,15 @@ export async function startMajorInTransaction(
             sourceStars: peak.sourceStars ?? null,
             conversionVersion: peak.conversionVersion ?? null,
           }
-        : null
-    );
+        : null;
     return {
       userId,
       label: effective?.label ?? (fact ? getDisplayName(fact) : userId),
       historicalPeak: competitiveProfile ? serialize(effective?.historicalPeak) : null,
-      previousSeasonPeak: competitiveProfile
-        ? serialize(effective?.previousSeasonPeak)
-        : null,
-      currentSeasonPeak: competitiveProfile
-        ? serialize(effective?.currentSeasonPeak)
-        : null,
+      previousSeasonPeak: competitiveProfile ? serialize(effective?.previousSeasonPeak) : null,
+      currentSeasonPeak: competitiveProfile ? serialize(effective?.currentSeasonPeak) : null,
       recentSeasonPeaks: competitiveProfile?.evidencePolicy
-        ? effective?.recentSeasonPeaks?.map(serialize) ?? []
+        ? (effective?.recentSeasonPeaks?.map(serialize) ?? [])
         : undefined,
     };
   });
@@ -361,54 +479,72 @@ export async function startMajorInTransaction(
     // Match lineup validation must never consult mutable rank facts again.
     frozenCompetitiveFacts,
   });
-  const [stageRun] = await tx.insert(majorStageRuns).values({
-    seasonId: season.id,
-    stageKey: stage.key,
-    ruleSnapshot,
-    startedAt: now,
-    startedBy: input.actorId,
-  }).returning({ id: majorStageRuns.id });
+  const [stageRun] = await tx
+    .insert(majorStageRuns)
+    .values({
+      seasonId: season.id,
+      stageKey: stage.key,
+      ruleSnapshot,
+      startedAt: now,
+      startedBy: input.actorId,
+    })
+    .returning({ id: majorStageRuns.id });
   if (!stageRun) throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 1 运行记录创建失败。");
 
-  await tx.insert(majorStageEntrants).values(openingPlan.stage1.entrants.map((team) => {
-    const entrant = entrantByEntryId.get(team.teamId);
-    if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 1 入口缺少已锁定的正式参赛队。");
-    return {
-      stageRunId: stageRun.id,
-      seasonId: season.id,
-      tournamentEntrantId: entrant.id,
-      stageSeed: team.initialStageSeed,
-    };
-  }));
-  const createdMatches = await tx.insert(matches).values(openingPlan.firstRound.pairings.map((pairing, index) => ({
-    seasonId: season.id,
-    entryAId: pairing.higherSeed.teamId,
-    entryBId: pairing.lowerSeed.teamId,
-    stage: stage.key,
-    round: 1,
-    format: pairing.format,
-    status: "scheduled" as const,
-    ownership: "major_stage" as const,
-    majorStageRunId: stageRun.id,
-    managedKey: `r1-${index + 1}`,
-  }))).returning({ id: matches.id });
+  await tx.insert(majorStageEntrants).values(
+    openingPlan.stage1.entrants.map((team) => {
+      const entrant = entrantByEntryId.get(team.teamId);
+      if (!entrant)
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 1 入口缺少已锁定的正式参赛队。");
+      return {
+        stageRunId: stageRun.id,
+        seasonId: season.id,
+        tournamentEntrantId: entrant.id,
+        stageSeed: team.initialStageSeed,
+      };
+    }),
+  );
+  const createdMatches = await tx
+    .insert(matches)
+    .values(
+      openingPlan.firstRound.pairings.map((pairing, index) => ({
+        seasonId: season.id,
+        entryAId: pairing.higherSeed.teamId,
+        entryBId: pairing.lowerSeed.teamId,
+        stage: stage.key,
+        round: 1,
+        format: pairing.format,
+        status: "scheduled" as const,
+        ownership: "major_stage" as const,
+        majorStageRunId: stageRun.id,
+        managedKey: `r1-${index + 1}`,
+      })),
+    )
+    .returning({ id: matches.id });
   if (createdMatches.length !== STAGE_ONE_MANAGED_MATCH_COUNT) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 1 首轮比赛创建数量异常。");
   }
 
-  await tx.update(majorPrestartStates).set({
-    entrantsLockedAt: state.entrantsLockedAt ?? now,
-    entrantsLockedBy: state.entrantsLockedBy ?? input.actorId,
-    seedsLockedAt: now,
-    seedsLockedBy: input.actorId,
-    updatedAt: now,
-  }).where(eq(majorPrestartStates.id, state.id));
-  await tx.update(seasons).set({ status: "playing", updatedAt: now }).where(eq(seasons.id, season.id));
+  await tx
+    .update(majorPrestartStates)
+    .set({
+      entrantsLockedAt: state.entrantsLockedAt ?? now,
+      entrantsLockedBy: state.entrantsLockedBy ?? input.actorId,
+      seedsLockedAt: now,
+      seedsLockedBy: input.actorId,
+      updatedAt: now,
+    })
+    .where(eq(majorPrestartStates.id, state.id));
+  await tx
+    .update(seasons)
+    .set({ status: "playing", updatedAt: now })
+    .where(eq(seasons.id, season.id));
   await writeAuditInTx(tx, {
     seasonId: season.id,
     action: "major.start",
     actorId: input.actorId,
-    targetId: stageRun.id,meta: {
+    targetId: stageRun.id,
+    meta: {
       stageKey: stage.key,
       lockedEntrants: entrantCapacity,
       lockedRosters: entrantCapacity,

@@ -3,13 +3,7 @@
  * Rivals registration. Position labels are presentation only; these keys are
  * the persisted contract.
  */
-export const CS2_POSITION_VALUES = [
-  "igl",
-  "awper",
-  "opener",
-  "closer",
-  "anchor",
-] as const;
+export const CS2_POSITION_VALUES = ["igl", "awper", "opener", "closer", "anchor"] as const;
 
 export const CS2_POSITION_LABELS = {
   igl: { cn: "指挥", en: "IGL", full: "IGL（指挥）" },

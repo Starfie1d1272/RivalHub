@@ -3,7 +3,10 @@ import { competitionEntries, seasons } from "@/db/schema";
 
 const RECRUITMENT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-type RecruitmentTargetSeason = Pick<typeof seasons.$inferSelect, "status" | "registrationClosesAt" | "rosterChangeClosesAt">;
+type RecruitmentTargetSeason = Pick<
+  typeof seasons.$inferSelect,
+  "status" | "registrationClosesAt" | "rosterChangeClosesAt"
+>;
 
 /**
  * Recruitment is available for every published participation window, including
@@ -24,12 +27,21 @@ export function isRecruitmentTargetAvailable(season: RecruitmentTargetSeason, no
 
 /** After new applications close, Team recruitment remains public only for a
  * Team that already has an effective Entry whose roster can still change. */
-export function isTeamRecruitmentTargetAvailable(season: RecruitmentTargetSeason, hasEffectiveEntry: boolean, now: Date): boolean {
-  return isRecruitmentTargetAvailable(season, now)
-    && (!season.registrationClosesAt || season.registrationClosesAt > now || hasEffectiveEntry);
+export function isTeamRecruitmentTargetAvailable(
+  season: RecruitmentTargetSeason,
+  hasEffectiveEntry: boolean,
+  now: Date,
+): boolean {
+  return (
+    isRecruitmentTargetAvailable(season, now) &&
+    (!season.registrationClosesAt || season.registrationClosesAt > now || hasEffectiveEntry)
+  );
 }
 
-export function recruitmentTargetExpiresAt(season: RecruitmentTargetSeason | null, now: Date): Date {
+export function recruitmentTargetExpiresAt(
+  season: RecruitmentTargetSeason | null,
+  now: Date,
+): Date {
   const ordinaryExpiry = new Date(now.getTime() + RECRUITMENT_TTL_MS);
   const deadline = season?.rosterChangeClosesAt ?? season?.registrationClosesAt;
   if (season?.status !== "registration" || !deadline) return ordinaryExpiry;
@@ -43,7 +55,10 @@ export function recruitmentTargetAvailableCondition(now: Date) {
       eq(seasons.status, "registration"),
       or(
         gt(seasons.rosterChangeClosesAt, now),
-        and(isNull(seasons.rosterChangeClosesAt), or(isNull(seasons.registrationClosesAt), gt(seasons.registrationClosesAt, now))),
+        and(
+          isNull(seasons.rosterChangeClosesAt),
+          or(isNull(seasons.registrationClosesAt), gt(seasons.registrationClosesAt, now)),
+        ),
       ),
     ),
   );

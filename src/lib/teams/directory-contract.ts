@@ -15,14 +15,15 @@ export interface TeamDirectoryQuery {
   sort: TeamDirectorySort;
 }
 
-export type TeamDirectorySearchParams = URLSearchParams | Record<string, string | string[] | undefined>;
+export type TeamDirectorySearchParams =
+  URLSearchParams | Record<string, string | string[] | undefined>;
 
 function firstValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
 function readParam(input: TeamDirectorySearchParams, key: string): string | undefined {
-  return input instanceof URLSearchParams ? input.get(key) ?? undefined : firstValue(input[key]);
+  return input instanceof URLSearchParams ? (input.get(key) ?? undefined) : firstValue(input[key]);
 }
 
 export function normalizeTeamDirectoryQuery(input: TeamDirectorySearchParams): TeamDirectoryQuery {
@@ -35,8 +36,9 @@ export function normalizeTeamDirectoryQuery(input: TeamDirectorySearchParams): T
     q,
     status: rawStatus === "history" ? "history" : TEAM_DIRECTORY_DEFAULTS.status,
     recruiting: rawRecruiting === "true" || rawRecruiting === "1",
-    sort: rawSort === "name" || rawSort === "members_asc" || rawSort === "members_desc"
-      ? rawSort
-      : TEAM_DIRECTORY_DEFAULTS.sort,
+    sort:
+      rawSort === "name" || rawSort === "members_asc" || rawSort === "members_desc"
+        ? rawSort
+        : TEAM_DIRECTORY_DEFAULTS.sort,
   };
 }

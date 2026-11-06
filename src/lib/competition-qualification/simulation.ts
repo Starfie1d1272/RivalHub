@@ -10,10 +10,7 @@ import {
   SHORT_SWISS_WIN_THRESHOLD,
   SHORT_SWISS_LOSS_THRESHOLD,
 } from "./policy";
-import {
-  generateShortSwissRoundPairings,
-  projectShortSwissStage,
-} from "./swiss";
+import { generateShortSwissRoundPairings, projectShortSwissStage } from "./swiss";
 
 /** Local worldline only. Pairing and ranking remain owned by Short Swiss. */
 export function simulateQualification(
@@ -43,10 +40,7 @@ export function simulateQualification(
         [a, b].includes(choice.winner);
       const official = roundOfficial
         ? context.baseline.matches.find(
-            (m) =>
-              m.round === round &&
-              [m.a, m.b].includes(a) &&
-              [m.a, m.b].includes(b),
+            (m) => m.round === round && [m.a, m.b].includes(a) && [m.a, m.b].includes(b),
           )
         : undefined;
       const winner = selected ? choice.winner : (official?.winner ?? a);
@@ -60,14 +54,17 @@ export function simulateQualification(
         winner,
         record: pair.record,
         format: "bo1",
-        source: selected
-          ? "assumption"
-          : official?.winner
-            ? "official"
-            : "preview",
-        displayScore: !selected && official?.winner && official.displayScore ? { ...official.displayScore,
-          scoreA: official.a === a ? official.displayScore.scoreA : official.displayScore.scoreB,
-          scoreB: official.a === a ? official.displayScore.scoreB : official.displayScore.scoreA } : undefined,
+        source: selected ? "assumption" : official?.winner ? "official" : "preview",
+        displayScore:
+          !selected && official?.winner && official.displayScore
+            ? {
+                ...official.displayScore,
+                scoreA:
+                  official.a === a ? official.displayScore.scoreA : official.displayScore.scoreB,
+                scoreB:
+                  official.a === a ? official.displayScore.scoreB : official.displayScore.scoreA,
+              }
+            : undefined,
         scoreA:
           !selected && official?.winner
             ? official.a === a

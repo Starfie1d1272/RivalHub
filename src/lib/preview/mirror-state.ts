@@ -25,7 +25,19 @@ export type PreviewMirrorIdentity = {
 
 export async function readPreviewMirrorIdentity(): Promise<PreviewMirrorIdentity | null> {
   try {
-    const row = (await db.select({ sourceTag: previewMirrorState.sourceTag, sourceCommit: previewMirrorState.sourceCommit, refreshedAt: previewMirrorState.refreshedAt, personaCount: previewMirrorState.personaCount, assetCount: previewMirrorState.assetCount }).from(previewMirrorState).where(eq(previewMirrorState.id, true)).limit(1))[0];
+    const row = (
+      await db
+        .select({
+          sourceTag: previewMirrorState.sourceTag,
+          sourceCommit: previewMirrorState.sourceCommit,
+          refreshedAt: previewMirrorState.refreshedAt,
+          personaCount: previewMirrorState.personaCount,
+          assetCount: previewMirrorState.assetCount,
+        })
+        .from(previewMirrorState)
+        .where(eq(previewMirrorState.id, true))
+        .limit(1)
+    )[0];
     return row ?? null;
   } catch {
     return null;

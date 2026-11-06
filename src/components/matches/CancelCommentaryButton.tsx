@@ -6,7 +6,10 @@ import { InlineConfirm } from "@/components/rivalhub/InlineConfirm";
 import { Button } from "@/components/ui/button";
 import { observeAction } from "@/lib/telemetry/client";
 
-const cancelMatchCommentary = observeAction("postmatch.cancelMatchCommentary", telemetry_cancelMatchCommentary);
+const cancelMatchCommentary = observeAction(
+  "postmatch.cancelMatchCommentary",
+  telemetry_cancelMatchCommentary,
+);
 
 export function CancelCommentaryButton({ matchId }: { matchId: string }) {
   const [pending, startTransition] = useTransition();
@@ -28,9 +31,32 @@ export function CancelCommentaryButton({ matchId }: { matchId: string }) {
     });
   }
 
-  return <div className="space-y-1">
-    {confirming ? <InlineConfirm title="取消本场解说认领？" sub="将释放你的名额，其他解说可继续认领。" confirmLabel="确认取消认领" onConfirm={cancel} onCancel={() => setConfirming(false)} />
-      : <Button type="button" size="sm" variant="outline" disabled={pending || cancelled} onClick={() => setConfirming(true)}>{pending ? "正在取消…" : cancelled ? "已取消认领" : "取消认领"}</Button>}
-    {error && <p role="alert" className="text-sm text-[var(--color-danger)]">{error}</p>}
-  </div>;
+  return (
+    <div className="space-y-1">
+      {confirming ? (
+        <InlineConfirm
+          title="取消本场解说认领？"
+          sub="将释放你的名额，其他解说可继续认领。"
+          confirmLabel="确认取消认领"
+          onConfirm={cancel}
+          onCancel={() => setConfirming(false)}
+        />
+      ) : (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending || cancelled}
+          onClick={() => setConfirming(true)}
+        >
+          {pending ? "正在取消…" : cancelled ? "已取消认领" : "取消认领"}
+        </Button>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-[var(--color-danger)]">
+          {error}
+        </p>
+      )}
+    </div>
+  );
 }

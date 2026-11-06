@@ -31,7 +31,11 @@ import { pairingCanReadSeason } from "./pairing";
 import type { DemoImportMetadata } from "./metadata";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { projectStage, projectOfficialStage } from "./stage-projection";
-import { CURRENT_DAK_SEMANTIC_PROFILE, dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
+import {
+  CURRENT_DAK_SEMANTIC_PROFILE,
+  dakSemanticProfileIssueMessage,
+  isCurrentDakSemanticProfile,
+} from "./semantic-profile";
 import type {
   IntegrationIssue,
   RivalHubEventsResponse,
@@ -47,7 +51,12 @@ function iso(value: Date | null | undefined): string | null {
   return value?.toISOString() ?? null;
 }
 
-function displayName(row: { displayName: string | null; personaName: string | null; perfectName: string | null; steam64: string | null }): string {
+function displayName(row: {
+  displayName: string | null;
+  personaName: string | null;
+  perfectName: string | null;
+  steam64: string | null;
+}): string {
   const canonicalName = getPublicDisplayName(row);
   return canonicalName === "未知用户" ? row.steam64?.trim() || canonicalName : canonicalName;
 }
@@ -62,31 +71,42 @@ function projectIssues(value: unknown): IntegrationIssue[] {
     if (typeof row !== "object" || row === null) return [];
     const issue = row as { code?: unknown; path?: unknown; message?: unknown };
     if (typeof issue.code !== "string" || typeof issue.message !== "string") return [];
-    return [{
-      code: issue.code,
-      ...(typeof issue.path === "string" ? { path: issue.path } : {}),
-      message: issue.message,
-    }];
+    return [
+      {
+        code: issue.code,
+        ...(typeof issue.path === "string" ? { path: issue.path } : {}),
+        message: issue.message,
+      },
+    ];
   });
 }
 
-type DemoImportEventMetadata = Pick<DemoImportMetadata, "id" | "matchMapId" | "demoSha256" | "semanticProfile" | "evidenceRevision" | "status" | "issues">;
+type DemoImportEventMetadata = Pick<
+  DemoImportMetadata,
+  "id" | "matchMapId" | "demoSha256" | "semanticProfile" | "evidenceRevision" | "status" | "issues"
+>;
 type CurrentDemoImportCandidate = Pick<DemoImportMetadata, "semanticProfile" | "status">;
 
-export function selectCurrentDemoImport<T extends CurrentDemoImportCandidate>(rows: readonly T[]): T | undefined;
+export function selectCurrentDemoImport<T extends CurrentDemoImportCandidate>(
+  rows: readonly T[],
+): T | undefined;
 export function selectCurrentDemoImport(
   rows: readonly DemoImportMetadata[],
 ): DemoImportMetadata | undefined;
 export function selectCurrentDemoImport(
   rows: readonly CurrentDemoImportCandidate[],
 ): CurrentDemoImportCandidate | undefined {
-  return rows.find((row) => isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded");
+  return rows.find(
+    (row) => isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded",
+  );
 }
 
 function selectLatestNonCanonicalDemoImport(
   rows: readonly DemoImportEventMetadata[],
 ): DemoImportEventMetadata | undefined {
-  return rows.find((row) => !isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded");
+  return rows.find(
+    (row) => !isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded",
+  );
 }
 
 function projectPlayer(row: {
@@ -119,14 +139,16 @@ export function projectDemoStatus(
   const mapFinished = map.completedAt != null && map.scoreA != null && map.scoreB != null;
   if (mapFinished) {
     if (!latest) return "finished_pending_demo";
-    if (latest.semanticProfile != null && !isCurrentDakSemanticProfile(latest.semanticProfile)) return "needs_attention";
+    if (latest.semanticProfile != null && !isCurrentDakSemanticProfile(latest.semanticProfile))
+      return "needs_attention";
     if (latest.status === "confirmed") {
       return currentEvidenceRevision != null && latest.evidenceRevision !== currentEvidenceRevision
         ? "needs_attention"
         : "synced";
     }
     if (latest.status === "pending") return "demo_processing";
-    if (["needs_attention", "stale", "rejected", "superseded"].includes(latest.status)) return "needs_attention";
+    if (["needs_attention", "stale", "rejected", "superseded"].includes(latest.status))
+      return "needs_attention";
     return "finished_pending_demo";
   }
   const mapStarted = map.completedAt != null || map.scoreA != null || map.scoreB != null;
@@ -146,9 +168,9 @@ export function projectDemoIssues(
 ): IntegrationIssue[] {
   const issues = projectIssues(latest?.issues);
   if (
-    latest?.semanticProfile != null
-    && !isCurrentDakSemanticProfile(latest.semanticProfile)
-    && !issues.some((row) => row.code === "UNSUPPORTED_SEMANTIC_PROFILE")
+    latest?.semanticProfile != null &&
+    !isCurrentDakSemanticProfile(latest.semanticProfile) &&
+    !issues.some((row) => row.code === "UNSUPPORTED_SEMANTIC_PROFILE")
   ) {
     issues.unshift({
       code: "UNSUPPORTED_SEMANTIC_PROFILE",
@@ -157,10 +179,11 @@ export function projectDemoIssues(
     });
   }
   if (
-    latestConfirmed != null
-    && latestConfirmed.evidenceRevision !== currentEvidenceRevision
-    && !issues.some((row) => row.code === staleEvidenceIssue.code)
-  ) issues.push(staleEvidenceIssue);
+    latestConfirmed != null &&
+    latestConfirmed.evidenceRevision !== currentEvidenceRevision &&
+    !issues.some((row) => row.code === staleEvidenceIssue.code)
+  )
+    issues.push(staleEvidenceIssue);
   return issues;
 }
 
@@ -171,15 +194,19 @@ function projectVeto(
   mapPool: string[],
   rows: Array<typeof matchVetoSteps.$inferSelect>,
 ) {
-  if (rows.length === 0 || rows.some((row) => !["ban", "pick", "decider"].includes(row.actionType))) return null;
-  const teamKey = (entryId: string | null): "teamA" | "teamB" | null => entryId === match.entryAId ? "teamA" : entryId === match.entryBId ? "teamB" : null;
-  const steps = [...rows].sort((a, b) => a.stepOrder - b.stepOrder).map((row) => ({
-    stepOrder: row.stepOrder,
-    actionType: row.actionType as "ban" | "pick" | "decider",
-    mapName: row.mapName,
-    teamKey: teamKey(row.entryId),
-    side: row.side,
-  }));
+  if (rows.length === 0 || rows.some((row) => !["ban", "pick", "decider"].includes(row.actionType)))
+    return null;
+  const teamKey = (entryId: string | null): "teamA" | "teamB" | null =>
+    entryId === match.entryAId ? "teamA" : entryId === match.entryBId ? "teamB" : null;
+  const steps = [...rows]
+    .sort((a, b) => a.stepOrder - b.stepOrder)
+    .map((row) => ({
+      stepOrder: row.stepOrder,
+      actionType: row.actionType as "ban" | "pick" | "decider",
+      mapName: row.mapName,
+      teamKey: teamKey(row.entryId),
+      side: row.side,
+    }));
   return {
     version: "cs2-demo-analysis-kit/series-veto-0.1" as const,
     seriesId: match.id,
@@ -188,15 +215,28 @@ function projectVeto(
     teamBName,
     mapPool,
     maps: {
-      picked: steps.filter((step) => step.actionType === "pick" && step.teamKey).map((step) => ({ mapName: step.mapName, teamKey: step.teamKey! })),
-      banned: steps.filter((step) => step.actionType === "ban" && step.teamKey).map((step) => ({ mapName: step.mapName, teamKey: step.teamKey! })),
+      picked: steps
+        .filter((step) => step.actionType === "pick" && step.teamKey)
+        .map((step) => ({ mapName: step.mapName, teamKey: step.teamKey! })),
+      banned: steps
+        .filter((step) => step.actionType === "ban" && step.teamKey)
+        .map((step) => ({ mapName: step.mapName, teamKey: step.teamKey! })),
       decider: steps.find((step) => step.actionType === "decider")?.mapName ?? null,
     },
-    sideChoices: steps.filter((step) => step.side != null).map((step) => ({
-      mapName: step.mapName,
-      teamKey: step.actionType === "pick" ? step.teamKey === "teamA" ? "teamB" : step.teamKey === "teamB" ? "teamA" : null : step.teamKey,
-      side: step.side!,
-    })),
+    sideChoices: steps
+      .filter((step) => step.side != null)
+      .map((step) => ({
+        mapName: step.mapName,
+        teamKey:
+          step.actionType === "pick"
+            ? step.teamKey === "teamA"
+              ? "teamB"
+              : step.teamKey === "teamB"
+                ? "teamA"
+                : null
+            : step.teamKey,
+        side: step.side!,
+      })),
     steps,
   };
 }
@@ -208,79 +248,164 @@ export async function readRivalHubEvents(
   const seasonRows = pairing.seasonIds.includes("*")
     ? await db.select().from(seasons).orderBy(asc(seasons.slug))
     : pairing.seasonIds.length > 0
-      ? await db.select().from(seasons).where(inArray(seasons.id, pairing.seasonIds)).orderBy(asc(seasons.slug))
+      ? await db
+          .select()
+          .from(seasons)
+          .where(inArray(seasons.id, pairing.seasonIds))
+          .orderBy(asc(seasons.slug))
       : [];
-  if (seasonRows.length === 0) return { contractVersion: "rivalhub-dak-events/1", generatedAt: new Date().toISOString(), events: [] };
+  if (seasonRows.length === 0)
+    return {
+      contractVersion: "rivalhub-dak-events/1",
+      generatedAt: new Date().toISOString(),
+      events: [],
+    };
   const seasonIds = seasonRows.map((season) => season.id);
-  const entries = await db.select().from(competitionEntries).where(inArray(competitionEntries.competitionId, seasonIds));
+  const entries = await db
+    .select()
+    .from(competitionEntries)
+    .where(inArray(competitionEntries.competitionId, seasonIds));
   const entryIds = entries.map((entry) => entry.id);
   if (entryIds.length === 0) {
     return {
       contractVersion: "rivalhub-dak-events/1",
       generatedAt: new Date().toISOString(),
-      events: seasonRows.map((season) => ({ id: season.id, seasonId: season.id, slug: season.slug, name: season.name, kind: season.kind, revision: sha256Json({ seasonId: season.id, updatedAt: season.updatedAt.toISOString() }), stages: normalizeStagePlan(season.stagePlan).map((stage) => projectStage(stage)), teams: [], series: [] })),
+      events: seasonRows.map((season) => ({
+        id: season.id,
+        seasonId: season.id,
+        slug: season.slug,
+        name: season.name,
+        kind: season.kind,
+        revision: sha256Json({ seasonId: season.id, updatedAt: season.updatedAt.toISOString() }),
+        stages: normalizeStagePlan(season.stagePlan).map((stage) => projectStage(stage)),
+        teams: [],
+        series: [],
+      })),
     };
   }
 
   const [rosterRows, matchRowsRaw] = await Promise.all([
-    db.select({
-      entryId: competitionEntries.id,
-      eventRosterId: eventRosters.id,
-      eventRosterStatus: eventRosters.status,
-      eventRosterMemberId: eventRosterMembers.id,
-      userId: users.id,
-      steam64: users.steam64,
-      displayName: users.displayName,
-      personaName: steamProfiles.personaName,
-      perfectName: users.perfectName,
-      isStarter: eventRosterMembers.isPrimaryStarter,
-    }).from(eventRosterMembers)
+    db
+      .select({
+        entryId: competitionEntries.id,
+        eventRosterId: eventRosters.id,
+        eventRosterStatus: eventRosters.status,
+        eventRosterMemberId: eventRosterMembers.id,
+        userId: users.id,
+        steam64: users.steam64,
+        displayName: users.displayName,
+        personaName: steamProfiles.personaName,
+        perfectName: users.perfectName,
+        isStarter: eventRosterMembers.isPrimaryStarter,
+      })
+      .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
       .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
       .innerJoin(users, eq(users.id, eventRosterMembers.userId))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(and(inArray(competitionEntries.competitionId, seasonIds), inArray(eventRosters.status, ["confirmed", "frozen"]), eq(eventRosterMembers.isCurrent, true))),
-    db.select().from(matches).where(and(inArray(matches.seasonId, seasonIds), or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)))),
+      .where(
+        and(
+          inArray(competitionEntries.competitionId, seasonIds),
+          inArray(eventRosters.status, ["confirmed", "frozen"]),
+          eq(eventRosterMembers.isCurrent, true),
+        ),
+      ),
+    db
+      .select()
+      .from(matches)
+      .where(
+        and(
+          inArray(matches.seasonId, seasonIds),
+          or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
+        ),
+      ),
   ]);
   const matchRows = matchRowsRaw.map(requireCompetitionMatch);
   const matchIds = matchRows.map((match) => match.id);
-  const mapRows = matchIds.length > 0
-    ? await db.select().from(matchMaps).where(inArray(matchMaps.matchId, matchIds)).orderBy(asc(matchMaps.mapOrder))
-    : [];
-  const vetoRows = matchIds.length > 0
-    ? await db.select().from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, matchIds)).orderBy(asc(matchVetoSteps.stepOrder))
-    : [];
+  const mapRows =
+    matchIds.length > 0
+      ? await db
+          .select()
+          .from(matchMaps)
+          .where(inArray(matchMaps.matchId, matchIds))
+          .orderBy(asc(matchMaps.mapOrder))
+      : [];
+  const vetoRows =
+    matchIds.length > 0
+      ? await db
+          .select()
+          .from(matchVetoSteps)
+          .where(inArray(matchVetoSteps.matchId, matchIds))
+          .orderBy(asc(matchVetoSteps.stepOrder))
+      : [];
   const matchRosterRows = await loadEffectiveMatchRoster(db, matchIds);
   // Keep every timestamp tie: the existing createdAt-only ordering leaves ties
   // unordered, and each of these three independent candidates can affect output.
-  const importHistory = db.select({
-    id: matchDemoImports.id,
-    matchMapId: matchDemoImports.matchMapId,
-    demoSha256: matchDemoImports.demoSha256,
-    semanticProfile: matchDemoImports.semanticProfile,
-    evidenceRevision: matchDemoImports.evidenceRevision,
-    status: matchDemoImports.status,
-    issues: matchDemoImports.issues,
-    createdAt: matchDemoImports.createdAt,
-    latestCurrentAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} = ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} <> 'superseded') over (partition by ${matchDemoImports.matchMapId})`.as("latest_current_at"),
-    latestNonCanonicalAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} <> ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} <> 'superseded') over (partition by ${matchDemoImports.matchMapId})`.as("latest_noncanonical_at"),
-    latestConfirmedAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} = ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} = 'confirmed') over (partition by ${matchDemoImports.matchMapId})`.as("latest_confirmed_at"),
-  }).from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, mapRows.map((map) => map.id))).as("import_history");
-  const importRows = mapRows.length > 0
-    ? await db.select({
-      id: importHistory.id,
-      matchMapId: importHistory.matchMapId,
-      demoSha256: importHistory.demoSha256,
-      semanticProfile: importHistory.semanticProfile,
-      evidenceRevision: importHistory.evidenceRevision,
-      status: importHistory.status,
-      issues: importHistory.issues,
-    }).from(importHistory).where(or(
-      and(eq(importHistory.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), sql`${importHistory.status} <> 'superseded'`, eq(importHistory.createdAt, importHistory.latestCurrentAt)),
-      and(sql`${importHistory.semanticProfile} <> ${CURRENT_DAK_SEMANTIC_PROFILE}`, sql`${importHistory.status} <> 'superseded'`, eq(importHistory.createdAt, importHistory.latestNonCanonicalAt)),
-      and(eq(importHistory.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), eq(importHistory.status, "confirmed"), eq(importHistory.createdAt, importHistory.latestConfirmedAt)),
-    )).orderBy(desc(importHistory.createdAt))
-    : [];
+  const importHistory = db
+    .select({
+      id: matchDemoImports.id,
+      matchMapId: matchDemoImports.matchMapId,
+      demoSha256: matchDemoImports.demoSha256,
+      semanticProfile: matchDemoImports.semanticProfile,
+      evidenceRevision: matchDemoImports.evidenceRevision,
+      status: matchDemoImports.status,
+      issues: matchDemoImports.issues,
+      createdAt: matchDemoImports.createdAt,
+      latestCurrentAt:
+        sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} = ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} <> 'superseded') over (partition by ${matchDemoImports.matchMapId})`.as(
+          "latest_current_at",
+        ),
+      latestNonCanonicalAt:
+        sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} <> ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} <> 'superseded') over (partition by ${matchDemoImports.matchMapId})`.as(
+          "latest_noncanonical_at",
+        ),
+      latestConfirmedAt:
+        sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} = ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} = 'confirmed') over (partition by ${matchDemoImports.matchMapId})`.as(
+          "latest_confirmed_at",
+        ),
+    })
+    .from(matchDemoImports)
+    .where(
+      inArray(
+        matchDemoImports.matchMapId,
+        mapRows.map((map) => map.id),
+      ),
+    )
+    .as("import_history");
+  const importRows =
+    mapRows.length > 0
+      ? await db
+          .select({
+            id: importHistory.id,
+            matchMapId: importHistory.matchMapId,
+            demoSha256: importHistory.demoSha256,
+            semanticProfile: importHistory.semanticProfile,
+            evidenceRevision: importHistory.evidenceRevision,
+            status: importHistory.status,
+            issues: importHistory.issues,
+          })
+          .from(importHistory)
+          .where(
+            or(
+              and(
+                eq(importHistory.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE),
+                sql`${importHistory.status} <> 'superseded'`,
+                eq(importHistory.createdAt, importHistory.latestCurrentAt),
+              ),
+              and(
+                sql`${importHistory.semanticProfile} <> ${CURRENT_DAK_SEMANTIC_PROFILE}`,
+                sql`${importHistory.status} <> 'superseded'`,
+                eq(importHistory.createdAt, importHistory.latestNonCanonicalAt),
+              ),
+              and(
+                eq(importHistory.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE),
+                eq(importHistory.status, "confirmed"),
+                eq(importHistory.createdAt, importHistory.latestConfirmedAt),
+              ),
+            ),
+          )
+          .orderBy(desc(importHistory.createdAt))
+      : [];
 
   const importsByMap = new Map<string, Array<DemoImportEventMetadata>>();
   for (const row of importRows) {
@@ -294,7 +419,9 @@ export async function readRivalHubEvents(
   for (const [mapId, rows] of importsByMap) {
     const current = selectCurrentDemoImport(rows);
     const nonCanonical = selectLatestNonCanonicalDemoImport(rows);
-    const currentConfirmed = rows.find((row) => isCurrentDakSemanticProfile(row.semanticProfile) && row.status === "confirmed");
+    const currentConfirmed = rows.find(
+      (row) => isCurrentDakSemanticProfile(row.semanticProfile) && row.status === "confirmed",
+    );
     if (current) latestCurrentImportByMap.set(mapId, current);
     if (nonCanonical) latestNonCanonicalImportByMap.set(mapId, nonCanonical);
     if (currentConfirmed) latestConfirmedImportByMap.set(mapId, currentConfirmed);
@@ -326,162 +453,233 @@ export async function readRivalHubEvents(
   }
 
   const stageProjectionBySeasonId = new Map(
-    await Promise.all(seasonRows.map(async (season) => {
-      const seasonEntries = entries.filter((entry) => entry.competitionId === season.id);
-      const seasonEntryIds = new Set(seasonEntries.map((entry) => entry.id));
-      const seasonMatches = matchRows.filter((match) => match.seasonId === season.id && seasonEntryIds.has(match.entryAId) && seasonEntryIds.has(match.entryBId));
-      const presentation = await getPublicSeasonStagePresentation(season);
-      const stagePlan = presentation.officialStages.flatMap((stage) => stage.config ? [stage.config] : []);
-      const { views: stageViews } = buildStageViews(stagePlan, seasonMatches.filter(match => !match.testConfig));
-      const roundScoresByMatchId = new Map<string, MatchRoundScore[]>();
-      for (const match of seasonMatches) {
-        if (match.status !== "finished") continue;
-        for (const map of mapsByMatch.get(match.id) ?? []) {
-          if (map.scoreA == null || map.scoreB == null) continue;
-          const scores = roundScoresByMatchId.get(match.id) ?? [];
-          scores.push({ scoreA: map.scoreA, scoreB: map.scoreB });
-          roundScoresByMatchId.set(match.id, scores);
+    await Promise.all(
+      seasonRows.map(async (season) => {
+        const seasonEntries = entries.filter((entry) => entry.competitionId === season.id);
+        const seasonEntryIds = new Set(seasonEntries.map((entry) => entry.id));
+        const seasonMatches = matchRows.filter(
+          (match) =>
+            match.seasonId === season.id &&
+            seasonEntryIds.has(match.entryAId) &&
+            seasonEntryIds.has(match.entryBId),
+        );
+        const presentation = await getPublicSeasonStagePresentation(season);
+        const stagePlan = presentation.officialStages.flatMap((stage) =>
+          stage.config ? [stage.config] : [],
+        );
+        const { views: stageViews } = buildStageViews(
+          stagePlan,
+          seasonMatches.filter((match) => !match.testConfig),
+        );
+        const roundScoresByMatchId = new Map<string, MatchRoundScore[]>();
+        for (const match of seasonMatches) {
+          if (match.status !== "finished") continue;
+          for (const map of mapsByMatch.get(match.id) ?? []) {
+            if (map.scoreA == null || map.scoreB == null) continue;
+            const scores = roundScoresByMatchId.get(match.id) ?? [];
+            scores.push({ scoreA: map.scoreA, scoreB: map.scoreB });
+            roundScoresByMatchId.set(match.id, scores);
+          }
         }
-      }
-      const [bracketDataByStage, swissReadModels] = await Promise.all([
-        loadStageBracketViews(db, season.id),
-        Promise.all(stagePlan
-          .filter((stage) => stage.type === "swiss")
-          .map(async (stage) => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key)] as const)),
-      ]);
-      const swissReadModelByStage = new Map(
-        swissReadModels.filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
-      );
-      const projectedMainStages = stageViews.map(({ stage, matches: stageMatches }) => {
-        const bracketData = bracketDataByStage.get(stage.key);
-        const standings = stage.type === "round_robin"
-          ? calculateStageRoundRobinStandings({
-              stage,
-              stageMatches,
-              entries: seasonEntries,
-              roundScoresByMatchId,
-              stageEntrantIds: bracketData?.participant.map((participant) => participant.rivalhubEntryId),
-            })
-          : undefined;
-        return projectStage(stage, {
-          standings,
-          swissReadModel: swissReadModelByStage.get(stage.key),
-          bracketNodes: bracketData ? projectStageBracketNodes(bracketData) : undefined,
+        const [bracketDataByStage, swissReadModels] = await Promise.all([
+          loadStageBracketViews(db, season.id),
+          Promise.all(
+            stagePlan
+              .filter((stage) => stage.type === "swiss")
+              .map(
+                async (stage) =>
+                  [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key)] as const,
+              ),
+          ),
+        ]);
+        const swissReadModelByStage = new Map(
+          swissReadModels.filter(
+            (entry): entry is readonly [string, NonNullable<(typeof entry)[1]>] =>
+              entry[1] !== null,
+          ),
+        );
+        const projectedMainStages = stageViews.map(({ stage, matches: stageMatches }) => {
+          const bracketData = bracketDataByStage.get(stage.key);
+          const standings =
+            stage.type === "round_robin"
+              ? calculateStageRoundRobinStandings({
+                  stage,
+                  stageMatches,
+                  entries: seasonEntries,
+                  roundScoresByMatchId,
+                  stageEntrantIds: bracketData?.participant.map(
+                    (participant) => participant.rivalhubEntryId,
+                  ),
+                })
+              : undefined;
+          return projectStage(stage, {
+            standings,
+            swissReadModel: swissReadModelByStage.get(stage.key),
+            bracketNodes: bracketData ? projectStageBracketNodes(bracketData) : undefined,
+          });
         });
-      });
-      const extraStages = presentation.officialStages.filter((stage) => stage.config === null)
-        .flatMap((stage) => { const projected = projectOfficialStage(stage); return projected ? [projected] : []; });
-      return [season.id, [...extraStages, ...projectedMainStages]] as const;
-    })),
+        const extraStages = presentation.officialStages
+          .filter((stage) => stage.config === null)
+          .flatMap((stage) => {
+            const projected = projectOfficialStage(stage);
+            return projected ? [projected] : [];
+          });
+        return [season.id, [...extraStages, ...projectedMainStages]] as const;
+      }),
+    ),
   );
 
   return {
     contractVersion: "rivalhub-dak-events/1",
     generatedAt: new Date().toISOString(),
-    events: seasonRows.filter((season) => pairingCanReadSeason(pairing, season.id)).map((season) => {
-      const seasonEntries = entries.filter((entry) => entry.competitionId === season.id);
-      const seasonEntryIds = new Set(seasonEntries.map((entry) => entry.id));
-      const seasonMatches = matchRows.filter((match) => match.seasonId === season.id && seasonEntryIds.has(match.entryAId) && seasonEntryIds.has(match.entryBId));
-      const teams: RivalHubRemoteTeam[] = seasonEntries.map((entry) => ({
-        key: entry.id,
-        name: entry.name,
-        players: (rosterByEntry.get(entry.id) ?? []).map((row) => projectPlayer({
-          entryId: row.entryId,
-          userId: row.userId,
-          eventRosterMemberId: row.eventRosterMemberId,
-          steam64: row.steam64,
-          displayName: row.displayName,
-          personaName: row.personaName,
-          perfectName: row.perfectName,
-          isStarter: row.isStarter,
-        })).filter((row): row is RivalHubRemotePlayer => row != null),
-      }));
-      const stages = [...(stageProjectionBySeasonId.get(season.id) ?? normalizeStagePlan(season.stagePlan).map((stage) => projectStage(stage)))];
-      const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
-      if (seasonMatches.some(match => match.testConfig)) stages.push({ key: "test", name: "测试赛", type: "round_robin", teamCount: seasonEntries.length, advanceCount: 0, matchFormat: null, finalFormat: null });
-      const series: RivalHubRemoteSeries[] = seasonMatches.map((match) => {
-        const entryA = entryById.get(match.entryAId)!;
-        const entryB = entryById.get(match.entryBId)!;
-        const matchRoster = (matchRosterByMatch.get(match.id) ?? []).map((row) => projectPlayer(row)).filter((row): row is RivalHubRemotePlayer => row != null);
-        const mapRecords: RivalHubRemoteMap[] = (mapsByMatch.get(match.id) ?? []).filter(map => match.status !== "finished" || canConfirmMapScoreboard(map)).map((map) => {
-          const evidenceRevision = buildEvidenceRevisionForTarget({
-            match,
-            map,
-            roster: matchRosterByMatch.get(match.id) ?? [],
+    events: seasonRows
+      .filter((season) => pairingCanReadSeason(pairing, season.id))
+      .map((season) => {
+        const seasonEntries = entries.filter((entry) => entry.competitionId === season.id);
+        const seasonEntryIds = new Set(seasonEntries.map((entry) => entry.id));
+        const seasonMatches = matchRows.filter(
+          (match) =>
+            match.seasonId === season.id &&
+            seasonEntryIds.has(match.entryAId) &&
+            seasonEntryIds.has(match.entryBId),
+        );
+        const teams: RivalHubRemoteTeam[] = seasonEntries.map((entry) => ({
+          key: entry.id,
+          name: entry.name,
+          players: (rosterByEntry.get(entry.id) ?? [])
+            .map((row) =>
+              projectPlayer({
+                entryId: row.entryId,
+                userId: row.userId,
+                eventRosterMemberId: row.eventRosterMemberId,
+                steam64: row.steam64,
+                displayName: row.displayName,
+                personaName: row.personaName,
+                perfectName: row.perfectName,
+                isStarter: row.isStarter,
+              }),
+            )
+            .filter((row): row is RivalHubRemotePlayer => row != null),
+        }));
+        const stages = [
+          ...(stageProjectionBySeasonId.get(season.id) ??
+            normalizeStagePlan(season.stagePlan).map((stage) => projectStage(stage))),
+        ];
+        const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
+        if (seasonMatches.some((match) => match.testConfig))
+          stages.push({
+            key: "test",
+            name: "测试赛",
+            type: "round_robin",
+            teamCount: seasonEntries.length,
+            advanceCount: 0,
+            matchFormat: null,
+            finalFormat: null,
           });
-          const latest = latestCurrentImportByMap.get(map.id) ?? latestNonCanonicalImportByMap.get(map.id);
-          const latestConfirmed = latestConfirmedImportByMap.get(map.id);
-          const confirmedIsStale = latestConfirmed != null && latestConfirmed.evidenceRevision !== evidenceRevision;
-          const demoIssues = projectDemoIssues(latest, latestConfirmed, evidenceRevision);
+        const series: RivalHubRemoteSeries[] = seasonMatches.map((match) => {
+          const entryA = entryById.get(match.entryAId)!;
+          const entryB = entryById.get(match.entryBId)!;
+          const matchRoster = (matchRosterByMatch.get(match.id) ?? [])
+            .map((row) => projectPlayer(row))
+            .filter((row): row is RivalHubRemotePlayer => row != null);
+          const mapRecords: RivalHubRemoteMap[] = (mapsByMatch.get(match.id) ?? [])
+            .filter((map) => match.status !== "finished" || canConfirmMapScoreboard(map))
+            .map((map) => {
+              const evidenceRevision = buildEvidenceRevisionForTarget({
+                match,
+                map,
+                roster: matchRosterByMatch.get(match.id) ?? [],
+              });
+              const latest =
+                latestCurrentImportByMap.get(map.id) ?? latestNonCanonicalImportByMap.get(map.id);
+              const latestConfirmed = latestConfirmedImportByMap.get(map.id);
+              const confirmedIsStale =
+                latestConfirmed != null && latestConfirmed.evidenceRevision !== evidenceRevision;
+              const demoIssues = projectDemoIssues(latest, latestConfirmed, evidenceRevision);
+              return {
+                id: map.id,
+                order: map.mapOrder,
+                mapName: map.mapName,
+                scoreA: map.scoreA,
+                scoreB: map.scoreB,
+                completedAt: iso(map.completedAt),
+                evidenceRevision,
+                target: {
+                  seasonId: season.id,
+                  stageKey: match.stage,
+                  stageRunId: match.majorStageRunId,
+                  matchId: match.id,
+                  matchMapId: map.id,
+                  mapOrder: map.mapOrder,
+                  entryAId: match.entryAId,
+                  entryBId: match.entryBId,
+                  expectedMapName: map.mapName,
+                  evidenceRevision,
+                },
+                lineup: matchRoster,
+                demoStatus: confirmedIsStale
+                  ? "needs_attention"
+                  : projectDemoStatus(match, map, latest, evidenceRevision),
+                demoIssues,
+                importId: latest?.status === "confirmed" ? latest.id : null,
+                demoSha256: latest?.status === "confirmed" ? latest.demoSha256 : null,
+              };
+            });
           return {
-            id: map.id,
-            order: map.mapOrder,
-            mapName: map.mapName,
-            scoreA: map.scoreA,
-            scoreB: map.scoreB,
-            completedAt: iso(map.completedAt),
-            evidenceRevision,
-            target: {
-              seasonId: season.id,
-              stageKey: match.stage,
-              stageRunId: match.majorStageRunId,
-              matchId: match.id,
-              matchMapId: map.id,
-              mapOrder: map.mapOrder,
-              entryAId: match.entryAId,
-              entryBId: match.entryBId,
-              expectedMapName: map.mapName,
-              evidenceRevision,
-            },
-            lineup: matchRoster,
-            demoStatus: confirmedIsStale ? "needs_attention" : projectDemoStatus(match, map, latest, evidenceRevision),
-            demoIssues,
-            importId: latest?.status === "confirmed" ? latest.id : null,
-            demoSha256: latest?.status === "confirmed" ? latest.demoSha256 : null,
+            id: match.id,
+            key: `${match.stage}:${match.id}`,
+            stageKey: match.stage,
+            round: match.round,
+            entryRound: match.entryRound,
+            bracketNodeId: match.bracketNodeId,
+            status: match.status,
+            ...(options.includeSeriesDisposition === true ? { isForfeit: match.isForfeit } : {}),
+            format: match.format,
+            entryAId: match.entryAId,
+            entryBId: match.entryBId,
+            teamAKey: entryA.id,
+            teamBKey: entryB.id,
+            teamAName: entryA.name,
+            teamBName: entryB.name,
+            scoreA: match.scoreA,
+            scoreB: match.scoreB,
+            scheduledAt: iso(match.scheduledAt),
+            completedAt: iso(match.completedAt),
+            teamARecordBefore: null,
+            teamBRecordBefore: null,
+            maps: mapRecords,
+            veto: projectVeto(
+              match,
+              entryA.name,
+              entryB.name,
+              match.testConfig?.mapPool ?? mapPool,
+              vetoByMatch.get(match.id) ?? [],
+            ),
           };
         });
         return {
-          id: match.id,
-          key: `${match.stage}:${match.id}`,
-          stageKey: match.stage,
-          round: match.round,
-          entryRound: match.entryRound,
-          bracketNodeId: match.bracketNodeId,
-          status: match.status,
-          ...(options.includeSeriesDisposition === true ? { isForfeit: match.isForfeit } : {}),
-          format: match.format,
-          entryAId: match.entryAId,
-          entryBId: match.entryBId,
-          teamAKey: entryA.id,
-          teamBKey: entryB.id,
-          teamAName: entryA.name,
-          teamBName: entryB.name,
-          scoreA: match.scoreA,
-          scoreB: match.scoreB,
-          scheduledAt: iso(match.scheduledAt),
-          completedAt: iso(match.completedAt),
-          teamARecordBefore: null,
-          teamBRecordBefore: null,
-          maps: mapRecords,
-          veto: projectVeto(match, entryA.name, entryB.name, match.testConfig?.mapPool ?? mapPool, vetoByMatch.get(match.id) ?? []),
-        };
-      });
-      return {
-        id: season.id,
-        seasonId: season.id,
-        slug: season.slug,
-        name: season.name,
-        kind: season.kind,
-        revision: sha256Json({
+          id: season.id,
           seasonId: season.id,
-          updatedAt: season.updatedAt.toISOString(),
+          slug: season.slug,
+          name: season.name,
+          kind: season.kind,
+          revision: sha256Json({
+            seasonId: season.id,
+            updatedAt: season.updatedAt.toISOString(),
+            stages,
+            matches: series.map((item) => ({
+              id: item.id,
+              ...(item.isForfeit !== undefined ? { isForfeit: item.isForfeit } : {}),
+              maps: item.maps.map((map) => ({
+                id: map.id,
+                evidenceRevision: map.evidenceRevision,
+              })),
+            })),
+          }),
           stages,
-          matches: series.map((item) => ({ id: item.id, ...(item.isForfeit !== undefined ? { isForfeit: item.isForfeit } : {}), maps: item.maps.map((map) => ({ id: map.id, evidenceRevision: map.evidenceRevision })) })),
-        }),
-        stages,
-        teams,
-        series,
-      };
-    }),
+          teams,
+          series,
+        };
+      }),
   };
 }

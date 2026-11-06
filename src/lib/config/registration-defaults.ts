@@ -27,9 +27,7 @@ export const REGISTRATION_DEFAULTS = {
     values: PERFECT_WORLD_RANK_ORDER,
     labels: PERFECT_WORLD_RANK_LABELS,
   },
-
 } as const;
 
-export type PositionValue =
-  (typeof REGISTRATION_DEFAULTS.positions.values)[number];
+export type PositionValue = (typeof REGISTRATION_DEFAULTS.positions.values)[number];
 export type RankValue = (typeof REGISTRATION_DEFAULTS.ranks.values)[number];

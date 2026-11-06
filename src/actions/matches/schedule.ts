@@ -2,7 +2,6 @@
 
 import { officialMatchCondition } from "@/lib/matches/scope";
 
-
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { eq, and, count, asc, sql } from "drizzle-orm";
@@ -13,11 +12,11 @@ import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getExecutor } from "@/lib/formats";
+import { getFirstStage, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import {
-  getFirstStage,
-  normalizeStagePlan,
-} from "@/lib/seasons/compatibility";
-import { resolveStageTransitionBoundary, resolveStageTransitionTopology } from "@/lib/matches/stage-transition";
+  resolveStageTransitionBoundary,
+  resolveStageTransitionTopology,
+} from "@/lib/matches/stage-transition";
 import { actionError, getSeasonOrThrow } from "@/lib/action-utils";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 
@@ -28,7 +27,7 @@ import { revalidateSeasonPaths } from "@/lib/revalidation";
  * 赛季必须处于 playing 状态，且当前无任何比赛记录（幂等保护）。
  */
 export async function generateSchedule(
-  seasonId: string
+  seasonId: string,
 ): Promise<ActionResult<{ matchCount: number }>> {
   try {
     const session = await requireSeasonAdmin(seasonId);
@@ -39,13 +38,23 @@ export async function generateSchedule(
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`schedule:${seasonId}`}))`);
       const [season] = await tx.select().from(seasons).where(eq(seasons.id, seasonId));
       if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-      if (season.status !== "playing") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有在赛季进行中才能生成赛程");
-      const [{ value: existingCount }] = await tx.select({ value: count() }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, seasonId)));
-      if (existingCount > 0) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛程已生成，不可重复生成");
-      const seasonTeams = await tx.query.competitionEntries.findMany({ where: eq(competitionEntries.competitionId, seasonId), orderBy: [asc(competitionEntries.formationOrder)] });
-      if (seasonTeams.length < 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍数量不足，无法生成赛程");
+      if (season.status !== "playing")
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有在赛季进行中才能生成赛程");
+      const [{ value: existingCount }] = await tx
+        .select({ value: count() })
+        .from(matches)
+        .where(and(officialMatchCondition(), eq(matches.seasonId, seasonId)));
+      if (existingCount > 0)
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛程已生成，不可重复生成");
+      const seasonTeams = await tx.query.competitionEntries.findMany({
+        where: eq(competitionEntries.competitionId, seasonId),
+        orderBy: [asc(competitionEntries.formationOrder)],
+      });
+      if (seasonTeams.length < 2)
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍数量不足，无法生成赛程");
       const firstStage = getFirstStage(normalizeStagePlan(season.stagePlan));
-      if (!firstStage) throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "该赛季没有可生成的赛程阶段");
+      if (!firstStage)
+        throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "该赛季没有可生成的赛程阶段");
       const transition = resolveStageTransitionBoundary({
         stagePlan: normalizeStagePlan(season.stagePlan),
         stageKey: firstStage.key,
@@ -56,7 +65,13 @@ export async function generateSchedule(
         firstStage,
         transition.orderedEntrants.map(({ entry }) => entry),
       );
-      await writeAuditInTx(tx, { seasonId, action: "match.generate_schedule", actorId: session.email, targetId: seasonId,meta: { matchCount, stageKey: firstStage.key } });
+      await writeAuditInTx(tx, {
+        seasonId,
+        action: "match.generate_schedule",
+        actorId: session.email,
+        targetId: seasonId,
+        meta: { matchCount, stageKey: firstStage.key },
+      });
       return { matchCount, slug: season.slug };
     });
     revalidateSeasonPaths(outcome.slug, ["matches", "adminMatches"]);
@@ -76,7 +91,7 @@ export async function createMatch(
   entryAId: string,
   entryBId: string,
   stage: string,
-  format: "bo1" | "bo3" | "bo5"
+  format: "bo1" | "bo3" | "bo5",
 ): Promise<ActionResult<{ matchId: string }>> {
   try {
     const session = await requireSeasonAdmin(seasonId);
@@ -95,9 +110,7 @@ export async function createMatch(
 
     // 校验两支队伍属于本赛季
     const teamRows = await db.query.competitionEntries.findMany({
-      where: and(
-        eq(competitionEntries.competitionId, seasonId),
-      ),
+      where: and(eq(competitionEntries.competitionId, seasonId)),
     });
     const teamIds = new Set(teamRows.map((t) => t.id));
     if (!teamIds.has(entryAId) || !teamIds.has(entryBId)) {
@@ -114,7 +127,8 @@ export async function createMatch(
         seasonId,
         action: "match.create",
         actorId: session.email,
-        targetId: row.id,meta: { entryAId, entryBId, stage, format },
+        targetId: row.id,
+        meta: { entryAId, entryBId, stage, format },
       });
 
       return [row];
@@ -151,7 +165,10 @@ export async function initializeStage(
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "首个阶段请使用一键生成赛程");
     }
 
-    const previousComplete = await getExecutor(previousStage.type).isComplete(seasonId, previousStage.key);
+    const previousComplete = await getExecutor(previousStage.type).isComplete(
+      seasonId,
+      previousStage.key,
+    );
     if (!previousComplete) {
       throw new AppError(
         ErrorCode.SEASON_INVALID_STATUS,
@@ -162,7 +179,12 @@ export async function initializeStage(
     const [{ value: existingStageMatches }] = await db
       .select({ value: count() })
       .from(matches)
-      .where(and(officialMatchCondition(), and(eq(matches.seasonId, seasonId), eq(matches.stage, stage.key))));
+      .where(
+        and(
+          officialMatchCondition(),
+          and(eq(matches.seasonId, seasonId), eq(matches.stage, stage.key)),
+        ),
+      );
 
     if (existingStageMatches > 0) {
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, `${stage.name} 已生成，不可重复生成`);
@@ -204,7 +226,8 @@ export async function initializeStage(
       seasonId,
       action: "match.initialize_stage",
       actorId: session.email,
-      targetId: seasonId,meta: { matchCount, stageKey: stage.key },
+      targetId: seasonId,
+      meta: { matchCount, stageKey: stage.key },
     });
 
     revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);

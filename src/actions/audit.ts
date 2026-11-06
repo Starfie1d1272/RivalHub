@@ -51,16 +51,7 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
     if (filters.seasonScopeId) await requireSeasonAdmin(filters.seasonScopeId);
     else await requireSuperAdmin();
 
-    const {
-      page,
-      pageSize,
-      seasonId,
-      action,
-      actorId,
-      dateFrom,
-      dateTo,
-      seasonScopeId,
-    } = filters;
+    const { page, pageSize, seasonId, action, actorId, dateFrom, dateTo, seasonScopeId } = filters;
 
     const safePage = positiveInt(page, 1);
     const safePageSize = positiveInt(pageSize, 50, 100);
@@ -73,7 +64,8 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
     if (dateTo) conditions.push(lt(auditLogs.createdAt, parseCSTNextDateStart(dateTo)));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
-    const readPage = (currentPage: number) => db
+    const readPage = (currentPage: number) =>
+      db
         .select()
         .from(auditLogs)
         .where(where)
@@ -87,7 +79,8 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
     const total = Number(totalRow?.count ?? 0);
     const currentPage = Math.min(safePage, Math.max(1, Math.ceil(total / safePageSize)));
     // Only an out-of-range request needs another page read; labels are resolved once.
-    const rows = currentPage === safePage ? requestedRows : total > 0 ? await readPage(currentPage) : [];
+    const rows =
+      currentPage === safePage ? requestedRows : total > 0 ? await readPage(currentPage) : [];
     const logs = await readAuditLogViews(rows);
 
     return ok<AuditLogsData>({ logs, total });
@@ -104,10 +97,16 @@ export async function fetchAuditLogDetail(input: unknown) {
     const { id, seasonScopeId } = parsed.data;
     if (seasonScopeId) await requireSeasonAdmin(seasonScopeId);
     else await requireSuperAdmin();
-    const [row] = await db.select().from(auditLogs).where(and(
-      eq(auditLogs.id, id),
-      ...(seasonScopeId ? [eq(auditLogs.seasonId, seasonScopeId)] : []),
-    )).limit(1);
+    const [row] = await db
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.id, id),
+          ...(seasonScopeId ? [eq(auditLogs.seasonId, seasonScopeId)] : []),
+        ),
+      )
+      .limit(1);
     if (!row) throw new AppError(ErrorCode.NOT_FOUND, "未找到可访问的日志记录。");
     return ok(await readAuditLogDetail(row));
   } catch (error) {

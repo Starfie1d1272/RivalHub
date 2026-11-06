@@ -12,7 +12,15 @@ export type SchedulerHealthRecord = typeof scheduledJobHealth.$inferSelect;
 
 /** Primary health treats idle checks as healthy and only requires endpoint success for requested dispatches. */
 export function isPrimaryHealthy(
-  record: Pick<SchedulerHealthRecord, "lastPrimaryTriggeredAt" | "lastPrimaryDispatchRequestedAt" | "lastPrimaryEndpointSucceededAt"> | null | undefined,
+  record:
+    | Pick<
+        SchedulerHealthRecord,
+        | "lastPrimaryTriggeredAt"
+        | "lastPrimaryDispatchRequestedAt"
+        | "lastPrimaryEndpointSucceededAt"
+      >
+    | null
+    | undefined,
   definition: Pick<SchedulerJobDefinition, "staleAfterMs">,
   now = new Date(),
 ): boolean {
@@ -25,10 +33,16 @@ const databaseConfigured = (): boolean => Boolean(process.env.DATABASE_URL?.trim
  * Health is intentionally best effort. A missing/temporarily unavailable
  * health table must never turn a canonical business cron into a second failure.
  */
-export async function readSchedulerHealth(jobKey: SchedulerJobKey): Promise<SchedulerHealthRecord | null> {
+export async function readSchedulerHealth(
+  jobKey: SchedulerJobKey,
+): Promise<SchedulerHealthRecord | null> {
   if (!databaseConfigured()) return null;
   try {
-    return await db.query.scheduledJobHealth.findFirst({ where: eq(scheduledJobHealth.jobKey, jobKey) }) ?? null;
+    return (
+      (await db.query.scheduledJobHealth.findFirst({
+        where: eq(scheduledJobHealth.jobKey, jobKey),
+      })) ?? null
+    );
   } catch (error) {
     recordHealthStorageFailure("read", jobKey, error);
     return null;
@@ -63,7 +77,9 @@ export async function markJobSucceeded(
     updatedAt: at,
     ...(source === "supabase-primary" ? { lastPrimaryEndpointSucceededAt: at } : {}),
     ...(source === "github-watchdog" ? { lastWatchdogSucceededAt: at } : {}),
-    ...(["github-manual", "super-admin-manual"].includes(source) ? { lastManualSucceededAt: at } : {}),
+    ...(["github-manual", "super-admin-manual"].includes(source)
+      ? { lastManualSucceededAt: at }
+      : {}),
   };
   await updateHealth(jobKey, values, "job_success");
 }
@@ -74,7 +90,11 @@ export async function markBusinessTransition(
   at = new Date(),
 ): Promise<void> {
   if (!Number.isFinite(transitionCount) || transitionCount <= 0) return;
-  await updateHealth(jobKey, { lastBusinessTransitionAt: at, updatedAt: at }, "business_transition");
+  await updateHealth(
+    jobKey,
+    { lastBusinessTransitionAt: at, updatedAt: at },
+    "business_transition",
+  );
 }
 
 export async function markJobFailed(
@@ -84,12 +104,16 @@ export async function markJobFailed(
   at = new Date(),
 ): Promise<void> {
   const classification = classifyError(error);
-  await updateHealth(jobKey, {
-    lastFailureAt: at,
-    lastFailureSource: source,
-    lastFailureCode: classification.errorCode ?? classification.errorClass,
-    updatedAt: at,
-  }, "job_failure");
+  await updateHealth(
+    jobKey,
+    {
+      lastFailureAt: at,
+      lastFailureSource: source,
+      lastFailureCode: classification.errorCode ?? classification.errorClass,
+      updatedAt: at,
+    },
+    "job_failure",
+  );
 }
 
 async function updateHealth(

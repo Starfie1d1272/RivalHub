@@ -1,6 +1,11 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { db as dbClient } from "@/db/client";
-import { competitivePlatformRanks, competitivePlatformSeasons, competitivePlatforms, competitiveRankFacts } from "@/db/schema";
+import {
+  competitivePlatformRanks,
+  competitivePlatformSeasons,
+  competitivePlatforms,
+  competitiveRankFacts,
+} from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { CompetitiveFallbackConversion, CompetitiveProfileConfig } from "@/types/season";
 import { compareCompetitivePlatformPriority } from "./builtins";
@@ -20,31 +25,57 @@ export type {
  * these loaders so the ladder has exactly one runtime source of truth.
  */
 
-export type DatabaseExecutor = typeof dbClient | Parameters<Parameters<typeof dbClient.transaction>[0]>[0];
+export type DatabaseExecutor =
+  typeof dbClient | Parameters<Parameters<typeof dbClient.transaction>[0]>[0];
 
 export async function loadCompetitivePlatformCatalog(
   executor: DatabaseExecutor,
   options: { concurrent?: boolean } = {},
 ): Promise<CompetitivePlatformCatalogEntry[]> {
-  const platformQuery = executor.select().from(competitivePlatforms).orderBy(asc(competitivePlatforms.key));
-  const rankQuery = executor.select().from(competitivePlatformRanks).orderBy(asc(competitivePlatformRanks.platformKey), asc(competitivePlatformRanks.sortOrder));
-  const seasonQuery = executor.select().from(competitivePlatformSeasons).orderBy(asc(competitivePlatformSeasons.platform), asc(competitivePlatformSeasons.sortOrder));
+  const platformQuery = executor
+    .select()
+    .from(competitivePlatforms)
+    .orderBy(asc(competitivePlatforms.key));
+  const rankQuery = executor
+    .select()
+    .from(competitivePlatformRanks)
+    .orderBy(asc(competitivePlatformRanks.platformKey), asc(competitivePlatformRanks.sortOrder));
+  const seasonQuery = executor
+    .select()
+    .from(competitivePlatformSeasons)
+    .orderBy(asc(competitivePlatformSeasons.platform), asc(competitivePlatformSeasons.sortOrder));
   // Only the public presentation reader opts into independent pool statements.
   // Transaction/freeze callers retain sequential work on their own executor.
   const [platforms, ranks, seasons] = options.concurrent
     ? await Promise.all([platformQuery, rankQuery, seasonQuery])
     : [await platformQuery, await rankQuery, await seasonQuery];
-  return platforms.sort((left, right) => compareCompetitivePlatformPriority(left.key, right.key)).map((platform) => ({
-    key: platform.key,
-    displayName: platform.displayName,
-    ratingLabel: platform.ratingLabel,
-    ranks: ranks
-      .filter((rank) => rank.platformKey === platform.key)
-      .map((rank) => ({ id: rank.id, rankKey: rank.rankKey, label: rank.label, sortOrder: rank.sortOrder, starMin: rank.starMin, starMax: rank.starMax })),
-    seasons: seasons
-      .filter((season) => season.platform === platform.key)
-      .map((season) => ({ id: season.id, seasonKey: season.seasonKey, label: season.label, sortOrder: season.sortOrder, active: season.active, isCurrent: season.isCurrent })),
-  }));
+  return platforms
+    .sort((left, right) => compareCompetitivePlatformPriority(left.key, right.key))
+    .map((platform) => ({
+      key: platform.key,
+      displayName: platform.displayName,
+      ratingLabel: platform.ratingLabel,
+      ranks: ranks
+        .filter((rank) => rank.platformKey === platform.key)
+        .map((rank) => ({
+          id: rank.id,
+          rankKey: rank.rankKey,
+          label: rank.label,
+          sortOrder: rank.sortOrder,
+          starMin: rank.starMin,
+          starMax: rank.starMax,
+        })),
+      seasons: seasons
+        .filter((season) => season.platform === platform.key)
+        .map((season) => ({
+          id: season.id,
+          seasonKey: season.seasonKey,
+          label: season.label,
+          sortOrder: season.sortOrder,
+          active: season.active,
+          isCurrent: season.isCurrent,
+        })),
+    }));
 }
 
 export interface ResolvedCatalogContext {
@@ -68,7 +99,10 @@ export interface CatalogResolution {
 export function temporarySortOrders(existing: readonly number[]): readonly [number, number] {
   const minimum = Math.min(...existing);
   if (!Number.isSafeInteger(minimum) || minimum <= -2_147_483_646) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "目录排序值已超出可安全交换的范围，请联系维护者修复目录。");
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "目录排序值已超出可安全交换的范围，请联系维护者修复目录。",
+    );
   }
   return [minimum - 2, minimum - 1];
 }
@@ -90,7 +124,9 @@ export function resolvePlatformCatalog(
   const { current, previous } = resolveCatalogSeasonRoles(entry);
   if (!current) return null;
   if (!previous) return null;
-  const rankOrder = [...entry.ranks].sort((a, b) => a.sortOrder - b.sortOrder).map((rank) => rank.rankKey);
+  const rankOrder = [...entry.ranks]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((rank) => rank.rankKey);
   if (rankOrder.length === 0) return null;
   return { currentSeasonKey: current.seasonKey, previousSeasonKey: previous.seasonKey, rankOrder };
 }
@@ -103,18 +139,56 @@ export async function resolveLiveCompetitiveContext(
   executor: DatabaseExecutor,
   platform: string,
 ): Promise<ResolvedCatalogContext | null> {
-  const [platformRow] = await executor.select().from(competitivePlatforms).where(eq(competitivePlatforms.key, platform)).limit(1);
+  const [platformRow] = await executor
+    .select()
+    .from(competitivePlatforms)
+    .where(eq(competitivePlatforms.key, platform))
+    .limit(1);
   if (!platformRow) return null;
-  const seasons = await executor.select().from(competitivePlatformSeasons).where(and(eq(competitivePlatformSeasons.platform, platform), eq(competitivePlatformSeasons.active, true))).orderBy(asc(competitivePlatformSeasons.sortOrder));
-  const ranks = await executor.select().from(competitivePlatformRanks).where(eq(competitivePlatformRanks.platformKey, platform)).orderBy(asc(competitivePlatformRanks.sortOrder));
+  const seasons = await executor
+    .select()
+    .from(competitivePlatformSeasons)
+    .where(
+      and(
+        eq(competitivePlatformSeasons.platform, platform),
+        eq(competitivePlatformSeasons.active, true),
+      ),
+    )
+    .orderBy(asc(competitivePlatformSeasons.sortOrder));
+  const ranks = await executor
+    .select()
+    .from(competitivePlatformRanks)
+    .where(eq(competitivePlatformRanks.platformKey, platform))
+    .orderBy(asc(competitivePlatformRanks.sortOrder));
   const resolved = resolvePlatformCatalog({
-    ranks: ranks.map((rank) => ({ id: rank.id, rankKey: rank.rankKey, label: rank.label, sortOrder: rank.sortOrder, starMin: rank.starMin, starMax: rank.starMax })),
-    seasons: seasons.map((season) => ({ id: season.id, seasonKey: season.seasonKey, label: season.label, sortOrder: season.sortOrder, active: season.active, isCurrent: season.isCurrent })),
+    ranks: ranks.map((rank) => ({
+      id: rank.id,
+      rankKey: rank.rankKey,
+      label: rank.label,
+      sortOrder: rank.sortOrder,
+      starMin: rank.starMin,
+      starMax: rank.starMax,
+    })),
+    seasons: seasons.map((season) => ({
+      id: season.id,
+      seasonKey: season.seasonKey,
+      label: season.label,
+      sortOrder: season.sortOrder,
+      active: season.active,
+      isCurrent: season.isCurrent,
+    })),
   });
   if (!resolved) return null;
-  const prior = seasons
-    .filter((season) => season.active && season.sortOrder < (seasons.find((season) => season.seasonKey === resolved.previousSeasonKey)?.sortOrder ?? Number.NEGATIVE_INFINITY))
-    .sort((a, b) => b.sortOrder - a.sortOrder)[0] ?? null;
+  const prior =
+    seasons
+      .filter(
+        (season) =>
+          season.active &&
+          season.sortOrder <
+            (seasons.find((season) => season.seasonKey === resolved.previousSeasonKey)?.sortOrder ??
+              Number.NEGATIVE_INFINITY),
+      )
+      .sort((a, b) => b.sortOrder - a.sortOrder)[0] ?? null;
   return { platform, ...resolved, priorSeasonKey: prior?.seasonKey ?? null };
 }
 
@@ -127,7 +201,8 @@ export async function loadReferencedPlatformRankKeys(
   executor: DatabaseExecutor,
   platform: string,
 ): Promise<Set<string>> {
-  const facts = await executor.select({ rank: competitiveRankFacts.rank })
+  const facts = await executor
+    .select({ rank: competitiveRankFacts.rank })
     .from(competitiveRankFacts)
     .where(eq(competitiveRankFacts.platform, platform));
   const frozen = await executor.execute<{ rank: string }>(sql`
@@ -165,13 +240,31 @@ export async function fallbackCatalogReferencesExist(
     : fallback.rankMap
       ? [...new Set(Object.keys(fallback.rankMap))]
       : [];
-  if (seasonKeys.length === 0 || rankKeys.length === 0 || seasonKeys.some((key) => !key) || rankKeys.some((key) => !key)) return false;
-  const sourceSeasons = await executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
+  if (
+    seasonKeys.length === 0 ||
+    rankKeys.length === 0 ||
+    seasonKeys.some((key) => !key) ||
+    rankKeys.some((key) => !key)
+  )
+    return false;
+  const sourceSeasons = await executor
+    .select({ seasonKey: competitivePlatformSeasons.seasonKey })
     .from(competitivePlatformSeasons)
-    .where(and(eq(competitivePlatformSeasons.platform, fallback.sourcePlatform), inArray(competitivePlatformSeasons.seasonKey, seasonKeys)));
-  const sourceRanks = await executor.select({ rankKey: competitivePlatformRanks.rankKey })
+    .where(
+      and(
+        eq(competitivePlatformSeasons.platform, fallback.sourcePlatform),
+        inArray(competitivePlatformSeasons.seasonKey, seasonKeys),
+      ),
+    );
+  const sourceRanks = await executor
+    .select({ rankKey: competitivePlatformRanks.rankKey })
     .from(competitivePlatformRanks)
-    .where(and(eq(competitivePlatformRanks.platformKey, fallback.sourcePlatform), inArray(competitivePlatformRanks.rankKey, rankKeys)));
+    .where(
+      and(
+        eq(competitivePlatformRanks.platformKey, fallback.sourcePlatform),
+        inArray(competitivePlatformRanks.rankKey, rankKeys),
+      ),
+    );
   return sourceSeasons.length === seasonKeys.length && sourceRanks.length === rankKeys.length;
 }
 
@@ -184,12 +277,17 @@ export async function assertPlatformRanksMutable(
   const referenced = await loadReferencedPlatformRankKeys(executor, platform);
   const blocked = rankKeys.find((key) => referenced.has(key));
   if (blocked) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `段位 ${blocked} 已被竞技资料或已开放报名赛事冻结的段位顺序引用，不能修改。`);
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      `段位 ${blocked} 已被竞技资料或已开放报名赛事冻结的段位顺序引用，不能修改。`,
+    );
   }
 }
 
 /** Adapt a resolved catalog context to the frozen event profile shape. */
-export function toCompetitiveProfileConfig(context: ResolvedCatalogContext): CompetitiveProfileConfig {
+export function toCompetitiveProfileConfig(
+  context: ResolvedCatalogContext,
+): CompetitiveProfileConfig {
   return {
     platform: context.platform,
     currentSeasonKey: context.currentSeasonKey,

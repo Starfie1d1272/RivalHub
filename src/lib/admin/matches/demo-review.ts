@@ -3,7 +3,11 @@ import "server-only";
 import type { TxDb } from "@/db/client";
 import type { matchDemoImports } from "@/db/schema";
 import { readStoredEvidence } from "@/lib/demo-integration/review";
-import { hasConfirmableParticipantIdentityIssue, validateCanonicalTarget, type CanonicalTarget } from "@/lib/demo-integration/validation";
+import {
+  hasConfirmableParticipantIdentityIssue,
+  validateCanonicalTarget,
+  type CanonicalTarget,
+} from "@/lib/demo-integration/validation";
 import { loadGameplayIdentityReviewDetails } from "@/lib/identity/gameplay-steam";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { ensureRequestId } from "@/lib/observability/context";
@@ -12,7 +16,8 @@ import { redactText } from "@/lib/observability/redact";
 import type { AdminDemoReviewMap, AdminDemoReviewParticipant } from "./types";
 
 const ISSUE_TEXT: Record<string, string> = {
-  STORED_TARGET_INVALID: "Demo 对应的赛事比赛或地图已不可用，请核对目标资料；不要重新上传同一份数据。",
+  STORED_TARGET_INVALID:
+    "Demo 对应的赛事比赛或地图已不可用，请核对目标资料；不要重新上传同一份数据。",
   SCORE_MISMATCH: "Demo 回合比分与正式比分不一致，请核对本图赛果。",
   SUMMARY_SCORE_MISMATCH: "Demo 汇总比分与正式比分不一致，请核对本图赛果。",
   DAK_QA_FAILED: "请在 Uploader 查看 DAK 检查结果，处理后重新解析并同步。",
@@ -38,22 +43,34 @@ const ISSUE_TEXT: Record<string, string> = {
 // Never expose stored free-text messages or payloads. Identifiers are bounded
 // contract tokens; current and historical findings stay distinguishable.
 function diagnosticToken(value: string | undefined, limit: number): string | undefined {
-  return value && value.length <= limit && /^[A-Za-z0-9_.\[\]-]+$/.test(value)
-    && redactText(value, limit) === value ? value : undefined;
+  return value &&
+    value.length <= limit &&
+    /^[A-Za-z0-9_.\[\]-]+$/.test(value) &&
+    redactText(value, limit) === value
+    ? value
+    : undefined;
 }
-function projectDiagnostics(issues: readonly { code: string; path?: string }[], source: "current" | "stored") {
-  return issues.map(issue => ({
+function projectDiagnostics(
+  issues: readonly { code: string; path?: string }[],
+  source: "current" | "stored",
+) {
+  return issues.map((issue) => ({
     source,
     code: diagnosticToken(issue.code, 100) ?? "UNSAFE_ISSUE_CODE",
     path: diagnosticToken(issue.path, 200),
-    message: Object.hasOwn(ISSUE_TEXT, issue.code) ? ISSUE_TEXT[issue.code]! : "未识别的检查项；请向管理员提供问题编号与字段。",
+    message: Object.hasOwn(ISSUE_TEXT, issue.code)
+      ? ISSUE_TEXT[issue.code]!
+      : "未识别的检查项；请向管理员提供问题编号与字段。",
   }));
 }
 function logReadFailure(error: unknown, phase: string, importId: string) {
   const requestId = ensureRequestId();
   captureException("demo.review.read_failed", error, {
-    scope: "admin.demo", operation: "read-review", errorCode: "DEMO_REVIEW_READ_FAILED",
-    requestId, safeContext: { phase, importId },
+    scope: "admin.demo",
+    operation: "read-review",
+    errorCode: "DEMO_REVIEW_READ_FAILED",
+    requestId,
+    safeContext: { phase, importId },
   });
   return requestId;
 }
@@ -66,13 +83,25 @@ export async function loadAdminDemoReview(
   entryNames: ReadonlyMap<string, string>,
   eventRosterUserIdsByEntry: ReadonlyMap<string, ReadonlySet<string>> = new Map(),
 ): Promise<AdminDemoReviewMap> {
-  const base = { importId: row.id, matchMapId: target.map.id, mapOrder: target.map.mapOrder, mapName: target.map.mapName };
+  const base = {
+    importId: row.id,
+    matchMapId: target.map.id,
+    mapOrder: target.map.mapOrder,
+    mapName: target.map.mapName,
+  };
   let evidence;
   try {
     evidence = readStoredEvidence(row);
   } catch (error) {
     const requestId = logReadFailure(error, "stored-evidence-read", row.id);
-    return { ...base, invalidPayload: true, message: `这份 Demo 数据无法重新读取，请核对或拒绝。排查编号：${requestId}`, resolvedCount: 0, blockingIssues: [], participants: [] };
+    return {
+      ...base,
+      invalidPayload: true,
+      message: `这份 Demo 数据无法重新读取，请核对或拒绝。排查编号：${requestId}`,
+      resolvedCount: 0,
+      blockingIssues: [],
+      participants: [],
+    };
   }
   let phase = "canonical-validation";
   try {
@@ -83,7 +112,8 @@ export async function loadAdminDemoReview(
     const participants: AdminDemoReviewParticipant[] = [];
     let resolvedCount = 0;
     for (const participant of evidence.participants) {
-      const entryId = participant.observedTeamKey === "teamA" ? target.match.entryAId : target.match.entryBId;
+      const entryId =
+        participant.observedTeamKey === "teamA" ? target.match.entryAId : target.match.entryBId;
       const starters = target.roster.filter((member) => member.entryId === entryId);
       const resolution = validation.resolutions.get(participant.steamId64);
       if (resolution && starters.some((member) => member.userId === resolution.userId)) {
@@ -95,59 +125,119 @@ export async function loadAdminDemoReview(
       const inCorrectEventRoster = resolution
         ? eventRosterUserIdsByEntry.get(entryId)?.has(resolution.userId) === true
         : false;
-      const retirable = resolution?.source === "gameplay_alias" && identity?.status === "active"
-        && identity.provenance === "admin_confirmed_alternate" && identity.sourceSeasonId === row.seasonId;
-      const confirmable = !resolution && starters.length > 0
-        && hasConfirmableParticipantIdentityIssue(validation.issues, participant.steamId64);
+      const retirable =
+        resolution?.source === "gameplay_alias" &&
+        identity?.status === "active" &&
+        identity.provenance === "admin_confirmed_alternate" &&
+        identity.sourceSeasonId === row.seasonId;
+      const confirmable =
+        !resolution &&
+        starters.length > 0 &&
+        hasConfirmableParticipantIdentityIssue(validation.issues, participant.steamId64);
       const state = resolution
         ? inCorrectEventRoster
           ? "roster-mismatch"
-          : retirable ? "conflict-retirable" : "conflict-nonretirable"
-        : confirmable ? "confirmable" : "blocked";
+          : retirable
+            ? "conflict-retirable"
+            : "conflict-nonretirable"
+        : confirmable
+          ? "confirmable"
+          : "blocked";
       participants.push({
-        entryId, observedSteam64: participant.steamId64, demoName: participant.nameSnapshot,
-        teamName: entryNames.get(entryId) ?? "未知队伍", state,
+        entryId,
+        observedSteam64: participant.steamId64,
+        demoName: participant.nameSnapshot,
+        teamName: entryNames.get(entryId) ?? "未知队伍",
+        state,
         currentPlayer: detail ? { userId: detail.userId, name: detail.name } : null,
         retirableIdentityId: retirable ? identity.identityId : null,
         // Optional persona enrichment runs after the validation transaction closes.
         observedSteamProfile: null,
-        note: state === "confirmable" ? null : state === "roster-mismatch"
-          ? "该玩家已对应到本队赛事成员。请核对实际出场名单，并通过本场首发管理处理差异。"
-          : state === "conflict-retirable"
-            ? "请先核对当前关联和本场首发。确认关联错误后，可撤销本赛事比赛确认产生的身份，再重新选择选手。"
-            : state === "conflict-nonretirable"
-              ? resolution?.source === "primary"
-                ? "这是选手资料中的当前 Steam64。请由选手核对账号设置，身份争议交由平台管理员处理。"
-                : identity?.provenance === "profile_change"
-                  ? "这是更换账号时保留的历史 Steam64，请联系平台管理员核对。"
-                  : "请联系来源赛事管理员或平台管理员核对这条选手对应记录。"
-              : "本场当前首发名单没有可确认的选手，请先核对出场名单。",
-        candidates: state === "confirmable" || state.startsWith("conflict-")
-          ? starters.map((member) => ({ eventRosterMemberId: member.eventRosterMemberId,
-              entryId: member.entryId, name: getDisplayName(member), steam64: member.steam64 }))
-          : [],
+        note:
+          state === "confirmable"
+            ? null
+            : state === "roster-mismatch"
+              ? "该玩家已对应到本队赛事成员。请核对实际出场名单，并通过本场首发管理处理差异。"
+              : state === "conflict-retirable"
+                ? "请先核对当前关联和本场首发。确认关联错误后，可撤销本赛事比赛确认产生的身份，再重新选择选手。"
+                : state === "conflict-nonretirable"
+                  ? resolution?.source === "primary"
+                    ? "这是选手资料中的当前 Steam64。请由选手核对账号设置，身份争议交由平台管理员处理。"
+                    : identity?.provenance === "profile_change"
+                      ? "这是更换账号时保留的历史 Steam64，请联系平台管理员核对。"
+                      : "请联系来源赛事管理员或平台管理员核对这条选手对应记录。"
+                  : "本场当前首发名单没有可确认的选手，请先核对出场名单。",
+        candidates:
+          state === "confirmable" || state.startsWith("conflict-")
+            ? starters.map((member) => ({
+                eventRosterMemberId: member.eventRosterMemberId,
+                entryId: member.entryId,
+                name: getDisplayName(member),
+                steam64: member.steam64,
+              }))
+            : [],
       });
     }
     // Lineage/revision checks are owned by revalidation; retain their stored blockers.
-    const issues = [...validation.issues, ...row.issues.filter((issue) => issue.code === "CONTENT_CONFLICT" || issue.code === "STALE_EVIDENCE")];
-    const blockingIssues = [...new Set(issues.filter((issue) => !issue.path?.startsWith("participants."))
-      .map((issue) => ISSUE_TEXT[issue.code] ?? "这份 Demo 还有未能确认的数据问题，请核对数据来源或拒绝。"))];
-    const conflicts = participants.filter((participant) => participant.state.startsWith("conflict-")).length;
-    const rosterMismatches = participants.filter((participant) => participant.state === "roster-mismatch").length;
+    const issues = [
+      ...validation.issues,
+      ...row.issues.filter(
+        (issue) => issue.code === "CONTENT_CONFLICT" || issue.code === "STALE_EVIDENCE",
+      ),
+    ];
+    const blockingIssues = [
+      ...new Set(
+        issues
+          .filter((issue) => !issue.path?.startsWith("participants."))
+          .map(
+            (issue) =>
+              ISSUE_TEXT[issue.code] ?? "这份 Demo 还有未能确认的数据问题，请核对数据来源或拒绝。",
+          ),
+      ),
+    ];
+    const conflicts = participants.filter((participant) =>
+      participant.state.startsWith("conflict-"),
+    ).length;
+    const rosterMismatches = participants.filter(
+      (participant) => participant.state === "roster-mismatch",
+    ).length;
     const unresolved = participants.length - conflicts - rosterMismatches;
-    const message = participants.length > 0
-      ? `需要处理：${[
-          unresolved > 0 ? `${unresolved} 名选手 Steam 身份未确认` : "",
-          conflicts > 0 ? `${conflicts} 名选手 Steam64 已关联其他选手` : "",
-          rosterMismatches > 0 ? `${rosterMismatches} 名选手实际出场与本场记录首发不一致` : "",
-        ].filter(Boolean).join("；")}`
-      : "请按下方检查结果处理这份 Demo。";
-    return { ...base, invalidPayload: false, message, resolvedCount, blockingIssues: blockingIssues.length > 0 ? blockingIssues
-      : participants.length === 0 ? ["选手已匹配，请核对其余待处理项，再确认同步统计。"] : [], participants,
-      diagnostics: [...projectDiagnostics(validation.issues, "current"), ...projectDiagnostics(row.issues, "stored")] };
+    const message =
+      participants.length > 0
+        ? `需要处理：${[
+            unresolved > 0 ? `${unresolved} 名选手 Steam 身份未确认` : "",
+            conflicts > 0 ? `${conflicts} 名选手 Steam64 已关联其他选手` : "",
+            rosterMismatches > 0 ? `${rosterMismatches} 名选手实际出场与本场记录首发不一致` : "",
+          ]
+            .filter(Boolean)
+            .join("；")}`
+        : "请按下方检查结果处理这份 Demo。";
+    return {
+      ...base,
+      invalidPayload: false,
+      message,
+      resolvedCount,
+      blockingIssues:
+        blockingIssues.length > 0
+          ? blockingIssues
+          : participants.length === 0
+            ? ["选手已匹配，请核对其余待处理项，再确认同步统计。"]
+            : [],
+      participants,
+      diagnostics: [
+        ...projectDiagnostics(validation.issues, "current"),
+        ...projectDiagnostics(row.issues, "stored"),
+      ],
+    };
   } catch (error) {
     const requestId = logReadFailure(error, phase, row.id);
-    return { ...base, invalidPayload: false, message: `当前无法核对选手身份，请联系平台管理员检查赛事身份资料后重试。排查编号：${requestId}`,
-      resolvedCount: 0, blockingIssues: [], participants: [] };
+    return {
+      ...base,
+      invalidPayload: false,
+      message: `当前无法核对选手身份，请联系平台管理员检查赛事身份资料后重试。排查编号：${requestId}`,
+      resolvedCount: 0,
+      blockingIssues: [],
+      participants: [],
+    };
   }
 }

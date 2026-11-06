@@ -12,11 +12,17 @@ export interface PlayerMatchesQuery {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function parsePlayerMatchesCursor(value: string): { date: string | null; matchId: string } | null {
+export function parsePlayerMatchesCursor(
+  value: string,
+): { date: string | null; matchId: string } | null {
   const [date, matchId, extra] = value.split("|");
   if (extra !== undefined || !matchId || !UUID.test(matchId)) return null;
   if (date !== "none") {
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,6}Z$/.test(date) || !Number.isFinite(Date.parse(date))) return null;
+    if (
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,6}Z$/.test(date) ||
+      !Number.isFinite(Date.parse(date))
+    )
+      return null;
     // Date.parse normalizes invalid calendar days; PostgreSQL correctly rejects
     // them. Reject here while retaining the original microseconds for SQL.
     if (new Date(date).toISOString().slice(0, 23) !== date.slice(0, 23)) return null;
@@ -25,7 +31,7 @@ export function parsePlayerMatchesCursor(value: string): { date: string | null; 
 }
 
 export function parsePlayerMatchesQuery(search: PlayerPerformanceSearch): PlayerMatchesQuery {
-  const value = (key: string) => typeof search[key] === "string" ? search[key] as string : "";
+  const value = (key: string) => (typeof search[key] === "string" ? (search[key] as string) : "");
   const event = value("event");
   const map = value("map");
   const cursor = value("cursor");
@@ -40,7 +46,11 @@ export function parsePlayerMatchesQuery(search: PlayerPerformanceSearch): Player
   };
 }
 
-export function playerMatchesHref(userId: string, query: PlayerMatchesQuery, fromStats?: string | null) {
+export function playerMatchesHref(
+  userId: string,
+  query: PlayerMatchesQuery,
+  fromStats?: string | null,
+) {
   const params = new URLSearchParams();
   if (query.event) params.set("event", query.event);
   if (query.map) params.set("map", query.map);
@@ -55,7 +65,11 @@ export function playerMatchesHref(userId: string, query: PlayerMatchesQuery, fro
 }
 
 /** Alias redirects keep the current entrypoint and only its recognized scope. */
-export function canonicalPlayerHref(userId: string, search: PlayerPerformanceSearch, history = false) {
+export function canonicalPlayerHref(
+  userId: string,
+  search: PlayerPerformanceSearch,
+  history = false,
+) {
   const query = parsePlayerMatchesQuery(search);
   const from = safeStatsReturn(typeof search.fromStats === "string" ? search.fromStats : null);
   if (history) return playerMatchesHref(userId, query, from);
@@ -66,7 +80,13 @@ export function canonicalPlayerHref(userId: string, search: PlayerPerformanceSea
   return `/players/${userId}${params.size ? `?${params}` : ""}`;
 }
 
-export function playerMatchDetailHref(seasonSlug: string, matchId: string, userId: string, mapId?: string, fromStats?: string | null) {
+export function playerMatchDetailHref(
+  seasonSlug: string,
+  matchId: string,
+  userId: string,
+  mapId?: string,
+  fromStats?: string | null,
+) {
   const params = new URLSearchParams();
   if (mapId) params.set("statsMap", mapId);
   params.set("statsPlayer", userId);

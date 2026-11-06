@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
-    captainVotes,
+  captainVotes,
   competitionEntries,
   competitionEntryParticipants,
   competitionEntryRepresentativeChanges,
@@ -40,11 +40,10 @@ import {
 import { failValidation, actionError, isPgUniqueViolation } from "@/lib/action-utils";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 
-const CAPTAIN_VOTE_UNIQUE_CONSTRAINT = "captain_votes_voter_registration_id_candidate_registration_id_unique";
+const CAPTAIN_VOTE_UNIQUE_CONSTRAINT =
+  "captain_votes_voter_registration_id_candidate_registration_id_unique";
 
-export async function castVote(
-  input: CastVoteInput,
-): Promise<ActionResult<{ voteId: string }>> {
+export async function castVote(input: CastVoteInput): Promise<ActionResult<{ voteId: string }>> {
   const parsed = castVoteSchema.safeParse(input);
   if (!parsed.success) {
     return failValidation("投票参数无效");
@@ -55,8 +54,11 @@ export async function castVote(
     const voteId = await db.transaction(async (tx) => {
       // Serialize count + insert per voter; without this row lock, two tabs
       // can both observe two votes and exceed the three-vote cap.
-      const [voter] = await tx.select().from(seasonRegistrations)
-        .where(eq(seasonRegistrations.id, parsed.data.voterRegistrationId)).for("update");
+      const [voter] = await tx
+        .select()
+        .from(seasonRegistrations)
+        .where(eq(seasonRegistrations.id, parsed.data.voterRegistrationId))
+        .for("update");
       const candidate = await tx.query.seasonRegistrations.findFirst({
         where: eq(seasonRegistrations.id, parsed.data.candidateRegistrationId),
       });
@@ -110,7 +112,8 @@ export async function castVote(
       seasonId: null,
       action: "captain.cast_vote",
       actorId: session.userId,
-      targetId: parsed.data.candidateRegistrationId,meta: { voteId, voterRegistrationId: parsed.data.voterRegistrationId },
+      targetId: parsed.data.candidateRegistrationId,
+      meta: { voteId, voterRegistrationId: parsed.data.voterRegistrationId },
     });
 
     await revalidateCaptainPaths(parsed.data.voterRegistrationId);
@@ -174,7 +177,8 @@ export async function retractVote(
       seasonId: null,
       action: "captain.retract_vote",
       actorId: session.userId,
-      targetId: parsed.data.candidateRegistrationId,meta: { voterRegistrationId: parsed.data.voterRegistrationId },
+      targetId: parsed.data.candidateRegistrationId,
+      meta: { voterRegistrationId: parsed.data.voterRegistrationId },
     });
 
     await revalidateCaptainPaths(parsed.data.voterRegistrationId);
@@ -302,20 +306,26 @@ export async function confirmCaptains(
           .returning({ id: competitionEntries.id });
         createdEntryIds.push(entry.id);
 
-        const [participant] = await tx.insert(competitionEntryParticipants).values({
-          entryId: entry.id,
-          userId: captain.userId,
-          status: "confirmed",
-          confirmedAt: new Date(),
-          invitedByUserId: captain.userId,
-        }).returning({ id: competitionEntryParticipants.id });
-        const [revision] = await tx.insert(competitionEntryRosterRevisions).values({
-          id: revisionId,
-          entryId: entry.id,
-          revisionNumber: 1,
-          status: "draft",
-          createdBy: auditActorId(admin),
-        }).returning({ id: competitionEntryRosterRevisions.id });
+        const [participant] = await tx
+          .insert(competitionEntryParticipants)
+          .values({
+            entryId: entry.id,
+            userId: captain.userId,
+            status: "confirmed",
+            confirmedAt: new Date(),
+            invitedByUserId: captain.userId,
+          })
+          .returning({ id: competitionEntryParticipants.id });
+        const [revision] = await tx
+          .insert(competitionEntryRosterRevisions)
+          .values({
+            id: revisionId,
+            entryId: entry.id,
+            revisionNumber: 1,
+            status: "draft",
+            createdBy: auditActorId(admin),
+          })
+          .returning({ id: competitionEntryRosterRevisions.id });
         await tx.insert(competitionEntryRepresentativeChanges).values({
           entryId: entry.id,
           fromUserId: null,
@@ -328,10 +338,13 @@ export async function confirmCaptains(
           userId: captain.userId,
           isPrimaryStarter: true,
         });
-        const [eventRoster] = await tx.insert(eventRosters).values({
-          entryId: entry.id,
-          status: "preparing",
-        }).returning({ id: eventRosters.id });
+        const [eventRoster] = await tx
+          .insert(eventRosters)
+          .values({
+            entryId: entry.id,
+            status: "preparing",
+          })
+          .returning({ id: eventRosters.id });
         await tx.insert(eventRosterMembers).values({
           eventRosterId: eventRoster.id,
           participantId: participant.id,
@@ -349,7 +362,8 @@ export async function confirmCaptains(
         seasonId: season.id,
         action: "captain.confirm",
         actorId: auditActorId(admin),
-        targetId: season.id,meta: {
+        targetId: season.id,
+        meta: {
           captainRegistrationIds: seeds.map((seed) => seed.registrationId),
           entryIds: createdEntryIds,
         },
@@ -358,7 +372,13 @@ export async function confirmCaptains(
       return { seasonSlug: season.slug, entryIds: createdEntryIds };
     });
 
-    revalidateSeasonPaths(result.seasonSlug, ["captains", "teams", "draft", "adminCaptains", "adminDraft"]);
+    revalidateSeasonPaths(result.seasonSlug, [
+      "captains",
+      "teams",
+      "draft",
+      "adminCaptains",
+      "adminDraft",
+    ]);
     return ok({ entryIds: result.entryIds });
   } catch (e) {
     return actionError("confirmCaptains", e);

@@ -45,18 +45,44 @@ export function presentCompetitionEntryRegistration(
     case "approved":
       return { label: "已通过", state: "ready", detail: "报名已通过审核。", tone: "success" };
     case "submitted":
-      return { label: "待审核", state: "waiting", detail: "报名已提交，正在等待审核。", tone: "info" };
+      return {
+        label: "待审核",
+        state: "waiting",
+        detail: "报名已提交，正在等待审核。",
+        tone: "info",
+      };
     case "waitlisted":
       return { label: "候补", state: "waiting", detail: "报名当前处于候补状态。", tone: "warn" };
     case "changes_requested":
-      if (origin === "self_roster_change") return { label: "名单变更中", state: "incomplete", detail: "你已发起名单调整，完成成员确认和资格检查后请重新提交审核。", tone: "warn" };
-      return { label: "需补正", state: "blocked", detail: "审核要求补正报名材料或名单。", tone: "warn" };
+      if (origin === "self_roster_change")
+        return {
+          label: "名单变更中",
+          state: "incomplete",
+          detail: "你已发起名单调整，完成成员确认和资格检查后请重新提交审核。",
+          tone: "warn",
+        };
+      return {
+        label: "需补正",
+        state: "blocked",
+        detail: "审核要求补正报名材料或名单。",
+        tone: "warn",
+      };
     case "rejected":
-      return { label: "未通过", state: "blocked", detail: "报名未通过；请查看审核说明。", tone: "danger" };
+      return {
+        label: "未通过",
+        state: "blocked",
+        detail: "报名未通过；请查看审核说明。",
+        tone: "danger",
+      };
     case "withdrawn":
       return { label: "已撤回", state: "blocked", detail: "本届报名已撤回。", tone: "neutral" };
     case "draft":
-      return { label: "待提交", state: "incomplete", detail: "报名尚未提交审核。", tone: "neutral" };
+      return {
+        label: "待提交",
+        state: "incomplete",
+        detail: "报名尚未提交审核。",
+        tone: "neutral",
+      };
   }
 }
 
@@ -65,18 +91,48 @@ export function presentCompetitionEntryParticipation(
   registrationStatus: CompetitionEntryRegistrationStatus,
 ): CompetitionEntryPresentation {
   if (participantStatus === "confirmed") {
-    return { label: "已确认参赛", state: "ready", detail: "你已确认参加本届赛事；最终报名状态由赛事负责人和审核决定。", tone: "success" };
+    return {
+      label: "已确认参赛",
+      state: "ready",
+      detail: "你已确认参加本届赛事；最终报名状态由赛事负责人和审核决定。",
+      tone: "success",
+    };
   }
   if (participantStatus === "invited") {
     return registrationStatus === "changes_requested"
-      ? { label: "需要重新确认", state: "waiting", detail: "名单调整后，请确认是否参加本届赛事。", tone: "warn" }
-      : { label: "被邀请待确认", state: "waiting", detail: "你已被邀请但尚未确认参加本届赛事。", tone: "info" };
+      ? {
+          label: "需要重新确认",
+          state: "waiting",
+          detail: "名单调整后，请确认是否参加本届赛事。",
+          tone: "warn",
+        }
+      : {
+          label: "被邀请待确认",
+          state: "waiting",
+          detail: "你已被邀请但尚未确认参加本届赛事。",
+          tone: "info",
+        };
   }
   if (participantStatus === "declined") {
-    return { label: "已拒绝", state: "blocked", detail: "你已拒绝参加本届赛事；如需参赛，请由赛事负责人重新加入名单。", tone: "danger" };
+    return {
+      label: "已拒绝",
+      state: "blocked",
+      detail: "你已拒绝参加本届赛事；如需参赛，请由赛事负责人重新加入名单。",
+      tone: "danger",
+    };
   }
   if (participantStatus === "withdrawn") {
-    return { label: "已退出", state: "blocked", detail: "你已退出本届赛事；如需参赛，请由赛事负责人重新加入名单。", tone: "neutral" };
+    return {
+      label: "已退出",
+      state: "blocked",
+      detail: "你已退出本届赛事；如需参赛，请由赛事负责人重新加入名单。",
+      tone: "neutral",
+    };
   }
-  return { label: "未在当前名单", state: "blocked", detail: "你当前未确认参加本届赛事。", tone: "neutral" };
+  return {
+    label: "未在当前名单",
+    state: "blocked",
+    detail: "你当前未确认参加本届赛事。",
+    tone: "neutral",
+  };
 }

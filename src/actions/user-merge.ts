@@ -7,7 +7,10 @@ import { actionError } from "@/lib/action-utils";
 import { destroyUserSession, requireAuth } from "@/lib/auth/session";
 import { ErrorCode } from "@/lib/errors";
 import { executeUserMergeInTx } from "@/lib/identity/merge";
-import { loadSelfServiceMergeAuthorization, selectSelfServiceMergePair } from "@/lib/identity/self-service";
+import {
+  loadSelfServiceMergeAuthorization,
+  selectSelfServiceMergePair,
+} from "@/lib/identity/self-service";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
 
@@ -18,7 +21,9 @@ const selfServiceMergeSchema = z.object({
   confirmed: z.literal(true),
 });
 
-export async function executeSelfServiceUserMerge(input: unknown): Promise<ActionResult<{ redirectTo: string }>> {
+export async function executeSelfServiceUserMerge(
+  input: unknown,
+): Promise<ActionResult<{ redirectTo: string }>> {
   const parsed = selfServiceMergeSchema.safeParse(input);
   if (!parsed.success) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请明确确认归并方案后再执行。" });
@@ -30,14 +35,16 @@ export async function executeSelfServiceUserMerge(input: unknown): Promise<Actio
       actorUserId: session.userId,
     });
     const pair = selectSelfServiceMergePair(authorization, parsed.data.canonicalUserId);
-    await db.transaction((tx) => executeUserMergeInTx(tx, {
-      ...pair,
-      actorUserId: session.userId,
-      expectedFingerprint: parsed.data.expectedFingerprint,
-      evidenceClass: "dual_identity_control",
-      reason: "用户证明控制双方 verified identity 后自助归并",
-      authorizationId: authorization.id,
-    }));
+    await db.transaction((tx) =>
+      executeUserMergeInTx(tx, {
+        ...pair,
+        actorUserId: session.userId,
+        expectedFingerprint: parsed.data.expectedFingerprint,
+        evidenceClass: "dual_identity_control",
+        reason: "用户证明控制双方 verified identity 后自助归并",
+        authorizationId: authorization.id,
+      }),
+    );
     await destroyUserSession();
     updatePublicPlayerTag(pair.canonicalUserId);
     updatePublicPlayerTag(pair.mergedUserId);

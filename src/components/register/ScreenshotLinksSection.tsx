@@ -36,7 +36,10 @@ export function ScreenshotLinksSection({
       <div className="space-y-3">
         {Array.from({ length: screenshotCount }, (_, index) => (
           <div key={index}>
-            <Label htmlFor={`screenshotUrls.${index}`} className="text-[var(--color-fg-mid)] mb-1.5 block">
+            <Label
+              htmlFor={`screenshotUrls.${index}`}
+              className="text-[var(--color-fg-mid)] mb-1.5 block"
+            >
               NJUBox 分享链接 {screenshotCount > 1 ? index + 1 : ""}（选填）
             </Label>
             <Input

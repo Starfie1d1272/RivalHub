@@ -35,17 +35,13 @@ export function selectAutoPickCandidate(
 
   // Round 1: prefer positions with zero current members (completely vacant)
   const firstPick =
-    sorted.find(
-      (candidate) =>
-        (positionCounts[candidate.primaryPosition] ?? 0) === 0,
-    ) ?? null;
+    sorted.find((candidate) => (positionCounts[candidate.primaryPosition] ?? 0) === 0) ?? null;
   if (firstPick) return firstPick;
 
   // Round 2: any position below the cap (max 2 per position in draft)
   return (
-    sorted.find((candidate) =>
-      canPickPosition(positionCounts[candidate.primaryPosition] ?? 0),
-    ) ?? null
+    sorted.find((candidate) => canPickPosition(positionCounts[candidate.primaryPosition] ?? 0)) ??
+    null
   );
 }
 

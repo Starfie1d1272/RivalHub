@@ -18,7 +18,25 @@ const STATUS_SORT_ORDER: Record<string, number> = {
   cancelled: 3,
 };
 
-export function projectAdminMatchSummary(match: Pick<Match, "id" | "entryAId" | "entryBId" | "stage" | "round" | "format" | "entryRound" | "scoreA" | "scoreB" | "status" | "isForfeit" | "ownership" | "scheduledAt"> & { displayScore?: import("@/lib/matches/display-score").DisplayScore }, demoNeedsAttentionCount = 0): AdminMatchSummary {
+export function projectAdminMatchSummary(
+  match: Pick<
+    Match,
+    | "id"
+    | "entryAId"
+    | "entryBId"
+    | "stage"
+    | "round"
+    | "format"
+    | "entryRound"
+    | "scoreA"
+    | "scoreB"
+    | "status"
+    | "isForfeit"
+    | "ownership"
+    | "scheduledAt"
+  > & { displayScore?: import("@/lib/matches/display-score").DisplayScore },
+  demoNeedsAttentionCount = 0,
+): AdminMatchSummary {
   return {
     id: match.id,
     entryAId: match.entryAId,
@@ -38,7 +56,9 @@ export function projectAdminMatchSummary(match: Pick<Match, "id" | "entryAId" | 
   };
 }
 
-export function sortAdminMatches<T extends Pick<Match, "status" | "scheduledAt" | "completedAt">>(list: readonly T[]): T[] {
+export function sortAdminMatches<T extends Pick<Match, "status" | "scheduledAt" | "completedAt">>(
+  list: readonly T[],
+): T[] {
   return [...list].sort((a, b) => {
     const diff = (STATUS_SORT_ORDER[a.status] ?? 9) - (STATUS_SORT_ORDER[b.status] ?? 9);
     if (diff !== 0) return diff;
@@ -82,7 +102,9 @@ export function mapPendingMaps(records: readonly AdminMatchMapRecord[]): AdminPe
     }));
 }
 
-export function mapFinishedMaps(records: readonly Pick<MatchMap, "id" | "mapName" | "scoreA" | "scoreB">[]): AdminFinishedMap[] {
+export function mapFinishedMaps(
+  records: readonly Pick<MatchMap, "id" | "mapName" | "scoreA" | "scoreB">[],
+): AdminFinishedMap[] {
   return records
     .filter((record) => record.scoreA !== null && record.scoreB !== null)
     .map((record) => ({
@@ -96,8 +118,23 @@ export function mapFinishedMaps(records: readonly Pick<MatchMap, "id" | "mapName
 export function buildBatchDeadlineGroups(
   matches: readonly Pick<Match, "status" | "stage" | "round" | "entryRound">[],
   stagePlan: StagePlan,
-): { label: string; stage: string; round?: number | null; entryRound?: string | null; matchCount: number }[] {
-  const groupMap = new Map<string, { label: string; stage: string; round?: number | null; entryRound?: string | null; matchCount: number }>();
+): {
+  label: string;
+  stage: string;
+  round?: number | null;
+  entryRound?: string | null;
+  matchCount: number;
+}[] {
+  const groupMap = new Map<
+    string,
+    {
+      label: string;
+      stage: string;
+      round?: number | null;
+      entryRound?: string | null;
+      matchCount: number;
+    }
+  >();
   for (const match of matches) {
     if (match.status !== "scheduled" && match.status !== "in_progress") continue;
     const stageName = stagePlan.find((stage) => stage.key === match.stage)?.name ?? match.stage;

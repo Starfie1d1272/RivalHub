@@ -5,21 +5,67 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { expressRecruitmentInterest as telemetry_expressRecruitmentInterest, withdrawRecruitmentInterest as telemetry_withdrawRecruitmentInterest } from "@/actions/recruitment";
+import {
+  expressRecruitmentInterest as telemetry_expressRecruitmentInterest,
+  withdrawRecruitmentInterest as telemetry_withdrawRecruitmentInterest,
+} from "@/actions/recruitment";
 import { Button } from "@/components/ui/button";
 import { observeAction } from "@/lib/telemetry/client";
 
-const expressRecruitmentInterest = observeAction("recruitment.expressRecruitmentInterest", telemetry_expressRecruitmentInterest);
-const withdrawRecruitmentInterest = observeAction("recruitment.withdrawRecruitmentInterest", telemetry_withdrawRecruitmentInterest);
+const expressRecruitmentInterest = observeAction(
+  "recruitment.expressRecruitmentInterest",
+  telemetry_expressRecruitmentInterest,
+);
+const withdrawRecruitmentInterest = observeAction(
+  "recruitment.withdrawRecruitmentInterest",
+  telemetry_withdrawRecruitmentInterest,
+);
 
-export function RecruitmentInterestButton({ recruitmentIntentId, interested, invited = false, loggedIn, loginHref = "/login?next=/teams/recruitment" }: { recruitmentIntentId: string; interested: boolean; invited?: boolean; loggedIn: boolean; loginHref?: string }) {
+export function RecruitmentInterestButton({
+  recruitmentIntentId,
+  interested,
+  invited = false,
+  loggedIn,
+  loginHref = "/login?next=/teams/recruitment",
+}: {
+  recruitmentIntentId: string;
+  interested: boolean;
+  invited?: boolean;
+  loggedIn: boolean;
+  loginHref?: string;
+}) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-  if (!loggedIn) return <Button size="sm" variant="outline" asChild><Link href={loginHref as never}>登录后表达加入意向</Link></Button>;
-  if (invited) return <Button size="sm" variant="outline" asChild><Link href="/my/teams">已收到队伍邀请</Link></Button>;
-  return <Button size="sm" variant={interested ? "outline" : "default"} disabled={pending} onClick={() => startTransition(async () => {
-    const result = interested ? await withdrawRecruitmentInterest({ recruitmentIntentId }) : await expressRecruitmentInterest({ recruitmentIntentId });
-    if (result.success) { toast.success(interested ? "已撤回加入意向" : "已向队长表达加入意向"); router.refresh(); }
-    else toast.error(result.error.message);
-  })}>{pending ? "处理中…" : interested ? "撤回加入意向" : "表达加入意向"}</Button>;
+  if (!loggedIn)
+    return (
+      <Button size="sm" variant="outline" asChild>
+        <Link href={loginHref as never}>登录后表达加入意向</Link>
+      </Button>
+    );
+  if (invited)
+    return (
+      <Button size="sm" variant="outline" asChild>
+        <Link href="/my/teams">已收到队伍邀请</Link>
+      </Button>
+    );
+  return (
+    <Button
+      size="sm"
+      variant={interested ? "outline" : "default"}
+      disabled={pending}
+      onClick={() =>
+        startTransition(async () => {
+          const result = interested
+            ? await withdrawRecruitmentInterest({ recruitmentIntentId })
+            : await expressRecruitmentInterest({ recruitmentIntentId });
+          if (result.success) {
+            toast.success(interested ? "已撤回加入意向" : "已向队长表达加入意向");
+            router.refresh();
+          } else toast.error(result.error.message);
+        })
+      }
+    >
+      {pending ? "处理中…" : interested ? "撤回加入意向" : "表达加入意向"}
+    </Button>
+  );
 }

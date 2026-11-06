@@ -9,19 +9,23 @@ import { seasons } from "./seasons";
  * more than one provider-backed stage and provider ids are only meaningful
  * inside the stage that owns them.
  */
-export const competitionStageBracketStates = pgTable("competition_stage_bracket_states", {
-  competitionId: uuid("competition_id")
-    .notNull()
-    .references(() => seasons.id, { onDelete: "cascade" }),
-  stageKey: text("stage_key").notNull(),
-  data: jsonb("data").$type<Database>().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  identity: primaryKey({
-    columns: [t.competitionId, t.stageKey],
-    name: "competition_stage_bracket_states_pkey",
+export const competitionStageBracketStates = pgTable(
+  "competition_stage_bracket_states",
+  {
+    competitionId: uuid("competition_id")
+      .notNull()
+      .references(() => seasons.id, { onDelete: "cascade" }),
+    stageKey: text("stage_key").notNull(),
+    data: jsonb("data").$type<Database>().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    identity: primaryKey({
+      columns: [t.competitionId, t.stageKey],
+      name: "competition_stage_bracket_states_pkey",
+    }),
   }),
-}));
+);
 
 export type CompetitionStageBracketState = typeof competitionStageBracketStates.$inferSelect;
 export type NewCompetitionStageBracketState = typeof competitionStageBracketStates.$inferInsert;

@@ -22,23 +22,46 @@ export function getProposalAutoAcceptAt(
 ): Date | null {
   if (match.status !== "scheduled" || match.scheduledAt) return null;
   const dueAt = new Date(proposal.createdAt.getTime() + PROPOSAL_RESPONSE_HOURS * HOUR_MS);
-  if (proposal.proposedTime.getTime() < dueAt.getTime() + AUTO_ACCEPT_NOTICE_HOURS * HOUR_MS) return null;
+  if (proposal.proposedTime.getTime() < dueAt.getTime() + AUTO_ACCEPT_NOTICE_HOURS * HOUR_MS)
+    return null;
   if (match.completionDeadline && proposal.proposedTime > match.completionDeadline) return null;
-  if (now && proposal.proposedTime.getTime() < now.getTime() + AUTO_ACCEPT_NOTICE_HOURS * HOUR_MS) return null;
+  if (now && proposal.proposedTime.getTime() < now.getTime() + AUTO_ACCEPT_NOTICE_HOURS * HOUR_MS)
+    return null;
   return dueAt;
 }
 
-export function canAutoAcceptProposal(match: SchedulingFacts, proposal: PendingTimeProposal, now: Date): boolean {
+export function canAutoAcceptProposal(
+  match: SchedulingFacts,
+  proposal: PendingTimeProposal,
+  now: Date,
+): boolean {
   const dueAt = getProposalAutoAcceptAt(match, proposal, now);
   return dueAt !== null && now >= dueAt;
 }
 
-export function projectMatchScheduling(match: SchedulingFacts, pending: PendingTimeProposal | null, now = new Date()) {
+export function projectMatchScheduling(
+  match: SchedulingFacts,
+  pending: PendingTimeProposal | null,
+  now = new Date(),
+) {
   const active = match.status === "scheduled";
-  const validPending = active && pending && pending.proposedTime > now &&
-    (!match.completionDeadline || pending.proposedTime <= match.completionDeadline) ? pending : null;
+  const validPending =
+    active &&
+    pending &&
+    pending.proposedTime > now &&
+    (!match.completionDeadline || pending.proposedTime <= match.completionDeadline)
+      ? pending
+      : null;
   return {
-    state: !active ? "inactive" : validPending ? (match.scheduledAt ? "reschedule_pending" : "pending") : match.scheduledAt ? "confirmed" : "unproposed",
+    state: !active
+      ? "inactive"
+      : validPending
+        ? match.scheduledAt
+          ? "reschedule_pending"
+          : "pending"
+        : match.scheduledAt
+          ? "confirmed"
+          : "unproposed",
     pending: validPending,
     autoAcceptAt: validPending ? getProposalAutoAcceptAt(match, validPending, now) : null,
   } as const;

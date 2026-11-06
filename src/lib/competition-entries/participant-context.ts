@@ -10,7 +10,6 @@ import {
 } from "@/db/schema";
 import type { CompetitionEntryParticipantStatus } from "@/lib/competition-entries/presentation";
 
-
 export interface CompetitionEntryParticipantContext {
   primaryEntry: typeof competitionEntries.$inferSelect | null;
   activeClaimEntryId: string | null;
@@ -28,8 +27,13 @@ export interface CompetitionEntrySelectionEntry {
   updatedAt: Date;
 }
 
-export function selectCompetitionEntryParticipantContext<T extends CompetitionEntrySelectionEntry>(input: {
-  participantRows: ReadonlyArray<{ entry: T; participantStatus: CompetitionEntryParticipantStatus | null }>;
+export function selectCompetitionEntryParticipantContext<
+  T extends CompetitionEntrySelectionEntry,
+>(input: {
+  participantRows: ReadonlyArray<{
+    entry: T;
+    participantStatus: CompetitionEntryParticipantStatus | null;
+  }>;
   representativeEntries: readonly T[];
   activeClaimEntries: readonly T[];
   requestedEntryId?: string;
@@ -49,27 +53,41 @@ export function selectCompetitionEntryParticipantContext<T extends CompetitionEn
   for (const entry of input.representativeEntries) relatedEntries.set(entry.id, entry);
   if (activeClaimEntry) relatedEntries.set(activeClaimEntry.id, activeClaimEntry);
 
-  const fallbackEntries = [...relatedEntries.values()].sort((left, right) =>
-    right.updatedAt.getTime() - left.updatedAt.getTime() || left.id.localeCompare(right.id),
+  const fallbackEntries = [...relatedEntries.values()].sort(
+    (left, right) =>
+      right.updatedAt.getTime() - left.updatedAt.getTime() || left.id.localeCompare(right.id),
   );
   const pendingInvitationRows = input.participantRows
     .filter((row) => row.participantStatus === "invited")
-    .sort((left, right) => right.entry.updatedAt.getTime() - left.entry.updatedAt.getTime() || left.entry.id.localeCompare(right.entry.id));
+    .sort(
+      (left, right) =>
+        right.entry.updatedAt.getTime() - left.entry.updatedAt.getTime() ||
+        left.entry.id.localeCompare(right.entry.id),
+    );
   const invitationRows = activeClaimEntry
     ? pendingInvitationRows.filter((row) => row.entry.id !== activeClaimEntry.id)
     : [];
 
   return {
-    primaryEntry: pendingInvitationRows.find(row => row.entry.id === input.requestedEntryId)?.entry ?? activeClaimEntry ?? pendingInvitationRows[0]?.entry ?? fallbackEntries[0] ?? null,
+    primaryEntry:
+      pendingInvitationRows.find((row) => row.entry.id === input.requestedEntryId)?.entry ??
+      activeClaimEntry ??
+      pendingInvitationRows[0]?.entry ??
+      fallbackEntries[0] ??
+      null,
     activeClaimEntry,
-    pendingInvitations: pendingInvitationRows.map(row => ({ id: row.entry.id, name: row.entry.name })),
+    pendingInvitations: pendingInvitationRows.map((row) => ({
+      id: row.entry.id,
+      name: row.entry.name,
+    })),
     activeClaimEntryId: activeClaimEntry?.id ?? null,
-    invitationConflict: invitationRows.length === 0
-      ? null
-      : {
-        pendingInvitationCount: invitationRows.length,
-        latestPendingInvitationName: invitationRows[0]!.entry.name,
-      },
+    invitationConflict:
+      invitationRows.length === 0
+        ? null
+        : {
+            pendingInvitationCount: invitationRows.length,
+            latestPendingInvitationName: invitationRows[0]!.entry.name,
+          },
   };
 }
 
@@ -90,38 +108,65 @@ export function currentRosterParticipantStatus() {
     ) then null else ${competitionEntryParticipants.status} end`;
 }
 
-function participantContextQueries(executor: ParticipantContextQueryable, input: ParticipantContextInput) {
+function participantContextQueries(
+  executor: ParticipantContextQueryable,
+  input: ParticipantContextInput,
+) {
   return {
-    participantRows: () => executor.select({
-      entry: competitionEntries,
-      participantStatus: currentRosterParticipantStatus(),
-    })
-      .from(competitionEntryParticipants)
-      .innerJoin(competitionEntries, eq(competitionEntries.id, competitionEntryParticipants.entryId))
-      .where(and(
-        eq(competitionEntryParticipants.userId, input.userId),
-        eq(competitionEntries.competitionId, input.competitionId),
-      )),
-    representativeEntries: () => executor.select()
-      .from(competitionEntries)
-      .where(and(
-        eq(competitionEntries.competitionId, input.competitionId),
-        eq(competitionEntries.representativeUserId, input.userId),
-      )),
-    activeClaimRows: () => executor.select({ entry: competitionEntries })
-      .from(competitionEntryActiveClaims)
-      .innerJoin(competitionEntries, eq(competitionEntries.id, competitionEntryActiveClaims.entryId))
-      .where(and(
-        eq(competitionEntryActiveClaims.competitionId, input.competitionId),
-        eq(competitionEntryActiveClaims.userId, input.userId),
-      )),
+    participantRows: () =>
+      executor
+        .select({
+          entry: competitionEntries,
+          participantStatus: currentRosterParticipantStatus(),
+        })
+        .from(competitionEntryParticipants)
+        .innerJoin(
+          competitionEntries,
+          eq(competitionEntries.id, competitionEntryParticipants.entryId),
+        )
+        .where(
+          and(
+            eq(competitionEntryParticipants.userId, input.userId),
+            eq(competitionEntries.competitionId, input.competitionId),
+          ),
+        ),
+    representativeEntries: () =>
+      executor
+        .select()
+        .from(competitionEntries)
+        .where(
+          and(
+            eq(competitionEntries.competitionId, input.competitionId),
+            eq(competitionEntries.representativeUserId, input.userId),
+          ),
+        ),
+    activeClaimRows: () =>
+      executor
+        .select({ entry: competitionEntries })
+        .from(competitionEntryActiveClaims)
+        .innerJoin(
+          competitionEntries,
+          eq(competitionEntries.id, competitionEntryActiveClaims.entryId),
+        )
+        .where(
+          and(
+            eq(competitionEntryActiveClaims.competitionId, input.competitionId),
+            eq(competitionEntryActiveClaims.userId, input.userId),
+          ),
+        ),
   } as const;
 }
 
 function presentParticipantContext(
-  participantRows: Awaited<ReturnType<ReturnType<typeof participantContextQueries>["participantRows"]>>,
-  representativeEntries: Awaited<ReturnType<ReturnType<typeof participantContextQueries>["representativeEntries"]>>,
-  activeClaimRows: Awaited<ReturnType<ReturnType<typeof participantContextQueries>["activeClaimRows"]>>,
+  participantRows: Awaited<
+    ReturnType<ReturnType<typeof participantContextQueries>["participantRows"]>
+  >,
+  representativeEntries: Awaited<
+    ReturnType<ReturnType<typeof participantContextQueries>["representativeEntries"]>
+  >,
+  activeClaimRows: Awaited<
+    ReturnType<ReturnType<typeof participantContextQueries>["activeClaimRows"]>
+  >,
   requestedEntryId?: string,
 ): CompetitionEntryParticipantContext {
   return selectCompetitionEntryParticipantContext({
@@ -142,7 +187,12 @@ export async function loadCompetitionEntryParticipantContext(
     queries.representativeEntries(),
     queries.activeClaimRows(),
   ]);
-  return presentParticipantContext(participantRows, representativeEntries, activeClaimRows, input.requestedEntryId);
+  return presentParticipantContext(
+    participantRows,
+    representativeEntries,
+    activeClaimRows,
+    input.requestedEntryId,
+  );
 }
 
 /** Transaction-scoped variant: one TxDb shares one pg.Client, so queries are serialized. */
@@ -154,5 +204,10 @@ export async function loadCompetitionEntryParticipantContextInTx(
   const participantRows = await queries.participantRows();
   const representativeEntries = await queries.representativeEntries();
   const activeClaimRows = await queries.activeClaimRows();
-  return presentParticipantContext(participantRows, representativeEntries, activeClaimRows, input.requestedEntryId);
+  return presentParticipantContext(
+    participantRows,
+    representativeEntries,
+    activeClaimRows,
+    input.requestedEntryId,
+  );
 }

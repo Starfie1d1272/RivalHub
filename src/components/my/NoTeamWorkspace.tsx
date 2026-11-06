@@ -4,7 +4,11 @@ import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { acceptTeamInvitation as telemetry_acceptTeamInvitation, createTeam as telemetry_createTeam, declineTeamInvitation as telemetry_declineTeamInvitation } from "@/actions/teams";
+import {
+  acceptTeamInvitation as telemetry_acceptTeamInvitation,
+  createTeam as telemetry_createTeam,
+  declineTeamInvitation as telemetry_declineTeamInvitation,
+} from "@/actions/teams";
 import { TeamInvitationsSection } from "@/components/teams/TeamInvitationsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +17,15 @@ import { Panel, StatusBanner } from "@/components/rivalhub";
 import { useClientReady } from "@/components/rivalhub/useClientReady";
 import { observeAction } from "@/lib/telemetry/client";
 
-const acceptTeamInvitation = observeAction("teams.acceptTeamInvitation", telemetry_acceptTeamInvitation);
+const acceptTeamInvitation = observeAction(
+  "teams.acceptTeamInvitation",
+  telemetry_acceptTeamInvitation,
+);
 const createTeam = observeAction("teams.createTeam", telemetry_createTeam);
-const declineTeamInvitation = observeAction("teams.declineTeamInvitation", telemetry_declineTeamInvitation);
+const declineTeamInvitation = observeAction(
+  "teams.declineTeamInvitation",
+  telemetry_declineTeamInvitation,
+);
 
 type Invitation = { id: string; teamId: string; teamName: string; expiresAt: string };
 
@@ -26,7 +36,10 @@ export function NoTeamWorkspace({ pendingInvitations }: { pendingInvitations: In
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
-  function run(work: () => Promise<{ success: boolean; error?: { message: string } }>, success: string) {
+  function run(
+    work: () => Promise<{ success: boolean; error?: { message: string } }>,
+    success: string,
+  ) {
     startTransition(async () => {
       const result = await work();
       if (result.success) {
@@ -36,8 +49,71 @@ export function NoTeamWorkspace({ pendingInvitations }: { pendingInvitations: In
     });
   }
 
-  return <div className="space-y-5">
-    <TeamInvitationsSection team={null} incoming={pendingInvitations} outgoing={[]} isCaptain={false} pending={pending} email="" shareLink={null} onEmailChange={() => undefined} onAccept={(invitationId) => run(() => acceptTeamInvitation({ invitationId }), "已加入队伍")} onDecline={(invitationId) => run(() => declineTeamInvitation({ invitationId }), "已拒绝邀请")} onInvite={() => undefined} onCreateShareLink={() => undefined} onRevoke={() => undefined} />
-    <div id="create-team" className="scroll-mt-24"><Panel label="创建队伍" contentClassName="p-5"><div className="space-y-4"><StatusBanner tone="info" title="创建你的队伍" sub="创建后可以持续维护队伍资料和成员；参加具体赛事时再单独报名。" /><div className="space-y-1.5"><Label htmlFor="new-team-name">队伍名称</Label><Input id="new-team-name" disabled={!clientReady} value={name} onChange={(event) => setName(event.target.value)} /></div><div className="space-y-1.5"><Label htmlFor="new-team-description">简介</Label><Input id="new-team-description" disabled={!clientReady} value={description} onChange={(event) => setDescription(event.target.value)} /></div>{!clientReady && <p role="status" className="text-sm text-[var(--color-fg-mid)]">正在准备创建队伍…</p>}<div className="flex flex-wrap gap-2"><Button type="button" disabled={!clientReady || pending} onClick={() => run(() => createTeam({ name, description }), "队伍已创建")}>{pending ? "创建中…" : "创建队伍"}</Button><Button type="button" variant="outline" asChild><Link href="/teams/recruitment?view=teams">去组队大厅</Link></Button></div></div></Panel></div>
-  </div>;
+  return (
+    <div className="space-y-5">
+      <TeamInvitationsSection
+        team={null}
+        incoming={pendingInvitations}
+        outgoing={[]}
+        isCaptain={false}
+        pending={pending}
+        email=""
+        shareLink={null}
+        onEmailChange={() => undefined}
+        onAccept={(invitationId) => run(() => acceptTeamInvitation({ invitationId }), "已加入队伍")}
+        onDecline={(invitationId) =>
+          run(() => declineTeamInvitation({ invitationId }), "已拒绝邀请")
+        }
+        onInvite={() => undefined}
+        onCreateShareLink={() => undefined}
+        onRevoke={() => undefined}
+      />
+      <div id="create-team" className="scroll-mt-24">
+        <Panel label="创建队伍" contentClassName="p-5">
+          <div className="space-y-4">
+            <StatusBanner
+              tone="info"
+              title="创建你的队伍"
+              sub="创建后可以持续维护队伍资料和成员；参加具体赛事时再单独报名。"
+            />
+            <div className="space-y-1.5">
+              <Label htmlFor="new-team-name">队伍名称</Label>
+              <Input
+                id="new-team-name"
+                disabled={!clientReady}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-team-description">简介</Label>
+              <Input
+                id="new-team-description"
+                disabled={!clientReady}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </div>
+            {!clientReady && (
+              <p role="status" className="text-sm text-[var(--color-fg-mid)]">
+                正在准备创建队伍…
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                disabled={!clientReady || pending}
+                onClick={() => run(() => createTeam({ name, description }), "队伍已创建")}
+              >
+                {pending ? "创建中…" : "创建队伍"}
+              </Button>
+              <Button type="button" variant="outline" asChild>
+                <Link href="/teams/recruitment?view=teams">去组队大厅</Link>
+              </Button>
+            </div>
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
 }

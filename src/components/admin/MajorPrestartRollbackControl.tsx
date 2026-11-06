@@ -22,40 +22,67 @@ export function MajorPrestartRollbackControl({ seasonId }: { seasonId: string })
   const [confirming, setConfirming] = useState(false);
   const router = useRouter();
 
-  return <Panel label="撤回名单冻结">
-    <div className="flex flex-wrap items-end gap-3">
-      <div className="min-w-60 space-y-1">
-        <Label htmlFor="major-reopen-until">新的名单调整截止（北京时间）</Label>
-        <Input id="major-reopen-until" type="datetime-local" value={reopenUntil}
-          disabled={pending || confirming} onChange={(event) => setReopenUntil(event.target.value)} />
+  return (
+    <Panel label="撤回名单冻结">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-60 space-y-1">
+          <Label htmlFor="major-reopen-until">新的名单调整截止（北京时间）</Label>
+          <Input
+            id="major-reopen-until"
+            type="datetime-local"
+            value={reopenUntil}
+            disabled={pending || confirming}
+            onChange={(event) => setReopenUntil(event.target.value)}
+          />
+        </div>
+        <div className="min-w-60 flex-1 space-y-1">
+          <Label htmlFor="major-unlock-reason">原因</Label>
+          <Input
+            id="major-unlock-reason"
+            value={reason}
+            maxLength={1000}
+            placeholder="如：补正遗漏转会成员"
+            disabled={pending || confirming}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending || confirming || !reason.trim() || !reopenUntil}
+          onClick={() => setConfirming(true)}
+        >
+          撤回冻结
+        </Button>
       </div>
-      <div className="min-w-60 flex-1 space-y-1">
-        <Label htmlFor="major-unlock-reason">原因</Label>
-        <Input id="major-unlock-reason" value={reason} maxLength={1000}
-          placeholder="如：补正遗漏转会成员"
-          disabled={pending || confirming} onChange={(event) => setReason(event.target.value)} />
-      </div>
-      <Button type="button" variant="outline"
-        disabled={pending || confirming || !reason.trim() || !reopenUntil}
-        onClick={() => setConfirming(true)}>撤回冻结</Button>
-    </div>
-    {confirming && <InlineConfirm title="确认撤回正式名单冻结？"
-      sub="原种子参考将作废；需重新冻结后才能排序。"
-      confirmLabel={pending ? "处理中…" : "确认撤回"}
-      danger
-      onCancel={() => { if (!pending) setConfirming(false); }}
-      onConfirm={() => {
-        if (pending) return;
-        startTransition(async () => {
-          const result = await rollbackMajorPrestartEntrants({ seasonId, reason: reason.trim(), reopenUntil });
-          if (!result.success) {
-            toast.error(result.error.message);
-            return;
-          }
-          setConfirming(false);
-          toast.success("名单已恢复为待冻结状态");
-          router.refresh();
-        });
-      }} />}
-  </Panel>;
+      {confirming && (
+        <InlineConfirm
+          title="确认撤回正式名单冻结？"
+          sub="原种子参考将作废；需重新冻结后才能排序。"
+          confirmLabel={pending ? "处理中…" : "确认撤回"}
+          danger
+          onCancel={() => {
+            if (!pending) setConfirming(false);
+          }}
+          onConfirm={() => {
+            if (pending) return;
+            startTransition(async () => {
+              const result = await rollbackMajorPrestartEntrants({
+                seasonId,
+                reason: reason.trim(),
+                reopenUntil,
+              });
+              if (!result.success) {
+                toast.error(result.error.message);
+                return;
+              }
+              setConfirming(false);
+              toast.success("名单已恢复为待冻结状态");
+              router.refresh();
+            });
+          }}
+        />
+      )}
+    </Panel>
+  );
 }

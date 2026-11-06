@@ -1,8 +1,7 @@
 /** Explicit public contracts. Never expose a MajorRunSnapshot to the browser. */
 export const SIMULATION_VERSION = 2;
 export type Pick =
-  | { perfect: string[]; advance: string[]; eliminated: string[] }
-  | { bracket: string[] };
+  { perfect: string[]; advance: string[]; eliminated: string[] } | { bracket: string[] };
 export interface PredictionRules {
   perfect: number;
   advance: number;
@@ -16,7 +15,11 @@ export interface PredictionRules {
   participationPoints: number;
   cutoffMinutes: number;
 }
-export type PickEmRules = { [K in "perfect" | "advance" | "eliminated" | "swissTarget" | "silver" | "gold" | "diamond"]: PredictionRules[K] };
+export type PickEmRules = {
+  [
+    K in "perfect" | "advance" | "eliminated" | "swissTarget" | "silver" | "gold" | "diamond"
+  ]: PredictionRules[K];
+};
 export interface PublicStage {
   previousKey: string | null;
   nextKey: string | null;

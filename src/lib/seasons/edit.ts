@@ -21,15 +21,20 @@ import {
 import type { seasons } from "@/db/schema";
 
 const stageConfigSchema = z.object({
-  key: z.string().min(1).regex(/^[a-z0-9][a-z0-9-]*$/),
+  key: z
+    .string()
+    .min(1)
+    .regex(/^[a-z0-9][a-z0-9-]*$/),
   name: z.string().min(1),
   type: z.enum(["round_robin", "double_elim", "single_elim", "swiss"]),
   teamCount: z.number().int().min(2).max(128),
-  advanceTiers: z.array(z.object({
-    placement: z.string().min(1),
-    count: z.number().int().min(1),
-    targetRound: z.string().optional(),
-  })),
+  advanceTiers: z.array(
+    z.object({
+      placement: z.string().min(1),
+      count: z.number().int().min(1),
+      targetRound: z.string().optional(),
+    }),
+  ),
   groupCount: z.number().int().min(1).optional(),
   matchFormat: z.enum(["bo1", "bo3", "bo5"]).optional(),
   finalFormat: z.enum(["bo3", "bo5"]).optional(),
@@ -49,17 +54,34 @@ const registrationConfigSchema = z.object({
   maxPerPosition: z.number().int().min(1).max(50),
   screenshotCount: z.number().int().min(1).max(5),
   maxTotal: z.number().int().min(1).max(1000),
-  mapPool: z.array(z.string().min(1).regex(/^de_[a-z0-9_]+$/)).min(3).max(12),
+  mapPool: z
+    .array(
+      z
+        .string()
+        .min(1)
+        .regex(/^de_[a-z0-9_]+$/),
+    )
+    .min(3)
+    .max(12),
 });
 
 const seasonFormBaseSchema = z.object({
   id: z.guid().optional(),
   name: z.string().min(1, "请填写赛季名称"),
-  slug: z.string().min(1, "请填写 slug").regex(/^[a-z0-9][a-z0-9-]*$/, "slug 只能使用小写字母、数字和连字符").refine((slug) => !isReservedSeasonSlug(slug), "slug 与平台保留路由冲突"),
+  slug: z
+    .string()
+    .min(1, "请填写 slug")
+    .regex(/^[a-z0-9][a-z0-9-]*$/, "slug 只能使用小写字母、数字和连字符")
+    .refine((slug) => !isReservedSeasonSlug(slug), "slug 与平台保留路由冲突"),
   kind: z.string().min(1, "请填写赛事类型"),
   template: z.enum(["rivals", "major", "custom"]).optional(),
-  status: z.enum(["draft", "registration", "voting", "drafting", "playing", "finished", "archived"]).optional(),
-  themeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "主题色需为 #RRGGBB 格式").nullable(),
+  status: z
+    .enum(["draft", "registration", "voting", "drafting", "playing", "finished", "archived"])
+    .optional(),
+  themeColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "主题色需为 #RRGGBB 格式")
+    .nullable(),
   registrationOpensAt: z.string().nullable(),
   registrationClosesAt: z.string().nullable(),
   rosterChangeClosesAt: z.string().nullable(),
@@ -74,53 +96,68 @@ const seasonFormBaseSchema = z.object({
   positions: z.array(z.string().min(1)).min(1),
   stagePlan: stagePlanSchema,
   registrationConfig: registrationConfigSchema,
-  teamRegistrationConfig: z.object({
-    allowExternal: z.boolean(),
-    graduateCountsAsHome: z.boolean(),
-    minHomeMembers: z.number().int().min(0),
-    minEnrolledMembers: z.number().int().min(0),
-    maxExternalMembers: z.number().int().min(0),
-    requirePositions: z.boolean(),
-    maxPerPositionPerTeam: z.number().int().min(1),
-    captainCanKick: z.boolean(),
-    captainCanTransfer: z.boolean(),
-    lockAfterRegistration: z.boolean(),
-    requireUniqueTeamName: z.boolean(),
-    requireTeamLogo: z.boolean(),
-    requireCompetitiveProfile: z.boolean().optional(),
-    competitiveProfile: z.object({
-      platform: z.string().min(1).max(64),
-      currentSeasonKey: z.string().max(128),
-      previousSeasonKey: z.string().max(128),
-      rankOrder: z.array(z.string().min(1).max(64)).max(64),
-      externalStrengthMaxStarGap: z.number().int().min(0).max(100).optional(),
-      evidencePolicy: z.object({
-        historicalWeight: z.literal(50),
-        referenceSeasonKey: z.string().min(1).max(128),
-        referenceSeasonWeight: z.literal(20),
-        recentSeasonKeys: z.array(z.string().min(1).max(128)).min(1).max(8),
-        recentSeasonWeight: z.literal(30),
-        sourceSelection: z.enum(["primary_then_fallback", "strongest_equivalent"]).optional(),
-      }).optional(),
-      fallbackConversion: z.object({
-        sourcePlatform: z.literal("fivee"),
-        // A draft can deliberately retain an incomplete operator mapping. It
-        // becomes usable only when registration freeze validates every actual
-        // evidence slot; empty placeholders are never persisted.
-        version: z.string().max(128),
-        seasonKeyMap: z.record(z.string().min(1).max(128), z.string().min(1).max(128)),
-        // Mapping validation belongs to the conversion-policy owner and is
-        // intentionally deferred until registration freeze.
-        mapping: z.any().optional(),
-      }).optional(),
-    }).optional(),
-  }).optional(),
-  affiliationRules: z.array(z.object({
-    institutionCode: z.string().min(1),
-    eligibleAcademicStatuses: z.array(z.enum(["enrolled", "graduated"])).min(1).readonly(),
-    minRosterMembers: z.number().int().min(0),
-    minStartingMembers: z.number().int().min(0),
-  })).optional(),
+  teamRegistrationConfig: z
+    .object({
+      allowExternal: z.boolean(),
+      graduateCountsAsHome: z.boolean(),
+      minHomeMembers: z.number().int().min(0),
+      minEnrolledMembers: z.number().int().min(0),
+      maxExternalMembers: z.number().int().min(0),
+      requirePositions: z.boolean(),
+      maxPerPositionPerTeam: z.number().int().min(1),
+      captainCanKick: z.boolean(),
+      captainCanTransfer: z.boolean(),
+      lockAfterRegistration: z.boolean(),
+      requireUniqueTeamName: z.boolean(),
+      requireTeamLogo: z.boolean(),
+      requireCompetitiveProfile: z.boolean().optional(),
+      competitiveProfile: z
+        .object({
+          platform: z.string().min(1).max(64),
+          currentSeasonKey: z.string().max(128),
+          previousSeasonKey: z.string().max(128),
+          rankOrder: z.array(z.string().min(1).max(64)).max(64),
+          externalStrengthMaxStarGap: z.number().int().min(0).max(100).optional(),
+          evidencePolicy: z
+            .object({
+              historicalWeight: z.literal(50),
+              referenceSeasonKey: z.string().min(1).max(128),
+              referenceSeasonWeight: z.literal(20),
+              recentSeasonKeys: z.array(z.string().min(1).max(128)).min(1).max(8),
+              recentSeasonWeight: z.literal(30),
+              sourceSelection: z.enum(["primary_then_fallback", "strongest_equivalent"]).optional(),
+            })
+            .optional(),
+          fallbackConversion: z
+            .object({
+              sourcePlatform: z.literal("fivee"),
+              // A draft can deliberately retain an incomplete operator mapping. It
+              // becomes usable only when registration freeze validates every actual
+              // evidence slot; empty placeholders are never persisted.
+              version: z.string().max(128),
+              seasonKeyMap: z.record(z.string().min(1).max(128), z.string().min(1).max(128)),
+              // Mapping validation belongs to the conversion-policy owner and is
+              // intentionally deferred until registration freeze.
+              mapping: z.any().optional(),
+            })
+            .optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+  affiliationRules: z
+    .array(
+      z.object({
+        institutionCode: z.string().min(1),
+        eligibleAcademicStatuses: z
+          .array(z.enum(["enrolled", "graduated"]))
+          .min(1)
+          .readonly(),
+        minRosterMembers: z.number().int().min(0),
+        minStartingMembers: z.number().int().min(0),
+      }),
+    )
+    .optional(),
 });
 
 export const seasonFormSchema = withSeasonRefinements(seasonFormBaseSchema);
@@ -131,11 +168,16 @@ const seasonUpdateFormBaseSchema = seasonFormBaseSchema.extend({ id: z.guid() })
  * Cross-field date rules are applied later to the capability-projected dates,
  * because a locked date is not client-owned input.
  */
-export const seasonUpdatePayloadSchema = withStructuralSeasonRefinements(seasonUpdateFormBaseSchema);
+export const seasonUpdatePayloadSchema = withStructuralSeasonRefinements(
+  seasonUpdateFormBaseSchema,
+);
 export const seasonUpdateFormSchema = withSeasonRefinements(seasonUpdateFormBaseSchema);
 
 type SeasonFormSchemaInput = z.input<typeof seasonFormSchema>;
-type SeasonFormData = Omit<SeasonFormSchemaInput, "registrationConfig" | "teamRegistrationConfig" | "affiliationRules"> & {
+type SeasonFormData = Omit<
+  SeasonFormSchemaInput,
+  "registrationConfig" | "teamRegistrationConfig" | "affiliationRules"
+> & {
   registrationConfig: Omit<SeasonFormSchemaInput["registrationConfig"], "allowedPlayerTypes"> & {
     allowedPlayerTypes: readonly PlayerType[];
   };
@@ -159,20 +201,26 @@ type SeasonRefinementFields = {
 
 function withStructuralSeasonRefinements<T extends z.ZodType>(schema: T): T {
   return schema
-    .refine((data) => {
-      const value = data as SeasonRefinementFields;
-      return value.starterCount <= value.maxTeamSize;
-    }, {
-      path: ["starterCount"],
-      message: "首发人数不能超过队伍上限",
-    })
-    .refine((data) => {
-      const value = data as SeasonRefinementFields;
-      return value.minTeamSize <= value.maxTeamSize;
-    }, {
-      path: ["minTeamSize"],
-      message: "最小人数不能超过最大人数",
-    }) as unknown as T;
+    .refine(
+      (data) => {
+        const value = data as SeasonRefinementFields;
+        return value.starterCount <= value.maxTeamSize;
+      },
+      {
+        path: ["starterCount"],
+        message: "首发人数不能超过队伍上限",
+      },
+    )
+    .refine(
+      (data) => {
+        const value = data as SeasonRefinementFields;
+        return value.minTeamSize <= value.maxTeamSize;
+      },
+      {
+        path: ["minTeamSize"],
+        message: "最小人数不能超过最大人数",
+      },
+    ) as unknown as T;
 }
 
 function withDateSeasonRefinements<T extends z.ZodType>(schema: T): T {
@@ -223,20 +271,27 @@ function assertUniqueStageKeys(stagePlan: StagePlan): void {
  * map pool and general metadata. Custom drafts keep their own input — the
  * persisted template identity is not re-inferred from shape.
  */
-export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTemplate: boolean): Omit<ParsedSeasonForm, "template"> {
+export function resolveCompetitionDefinition(
+  data: ParsedSeasonForm,
+  applyTemplate: boolean,
+): Omit<ParsedSeasonForm, "template"> {
   const { template, ...input } = data;
   if (!template || !applyTemplate || template === "custom") return input;
   const builtIn = createCompetitionTemplate(template as CompetitionTemplate);
   // Built-in competition semantics remain template-owned. Major's reviewed
   // 5E equivalence map is the sole event-operator overlay and is frozen when
   // registration opens; no other client team setting can escape canonicalization.
-  const fallbackConversion = template === "major"
-    ? input.teamRegistrationConfig?.competitiveProfile?.fallbackConversion
-    : undefined;
-  const majorProfile = template === "major"
-    ? checkStandardMajorCapabilities({ ...builtIn, stagePlan: input.stagePlan })
-    : null;
-  const stagePlan = majorProfile?.isStandardMajor ? structuredClone(input.stagePlan) : builtIn.stagePlan;
+  const fallbackConversion =
+    template === "major"
+      ? input.teamRegistrationConfig?.competitiveProfile?.fallbackConversion
+      : undefined;
+  const majorProfile =
+    template === "major"
+      ? checkStandardMajorCapabilities({ ...builtIn, stagePlan: input.stagePlan })
+      : null;
+  const stagePlan = majorProfile?.isStandardMajor
+    ? structuredClone(input.stagePlan)
+    : builtIn.stagePlan;
   return {
     ...input,
     kind: template === "major" ? "Major" : "Rivals",
@@ -272,11 +327,7 @@ export type SeasonRow = typeof seasons.$inferSelect;
 type SeasonUpdateSet = Partial<Omit<typeof seasons.$inferInsert, "id">>;
 
 export type SeasonEditPhase =
-  | "draft"
-  | "published_preopen"
-  | "registration_opened"
-  | "playing"
-  | "terminal";
+  "draft" | "published_preopen" | "registration_opened" | "playing" | "terminal";
 
 export interface SeasonEditCapabilities {
   phase: SeasonEditPhase;
@@ -305,15 +356,16 @@ export function getSeasonEditCapabilities({
   registrationOpenedAt,
   competitionTemplate,
 }: SeasonEditLifecycleInput): SeasonEditCapabilities {
-  const phase: SeasonEditPhase = status === "draft"
-    ? "draft"
-    : status === "playing"
-      ? "playing"
-      : status === "finished" || status === "archived"
-        ? "terminal"
-        : status === "registration" && !registrationOpenedAt
-          ? "published_preopen"
-          : "registration_opened";
+  const phase: SeasonEditPhase =
+    status === "draft"
+      ? "draft"
+      : status === "playing"
+        ? "playing"
+        : status === "finished" || status === "archived"
+          ? "terminal"
+          : status === "registration" && !registrationOpenedAt
+            ? "published_preopen"
+            : "registration_opened";
   const isDraft = phase === "draft";
 
   return {
@@ -322,15 +374,25 @@ export function getSeasonEditCapabilities({
     canEditTemplate: isDraft,
     canEditPublicRules: isDraft,
     canEditRegistrationOpenSchedule: !registrationOpenedAt,
-    canEditRegistrationDeadlines: phase === "draft" || phase === "published_preopen" || phase === "registration_opened",
-    canEditFallbackConversion: isDraft || (phase === "published_preopen" && competitionTemplate === "major"),
+    canEditRegistrationDeadlines:
+      phase === "draft" || phase === "published_preopen" || phase === "registration_opened",
+    canEditFallbackConversion:
+      isDraft || (phase === "published_preopen" && competitionTemplate === "major"),
     canEditMetadata: true,
   };
 }
 
-type SeasonDateInput = Pick<ParsedSeasonForm, "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt" | "endAt">;
+type SeasonDateInput = Pick<
+  ParsedSeasonForm,
+  "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt" | "endAt"
+>;
 
-function toDbDates(data: SeasonDateInput): Pick<typeof seasons.$inferInsert, "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt" | "endAt"> {
+function toDbDates(
+  data: SeasonDateInput,
+): Pick<
+  typeof seasons.$inferInsert,
+  "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt" | "endAt"
+> {
   return {
     registrationOpensAt: parseCSTInput(data.registrationOpensAt),
     registrationClosesAt: parseCSTInput(data.registrationClosesAt),
@@ -341,17 +403,25 @@ function toDbDates(data: SeasonDateInput): Pick<typeof seasons.$inferInsert, "re
 
 function sameJson(left: unknown, right: unknown): boolean {
   if (Object.is(left, right)) return true;
-  if (left === null || right === null || typeof left !== "object" || typeof right !== "object") return false;
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object")
+    return false;
   if (Array.isArray(left) || Array.isArray(right)) {
-    return Array.isArray(left) && Array.isArray(right) &&
-      left.length === right.length && left.every((value, index) => sameJson(value, right[index]));
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => sameJson(value, right[index]))
+    );
   }
 
   const leftRecord = left as Record<string, unknown>;
   const rightRecord = right as Record<string, unknown>;
   const leftKeys = Object.keys(leftRecord);
-  return leftKeys.length === Object.keys(rightRecord).length && leftKeys.every((key) =>
-    Object.hasOwn(rightRecord, key) && sameJson(leftRecord[key], rightRecord[key]),
+  return (
+    leftKeys.length === Object.keys(rightRecord).length &&
+    leftKeys.every(
+      (key) => Object.hasOwn(rightRecord, key) && sameJson(leftRecord[key], rightRecord[key]),
+    )
   );
 }
 
@@ -373,7 +443,10 @@ function editableTeamConfig(config: TeamRegistrationConfig): TeamRegistrationCon
   return result;
 }
 
-function withFallback(config: TeamRegistrationConfig, fallback: CompetitiveFallbackConversion | undefined): TeamRegistrationConfig {
+function withFallback(
+  config: TeamRegistrationConfig,
+  fallback: CompetitiveFallbackConversion | undefined,
+): TeamRegistrationConfig {
   if (!config.competitiveProfile) return config;
   const competitiveProfile = { ...config.competitiveProfile };
   if (fallback) competitiveProfile.fallbackConversion = fallback;
@@ -381,13 +454,28 @@ function withFallback(config: TeamRegistrationConfig, fallback: CompetitiveFallb
   return { ...config, competitiveProfile };
 }
 
-type SeasonDateProjection = Pick<typeof seasons.$inferInsert, "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt">;
+type SeasonDateProjection = Pick<
+  typeof seasons.$inferInsert,
+  "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt"
+>;
 
-function assertValidDateProjection({ registrationOpensAt, registrationClosesAt, rosterChangeClosesAt }: SeasonDateProjection): void {
-  if (registrationOpensAt && registrationClosesAt && registrationClosesAt.getTime() <= registrationOpensAt.getTime()) {
+function assertValidDateProjection({
+  registrationOpensAt,
+  registrationClosesAt,
+  rosterChangeClosesAt,
+}: SeasonDateProjection): void {
+  if (
+    registrationOpensAt &&
+    registrationClosesAt &&
+    registrationClosesAt.getTime() <= registrationOpensAt.getTime()
+  ) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "报名截止时间必须晚于报名开始时间");
   }
-  if (registrationClosesAt && rosterChangeClosesAt && rosterChangeClosesAt.getTime() < registrationClosesAt.getTime()) {
+  if (
+    registrationClosesAt &&
+    rosterChangeClosesAt &&
+    rosterChangeClosesAt.getTime() < registrationClosesAt.getTime()
+  ) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "名单调整截止时间不能早于报名截止时间");
   }
 }
@@ -401,7 +489,10 @@ function assertValidDateProjection({ registrationOpensAt, registrationClosesAt, 
  * returns a team config whose sole changed leaf is
  * competitiveProfile.fallbackConversion.
  */
-export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm): { template: CompetitionTemplate; set: SeasonUpdateSet } {
+export function planSeasonUpdate(
+  existing: SeasonRow,
+  parsed: ParsedSeasonForm,
+): { template: CompetitionTemplate; set: SeasonUpdateSet } {
   const template = parsed.template ?? existing.competitionTemplate ?? "custom";
   const capabilities = getSeasonEditCapabilities({
     status: existing.status,
@@ -414,28 +505,40 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
   if (!capabilities.canEditSlug && parsed.slug !== existing.slug) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已发布赛事不能修改 slug");
   }
-  const data = resolveCompetitionDefinition(parsed, capabilities.canEditTemplate && template !== "custom");
+  const data = resolveCompetitionDefinition(
+    parsed,
+    capabilities.canEditTemplate && template !== "custom",
+  );
   assertUniqueStageKeys(data.stagePlan as StagePlan);
   const submittedDates = toDbDates(data);
   const projectedDates: SeasonDateProjection = {
     registrationOpensAt: capabilities.canEditRegistrationOpenSchedule
       ? submittedDates.registrationOpensAt
       : existing.registrationOpensAt,
-    registrationClosesAt: capabilities.canEditRegistrationDeadlines && template !== "major"
-      ? submittedDates.registrationClosesAt
-      : existing.registrationClosesAt,
-    rosterChangeClosesAt: capabilities.canEditRegistrationDeadlines && template !== "major"
-      ? submittedDates.rosterChangeClosesAt
-      : existing.rosterChangeClosesAt,
+    registrationClosesAt:
+      capabilities.canEditRegistrationDeadlines && template !== "major"
+        ? submittedDates.registrationClosesAt
+        : existing.registrationClosesAt,
+    rosterChangeClosesAt:
+      capabilities.canEditRegistrationDeadlines && template !== "major"
+        ? submittedDates.rosterChangeClosesAt
+        : existing.rosterChangeClosesAt,
   };
   assertValidDateProjection(projectedDates);
   const normalizedTeamConfig = normalizeTeamRegistrationConfig(
     (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
   );
   const existingTeamConfig = normalizeTeamRegistrationConfig(existing.teamRegistrationConfig);
-  const registrationConfig = normalizeRegistrationConfig(data.registrationConfig as RegistrationConfig);
-  const affiliationRules = normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined);
-  const teamConfigChangedWithoutFallback = !sameJson(editableTeamConfig(existingTeamConfig), editableTeamConfig(normalizedTeamConfig));
+  const registrationConfig = normalizeRegistrationConfig(
+    data.registrationConfig as RegistrationConfig,
+  );
+  const affiliationRules = normalizeAffiliationRules(
+    data.affiliationRules as InstitutionAffiliationRule[] | undefined,
+  );
+  const teamConfigChangedWithoutFallback = !sameJson(
+    editableTeamConfig(existingTeamConfig),
+    editableTeamConfig(normalizedTeamConfig),
+  );
   const fallbackChanged = !sameJson(
     existingTeamConfig.competitiveProfile?.fallbackConversion,
     normalizedTeamConfig.competitiveProfile?.fallbackConversion,
@@ -454,7 +557,10 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
     teamConfigChangedWithoutFallback ||
     !sameJson(normalizeAffiliationRules(existing.affiliationRules), affiliationRules);
 
-  if (!capabilities.canEditPublicRules && (publicRulesChanged || (fallbackChanged && !capabilities.canEditFallbackConversion))) {
+  if (
+    !capabilities.canEditPublicRules &&
+    (publicRulesChanged || (fallbackChanged && !capabilities.canEditFallbackConversion))
+  ) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可修改核心赛季配置");
   }
 
@@ -479,7 +585,13 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
     return {
       template,
       set: fallbackChanged
-        ? { ...metadata, teamRegistrationConfig: withFallback(existingTeamConfig, normalizedTeamConfig.competitiveProfile?.fallbackConversion) }
+        ? {
+            ...metadata,
+            teamRegistrationConfig: withFallback(
+              existingTeamConfig,
+              normalizedTeamConfig.competitiveProfile?.fallbackConversion,
+            ),
+          }
         : metadata,
     };
   }
@@ -504,7 +616,10 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
   };
 }
 
-export function planSeasonCreate(parsed: ParsedSeasonForm): { template: CompetitionTemplate; set: typeof seasons.$inferInsert } {
+export function planSeasonCreate(parsed: ParsedSeasonForm): {
+  template: CompetitionTemplate;
+  set: typeof seasons.$inferInsert;
+} {
   const template = parsed.template ?? "custom";
   const data = resolveCompetitionDefinition(parsed, true);
   const templateDefaults = createCompetitionTemplate(template);
@@ -534,7 +649,8 @@ export function planSeasonCreate(parsed: ParsedSeasonForm): { template: Competit
         rankThreshold: { ...data.registrationConfig.rankThreshold },
         mapPool: [...new Set(data.registrationConfig.mapPool)],
       },
-      teamRegistrationConfig: data.teamRegistrationConfig ?? structuredClone(templateDefaults.teamRegistrationConfig),
+      teamRegistrationConfig:
+        data.teamRegistrationConfig ?? structuredClone(templateDefaults.teamRegistrationConfig),
       affiliationRules: data.affiliationRules ?? structuredClone(templateDefaults.affiliationRules),
     },
   };

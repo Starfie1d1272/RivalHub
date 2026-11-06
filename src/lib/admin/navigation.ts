@@ -66,13 +66,15 @@ const ADMIN_NAV_GROUPS: readonly AdminNavGroupDefinition[] = [
     key: "system-status",
     label: "系统状态",
     superAdminOnly: true,
-    items: [{ href: "/admin/settings", label: "环境与服务状态" }, { href: "/admin/telemetry", label: "遥测分析" }],
+    items: [
+      { href: "/admin/settings", label: "环境与服务状态" },
+      { href: "/admin/telemetry", label: "遥测分析" },
+    ],
   },
 ];
 
 export function getAdminNavigation(role: AdminRole): AdminNavGroup[] {
-  return ADMIN_NAV_GROUPS
-    .filter((group) => !group.superAdminOnly || role === "super_admin")
+  return ADMIN_NAV_GROUPS.filter((group) => !group.superAdminOnly || role === "super_admin")
     .map((group) => ({
       key: group.key,
       label: group.label,
@@ -82,10 +84,18 @@ export function getAdminNavigation(role: AdminRole): AdminNavGroup[] {
 }
 
 /** Select the single most specific visible navigation destination. */
-export function getActiveAdminNavigationHref(pathname: string, groups: readonly AdminNavGroup[]): string | null {
-  return groups.flatMap((group) => group.items)
-    .filter(({ href }) => pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`)))
-    .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
+export function getActiveAdminNavigationHref(
+  pathname: string,
+  groups: readonly AdminNavGroup[],
+): string | null {
+  return (
+    groups
+      .flatMap((group) => group.items)
+      .filter(
+        ({ href }) => pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`)),
+      )
+      .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
+  );
 }
 
 export interface AdminSeasonOption {
@@ -98,29 +108,48 @@ export interface AdminSeasonOption {
   hasCommunityAwards: boolean;
 }
 
-export function getSeasonAdminNavigation(season: AdminSeasonOption, role: AdminRole): AdminNavGroup[] {
+export function getSeasonAdminNavigation(
+  season: AdminSeasonOption,
+  role: AdminRole,
+): AdminNavGroup[] {
   const root = `/admin/${season.slug}`;
   return [
-    { key: "workspace", label: "本届工作", items: [
-      { href: root, label: "赛事总览" },
-      { href: `${root}/registrations`, label: "参赛管理" },
-      ...(season.hasCaptainVoting ? [{ href: `${root}/captains`, label: "队长确认" }] : []),
-      ...(season.hasDraft ? [{ href: `${root}/draft`, label: "选秀与阵容" }] : []),
-      { href: `${root}/prestart`, label: "开赛筹备" },
-      { href: `${root}/matches`, label: "比赛与赛程" },
-      ...(season.competitionTemplate === "major" ? [{ href: `${root}/bet`, label: "竞猜运营" }] : []),
-    ] },
-    { key: "content", label: "内容与收尾", items: [
-      { href: `${root}/announcements`, label: "本届公告" },
-      { href: `${root}/information`, label: "赛事信息" },
-      ...(season.hasCommunityAwards ? [{ href: `${root}/community-awards`, label: "社区奖" }] : []),
-      { href: `${root}/post-event`, label: "结果与荣誉" },
-    ] },
-    { key: "governance", label: "管理与工具", items: [
-      { href: `${root}/test-matches`, label: "测试赛" },
-      { href: `${root}/discipline`, label: "纪律与处罚" },
-      { href: `${root}/logs`, label: "操作记录" },
-      ...(role === "super_admin" ? [{ href: `${root}/settings`, label: "赛事设置" }] : []),
-    ] },
+    {
+      key: "workspace",
+      label: "本届工作",
+      items: [
+        { href: root, label: "赛事总览" },
+        { href: `${root}/registrations`, label: "参赛管理" },
+        ...(season.hasCaptainVoting ? [{ href: `${root}/captains`, label: "队长确认" }] : []),
+        ...(season.hasDraft ? [{ href: `${root}/draft`, label: "选秀与阵容" }] : []),
+        { href: `${root}/prestart`, label: "开赛筹备" },
+        { href: `${root}/matches`, label: "比赛与赛程" },
+        ...(season.competitionTemplate === "major"
+          ? [{ href: `${root}/bet`, label: "竞猜运营" }]
+          : []),
+      ],
+    },
+    {
+      key: "content",
+      label: "内容与收尾",
+      items: [
+        { href: `${root}/announcements`, label: "本届公告" },
+        { href: `${root}/information`, label: "赛事信息" },
+        ...(season.hasCommunityAwards
+          ? [{ href: `${root}/community-awards`, label: "社区奖" }]
+          : []),
+        { href: `${root}/post-event`, label: "结果与荣誉" },
+      ],
+    },
+    {
+      key: "governance",
+      label: "管理与工具",
+      items: [
+        { href: `${root}/test-matches`, label: "测试赛" },
+        { href: `${root}/discipline`, label: "纪律与处罚" },
+        { href: `${root}/logs`, label: "操作记录" },
+        ...(role === "super_admin" ? [{ href: `${root}/settings`, label: "赛事设置" }] : []),
+      ],
+    },
   ];
 }

@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-  generateMajorPlayoffNextRound,
-  type MajorPlayoffMatchFact,
-} from "@/lib/major/playoff";
+import { generateMajorPlayoffNextRound, type MajorPlayoffMatchFact } from "@/lib/major/playoff";
 import type { Pick, PredictionRules, PublicStage } from "./types";
 export const rulesSchema = z
   .object({
@@ -51,16 +48,17 @@ export function effectivePredictionMarketDeadline(input: {
   cutoffMinutes: number;
 }): Date {
   if (!input.scheduledAt) return input.marketDeadline;
-  const scheduledCutoff = new Date(
-    input.scheduledAt.getTime() - input.cutoffMinutes * 60_000,
-  );
-  return scheduledCutoff < input.marketDeadline
-    ? scheduledCutoff
-    : input.marketDeadline;
+  const scheduledCutoff = new Date(input.scheduledAt.getTime() - input.cutoffMinutes * 60_000);
+  return scheduledCutoff < input.marketDeadline ? scheduledCutoff : input.marketDeadline;
 }
 export function defaultPredictionRules(stages: readonly PublicStage[]): PredictionRules {
   const maximum = predictionChallengeCapacity(stages);
-  return { ...DEFAULT_RULES, silver: maximum === 8 ? 2 : Math.ceil(maximum / 2), gold: maximum === 8 ? 5 : Math.ceil(maximum * 0.7), diamond: maximum };
+  return {
+    ...DEFAULT_RULES,
+    silver: maximum === 8 ? 2 : Math.ceil(maximum / 2),
+    gold: maximum === 8 ? 5 : Math.ceil(maximum * 0.7),
+    diamond: maximum,
+  };
 }
 export const pickSchema = z.union([
   z.object({
@@ -95,7 +93,7 @@ export function validatePick(
   if (!("bracket" in pick) || pick.bracket.length !== 7)
     throw new Error("请填写全部七个淘汰赛胜者");
   const facts: MajorPlayoffMatchFact[] = [];
-  for (let i = 0; i < 7; ) {
+  for (let i = 0; i < 7;) {
     const pairs = generateMajorPlayoffNextRound({
       entrants: entrants.map((e) => ({
         teamId: e.teamId,
@@ -118,10 +116,7 @@ export function validatePick(
     }
   }
 }
-export function judgePick(
-  pick: Pick,
-  actual: Pick,
-): { hits: number; challenges: boolean[] } {
+export function judgePick(pick: Pick, actual: Pick): { hits: number; challenges: boolean[] } {
   if ("perfect" in pick && "perfect" in actual) {
     const hits = (Object.keys(pick) as (keyof typeof pick)[]).reduce(
       (n, k) => n + pick[k].filter((id) => actual[k].includes(id)).length,

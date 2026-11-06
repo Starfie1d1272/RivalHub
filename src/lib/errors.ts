@@ -64,9 +64,9 @@ export const ErrorCode = {
   MATCH_INVALID_TRANSITION: "MATCH_INVALID_TRANSITION",
   MATCH_INVALID_SCORE: "MATCH_INVALID_SCORE",
   MATCH_MAP_INVALID: "MATCH_MAP_INVALID",
-  MATCH_MAP_DUPLICATE: "MATCH_MAP_DUPLICATE",          // 同一 mapName 出现两次
-  MATCH_MAP_ORDER_CONFLICT: "MATCH_MAP_ORDER_CONFLICT",// mapOrder 已存在
-  MATCH_FORMAT_MISMATCH: "MATCH_FORMAT_MISMATCH",      // BO1 录入 2 张图等
+  MATCH_MAP_DUPLICATE: "MATCH_MAP_DUPLICATE", // 同一 mapName 出现两次
+  MATCH_MAP_ORDER_CONFLICT: "MATCH_MAP_ORDER_CONFLICT", // mapOrder 已存在
+  MATCH_FORMAT_MISMATCH: "MATCH_FORMAT_MISMATCH", // BO1 录入 2 张图等
   MATCH_VOTE_TOO_EARLY: "MATCH_VOTE_TOO_EARLY",
 } as const;
 
@@ -100,7 +100,12 @@ export class AppError extends Error {
     presentation: ErrorPresentation,
     options: { diagnostic?: string; meta?: Record<string, unknown> } = {},
   ): AppError {
-    return new AppError(code, options.diagnostic ?? presentation.message, options.meta, presentation);
+    return new AppError(
+      code,
+      options.diagnostic ?? presentation.message,
+      options.meta,
+      presentation,
+    );
   }
 }
 
@@ -110,8 +115,7 @@ export function isAppErrorCode(error: unknown, code: ErrorCode): error is AppErr
 
 export function isExpectedAuthFailure(error: unknown): error is AppError {
   return (
-    isAppErrorCode(error, ErrorCode.UNAUTHORIZED) ||
-    isAppErrorCode(error, ErrorCode.FORBIDDEN)
+    isAppErrorCode(error, ErrorCode.UNAUTHORIZED) || isAppErrorCode(error, ErrorCode.FORBIDDEN)
   );
 }
 

@@ -1,7 +1,11 @@
 import "server-only";
 
 import { cache } from "react";
-import { groupMyCompetitionContexts, loadMyCompetitionContexts, type MyCompetitionContext } from "@/lib/my/competitions";
+import {
+  groupMyCompetitionContexts,
+  loadMyCompetitionContexts,
+  type MyCompetitionContext,
+} from "@/lib/my/competitions";
 import {
   isMyReadinessActionable,
   loadMyReadiness,
@@ -31,8 +35,13 @@ export interface MyWorkspaceModel {
   sanctions: MyReadinessModel["sanctions"];
 }
 
-function addTask(tasks: MyReadinessItem[], seenHrefs: Set<string>, candidate: MyReadinessItem | undefined): void {
-  if (!candidate || !isMyReadinessActionable(candidate) || seenHrefs.has(candidate.cta.href)) return;
+function addTask(
+  tasks: MyReadinessItem[],
+  seenHrefs: Set<string>,
+  candidate: MyReadinessItem | undefined,
+): void {
+  if (!candidate || !isMyReadinessActionable(candidate) || seenHrefs.has(candidate.cta.href))
+    return;
   seenHrefs.add(candidate.cta.href);
   tasks.push(candidate);
 }
@@ -51,7 +60,9 @@ function selectTasks(readiness: MyReadinessModel): MyReadinessItem[] {
   addTask(tasks, seenHrefs, readiness.recruitment);
   addTask(tasks, seenHrefs, readiness.profile);
   addTask(tasks, seenHrefs, readiness.education);
-  for (const qualification of readiness.competitions.map((competition) => competition.qualification)) {
+  for (const qualification of readiness.competitions.map(
+    (competition) => competition.qualification,
+  )) {
     addTask(tasks, seenHrefs, qualification);
   }
   return tasks;
@@ -59,7 +70,9 @@ function selectTasks(readiness: MyReadinessModel): MyReadinessItem[] {
 
 function projectUpcomingMatches(contexts: readonly MyCompetitionContext[]): MyUpcomingMatch[] {
   return contexts
-    .filter((context): context is MyCompetitionContext & { nextMatch: PersonalMatchTask } => Boolean(context.nextMatch))
+    .filter((context): context is MyCompetitionContext & { nextMatch: PersonalMatchTask } =>
+      Boolean(context.nextMatch),
+    )
     .map((context) => ({
       seasonId: context.season.id,
       seasonSlug: context.season.slug,

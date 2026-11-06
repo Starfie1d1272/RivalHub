@@ -13,12 +13,26 @@ import {
   type AdminUserTeamFilter,
 } from "./users-contract";
 
-const USER_FILTERS = ["all", "participated", "none"] as const satisfies readonly AdminUserParticipationFilter[];
-const EDUCATION_FILTERS = ["all", "approved", "unverified"] as const satisfies readonly AdminUserEducationFilter[];
+const USER_FILTERS = [
+  "all",
+  "participated",
+  "none",
+] as const satisfies readonly AdminUserParticipationFilter[];
+const EDUCATION_FILTERS = [
+  "all",
+  "approved",
+  "unverified",
+] as const satisfies readonly AdminUserEducationFilter[];
 const TEAM_FILTERS = ["all", "in_team", "none"] as const satisfies readonly AdminUserTeamFilter[];
-const ACTIVITY_FILTERS = ["all", "24h", "7d", "30d"] as const satisfies readonly AdminUserActivityFilter[];
+const ACTIVITY_FILTERS = [
+  "all",
+  "24h",
+  "7d",
+  "30d",
+] as const satisfies readonly AdminUserActivityFilter[];
 
-export type AdminUsersSearchParams = Record<string, string | string[] | undefined> | URLSearchParams;
+export type AdminUsersSearchParams =
+  Record<string, string | string[] | undefined> | URLSearchParams;
 
 export interface AdminUsersQuery {
   q?: string;
@@ -65,7 +79,7 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 }
 
 function readParam(input: AdminUsersSearchParams, key: string): string | undefined {
-  return input instanceof URLSearchParams ? input.get(key) ?? undefined : firstValue(input[key]);
+  return input instanceof URLSearchParams ? (input.get(key) ?? undefined) : firstValue(input[key]);
 }
 
 function positivePage(value: string | undefined): number {
@@ -92,10 +106,18 @@ export function normalizeAdminUsersQuery(input: AdminUsersSearchParams): AdminUs
   const rawActivity = readParam(input, "activity");
   return {
     q: readParam(input, "q")?.trim() || undefined,
-    filter: USER_FILTERS.includes(rawFilter as AdminUserParticipationFilter) ? rawFilter as AdminUserParticipationFilter : ADMIN_USERS_DEFAULTS.filter,
-    education: EDUCATION_FILTERS.includes(rawEducation as AdminUserEducationFilter) ? rawEducation as AdminUserEducationFilter : ADMIN_USERS_DEFAULTS.education,
-    team: TEAM_FILTERS.includes(rawTeam as AdminUserTeamFilter) ? rawTeam as AdminUserTeamFilter : ADMIN_USERS_DEFAULTS.team,
-    activity: ACTIVITY_FILTERS.includes(rawActivity as AdminUserActivityFilter) ? rawActivity as AdminUserActivityFilter : ADMIN_USERS_DEFAULTS.activity,
+    filter: USER_FILTERS.includes(rawFilter as AdminUserParticipationFilter)
+      ? (rawFilter as AdminUserParticipationFilter)
+      : ADMIN_USERS_DEFAULTS.filter,
+    education: EDUCATION_FILTERS.includes(rawEducation as AdminUserEducationFilter)
+      ? (rawEducation as AdminUserEducationFilter)
+      : ADMIN_USERS_DEFAULTS.education,
+    team: TEAM_FILTERS.includes(rawTeam as AdminUserTeamFilter)
+      ? (rawTeam as AdminUserTeamFilter)
+      : ADMIN_USERS_DEFAULTS.team,
+    activity: ACTIVITY_FILTERS.includes(rawActivity as AdminUserActivityFilter)
+      ? (rawActivity as AdminUserActivityFilter)
+      : ADMIN_USERS_DEFAULTS.activity,
     page: positivePage(readParam(input, "page")),
     pageSize: ADMIN_USERS_PAGE_SIZE,
   };
@@ -103,9 +125,10 @@ export function normalizeAdminUsersQuery(input: AdminUsersSearchParams): AdminUs
 
 export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUsersResult> {
   const searchValue = query.q ? escapeLikePattern(query.q) : null;
-  const steam64Search = query.q && /^\d{17}$/.test(query.q)
-    ? sql`OR u.steam64 = ${query.q}`
-    : sql`OR u.steam64 ILIKE ${searchValue ? `%${searchValue}%` : ""}`;
+  const steam64Search =
+    query.q && /^\d{17}$/.test(query.q)
+      ? sql`OR u.steam64 = ${query.q}`
+      : sql`OR u.steam64 ILIKE ${searchValue ? `%${searchValue}%` : ""}`;
   const searchClause = query.q
     ? sql`AND (
         u.email ILIKE ${`%${searchValue}%`}
@@ -115,42 +138,46 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
         ${steam64Search}
       )`
     : sql``;
-  const participationClause = query.filter === "participated"
-    ? sql`AND EXISTS (SELECT 1 FROM season_registrations sr WHERE sr.user_id = u.id)`
-    : query.filter === "none"
-      ? sql`AND NOT EXISTS (SELECT 1 FROM season_registrations sr WHERE sr.user_id = u.id)`
-      : sql``;
-  const educationClause = query.education === "approved"
-    ? sql`AND EXISTS (
+  const participationClause =
+    query.filter === "participated"
+      ? sql`AND EXISTS (SELECT 1 FROM season_registrations sr WHERE sr.user_id = u.id)`
+      : query.filter === "none"
+        ? sql`AND NOT EXISTS (SELECT 1 FROM season_registrations sr WHERE sr.user_id = u.id)`
+        : sql``;
+  const educationClause =
+    query.education === "approved"
+      ? sql`AND EXISTS (
         SELECT 1
         FROM education_verifications ev
         WHERE ev.user_id = u.id AND ev.status = 'approved'
       )`
-    : query.education === "unverified"
-      ? sql`AND NOT EXISTS (
+      : query.education === "unverified"
+        ? sql`AND NOT EXISTS (
           SELECT 1
           FROM education_verifications ev
           WHERE ev.user_id = u.id AND ev.status = 'approved'
         )`
-      : sql``;
-  const teamClause = query.team === "in_team"
-    ? sql`AND EXISTS (
+        : sql``;
+  const teamClause =
+    query.team === "in_team"
+      ? sql`AND EXISTS (
         SELECT 1
         FROM team_memberships tm
         INNER JOIN teams t ON t.id = tm.team_id
         WHERE tm.user_id = u.id AND tm.ended_at IS NULL AND t.status = 'active'
       )`
-    : query.team === "none"
-      ? sql`AND NOT EXISTS (
+      : query.team === "none"
+        ? sql`AND NOT EXISTS (
           SELECT 1
           FROM team_memberships tm
           INNER JOIN teams t ON t.id = tm.team_id
           WHERE tm.user_id = u.id AND tm.ended_at IS NULL AND t.status = 'active'
         )`
-      : sql``;
-  const activityClause = query.activity === "all"
-    ? sql``
-    : sql`AND EXISTS (
+        : sql``;
+  const activityClause =
+    query.activity === "all"
+      ? sql``
+      : sql`AND EXISTS (
         SELECT 1
         FROM user_sessions us
         WHERE us.user_id = u.id
@@ -178,7 +205,9 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
   `;
 
   const [countResult, datasetResult, rowsResult] = await Promise.all([
-    db.execute(sql`WITH user_rows AS (${groupedUsers}) SELECT COUNT(*)::int AS total FROM user_rows`),
+    db.execute(
+      sql`WITH user_rows AS (${groupedUsers}) SELECT COUNT(*)::int AS total FROM user_rows`,
+    ),
     db.execute(sql`SELECT COUNT(*)::int AS total FROM users WHERE status = 'active'`),
     db.execute(sql`
       WITH user_rows AS (${groupedUsers})
@@ -193,16 +222,21 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
   const total = integer((countResult.rows[0] as { total?: unknown } | undefined)?.total);
   const totalPages = Math.ceil(total / ADMIN_USERS_PAGE_SIZE);
   const page = totalPages > 0 ? Math.min(query.page, totalPages) : 1;
-  const rows = page === query.page
-    ? normalizeAdminUserRows(rowsResult.rows)
-    : normalizeAdminUserRows((await db.execute(sql`
+  const rows =
+    page === query.page
+      ? normalizeAdminUserRows(rowsResult.rows)
+      : normalizeAdminUserRows(
+          (
+            await db.execute(sql`
         WITH user_rows AS (${groupedUsers})
         SELECT user_rows.*, (SELECT COUNT(DISTINCT sr.season_id)::int FROM season_registrations sr WHERE sr.user_id = user_rows.id) AS season_count
         FROM user_rows
         ORDER BY created_at DESC, id DESC
         LIMIT ${ADMIN_USERS_PAGE_SIZE}
         OFFSET ${(page - 1) * ADMIN_USERS_PAGE_SIZE}
-      `)).rows);
+      `)
+          ).rows,
+        );
 
   return {
     rows,
@@ -228,12 +262,14 @@ export async function getAdminUserStats(): Promise<AdminUserStats> {
         WHERE u.status = 'active'
     ) sub
   `);
-  const row = result.rows[0] as {
-    total?: unknown;
-    participated?: unknown;
-    not_participated?: unknown;
-    recent_30d?: unknown;
-  } | undefined;
+  const row = result.rows[0] as
+    | {
+        total?: unknown;
+        participated?: unknown;
+        not_participated?: unknown;
+        recent_30d?: unknown;
+      }
+    | undefined;
   return {
     total: integer(row?.total),
     participated: integer(row?.participated),

@@ -55,7 +55,8 @@ export async function bootstrapConfiguredOwnerInTx(
     seasonId: null,
     action: "user.owner_bootstrap",
     actorId: user.id,
-    targetId: user.id,meta: { email: ownerEmail, role: "super_admin", reason: "configured_owner_email" },
+    targetId: user.id,
+    meta: { email: ownerEmail, role: "super_admin", reason: "configured_owner_email" },
   });
 
   return promoted;

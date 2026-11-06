@@ -18,7 +18,15 @@ const LEGACY_RIVALS_REGISTRATION_FALLBACK: RegistrationConfig = {
   maxPerPosition: 15,
   screenshotCount: 1,
   maxTotal: 56,
-  mapPool: ["de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_dust2", "de_anubis", "de_cache"],
+  mapPool: [
+    "de_mirage",
+    "de_inferno",
+    "de_nuke",
+    "de_ancient",
+    "de_dust2",
+    "de_anubis",
+    "de_cache",
+  ],
 };
 
 const LEGACY_TEAM_REGISTRATION_FALLBACK: TeamRegistrationConfig = {
@@ -39,12 +47,18 @@ const LEGACY_TEAM_REGISTRATION_FALLBACK: TeamRegistrationConfig = {
 
 const LEGACY_RIVALS_STAGE_PLAN_FALLBACK: StagePlan = [
   {
-    key: "qualifier", name: "排位赛", type: "round_robin", teamCount: 8,
+    key: "qualifier",
+    name: "排位赛",
+    type: "round_robin",
+    teamCount: 8,
     advanceTiers: [{ placement: "*", count: 8 }],
     matchFormat: "bo1",
   },
   {
-    key: "playoff", name: "正赛", type: "double_elim", teamCount: 8,
+    key: "playoff",
+    name: "正赛",
+    type: "double_elim",
+    teamCount: 8,
     advanceTiers: [{ placement: "1st", count: 1 }],
     matchFormat: "bo3",
     finalFormat: "bo5",
@@ -68,10 +82,9 @@ export function normalizeRegistrationConfig(
       : config.rankThreshold.peakMin;
 
   return {
-    allowedPlayerTypes:
-      config?.allowedPlayerTypes?.length
-        ? [...config.allowedPlayerTypes]
-        : [...LEGACY_RIVALS_REGISTRATION_FALLBACK.allowedPlayerTypes],
+    allowedPlayerTypes: config?.allowedPlayerTypes?.length
+      ? [...config.allowedPlayerTypes]
+      : [...LEGACY_RIVALS_REGISTRATION_FALLBACK.allowedPlayerTypes],
     rankThreshold: {
       currentMin,
       peakMin,
@@ -92,46 +105,75 @@ export function normalizeTeamRegistrationConfig(
 ): TeamRegistrationConfig {
   return {
     allowExternal: config?.allowExternal ?? LEGACY_TEAM_REGISTRATION_FALLBACK.allowExternal,
-    graduateCountsAsHome: config?.graduateCountsAsHome ?? LEGACY_TEAM_REGISTRATION_FALLBACK.graduateCountsAsHome,
+    graduateCountsAsHome:
+      config?.graduateCountsAsHome ?? LEGACY_TEAM_REGISTRATION_FALLBACK.graduateCountsAsHome,
     minHomeMembers: config?.minHomeMembers ?? LEGACY_TEAM_REGISTRATION_FALLBACK.minHomeMembers,
-    minEnrolledMembers: config?.minEnrolledMembers ?? LEGACY_TEAM_REGISTRATION_FALLBACK.minEnrolledMembers,
-    maxExternalMembers: config?.maxExternalMembers ?? LEGACY_TEAM_REGISTRATION_FALLBACK.maxExternalMembers,
-    requirePositions: config?.requirePositions ?? LEGACY_TEAM_REGISTRATION_FALLBACK.requirePositions,
-    maxPerPositionPerTeam: config?.maxPerPositionPerTeam ?? LEGACY_TEAM_REGISTRATION_FALLBACK.maxPerPositionPerTeam,
+    minEnrolledMembers:
+      config?.minEnrolledMembers ?? LEGACY_TEAM_REGISTRATION_FALLBACK.minEnrolledMembers,
+    maxExternalMembers:
+      config?.maxExternalMembers ?? LEGACY_TEAM_REGISTRATION_FALLBACK.maxExternalMembers,
+    requirePositions:
+      config?.requirePositions ?? LEGACY_TEAM_REGISTRATION_FALLBACK.requirePositions,
+    maxPerPositionPerTeam:
+      config?.maxPerPositionPerTeam ?? LEGACY_TEAM_REGISTRATION_FALLBACK.maxPerPositionPerTeam,
     captainCanKick: config?.captainCanKick ?? LEGACY_TEAM_REGISTRATION_FALLBACK.captainCanKick,
-    captainCanTransfer: config?.captainCanTransfer ?? LEGACY_TEAM_REGISTRATION_FALLBACK.captainCanTransfer,
-    lockAfterRegistration: config?.lockAfterRegistration ?? LEGACY_TEAM_REGISTRATION_FALLBACK.lockAfterRegistration,
-    requireUniqueTeamName: config?.requireUniqueTeamName ?? LEGACY_TEAM_REGISTRATION_FALLBACK.requireUniqueTeamName,
+    captainCanTransfer:
+      config?.captainCanTransfer ?? LEGACY_TEAM_REGISTRATION_FALLBACK.captainCanTransfer,
+    lockAfterRegistration:
+      config?.lockAfterRegistration ?? LEGACY_TEAM_REGISTRATION_FALLBACK.lockAfterRegistration,
+    requireUniqueTeamName:
+      config?.requireUniqueTeamName ?? LEGACY_TEAM_REGISTRATION_FALLBACK.requireUniqueTeamName,
     requireTeamLogo: config?.requireTeamLogo ?? LEGACY_TEAM_REGISTRATION_FALLBACK.requireTeamLogo,
-    requireCompetitiveProfile: config?.requireCompetitiveProfile ?? LEGACY_TEAM_REGISTRATION_FALLBACK.requireCompetitiveProfile,
+    requireCompetitiveProfile:
+      config?.requireCompetitiveProfile ??
+      LEGACY_TEAM_REGISTRATION_FALLBACK.requireCompetitiveProfile,
     competitiveProfile: config?.competitiveProfile
       ? {
           platform: config.competitiveProfile.platform.trim(),
           currentSeasonKey: config.competitiveProfile.currentSeasonKey.trim(),
           previousSeasonKey: config.competitiveProfile.previousSeasonKey.trim(),
-          rankOrder: [...new Set(config.competitiveProfile.rankOrder.map((rank) => rank.trim()).filter(Boolean))],
-          externalStrengthMaxStarGap: Math.max(0, Math.trunc(config.competitiveProfile.externalStrengthMaxStarGap ?? 3)),
+          rankOrder: [
+            ...new Set(
+              config.competitiveProfile.rankOrder.map((rank) => rank.trim()).filter(Boolean),
+            ),
+          ],
+          externalStrengthMaxStarGap: Math.max(
+            0,
+            Math.trunc(config.competitiveProfile.externalStrengthMaxStarGap ?? 3),
+          ),
           evidencePolicy: config.competitiveProfile.evidencePolicy
             ? {
                 historicalWeight: 50,
-                referenceSeasonKey: config.competitiveProfile.evidencePolicy.referenceSeasonKey.trim(),
+                referenceSeasonKey:
+                  config.competitiveProfile.evidencePolicy.referenceSeasonKey.trim(),
                 referenceSeasonWeight: 20,
-                recentSeasonKeys: [...new Set(config.competitiveProfile.evidencePolicy.recentSeasonKeys.map((key) => key.trim()).filter(Boolean))],
+                recentSeasonKeys: [
+                  ...new Set(
+                    config.competitiveProfile.evidencePolicy.recentSeasonKeys
+                      .map((key) => key.trim())
+                      .filter(Boolean),
+                  ),
+                ],
                 recentSeasonWeight: 30,
-                ...(config.competitiveProfile.evidencePolicy.sourceSelection === "primary_then_fallback" || config.competitiveProfile.evidencePolicy.sourceSelection === "strongest_equivalent"
+                ...(config.competitiveProfile.evidencePolicy.sourceSelection ===
+                  "primary_then_fallback" ||
+                config.competitiveProfile.evidencePolicy.sourceSelection === "strongest_equivalent"
                   ? { sourceSelection: config.competitiveProfile.evidencePolicy.sourceSelection }
                   : {}),
               }
             : undefined,
-          conversionPolicyVersion: config.competitiveProfile.conversionPolicyVersion?.trim() || undefined,
+          conversionPolicyVersion:
+            config.competitiveProfile.conversionPolicyVersion?.trim() || undefined,
           conversionPolicyId: config.competitiveProfile.conversionPolicyId?.trim() || undefined,
           fallbackConversion: config.competitiveProfile.fallbackConversion
             ? {
                 sourcePlatform: "fivee",
                 version: config.competitiveProfile.fallbackConversion.version.trim(),
-                seasonKeyMap: Object.fromEntries(Object.entries(config.competitiveProfile.fallbackConversion.seasonKeyMap)
-                  .map(([primary, source]) => [primary.trim(), source.trim()])
-                  .filter(([primary, source]) => primary && source)),
+                seasonKeyMap: Object.fromEntries(
+                  Object.entries(config.competitiveProfile.fallbackConversion.seasonKeyMap)
+                    .map(([primary, source]) => [primary.trim(), source.trim()])
+                    .filter(([primary, source]) => primary && source),
+                ),
                 ...(config.competitiveProfile.fallbackConversion.mapping
                   ? { mapping: config.competitiveProfile.fallbackConversion.mapping }
                   : {}),
@@ -156,10 +198,21 @@ export function normalizeAffiliationRules(
 ): InstitutionAffiliationRule[] {
   if (!rules) return [];
   return rules
-    .filter((rule) => rule.institutionCode.trim() && Number.isInteger(rule.minRosterMembers) && Number.isInteger(rule.minStartingMembers))
+    .filter(
+      (rule) =>
+        rule.institutionCode.trim() &&
+        Number.isInteger(rule.minRosterMembers) &&
+        Number.isInteger(rule.minStartingMembers),
+    )
     .map((rule) => ({
       institutionCode: rule.institutionCode.trim(),
-      eligibleAcademicStatuses: [...new Set(rule.eligibleAcademicStatuses.filter((status) => status === "enrolled" || status === "graduated"))],
+      eligibleAcademicStatuses: [
+        ...new Set(
+          rule.eligibleAcademicStatuses.filter(
+            (status) => status === "enrolled" || status === "graduated",
+          ),
+        ),
+      ],
       minRosterMembers: Math.max(0, rule.minRosterMembers),
       minStartingMembers: Math.max(0, rule.minStartingMembers),
     }));
@@ -169,7 +222,10 @@ export function normalizeStagePlan(stagePlan: StagePlan | null | undefined): Sta
   return stagePlan ?? LEGACY_RIVALS_STAGE_PLAN_FALLBACK;
 }
 
-export function getStageByKey(stagePlan: StagePlan | null | undefined, key: string): StageConfig | null {
+export function getStageByKey(
+  stagePlan: StagePlan | null | undefined,
+  key: string,
+): StageConfig | null {
   return normalizeStagePlan(stagePlan).find((stage) => stage.key === key) ?? null;
 }
 
@@ -177,10 +233,13 @@ export function getFirstStage(stagePlan: StagePlan | null | undefined): StageCon
   return normalizeStagePlan(stagePlan)[0] ?? null;
 }
 
-export function getPreviousStage(stagePlan: StagePlan | null | undefined, key: string): StageConfig | null {
+export function getPreviousStage(
+  stagePlan: StagePlan | null | undefined,
+  key: string,
+): StageConfig | null {
   const stages = normalizeStagePlan(stagePlan);
   const index = stages.findIndex((stage) => stage.key === key);
-  return index > 0 ? stages[index - 1] ?? null : null;
+  return index > 0 ? (stages[index - 1] ?? null) : null;
 }
 
 export function getFirstStageOfType(

@@ -6,23 +6,26 @@ import { saveMapPreferences as telemetry_saveMapPreferences } from "@/actions/co
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
 import { MapPreferenceSection } from "@/components/register/MapPreferenceSection";
-import {
-  CS2_MAP_CATALOG,
-  CURRENT_CS2_ACTIVE_DUTY_MAP_POOL,
-} from "@/lib/config/cs2-maps";
-import type {
-  MapPreference,
-  MapPreferenceDraft,
-  MapPreferenceLevel,
-} from "@/types/season";
+import { CS2_MAP_CATALOG, CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/lib/config/cs2-maps";
+import type { MapPreference, MapPreferenceDraft, MapPreferenceLevel } from "@/types/season";
 import { projectMapPreferences, toMapPreferenceFacts } from "@/lib/maps";
 import { observeAction } from "@/lib/telemetry/client";
 
-const saveMapPreferences = observeAction("competitive-profile.saveMapPreferences", telemetry_saveMapPreferences);
+const saveMapPreferences = observeAction(
+  "competitive-profile.saveMapPreferences",
+  telemetry_saveMapPreferences,
+);
 
-export function MapPreferencesForm({ initialPreferences }: { initialPreferences: MapPreference[] }) {
+export function MapPreferencesForm({
+  initialPreferences,
+}: {
+  initialPreferences: MapPreference[];
+}) {
   const [preferences, setPreferences] = useState<MapPreferenceDraft[]>(() =>
-    projectMapPreferences(initialPreferences, CS2_MAP_CATALOG.map(({ key }) => key)),
+    projectMapPreferences(
+      initialPreferences,
+      CS2_MAP_CATALOG.map(({ key }) => key),
+    ),
   );
   const [showOtherMaps, setShowOtherMaps] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -33,21 +36,26 @@ export function MapPreferencesForm({ initialPreferences }: { initialPreferences:
     [activeMapSet],
   );
   const filledOtherMaps = useMemo(
-    () => otherMaps.filter((map) => preferences.some((preference) => preference.map === map && preference.level !== null)),
+    () =>
+      otherMaps.filter((map) =>
+        preferences.some((preference) => preference.map === map && preference.level !== null),
+      ),
     [otherMaps, preferences],
   );
   const visibleOtherMaps = showOtherMaps ? otherMaps : filledOtherMaps;
   const hiddenOtherMapCount = otherMaps.length - filledOtherMaps.length;
 
   function setMapLevel(map: string, level: MapPreferenceLevel | null) {
-    setPreferences((current) => current.map((preference) => (
-      preference.map === map ? { map, level } : preference
-    )));
+    setPreferences((current) =>
+      current.map((preference) => (preference.map === map ? { map, level } : preference)),
+    );
   }
 
   function save() {
     startTransition(async () => {
-      const result = await saveMapPreferences({ mapPreferences: toMapPreferenceFacts(preferences) });
+      const result = await saveMapPreferences({
+        mapPreferences: toMapPreferenceFacts(preferences),
+      });
       if (result.success) toast.success("地图熟练度已保存");
       else toast.error(result.error.message);
     });
@@ -84,7 +92,11 @@ export function MapPreferencesForm({ initialPreferences }: { initialPreferences:
           </p>
         )}
         {(showOtherMaps || hiddenOtherMapCount > 0) && (
-          <Button type="button" variant="outline" onClick={() => setShowOtherMaps((current) => !current)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowOtherMaps((current) => !current)}
+          >
             {showOtherMaps ? "收起其它地图" : `展开其它地图（${hiddenOtherMapCount}）`}
           </Button>
         )}

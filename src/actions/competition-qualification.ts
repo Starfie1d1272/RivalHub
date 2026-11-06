@@ -38,21 +38,31 @@ export async function configureCompetitionQualification(input: {
   preliminaryOrderEntryIds: string[];
   expectedDraftVersion: number;
 }): Promise<ActionResult<void>> {
-  const parsed = z.object({
-    seasonId: uuid,
-    format: z.enum(["direct_bo3", "short_swiss_2w2l"]),
-    preliminaryOrderEntryIds: z.array(uuid).min(2).max(128),
-    expectedDraftVersion: z.number().int().positive(),
-  }).safeParse(input);
-  if (!parsed.success || new Set(parsed.data.preliminaryOrderEntryIds).size !== parsed.data.preliminaryOrderEntryIds.length) {
+  const parsed = z
+    .object({
+      seasonId: uuid,
+      format: z.enum(["direct_bo3", "short_swiss_2w2l"]),
+      preliminaryOrderEntryIds: z.array(uuid).min(2).max(128),
+      expectedDraftVersion: z.number().int().positive(),
+    })
+    .safeParse(input);
+  if (
+    !parsed.success ||
+    new Set(parsed.data.preliminaryOrderEntryIds).size !==
+      parsed.data.preliminaryOrderEntryIds.length
+  ) {
     return failValidation("Play-in 配置或预排名无效。");
   }
   try {
     const { actorId } = await adminOrThrow(parsed.data.seasonId);
-    const result = await db.transaction((tx) => configureCompetitionQualificationRunInTx(tx, { ...parsed.data, actorId }));
+    const result = await db.transaction((tx) =>
+      configureCompetitionQualificationRunInTx(tx, { ...parsed.data, actorId }),
+    );
     revalidatePrestart(result.seasonSlug);
     return ok(undefined);
-  } catch (error) { return actionError("configureCompetitionQualification", error); }
+  } catch (error) {
+    return actionError("configureCompetitionQualification", error);
+  }
 }
 
 export async function saveCompetitionQualificationRank(input: {
@@ -60,14 +70,20 @@ export async function saveCompetitionQualificationRank(input: {
   entryId: string;
   nextRank: number;
 }): Promise<ActionResult<void>> {
-  const parsed = z.object({ seasonId: uuid, entryId: uuid, nextRank: z.number().int().min(1).max(128) }).safeParse(input);
+  const parsed = z
+    .object({ seasonId: uuid, entryId: uuid, nextRank: z.number().int().min(1).max(128) })
+    .safeParse(input);
   if (!parsed.success) return failValidation("Play-in 预排名无效。");
   try {
     const { actorId } = await adminOrThrow(parsed.data.seasonId);
-    const result = await db.transaction((tx) => saveCompetitionQualificationRankInTx(tx, { ...parsed.data, actorId }));
+    const result = await db.transaction((tx) =>
+      saveCompetitionQualificationRankInTx(tx, { ...parsed.data, actorId }),
+    );
     revalidatePrestart(result.seasonSlug);
     return ok(undefined);
-  } catch (error) { return actionError("saveCompetitionQualificationRank", error); }
+  } catch (error) {
+    return actionError("saveCompetitionQualificationRank", error);
+  }
 }
 
 export async function saveCompetitionQualificationOrder(input: {
@@ -75,26 +91,47 @@ export async function saveCompetitionQualificationOrder(input: {
   runId: string;
   orderedCompetitionEntryIds: string[];
 }): Promise<ActionResult<void>> {
-  const parsed = z.object({ seasonId: uuid, runId: uuid, orderedCompetitionEntryIds: z.array(uuid).min(2).max(128) }).safeParse(input);
-  if (!parsed.success || new Set(parsed.data.orderedCompetitionEntryIds).size !== parsed.data.orderedCompetitionEntryIds.length) {
+  const parsed = z
+    .object({
+      seasonId: uuid,
+      runId: uuid,
+      orderedCompetitionEntryIds: z.array(uuid).min(2).max(128),
+    })
+    .safeParse(input);
+  if (
+    !parsed.success ||
+    new Set(parsed.data.orderedCompetitionEntryIds).size !==
+      parsed.data.orderedCompetitionEntryIds.length
+  ) {
     return failValidation("Play-in 预排名必须包含全部候选队伍且不能重复。");
   }
   try {
     const { actorId } = await adminOrThrow(parsed.data.seasonId);
-    const result = await db.transaction((tx) => saveCompetitionQualificationOrderInTx(tx, { ...parsed.data, actorId }));
+    const result = await db.transaction((tx) =>
+      saveCompetitionQualificationOrderInTx(tx, { ...parsed.data, actorId }),
+    );
     revalidatePrestart(result.seasonSlug);
     return ok(undefined);
-  } catch (error) { return actionError("saveCompetitionQualificationOrder", error); }
+  } catch (error) {
+    return actionError("saveCompetitionQualificationOrder", error);
+  }
 }
 
-export async function previewCompetitionQualificationRound(input: { seasonId: string; runId: string }) {
+export async function previewCompetitionQualificationRound(input: {
+  seasonId: string;
+  runId: string;
+}) {
   const parsed = z.object({ seasonId: uuid, runId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("Play-in 轮次参数无效。");
   try {
     await adminOrThrow(parsed.data.seasonId);
-    const result = await db.transaction((tx) => previewCompetitionQualificationRoundInTx(tx, parsed.data));
+    const result = await db.transaction((tx) =>
+      previewCompetitionQualificationRoundInTx(tx, parsed.data),
+    );
     return ok(result);
-  } catch (error) { return actionError("previewCompetitionQualificationRound", error); }
+  } catch (error) {
+    return actionError("previewCompetitionQualificationRound", error);
+  }
 }
 
 export async function generateCompetitionQualificationRound(input: {
@@ -102,40 +139,69 @@ export async function generateCompetitionQualificationRound(input: {
   runId: string;
   expectedPairings: Array<{ higherSeedTeamId: string; lowerSeedTeamId: string }>;
 }): Promise<ActionResult<{ round: number; matchCount: number; created: boolean }>> {
-  const parsed = z.object({
-    seasonId: uuid,
-    runId: uuid,
-    expectedPairings: z.array(z.object({ higherSeedTeamId: uuid, lowerSeedTeamId: uuid })).min(1).max(128),
-  }).safeParse(input);
+  const parsed = z
+    .object({
+      seasonId: uuid,
+      runId: uuid,
+      expectedPairings: z
+        .array(z.object({ higherSeedTeamId: uuid, lowerSeedTeamId: uuid }))
+        .min(1)
+        .max(128),
+    })
+    .safeParse(input);
   if (!parsed.success) return failValidation("Play-in 轮次参数无效。");
   try {
     const { actorId } = await adminOrThrow(parsed.data.seasonId);
-    const result = await db.transaction((tx) => generateCompetitionQualificationRoundInTx(tx, { ...parsed.data, actorId }));
+    const result = await db.transaction((tx) =>
+      generateCompetitionQualificationRoundInTx(tx, { ...parsed.data, actorId }),
+    );
     revalidatePrestart(result.seasonSlug);
     return ok({ round: result.round, matchCount: result.matchCount, created: result.created });
-  } catch (error) { return actionError("generateCompetitionQualificationRound", error); }
+  } catch (error) {
+    return actionError("generateCompetitionQualificationRound", error);
+  }
 }
 
-export async function resetCompetitionQualification(input: { seasonId: string }): Promise<ActionResult<void>> {
+export async function resetCompetitionQualification(input: {
+  seasonId: string;
+}): Promise<ActionResult<void>> {
   const parsed = z.object({ seasonId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("赛季标识无效。");
   try {
     const { actorId } = await adminOrThrow(parsed.data.seasonId);
-    const result = await db.transaction((tx) => resetCompetitionQualificationRunInTx(tx, { ...parsed.data, actorId }));
+    const result = await db.transaction((tx) =>
+      resetCompetitionQualificationRunInTx(tx, { ...parsed.data, actorId }),
+    );
     revalidatePrestart(result.seasonSlug);
     return ok(undefined);
-  } catch (error) { return actionError("resetCompetitionQualification", error); }
+  } catch (error) {
+    return actionError("resetCompetitionQualification", error);
+  }
 }
 
 export async function saveCompetitionQualificationDraft(input: {
-  seasonId: string; format: "direct_bo3" | "short_swiss_2w2l"; order: string[]; expectedVersion: number | null;
+  seasonId: string;
+  format: "direct_bo3" | "short_swiss_2w2l";
+  order: string[];
+  expectedVersion: number | null;
 }) {
-  const parsed = z.object({ seasonId: uuid, format: z.enum(["direct_bo3", "short_swiss_2w2l"]), order: z.array(uuid).min(2).max(128), expectedVersion: z.number().int().positive().nullable() }).safeParse(input);
+  const parsed = z
+    .object({
+      seasonId: uuid,
+      format: z.enum(["direct_bo3", "short_swiss_2w2l"]),
+      order: z.array(uuid).min(2).max(128),
+      expectedVersion: z.number().int().positive().nullable(),
+    })
+    .safeParse(input);
   if (!parsed.success) return failValidation("预排名草稿参数无效。");
   try {
     const { actorId } = await adminOrThrow(parsed.data.seasonId);
-    const result = await db.transaction(tx => saveCompetitionQualificationDraftInTx(tx, { ...parsed.data, actorId }));
+    const result = await db.transaction((tx) =>
+      saveCompetitionQualificationDraftInTx(tx, { ...parsed.data, actorId }),
+    );
     revalidatePrestart(result.seasonSlug);
     return ok(result.draft);
-  } catch (error) { return actionError("saveCompetitionQualificationDraft", error); }
+  } catch (error) {
+    return actionError("saveCompetitionQualificationDraft", error);
+  }
 }

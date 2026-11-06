@@ -4,7 +4,12 @@ import { notFound } from "next/navigation";
 import { db } from "@/db/client";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
-import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import {
+  normalizeAffiliationRules,
+  normalizeRegistrationConfig,
+  normalizeStagePlan,
+  normalizeTeamRegistrationConfig,
+} from "@/lib/seasons/compatibility";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
@@ -21,8 +26,11 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
   const { seasonSlug } = await params;
   const seasonPromise = findAdminSeasonBySlug(seasonSlug);
   const [season, catalog, conversionPolicyProvenance] = await Promise.all([
-    seasonPromise, loadCompetitivePlatformCatalog(db, { concurrent: true }),
-    seasonPromise.then(season => season ? loadConversionPolicyProvenance(db, season.teamRegistrationConfig) : null),
+    seasonPromise,
+    loadCompetitivePlatformCatalog(db, { concurrent: true }),
+    seasonPromise.then((season) =>
+      season ? loadConversionPolicyProvenance(db, season.teamRegistrationConfig) : null,
+    ),
   ]);
   if (!season) notFound();
 
@@ -30,7 +38,16 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
     <div className="max-w-3xl">
       <SeasonForm
         mode="edit"
-        competitivePlatforms={catalog.map((platform) => ({ key: platform.key, displayName: platform.displayName, seasons: platform.seasons.map((season) => ({ seasonKey: season.seasonKey, label: season.label, active: season.active })), ranks: platform.ranks.map((rank) => ({ rankKey: rank.rankKey, label: rank.label })) }))}
+        competitivePlatforms={catalog.map((platform) => ({
+          key: platform.key,
+          displayName: platform.displayName,
+          seasons: platform.seasons.map((season) => ({
+            seasonKey: season.seasonKey,
+            label: season.label,
+            active: season.active,
+          })),
+          ranks: platform.ranks.map((rank) => ({ rankKey: rank.rankKey, label: rank.label })),
+        }))}
         initial={{
           id: season.id,
           name: season.name,

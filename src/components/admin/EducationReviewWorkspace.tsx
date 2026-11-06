@@ -3,7 +3,10 @@
 import React from "react";
 import { useSearchParams } from "next/navigation";
 import { EducationReviewControls } from "@/components/admin/EducationReviewControls";
-import { EducationVerificationReviewQueue, type EducationReviewEmptyState } from "@/components/admin/EducationVerificationReviewQueue";
+import {
+  EducationVerificationReviewQueue,
+  type EducationReviewEmptyState,
+} from "@/components/admin/EducationVerificationReviewQueue";
 import { PaginationControls, useListQueryParams } from "@/components/rivalhub";
 import {
   EDUCATION_REVIEW_DEFAULTS,
@@ -19,7 +22,10 @@ interface EducationReviewWorkspaceProps {
 
 export function EducationReviewWorkspace({ queue, emptyState }: EducationReviewWorkspaceProps) {
   const searchParams = useSearchParams();
-  const { update } = useListQueryParams({ routeBase: ROUTE_BASE, defaults: EDUCATION_REVIEW_DEFAULTS });
+  const { update } = useListQueryParams({
+    routeBase: ROUTE_BASE,
+    defaults: EDUCATION_REVIEW_DEFAULTS,
+  });
 
   return (
     <>

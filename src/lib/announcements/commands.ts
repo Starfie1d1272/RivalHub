@@ -31,7 +31,11 @@ export function resolveAnnouncementPublishedAt(
   return existing.status === "published" ? (existing.publishedAt ?? now) : now;
 }
 
-function assertScopeAccess(context: AnnouncementAdminContext, scope: AnnouncementInput["scope"], seasonId: string | null): void {
+function assertScopeAccess(
+  context: AnnouncementAdminContext,
+  scope: AnnouncementInput["scope"],
+  seasonId: string | null,
+): void {
   if (scope === "site") {
     if (context.role !== "super_admin" || seasonId !== null) {
       throw new AppError(ErrorCode.FORBIDDEN, "只有超级管理员可以管理全站公告。 ");
@@ -43,66 +47,136 @@ function assertScopeAccess(context: AnnouncementAdminContext, scope: Announcemen
   }
 }
 
-function auditAnnouncement(tx: TxDb, input: { seasonId: string | null; action: AuditAction; actorId: string; announcementId: string; meta?: Record<string, unknown> }) {
+function auditAnnouncement(
+  tx: TxDb,
+  input: {
+    seasonId: string | null;
+    action: AuditAction;
+    actorId: string;
+    announcementId: string;
+    meta?: Record<string, unknown>;
+  },
+) {
   return writeAuditInTx(tx, {
     seasonId: input.seasonId,
     action: input.action,
     actorId: input.actorId,
-    targetId: input.announcementId,meta: input.meta ?? null,
+    targetId: input.announcementId,
+    meta: input.meta ?? null,
   });
 }
 
-export async function createAnnouncementInTx(tx: TxDb, context: AnnouncementAdminContext, input: AnnouncementInput) {
+export async function createAnnouncementInTx(
+  tx: TxDb,
+  context: AnnouncementAdminContext,
+  input: AnnouncementInput,
+) {
   assertScopeAccess(context, input.scope, input.seasonId);
-  const [row] = await tx.insert(announcements).values({
-    scope: input.scope,
-    seasonId: input.seasonId,
-    type: input.type,
-    title: input.title,
-    body: input.body,
-    requiresAttention: input.requiresAttention,
-    attentionUntil: input.attentionUntil,
-    createdBy: context.actorId,
-    updatedBy: context.actorId,
-  }).returning({ id: announcements.id, seasonId: announcements.seasonId });
+  const [row] = await tx
+    .insert(announcements)
+    .values({
+      scope: input.scope,
+      seasonId: input.seasonId,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      requiresAttention: input.requiresAttention,
+      attentionUntil: input.attentionUntil,
+      createdBy: context.actorId,
+      updatedBy: context.actorId,
+    })
+    .returning({ id: announcements.id, seasonId: announcements.seasonId });
   if (!row) throw new AppError(ErrorCode.INTERNAL_ERROR, "公告创建失败。 ");
-  await auditAnnouncement(tx, { seasonId: row.seasonId, action: "announcement.create", actorId: context.actorId, announcementId: row.id, meta: { scope: input.scope, type: input.type } });
+  await auditAnnouncement(tx, {
+    seasonId: row.seasonId,
+    action: "announcement.create",
+    actorId: context.actorId,
+    announcementId: row.id,
+    meta: { scope: input.scope, type: input.type },
+  });
   return row;
 }
 
-export async function updateAnnouncementInTx(tx: TxDb, context: AnnouncementAdminContext, id: string, input: AnnouncementInput) {
-  const [existing] = await tx.select().from(announcements).where(eq(announcements.id, id)).for("update");
+export async function updateAnnouncementInTx(
+  tx: TxDb,
+  context: AnnouncementAdminContext,
+  id: string,
+  input: AnnouncementInput,
+) {
+  const [existing] = await tx
+    .select()
+    .from(announcements)
+    .where(eq(announcements.id, id))
+    .for("update");
   if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "公告不存在。 ");
   assertScopeAccess(context, existing.scope, existing.seasonId);
   assertScopeAccess(context, input.scope, input.seasonId);
-  const [row] = await tx.update(announcements).set({
-    scope: input.scope,
-    seasonId: input.seasonId,
-    type: input.type,
-    title: input.title,
-    body: input.body,
-    requiresAttention: input.requiresAttention,
-    attentionUntil: input.attentionUntil,
-    updatedBy: context.actorId,
-    updatedAt: new Date(),
-  }).where(eq(announcements.id, id)).returning({ id: announcements.id, seasonId: announcements.seasonId });
+  const [row] = await tx
+    .update(announcements)
+    .set({
+      scope: input.scope,
+      seasonId: input.seasonId,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      requiresAttention: input.requiresAttention,
+      attentionUntil: input.attentionUntil,
+      updatedBy: context.actorId,
+      updatedAt: new Date(),
+    })
+    .where(eq(announcements.id, id))
+    .returning({ id: announcements.id, seasonId: announcements.seasonId });
   if (!row) throw new AppError(ErrorCode.INTERNAL_ERROR, "公告更新失败。 ");
-  await auditAnnouncement(tx, { seasonId: row.seasonId, action: "announcement.update", actorId: context.actorId, announcementId: row.id, meta: { fromScope: existing.scope, toScope: input.scope, fromSeasonId: existing.seasonId, toSeasonId: input.seasonId, type: input.type } });
+  await auditAnnouncement(tx, {
+    seasonId: row.seasonId,
+    action: "announcement.update",
+    actorId: context.actorId,
+    announcementId: row.id,
+    meta: {
+      fromScope: existing.scope,
+      toScope: input.scope,
+      fromSeasonId: existing.seasonId,
+      toSeasonId: input.seasonId,
+      type: input.type,
+    },
+  });
   return row;
 }
 
-export async function setAnnouncementStatusInTx(tx: TxDb, context: AnnouncementAdminContext, id: string, status: "draft" | "published") {
-  const [existing] = await tx.select().from(announcements).where(eq(announcements.id, id)).for("update");
+export async function setAnnouncementStatusInTx(
+  tx: TxDb,
+  context: AnnouncementAdminContext,
+  id: string,
+  status: "draft" | "published",
+) {
+  const [existing] = await tx
+    .select()
+    .from(announcements)
+    .where(eq(announcements.id, id))
+    .for("update");
   if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "公告不存在。 ");
   assertScopeAccess(context, existing.scope, existing.seasonId);
   const now = new Date();
-  const [row] = await tx.update(announcements).set({
-    status,
-    publishedAt: resolveAnnouncementPublishedAt(existing, status, now),
-    updatedBy: context.actorId,
-    updatedAt: now,
-  }).where(and(eq(announcements.id, id), eq(announcements.status, existing.status))).returning({ id: announcements.id, seasonId: announcements.seasonId, status: announcements.status });
+  const [row] = await tx
+    .update(announcements)
+    .set({
+      status,
+      publishedAt: resolveAnnouncementPublishedAt(existing, status, now),
+      updatedBy: context.actorId,
+      updatedAt: now,
+    })
+    .where(and(eq(announcements.id, id), eq(announcements.status, existing.status)))
+    .returning({
+      id: announcements.id,
+      seasonId: announcements.seasonId,
+      status: announcements.status,
+    });
   if (!row) throw new AppError(ErrorCode.INTERNAL_ERROR, "公告状态更新失败。 ");
-  await auditAnnouncement(tx, { seasonId: row.seasonId, action: status === "published" ? "announcement.publish" : "announcement.unpublish", actorId: context.actorId, announcementId: row.id });
+  await auditAnnouncement(tx, {
+    seasonId: row.seasonId,
+    action: status === "published" ? "announcement.publish" : "announcement.unpublish",
+    actorId: context.actorId,
+    announcementId: row.id,
+  });
   return row;
 }

@@ -10,7 +10,12 @@ import { createHmac } from "node:crypto";
 import { db } from "@/db/client";
 import { seasonAdminGrants, users } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES, isExpectedAuthFailure } from "@/lib/errors";
-import { issueApplicationSessionInTx, readApplicationSession, revokeApplicationSession, SESSION_MAX_AGE_SECONDS } from "./session-registry";
+import {
+  issueApplicationSessionInTx,
+  readApplicationSession,
+  revokeApplicationSession,
+  SESSION_MAX_AGE_SECONDS,
+} from "./session-registry";
 
 export interface UserSession {
   userId: string;
@@ -32,8 +37,11 @@ export async function getOpaqueSessionCachePartition(): Promise<string | null> {
   if (!secret || secret.length < 32) return null;
   const value = (await cookies()).get(USER_SESSION_COOKIE_NAME)?.value;
   if (value && value.length > 16384) return null;
-  if (value && !await getUserSession()) return null;
-  return createHmac("sha256", secret).update("public-live-cache:v1:").update(value ?? "anonymous").digest("hex");
+  if (value && !(await getUserSession())) return null;
+  return createHmac("sha256", secret)
+    .update("public-live-cache:v1:")
+    .update(value ?? "anonymous")
+    .digest("hex");
 }
 
 function userSessionOptions() {
@@ -62,11 +70,15 @@ export const getUserSession = cache(async (): Promise<UserSession | null> => {
   // Session unsealing reads the clock for expiry, so it needs a real request.
   await connection();
   const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
-  if (!session.userId || !session.sessionId || !/^[0-9a-f-]{36}$/i.test(session.sessionId)) return null;
+  if (!session.userId || !session.sessionId || !/^[0-9a-f-]{36}$/i.test(session.sessionId))
+    return null;
   return readApplicationSession(db, session.sessionId, session.userId);
 });
 
-export async function createUserSession(user: UserSession, authenticationStartedAt: string): Promise<void> {
+export async function createUserSession(
+  user: UserSession,
+  authenticationStartedAt: string,
+): Promise<void> {
   const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
 
   // Clear any pre-existing payload so an old cookie cannot retain authorization data.
@@ -75,7 +87,9 @@ export async function createUserSession(user: UserSession, authenticationStarted
   for (const key of Object.keys(session)) {
     if (!sessionMethods.has(key)) delete session[key];
   }
-  session.sessionId = await db.transaction((tx) => issueApplicationSessionInTx(tx, user.userId, authenticationStartedAt));
+  session.sessionId = await db.transaction((tx) =>
+    issueApplicationSessionInTx(tx, user.userId, authenticationStartedAt),
+  );
   session.userId = user.userId;
   session.email = user.email;
   await session.save();
@@ -123,11 +137,13 @@ export async function requireSeasonAdmin(seasonId: string): Promise<CurrentUserA
 
 // Keep the DB-derived role/grants request-scoped as well, so layout and nested
 // privilege gates share one authorization snapshot without sharing it later.
-export const getCurrentUserAuthorization = cache(async (): Promise<CurrentUserAuthorization | null> => {
-  const session = await getUserSession();
-  if (!session) return null;
-  return loadCurrentAuthorization(session);
-});
+export const getCurrentUserAuthorization = cache(
+  async (): Promise<CurrentUserAuthorization | null> => {
+    const session = await getUserSession();
+    if (!session) return null;
+    return loadCurrentAuthorization(session);
+  },
+);
 
 async function requireCurrentAuthorization(): Promise<CurrentUserAuthorization> {
   const authorization = await getCurrentUserAuthorization();
@@ -139,11 +155,7 @@ async function requireCurrentAuthorization(): Promise<CurrentUserAuthorization> 
 
 async function loadCurrentAuthorization(session: UserSession): Promise<CurrentUserAuthorization> {
   const [userRows, grantRows] = await Promise.all([
-    db
-      .select({ role: users.role })
-      .from(users)
-      .where(eq(users.id, session.userId))
-      .limit(1),
+    db.select({ role: users.role }).from(users).where(eq(users.id, session.userId)).limit(1),
     db
       .select({ seasonId: seasonAdminGrants.seasonId })
       .from(seasonAdminGrants)

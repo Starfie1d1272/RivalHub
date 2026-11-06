@@ -176,9 +176,7 @@ export function serializePublicDraftPlayer(row: DraftPlayerSource): PublicDraftP
   };
 }
 
-function serializeCaptainDraftPlayer(
-  row: CaptainDraftPlayerSource,
-): CaptainDraftPlayer {
+function serializeCaptainDraftPlayer(row: CaptainDraftPlayerSource): CaptainDraftPlayer {
   return {
     ...serializePublicDraftPlayer(row),
     registrationId: row.registrationId,
@@ -200,7 +198,11 @@ interface DraftBaseData {
   captainRegistrationIds: Set<string>;
 }
 
-async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "query"> = db, concurrent = false): Promise<DraftBaseData> {
+async function loadDraftBase(
+  seasonId: string,
+  executor: Pick<DB, "select" | "query"> = db,
+  concurrent = false,
+): Promise<DraftBaseData> {
   const maxPicks = DRAFT_TEAMS * DRAFT_TOTAL_ROUNDS;
 
   const stateQuery = executor.query.draftState.findFirst({
@@ -239,10 +241,7 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
       primaryPosition: seasonRegistrations.primaryPosition,
     })
     .from(draftPicks)
-    .innerJoin(
-      seasonRegistrations,
-      eq(draftPicks.registrationId, seasonRegistrations.id),
-    )
+    .innerJoin(seasonRegistrations, eq(draftPicks.registrationId, seasonRegistrations.id))
     .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
     .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(eq(draftPicks.seasonId, seasonId))
@@ -274,21 +273,27 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
           })
           .from(eventRosterMembers)
           .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-          .innerJoin(seasonRegistrations, and(
-            eq(eventRosterMembers.userId, seasonRegistrations.userId),
-            eq(seasonRegistrations.seasonId, seasonId),
-          ))
-          .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+          .innerJoin(
+            seasonRegistrations,
+            and(
+              eq(eventRosterMembers.userId, seasonRegistrations.userId),
+              eq(seasonRegistrations.seasonId, seasonId),
+            ),
+          )
+          .innerJoin(
+            users,
+            and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")),
+          )
           .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-          .where(and(inArray(eventRosters.entryId, entryIds), eq(eventRosterMembers.isCurrent, true)))
+          .where(
+            and(inArray(eventRosters.entryId, entryIds), eq(eventRosterMembers.isCurrent, true)),
+          )
       : [];
 
   const pickRows = parallel ? parallel[2] : await pickQuery;
 
   const pickedRegistrationIds = new Set(pickRows.map((pick) => pick.registrationId));
-  const captainRegistrationIds = new Set(
-    teamRows.map((team) => team.captainRegistrationId),
-  );
+  const captainRegistrationIds = new Set(teamRows.map((team) => team.captainRegistrationId));
 
   const membersByTeam = new Map<string, typeof allMembers>();
   for (const member of allMembers) {
@@ -314,7 +319,8 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
         return {
           userId: member.userId,
           personaName: member.personaName ?? null,
-          avatarUrl: member.avatarUrl, hasActivePublicSanction: member.hasActivePublicSanction,
+          avatarUrl: member.avatarUrl,
+          hasActivePublicSanction: member.hasActivePublicSanction,
           perfectName: member.perfectName ?? null,
           displayName: member.displayName ?? null,
           primaryPosition: member.primaryPosition,
@@ -411,7 +417,9 @@ async function loadPublicRemainingPlayers(
       and(
         eq(seasonRegistrations.seasonId, seasonId),
         eq(seasonRegistrations.status, "approved"),
-        remainingRegistrationIds(base).length ? notInArray(seasonRegistrations.id, remainingRegistrationIds(base)) : undefined,
+        remainingRegistrationIds(base).length
+          ? notInArray(seasonRegistrations.id, remainingRegistrationIds(base))
+          : undefined,
       ),
     )
     .orderBy(asc(seasonRegistrations.primaryPosition));
@@ -448,17 +456,12 @@ async function loadCaptainRemainingPlayers(
     .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
     .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(
-      and(
-        eq(seasonRegistrations.seasonId, seasonId),
-        eq(seasonRegistrations.status, "approved"),
-      ),
+      and(eq(seasonRegistrations.seasonId, seasonId), eq(seasonRegistrations.status, "approved")),
     )
     .orderBy(asc(seasonRegistrations.primaryPosition));
 
   const excluded = new Set(remainingRegistrationIds(base));
-  return rows
-    .filter((row) => !excluded.has(row.registrationId))
-    .map(serializeCaptainDraftPlayer);
+  return rows.filter((row) => !excluded.has(row.registrationId)).map(serializeCaptainDraftPlayer);
 }
 
 export async function getPublicDraftSummary(seasonId: string): Promise<PublicDraftSummary> {
@@ -475,11 +478,13 @@ export async function getPublicDraftSummary(seasonId: string): Promise<PublicDra
     db
       .select({ entryId: competitionEntries.id, teamName: competitionEntries.name })
       .from(competitionEntries)
-      .where(and(
-        eq(competitionEntries.competitionId, seasonId),
-        isNotNull(competitionEntries.formationOrder),
-        isNotNull(competitionEntries.sourceRegistrationId),
-      ))
+      .where(
+        and(
+          eq(competitionEntries.competitionId, seasonId),
+          isNotNull(competitionEntries.formationOrder),
+          isNotNull(competitionEntries.sourceRegistrationId),
+        ),
+      )
       .orderBy(asc(competitionEntries.formationOrder)),
     db
       .select({ value: count() })
@@ -504,13 +509,21 @@ export async function getPublicDraftSummary(seasonId: string): Promise<PublicDra
   };
 }
 
-export async function getPublicDraftData(seasonId: string, archive = false): Promise<PublicDraftData> {
-  const { base, remainingPlayers } = await db.transaction(async tx => {
-    const base = await loadDraftBase(seasonId, tx);
-    const remainingPlayers = archive || (base.maxPicks > 0 && base.totalPicks >= base.maxPicks)
-      ? [] : await loadPublicRemainingPlayers(seasonId, base, tx);
-    return { base, remainingPlayers };
-  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+export async function getPublicDraftData(
+  seasonId: string,
+  archive = false,
+): Promise<PublicDraftData> {
+  const { base, remainingPlayers } = await db.transaction(
+    async (tx) => {
+      const base = await loadDraftBase(seasonId, tx);
+      const remainingPlayers =
+        archive || (base.maxPicks > 0 && base.totalPicks >= base.maxPicks)
+          ? []
+          : await loadPublicRemainingPlayers(seasonId, base, tx);
+      return { base, remainingPlayers };
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
   return {
     state: base.state,
     teams: base.teams,
@@ -536,15 +549,16 @@ export async function getCaptainDraftData(seasonId: string): Promise<CaptainDraf
   };
 }
 
-export async function getDraftAdminData(seasonId: string, options: { concurrent?: boolean } = {}): Promise<DraftAdminData> {
+export async function getDraftAdminData(
+  seasonId: string,
+  options: { concurrent?: boolean } = {},
+): Promise<DraftAdminData> {
   const base = await loadDraftBase(seasonId, db, options.concurrent !== false);
   const remainingIds = remainingRegistrationIds(base);
   const where = [
     eq(seasonRegistrations.seasonId, seasonId),
     eq(seasonRegistrations.status, "approved"),
-    ...(remainingIds.length > 0
-      ? [notInArray(seasonRegistrations.id, remainingIds)]
-      : []),
+    ...(remainingIds.length > 0 ? [notInArray(seasonRegistrations.id, remainingIds)] : []),
   ];
   const [remainingRow] = await db
     .select({ count: count() })
@@ -562,7 +576,10 @@ export async function getDraftAdminData(seasonId: string, options: { concurrent?
   };
 }
 
-export function publicDraftAccessMode(season: { status: string; hasDraft: boolean }): "archive" | "live" | null {
+export function publicDraftAccessMode(season: {
+  status: string;
+  hasDraft: boolean;
+}): "archive" | "live" | null {
   if (!season.hasDraft) return null;
   if (["playing", "finished", "archived"].includes(season.status)) return "archive";
   return season.status === "drafting" ? "live" : null;

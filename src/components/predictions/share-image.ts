@@ -62,19 +62,12 @@ export async function exportPredictionImage(input: {
       });
     }),
   );
-  function slot(
-    id: string,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-  ) {
+  function slot(id: string, x: number, y: number, width: number, height: number) {
     if (!ctx) return;
     ctx.strokeStyle = border;
     ctx.strokeRect(x, y, width, height);
     const image = images.get(id);
-    const name =
-      input.teams.find((team) => team.teamId === id)?.name ?? "待选择";
+    const name = input.teams.find((team) => team.teamId === id)?.name ?? "待选择";
     if (image) {
       const scale = Math.min(60 / image.naturalWidth, 60 / image.naturalHeight);
       const w = image.naturalWidth * scale,
@@ -139,22 +132,14 @@ export async function exportPredictionImage(input: {
       ctx.fillText(label, [48, 460, 870][i]!, 210);
     });
     positions.forEach(([x, y], i) =>
-      slot(
-        "bracket" in input.pick ? (input.pick.bracket[i] ?? "") : "",
-        x!,
-        y!,
-        250,
-        110,
-      ),
+      slot("bracket" in input.pick ? (input.pick.bracket[i] ?? "") : "", x!, y!, 250, 110),
     );
   }
   ctx.fillStyle = muted;
   ctx.font = "18px sans-serif";
   ctx.fillText("RIVALHUB", 48, canvas.height - 34);
   const blob = await new Promise<Blob>((resolve, reject) =>
-    canvas.toBlob((value) =>
-      value ? resolve(value) : reject(new Error("导出失败，请重试")),
-    ),
+    canvas.toBlob((value) => (value ? resolve(value) : reject(new Error("导出失败，请重试")))),
   );
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

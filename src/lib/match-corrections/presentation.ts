@@ -27,7 +27,9 @@ function presentImpact(impact: CorrectionPlanImpact): string {
     return `第 ${impact.fromRound} 轮及之后的赛程确认将被撤销。`;
   }
   if (!impact.dependencyKnown) return IMPACT_MESSAGES.downstreamUnknown;
-  return impact.invalidatable ? IMPACT_MESSAGES.downstreamInvalidatable : IMPACT_MESSAGES.downstreamStarted;
+  return impact.invalidatable
+    ? IMPACT_MESSAGES.downstreamInvalidatable
+    : IMPACT_MESSAGES.downstreamStarted;
 }
 
 function presentRecoveryAction(action: CorrectionRecoveryAction): string {
@@ -49,7 +51,9 @@ function presentRecoveryAction(action: CorrectionRecoveryAction): string {
  * Projects correction facts into the only shape the operator panel needs.
  * Identifiers, raw statuses, stage keys and diagnostic fields stay server-side.
  */
-export function presentResultCorrectionPlan(plan: ResultCorrectionPlan): ResultCorrectionPlanPresentation {
+export function presentResultCorrectionPlan(
+  plan: ResultCorrectionPlan,
+): ResultCorrectionPlanPresentation {
   return {
     current: plan.current,
     proposed: plan.proposed,

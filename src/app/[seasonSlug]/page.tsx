@@ -1,12 +1,19 @@
 import { ContentReady } from "@/components/telemetry/ContentReady";
-import { getOfficialUpcomingMatches, getQualificationMatchProgress } from "@/lib/seasons/overview-read-model";
+import {
+  getOfficialUpcomingMatches,
+  getQualificationMatchProgress,
+} from "@/lib/seasons/overview-read-model";
 import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
 import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
 import { seasonEntries } from "@/lib/seasons/entries";
 import { buildSeasonPrimaryAction } from "@/lib/home/navigation";
 import { io } from "next/cache";
 import { EventLogo } from "@/components/season/EventLogo";
-import { SeasonDraftPreview, SeasonMatchPreview, SeasonVotingPreview } from "@/components/season/SeasonStageHighlights";
+import {
+  SeasonDraftPreview,
+  SeasonMatchPreview,
+  SeasonVotingPreview,
+} from "@/components/season/SeasonStageHighlights";
 import { getPublicCaptainVotingData } from "@/lib/captains/data";
 import { getPublicDraftSummary } from "@/lib/draft/data";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
@@ -17,7 +24,16 @@ import { SeasonNextStep } from "@/components/season/SeasonNextStep";
 import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch, Trophy, Info } from "lucide-react";
+import {
+  Vote,
+  Users,
+  Swords,
+  Shuffle,
+  BarChart3,
+  UserRoundSearch,
+  Trophy,
+  Info,
+} from "lucide-react";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
@@ -43,8 +59,13 @@ import { hasPublicSeasonInfo, activeGroupCount } from "@/lib/season-public-info/
 import type { PublicSeason } from "@/lib/data/public-seasons";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
-  draft: 0, registration: 1, voting: 2, drafting: 3,
-  playing: 4, finished: 5, archived: 6,
+  draft: 0,
+  registration: 1,
+  voting: 2,
+  drafting: 3,
+  playing: 4,
+  finished: 5,
+  archived: 6,
 };
 
 interface SeasonPageProps {
@@ -68,29 +89,49 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   const isHistorical = ["finished", "archived"].includes(season.status);
   const isMajor = season.competitionTemplate === "major";
   const stagePresentationRead = getPublicSeasonStagePresentation(season);
-  const [stagePresentation,
-    majorParticipantOverview, teamCount, participantSummary, matchCountRow,
-    upcomingMatches, qualificationProgress] = await Promise.all([
+  const [
+    stagePresentation,
+    majorParticipantOverview,
+    teamCount,
+    participantSummary,
+    matchCountRow,
+    upcomingMatches,
+    qualificationProgress,
+  ] = await Promise.all([
     stagePresentationRead,
     isMajor ? getMajorPublicParticipantOverview(season) : Promise.resolve(null),
     isMajor ? Promise.resolve(0) : getApprovedCompetitionEntryCount(season.id),
     isMajor ? Promise.resolve(null) : getParticipantSummary(season),
     getOfficialSeasonMatchSummary(season.id),
-    season.hasOfficialMatches && !isHistorical ? getOfficialUpcomingMatches(season.id) : Promise.resolve([]),
-    stagePresentationRead.then(presentation => isMajor && presentation.qualificationRun && !presentation.stagePlan.some(stage => stage.key === presentation.currentStageKey || presentation.initializedStageKeys.includes(stage.key))
-      ? getQualificationMatchProgress(presentation.qualificationRun.id) : null),
+    season.hasOfficialMatches && !isHistorical
+      ? getOfficialUpcomingMatches(season.id)
+      : Promise.resolve([]),
+    stagePresentationRead.then((presentation) =>
+      isMajor &&
+      presentation.qualificationRun &&
+      !presentation.stagePlan.some(
+        (stage) =>
+          stage.key === presentation.currentStageKey ||
+          presentation.initializedStageKeys.includes(stage.key),
+      )
+        ? getQualificationMatchProgress(presentation.qualificationRun.id)
+        : null,
+    ),
   ]);
   const stagePlan = stagePresentation.stagePlan;
   const stageLabelByKey = new Map(Object.entries(stagePresentation.labels));
   const hasMatches = stagePresentation.officialStages.length > 0;
   const initializedStages = new Set(stagePresentation.initializedStageKeys);
-  const qualificationRun = isMajor ? stagePresentation.qualificationRun ?? null : null;
-  const mainEventStarted = stagePlan.some((stage) => stage.key === stagePresentation.currentStageKey || initializedStages.has(stage.key));
+  const qualificationRun = isMajor ? (stagePresentation.qualificationRun ?? null) : null;
+  const mainEventStarted = stagePlan.some(
+    (stage) => stage.key === stagePresentation.currentStageKey || initializedStages.has(stage.key),
+  );
   const qualificationBeforeMainStart = Boolean(qualificationRun) && !mainEventStarted;
   const publicTeamCount = majorParticipantOverview?.teamCount ?? teamCount;
   const publicPlayerCount = majorParticipantOverview?.playerCount ?? participantSummary?.count ?? 0;
   const qualificationCurrentRound = qualificationProgress?.currentRound ?? 1;
-  const finalMainEntrantsConfirmed = qualificationRun !== null &&
+  const finalMainEntrantsConfirmed =
+    qualificationRun !== null &&
     (majorParticipantOverview?.officialEntrantCount ?? 0) === qualificationRun.targetEntrantCount;
 
   // ── 动态阶段列表 ──────────────────────────────────────────
@@ -117,11 +158,14 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     phases.push({
       key: rule.key,
       label: rule.label,
-      done: (qualificationBeforeMainStart && rule.key === "register") || currentStatusIdx > STATUS_IDX[rule.doneAfter],
+      done:
+        (qualificationBeforeMainStart && rule.key === "register") ||
+        currentStatusIdx > STATUS_IDX[rule.doneAfter],
     });
   }
 
-  if (qualificationRun) phases.push({ key: "play-in", label: "PLAY-IN", done: Boolean(qualificationRun.completedAt) });
+  if (qualificationRun)
+    phases.push({ key: "play-in", label: "PLAY-IN", done: Boolean(qualificationRun.completedAt) });
 
   // 比赛阶段（从 stagePlan 读取）
   if (stagePlan.length > 0) {
@@ -137,7 +181,10 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       // 恰好 playing → 找到最后一个已初始化的阶段
       let lastInit = -1;
       for (let i = stagePlan.length - 1; i >= 0; i--) {
-        if (initializedStages.has(stagePlan[i].key)) { lastInit = i; break; }
+        if (initializedStages.has(stagePlan[i].key)) {
+          lastInit = i;
+          break;
+        }
       }
       currentMatchIdx = Math.max(0, lastInit);
     }
@@ -160,44 +207,101 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   });
 
   // 找当前阶段（第一个未完成的）
-  let currentPhaseIdx = ["finished", "archived"].includes(season.status) ? phases.findIndex(phase => phase.key === "finished") : stagePresentation.currentStageKey ? phases.findIndex(phase => phase.key === stagePresentation.currentStageKey) : phases.findIndex((p) => !p.done);
+  let currentPhaseIdx = ["finished", "archived"].includes(season.status)
+    ? phases.findIndex((phase) => phase.key === "finished")
+    : stagePresentation.currentStageKey
+      ? phases.findIndex((phase) => phase.key === stagePresentation.currentStageKey)
+      : phases.findIndex((p) => !p.done);
   if (currentPhaseIdx === -1 && !qualificationBeforeMainStart) currentPhaseIdx = phases.length - 1;
 
   const primaryAction = buildSeasonPrimaryAction({ ...season, hasMatches });
-  const primaryHref = primaryAction.href === `/${seasonSlug}` && isHistorical ? "#results" : primaryAction.href;
-  const registrationSchedule = !season.hasOfficialMatches && !qualificationRun ? presentRegistrationSchedule(season) : null;
+  const primaryHref =
+    primaryAction.href === `/${seasonSlug}` && isHistorical ? "#results" : primaryAction.href;
+  const registrationSchedule =
+    !season.hasOfficialMatches && !qualificationRun ? presentRegistrationSchedule(season) : null;
   const participationState = presentSeasonParticipationState(season);
   const heroStageLabel = !isHistorical ? stagePresentation.currentStageLabel : null;
-  const teamCountLabel = majorParticipantOverview?.phase === "approved_candidates" ? "已审核队伍" : "参赛队伍";
-  const showCurrentMatches = !isHistorical && Boolean(season.hasOfficialMatches || qualificationRun);
-  const showRegistrationSummary = season.status === "registration" && !season.hasOfficialMatches && !qualificationRun && primaryAction.key !== "teams";
-  const entryIcons = { captains: Vote, draft: Shuffle, matches: Swords, teams: Users, players: UserRoundSearch, stats: BarChart3, awards: Trophy, bet: Trophy, predictions: Shuffle, info: Info, overview: Swords };
-  const relatedEntries = seasonEntries({ ...season, hasMatches, hasStats: showStats(season), hasPredictions: isMajor })
-    .filter((entry) => entry.canRead && !["overview", "matches", "info"].includes(entry.key) && entry.key !== primaryAction.key)
+  const teamCountLabel =
+    majorParticipantOverview?.phase === "approved_candidates" ? "已审核队伍" : "参赛队伍";
+  const showCurrentMatches =
+    !isHistorical && Boolean(season.hasOfficialMatches || qualificationRun);
+  const showRegistrationSummary =
+    season.status === "registration" &&
+    !season.hasOfficialMatches &&
+    !qualificationRun &&
+    primaryAction.key !== "teams";
+  const entryIcons = {
+    captains: Vote,
+    draft: Shuffle,
+    matches: Swords,
+    teams: Users,
+    players: UserRoundSearch,
+    stats: BarChart3,
+    awards: Trophy,
+    bet: Trophy,
+    predictions: Shuffle,
+    info: Info,
+    overview: Swords,
+  };
+  const relatedEntries = seasonEntries({
+    ...season,
+    hasMatches,
+    hasStats: showStats(season),
+    hasPredictions: isMajor,
+  })
+    .filter(
+      (entry) =>
+        entry.canRead &&
+        !["overview", "matches", "info"].includes(entry.key) &&
+        entry.key !== primaryAction.key,
+    )
     .sort((a, b) => a.featuredPriority - b.featuredPriority)
     .slice(0, 4);
   const participationKeys = new Set(["captains", "draft", "bet", "predictions", "awards"]);
   const relatedGroups = [
-    { label: isHistorical ? "赛事回顾" : "参与赛事", entries: relatedEntries.filter((entry) => participationKeys.has(entry.key)) },
-    { label: "赛事资料", entries: relatedEntries.filter((entry) => !participationKeys.has(entry.key)) },
+    {
+      label: isHistorical ? "赛事回顾" : "参与赛事",
+      entries: relatedEntries.filter((entry) => participationKeys.has(entry.key)),
+    },
+    {
+      label: "赛事资料",
+      entries: relatedEntries.filter((entry) => !participationKeys.has(entry.key)),
+    },
   ].filter((group) => group.entries.length > 0);
 
   return (
     <PageLayout variant="wide" className="space-y-5">
       <ContentReady module="public" phase="primary" />
-      <section aria-labelledby="season-title" className="home-event-hero relative overflow-hidden rounded-[var(--radius-display)] border border-[var(--color-border)] px-5 py-5 sm:px-7">
+      <section
+        aria-labelledby="season-title"
+        className="home-event-hero relative overflow-hidden rounded-[var(--radius-display)] border border-[var(--color-border)] px-5 py-5 sm:px-7"
+      >
         <div className="relative z-10 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3 text-xs">
               <StatusPill
-                label={heroStageLabel ? qualificationBeforeMainStart && qualificationRun?.completedAt ? "Play-in 已结束" : heroStageLabel : participationState.label}
+                label={
+                  heroStageLabel
+                    ? qualificationBeforeMainStart && qualificationRun?.completedAt
+                      ? "Play-in 已结束"
+                      : heroStageLabel
+                    : participationState.label
+                }
                 tone={heroStageLabel ? "accent" : participationState.tone}
               />
-              <span className="font-mono uppercase tracking-wider text-[var(--color-fg-dim)]">{presentSeasonKind(season.kind)}</span>
+              <span className="font-mono uppercase tracking-wider text-[var(--color-fg-dim)]">
+                {presentSeasonKind(season.kind)}
+              </span>
             </div>
             <div className="mt-3 flex min-w-0 items-center gap-3">
-              <EventLogo logoUrl={season.logoUrl} className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14" />
-              <h1 id="season-title" className="min-w-0 text-3xl font-bold leading-tight text-[var(--color-fg)] sm:text-4xl [overflow-wrap:anywhere]">
+              <EventLogo
+                logoUrl={season.logoUrl}
+                className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14"
+              />
+              <h1
+                id="season-title"
+                className="min-w-0 text-3xl font-bold leading-tight text-[var(--color-fg)] sm:text-4xl [overflow-wrap:anywhere]"
+              >
                 {season.name}
               </h1>
               <Suspense fallback={null}>
@@ -208,18 +312,26 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
               {(season.registrationMode === "team" || publicTeamCount > 0) && (
                 <div className="flex items-baseline gap-2">
                   <dt>{teamCountLabel}</dt>
-                  <dd className="font-mono text-base font-semibold tabular-nums text-[var(--color-fg)]">{publicTeamCount}</dd>
+                  <dd className="font-mono text-base font-semibold tabular-nums text-[var(--color-fg)]">
+                    {publicTeamCount}
+                  </dd>
                 </div>
               )}
               <div className="flex items-baseline gap-2">
                 <dt>选手</dt>
-                <dd className="font-mono text-base font-semibold tabular-nums text-[var(--color-fg)]">{publicPlayerCount}</dd>
+                <dd className="font-mono text-base font-semibold tabular-nums text-[var(--color-fg)]">
+                  {publicPlayerCount}
+                </dd>
               </div>
               {(matchCountRow?.total ?? 0) > 0 && (
                 <div className="flex items-baseline gap-2">
                   <dt>已完成比赛</dt>
                   <dd className="font-mono text-base font-semibold tabular-nums text-[var(--color-fg)]">
-                    {matchCountRow?.finished ?? 0}<span className="text-xs font-normal text-[var(--color-fg-dim)]"> / {matchCountRow?.total}</span>
+                    {matchCountRow?.finished ?? 0}
+                    <span className="text-xs font-normal text-[var(--color-fg-dim)]">
+                      {" "}
+                      / {matchCountRow?.total}
+                    </span>
                   </dd>
                 </div>
               )}
@@ -227,7 +339,9 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
           </div>
           <div className="flex flex-col items-start gap-3 lg:max-w-72 lg:items-end">
             <Button size="lg" asChild>
-              <Link href={primaryHref as import("next").Route}>{primaryAction.label} <span aria-hidden>→</span></Link>
+              <Link href={primaryHref as import("next").Route}>
+                {primaryAction.label} <span aria-hidden>→</span>
+              </Link>
             </Button>
             {registrationSchedule && (
               <div className="space-y-1 text-xs text-[var(--color-fg-mid)] lg:text-right">
@@ -260,23 +374,53 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
       <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.42fr)]">
         <div className="min-w-0 space-y-4">
-          {isHistorical && <Suspense fallback={<section id="results" aria-busy="true" className="min-h-64">赛事结果加载中…</section>}>
-            <SeasonHistoricalResults season={season} />
-          </Suspense>}
+          {isHistorical && (
+            <Suspense
+              fallback={
+                <section id="results" aria-busy="true" className="min-h-64">
+                  赛事结果加载中…
+                </section>
+              }
+            >
+              <SeasonHistoricalResults season={season} />
+            </Suspense>
+          )}
 
           {showCurrentMatches && (
-            <Panel label={
-              <div className="flex w-full items-center justify-between gap-3">
-                <h2>{qualificationBeforeMainStart ? "PLAY-IN" : "近期比赛"}</h2>
-                <Link href={qualificationBeforeMainStart ? `/${seasonSlug}/matches?stage=play-in` : `/${seasonSlug}/matches`} className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline">
-                  {qualificationBeforeMainStart ? "Play-in 赛程" : "全部赛程"} <span aria-hidden className="ml-1">→</span>
-                </Link>
-              </div>
-            }>
+            <Panel
+              label={
+                <div className="flex w-full items-center justify-between gap-3">
+                  <h2>{qualificationBeforeMainStart ? "PLAY-IN" : "近期比赛"}</h2>
+                  <Link
+                    href={
+                      qualificationBeforeMainStart
+                        ? `/${seasonSlug}/matches?stage=play-in`
+                        : `/${seasonSlug}/matches`
+                    }
+                    className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline"
+                  >
+                    {qualificationBeforeMainStart ? "Play-in 赛程" : "全部赛程"}{" "}
+                    <span aria-hidden className="ml-1">
+                      →
+                    </span>
+                  </Link>
+                </div>
+              }
+            >
               {qualificationRun && !mainEventStarted && (
-                <div className={upcomingMatches.length > 0 ? "mb-4 space-y-1 border-b border-[var(--color-border)] pb-3" : "space-y-1"}>
+                <div
+                  className={
+                    upcomingMatches.length > 0
+                      ? "mb-4 space-y-1 border-b border-[var(--color-border)] pb-3"
+                      : "space-y-1"
+                  }
+                >
                   <p className="font-semibold text-[var(--color-fg)]">
-                    {!qualificationRun.startedAt ? "Play-in · 赛程待生成" : qualificationRun.completedAt ? "Play-in 已结束" : `Play-in · 第 ${qualificationCurrentRound} 轮`}
+                    {!qualificationRun.startedAt
+                      ? "Play-in · 赛程待生成"
+                      : qualificationRun.completedAt
+                        ? "Play-in 已结束"
+                        : `Play-in · 第 ${qualificationCurrentRound} 轮`}
                   </p>
                   <p className="text-sm text-[var(--color-fg-mid)]">
                     {qualificationRun.completedAt
@@ -285,7 +429,13 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                         ? `${qualificationRun.playInEntryCount} 支队伍争夺 ${qualificationRun.qualifierCount} 个正赛席位`
                         : `${qualificationRun.candidateCount} 支候选 · ${qualificationRun.playInEntryCount} 支参加 Play-in · ${qualificationRun.targetEntrantCount} 支进入正赛`}
                   </p>
-                  {!qualificationRun.startedAt && <p className="text-xs text-[var(--color-fg-dim)]">{qualificationRun.format === "direct_bo3" ? "BO3 决胜赛" : "Short Swiss · BO1 · 2 胜晋级 / 2 负淘汰"}</p>}
+                  {!qualificationRun.startedAt && (
+                    <p className="text-xs text-[var(--color-fg-dim)]">
+                      {qualificationRun.format === "direct_bo3"
+                        ? "BO3 决胜赛"
+                        : "Short Swiss · BO1 · 2 胜晋级 / 2 负淘汰"}
+                    </p>
+                  )}
                 </div>
               )}
               {(upcomingMatches.length > 0 || !qualificationBeforeMainStart) && (
@@ -293,34 +443,58 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                   seasonSlug={seasonSlug}
                   matches={upcomingMatches.map((match) => ({
                     ...match,
-                    stageLabel: (match.stage === null ? undefined : stageLabelByKey.get(match.stage)) ?? "比赛阶段",
+                    stageLabel:
+                      (match.stage === null ? undefined : stageLabelByKey.get(match.stage)) ??
+                      "比赛阶段",
                   }))}
                 />
               )}
             </Panel>
           )}
 
-          {season.status === "voting" && season.hasCaptainVoting && <Suspense fallback={<div role="status" className="min-h-48">队长投票加载中…</div>}>
-            <SeasonVotingHighlight season={season} />
-          </Suspense>}
-          {season.status === "drafting" && season.hasDraft && <Suspense fallback={<div role="status" className="min-h-48">选秀进度加载中…</div>}>
-            <SeasonDraftHighlight season={season} />
-          </Suspense>}
+          {season.status === "voting" && season.hasCaptainVoting && (
+            <Suspense
+              fallback={
+                <div role="status" className="min-h-48">
+                  队长投票加载中…
+                </div>
+              }
+            >
+              <SeasonVotingHighlight season={season} />
+            </Suspense>
+          )}
+          {season.status === "drafting" && season.hasDraft && (
+            <Suspense
+              fallback={
+                <div role="status" className="min-h-48">
+                  选秀进度加载中…
+                </div>
+              }
+            >
+              <SeasonDraftHighlight season={season} />
+            </Suspense>
+          )}
 
           {showRegistrationSummary && (
             <Panel label={<h2>参赛方式</h2>}>
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p className="font-semibold text-[var(--color-fg)]">{season.registrationMode === "team" ? "组队参赛" : "个人参赛"}</p>
+                  <p className="font-semibold text-[var(--color-fg)]">
+                    {season.registrationMode === "team" ? "组队参赛" : "个人参赛"}
+                  </p>
                   <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                     {season.registrationMode === "team"
                       ? `${season.minTeamSize === season.maxTeamSize ? season.minTeamSize : `${season.minTeamSize}–${season.maxTeamSize}`} 人名单，由赛事负责人提交报名。`
-                      : season.hasDraft ? "个人报名，通过选秀组成队伍。" : "以个人身份报名本届赛事。"}
+                      : season.hasDraft
+                        ? "个人报名，通过选秀组成队伍。"
+                        : "以个人身份报名本届赛事。"}
                   </p>
                 </div>
                 {season.registrationMode === "team" && (
                   <Button variant="outline" size="sm" asChild>
-                    <Link href="/teams/recruitment">寻找队伍或队友 <span aria-hidden>→</span></Link>
+                    <Link href="/teams/recruitment">
+                      寻找队伍或队友 <span aria-hidden>→</span>
+                    </Link>
                   </Button>
                 )}
               </div>
@@ -331,9 +505,17 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
             <SeasonPersonalNextStep season={season} />
           </Suspense>
 
-          {season.status === "playing" && !isMajor && <Suspense fallback={<div role="status" className="min-h-48">当前排名加载中…</div>}>
-            <SeasonStandingsHighlight season={season} />
-          </Suspense>}
+          {season.status === "playing" && !isMajor && (
+            <Suspense
+              fallback={
+                <div role="status" className="min-h-48">
+                  当前排名加载中…
+                </div>
+              }
+            >
+              <SeasonStandingsHighlight season={season} />
+            </Suspense>
+          )}
 
           {relatedGroups.length > 0 && (
             <Panel label={<h2>相关入口</h2>} contentClassName="grid gap-4 sm:grid-cols-2">
@@ -344,7 +526,11 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                     {group.entries.map((entry) => {
                       const Icon = entryIcons[entry.key];
                       return (
-                        <Link key={entry.key} href={entry.href as import("next").Route} className="group flex min-h-10 items-center gap-3 py-2 text-sm text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]">
+                        <Link
+                          key={entry.key}
+                          href={entry.href as import("next").Route}
+                          className="group flex min-h-10 items-center gap-3 py-2 text-sm text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]"
+                        >
                           <Icon size={16} aria-hidden />
                           <span className="min-w-0 flex-1 font-medium">{entry.label}</span>
                           <span aria-hidden>→</span>
@@ -358,7 +544,9 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
           )}
         </div>
 
-        <Suspense fallback={<aside aria-label="赛事公告与相关信息" aria-busy="true" className="min-h-64" />}>
+        <Suspense
+          fallback={<aside aria-label="赛事公告与相关信息" aria-busy="true" className="min-h-64" />}
+        >
           <SeasonInformation season={season} />
         </Suspense>
       </div>
@@ -381,74 +569,150 @@ function SeasonPageFallback() {
 
 async function SeasonHistoricalResults({ season }: { season: PublicSeason }) {
   const results = await getPublicSeasonResults(season);
-  return <div id="results" className="scroll-mt-28"><SeasonResults results={results} slug={season.slug} /></div>;
+  return (
+    <div id="results" className="scroll-mt-28">
+      <SeasonResults results={results} slug={season.slug} />
+    </div>
+  );
 }
 
 async function SeasonInformation({ season }: { season: PublicSeason }) {
   const seasonSlug = season.slug;
   const [latestSeasonAnnouncement, seasonInfo] = await Promise.all([
-    getLatestSeasonAnnouncement(season.id), getPublicSeasonInfo(season.id),
+    getLatestSeasonAnnouncement(season.id),
+    getPublicSeasonInfo(season.id),
   ]);
   const hasSeasonInfo = hasPublicSeasonInfo(seasonInfo);
   const groupCount = activeGroupCount(seasonInfo);
   return (
-        <aside aria-label="赛事公告与相关信息" className="min-w-0 space-y-4">
-          {latestSeasonAnnouncement && (
-            <Panel label={
-              <div className="flex w-full items-center justify-between gap-3">
-                <h2>最新公告</h2>
-                <Link href={`/${seasonSlug}/announcements`} className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline">全部 <span aria-hidden className="ml-1">→</span></Link>
-              </div>
-            }>
-              <Link href={`/${seasonSlug}/announcements`} className="font-semibold leading-relaxed text-[var(--color-fg)] hover:text-[var(--color-accent)]">{latestSeasonAnnouncement.title}</Link>
-              <p className="mt-2 text-xs text-[var(--color-fg-dim)]">{formatCSTDateTime(latestSeasonAnnouncement.publishedAt)}</p>
-              <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[var(--color-fg-mid)]">{toAnnouncementExcerpt(latestSeasonAnnouncement.body)}</p>
-            </Panel>
-          )}
+    <aside aria-label="赛事公告与相关信息" className="min-w-0 space-y-4">
+      {latestSeasonAnnouncement && (
+        <Panel
+          label={
+            <div className="flex w-full items-center justify-between gap-3">
+              <h2>最新公告</h2>
+              <Link
+                href={`/${seasonSlug}/announcements`}
+                className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline"
+              >
+                全部{" "}
+                <span aria-hidden className="ml-1">
+                  →
+                </span>
+              </Link>
+            </div>
+          }
+        >
+          <Link
+            href={`/${seasonSlug}/announcements`}
+            className="font-semibold leading-relaxed text-[var(--color-fg)] hover:text-[var(--color-accent)]"
+          >
+            {latestSeasonAnnouncement.title}
+          </Link>
+          <p className="mt-2 text-xs text-[var(--color-fg-dim)]">
+            {formatCSTDateTime(latestSeasonAnnouncement.publishedAt)}
+          </p>
+          <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[var(--color-fg-mid)]">
+            {toAnnouncementExcerpt(latestSeasonAnnouncement.body)}
+          </p>
+        </Panel>
+      )}
 
-          {hasSeasonInfo && (
-            <Panel label={<h2>赛事信息</h2>}>
-              <div className="space-y-3 text-sm">
-                <Link href={`/${seasonSlug}/info`} className="block font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]">{seasonInfo.rules.label} <span aria-hidden>→</span></Link>
-                {(groupCount > 0 || seasonInfo.contacts.length > 0) && (
-                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-[var(--color-fg-mid)]">
-                    {groupCount > 0 && <Link href={`/${seasonSlug}/info`} className="hover:text-[var(--color-accent)]">交流群 · {groupCount}</Link>}
-                    {seasonInfo.contacts.length > 0 && <Link href={`/${seasonSlug}/info`} className="hover:text-[var(--color-accent)]">联系负责人</Link>}
-                  </div>
+      {hasSeasonInfo && (
+        <Panel label={<h2>赛事信息</h2>}>
+          <div className="space-y-3 text-sm">
+            <Link
+              href={`/${seasonSlug}/info`}
+              className="block font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
+            >
+              {seasonInfo.rules.label} <span aria-hidden>→</span>
+            </Link>
+            {(groupCount > 0 || seasonInfo.contacts.length > 0) && (
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-[var(--color-fg-mid)]">
+                {groupCount > 0 && (
+                  <Link href={`/${seasonSlug}/info`} className="hover:text-[var(--color-accent)]">
+                    交流群 · {groupCount}
+                  </Link>
+                )}
+                {seasonInfo.contacts.length > 0 && (
+                  <Link href={`/${seasonSlug}/info`} className="hover:text-[var(--color-accent)]">
+                    联系负责人
+                  </Link>
                 )}
               </div>
-            </Panel>
-          )}
-        </aside>
+            )}
+          </div>
+        </Panel>
+      )}
+    </aside>
   );
 }
 
 async function SeasonVotingHighlight({ season }: { season: PublicSeason }) {
   const data = await getPublicCaptainVotingData(season.id);
-  return <Panel label={<div className="flex w-full items-center justify-between gap-3"><h2>队长投票</h2>
-    <Link href={`/${season.slug}/captains`} className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline">全部候选 →</Link></div>}>
-    <SeasonVotingPreview candidates={data.candidates.slice(0, 4).map(candidate => ({ userId: candidate.userId, name: candidate.displayName, voteCount: candidate.voteCount }))} />
-  </Panel>;
+  return (
+    <Panel
+      label={
+        <div className="flex w-full items-center justify-between gap-3">
+          <h2>队长投票</h2>
+          <Link
+            href={`/${season.slug}/captains`}
+            className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline"
+          >
+            全部候选 →
+          </Link>
+        </div>
+      }
+    >
+      <SeasonVotingPreview
+        candidates={data.candidates.slice(0, 4).map((candidate) => ({
+          userId: candidate.userId,
+          name: candidate.displayName,
+          voteCount: candidate.voteCount,
+        }))}
+      />
+    </Panel>
+  );
 }
 
 async function SeasonDraftHighlight({ season }: { season: PublicSeason }) {
   const draftData = await getPublicDraftSummary(season.id);
-  return <Panel label={<h2>选秀进度</h2>}><SeasonDraftPreview seasonSlug={season.slug} draftData={draftData} /></Panel>;
+  return (
+    <Panel label={<h2>选秀进度</h2>}>
+      <SeasonDraftPreview seasonSlug={season.slug} draftData={draftData} />
+    </Panel>
+  );
 }
 
 async function SeasonStandingsHighlight({ season }: { season: PublicSeason }) {
   const standings = await getStandings(season.id);
   const seasonSlug = season.slug;
-  return <>
-          {standings.length > 0 && (
-            <Panel label={
-              <div className="flex w-full items-center justify-between gap-3">
-                <h2>当前排名 · TOP 4</h2>
-                <Link href={`/${seasonSlug}/matches`} className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline">完整排名 <span aria-hidden className="ml-1">→</span></Link>
-              </div>
-            }>
-              <StandingsTable standings={standings.slice(0, 4)} seasonSlug={seasonSlug} isFinal={false} />
-            </Panel>
-          )}
-  </>;
+  return (
+    <>
+      {standings.length > 0 && (
+        <Panel
+          label={
+            <div className="flex w-full items-center justify-between gap-3">
+              <h2>当前排名 · TOP 4</h2>
+              <Link
+                href={`/${seasonSlug}/matches`}
+                className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline"
+              >
+                完整排名{" "}
+                <span aria-hidden className="ml-1">
+                  →
+                </span>
+              </Link>
+            </div>
+          }
+        >
+          <StandingsTable
+            standings={standings.slice(0, 4)}
+            seasonSlug={seasonSlug}
+            isFinal={false}
+          />
+        </Panel>
+      )}
+    </>
+  );
 }

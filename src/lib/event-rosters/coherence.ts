@@ -65,11 +65,18 @@ export async function assertPrestartEntryCoherenceInTx(
 ): Promise<PrestartEntryCoherence[]> {
   if (entrants.length === 0) return [];
   const entryIds = [...new Set(entrants.map((entrant) => entrant.competitionEntryId))].sort();
-  const entryRows = await tx.select().from(competitionEntries)
-    .where(inArray(competitionEntries.id, entryIds)).orderBy(asc(competitionEntries.id)).for("update");
+  const entryRows = await tx
+    .select()
+    .from(competitionEntries)
+    .where(inArray(competitionEntries.id, entryIds))
+    .orderBy(asc(competitionEntries.id))
+    .for("update");
   const entryById = new Map(entryRows.map((entry) => [entry.id, entry]));
 
-  const results: Array<{ entrant: PrestartCoherenceEntrantRef; entry: typeof competitionEntries.$inferSelect }> = [];
+  const results: Array<{
+    entrant: PrestartCoherenceEntrantRef;
+    entry: typeof competitionEntries.$inferSelect;
+  }> = [];
   for (const entrant of entrants) {
     const entry = entryById.get(entrant.competitionEntryId);
     if (!entry) throw invariant("正式参赛队资料不存在。 ");
@@ -77,7 +84,8 @@ export async function assertPrestartEntryCoherenceInTx(
       throw invariant(`参赛队「${entry.name}」不属于当前赛事。`);
     }
     if (entry.registrationStatus !== "approved") {
-      const label = REGISTRATION_STATUS_LABELS[entry.registrationStatus] ?? entry.registrationStatus;
+      const label =
+        REGISTRATION_STATUS_LABELS[entry.registrationStatus] ?? entry.registrationStatus;
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
         `参赛队「${entry.name}」当前为${label}，不能继续赛前确认、锁定或开赛；请先完成名单补正并重新审核。`,
@@ -89,18 +97,28 @@ export async function assertPrestartEntryCoherenceInTx(
     results.push({ entrant, entry });
   }
 
-  const revisionRows = await tx.select().from(competitionEntryRosterRevisions)
+  const revisionRows = await tx
+    .select()
+    .from(competitionEntryRosterRevisions)
     .where(inArray(competitionEntryRosterRevisions.entryId, entryIds));
   const revisionById = new Map(revisionRows.map((revision) => [revision.id, revision]));
 
-  const rosterRows = await tx.select().from(eventRosters)
-    .where(inArray(eventRosters.entryId, entryIds)).orderBy(asc(eventRosters.entryId)).for("update");
+  const rosterRows = await tx
+    .select()
+    .from(eventRosters)
+    .where(inArray(eventRosters.entryId, entryIds))
+    .orderBy(asc(eventRosters.entryId))
+    .for("update");
   const rosterByEntryId = new Map(rosterRows.map((roster) => [roster.entryId, roster]));
 
   const coherent: PrestartEntryCoherence[] = [];
   for (const { entry } of results) {
     const approvedRevision = revisionById.get(entry.approvedRosterRevisionId!);
-    if (!approvedRevision || approvedRevision.entryId !== entry.id || approvedRevision.id !== entry.approvedRosterRevisionId) {
+    if (
+      !approvedRevision ||
+      approvedRevision.entryId !== entry.id ||
+      approvedRevision.id !== entry.approvedRosterRevisionId
+    ) {
       throw invariant(`参赛队「${entry.name}」的已审核报名名单资料不完整。`);
     }
     if (approvedRevision.status !== "approved") {
@@ -110,7 +128,10 @@ export async function assertPrestartEntryCoherenceInTx(
     if (!eventRoster) {
       throw invariant(`参赛队「${entry.name}」的正式名单不存在。`);
     }
-    if (options.requireEventRosterSync !== false && eventRoster.sourceRosterRevisionId !== approvedRevision.id) {
+    if (
+      options.requireEventRosterSync !== false &&
+      eventRoster.sourceRosterRevisionId !== approvedRevision.id
+    ) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
         `参赛队「${entry.name}」的正式名单尚未同步最新的已审核报名名单；请重新同步最终名单后再继续。`,

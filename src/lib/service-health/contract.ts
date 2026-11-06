@@ -9,14 +9,23 @@ export interface HealthItem {
   reason: string;
   action: string;
 }
-type Telemetry = { status: "ready"; data: Pick<Analysis, "meta" | "operations"> } | { status: "unconfigured" | "unavailable" };
+type Telemetry =
+  | { status: "ready"; data: Pick<Analysis, "meta" | "operations"> }
+  | { status: "unconfigured" | "unavailable" };
 
 export function hasUnconfirmedDispatch(job: SchedulerHealthView): boolean {
-  return Boolean(job.dispatchRequestedAt && (!job.endpointSucceededAt || job.endpointSucceededAt < job.dispatchRequestedAt));
+  return Boolean(
+    job.dispatchRequestedAt &&
+    (!job.endpointSucceededAt || job.endpointSucceededAt < job.dispatchRequestedAt),
+  );
 }
 
 /** Only bounded aggregate counts cross this presentation boundary. */
-export function serviceHealth(telemetry: Telemetry, jobs: SchedulerHealthView[] | null, now: number): HealthItem[] {
+export function serviceHealth(
+  telemetry: Telemetry,
+  jobs: SchedulerHealthView[] | null,
+  now: number,
+): HealthItem[] {
   const groups = [
     ["认证", ["auth.loginWithPassword"]],
     ["报名", ["register.submitRegistration", "competition-entries.submitCompetitionEntry"]],
@@ -24,29 +33,88 @@ export function serviceHealth(telemetry: Telemetry, jobs: SchedulerHealthView[] 
   ] as const;
   const journeys: HealthItem[] = groups.map(([label, keys]) => {
     const data = telemetry.status === "ready" ? telemetry.data : null;
-    const rows = data?.operations.filter(row => (keys as readonly string[]).includes(row.key)) ?? [];
-    const counts = rows.reduce((a, r) => ({ start: a.start + r.start, success: a.success + r.success, rejected: a.rejected + r.rejected, unknown: a.unknown + r.unknown, pending: a.pending + r.pending }), { start: 0, success: 0, rejected: 0, unknown: 0, pending: 0 });
-    const incomplete = !data || data.meta.partial || data.meta.truncated || data.meta.validUntil <= now;
+    const rows =
+      data?.operations.filter((row) => (keys as readonly string[]).includes(row.key)) ?? [];
+    const counts = rows.reduce(
+      (a, r) => ({
+        start: a.start + r.start,
+        success: a.success + r.success,
+        rejected: a.rejected + r.rejected,
+        unknown: a.unknown + r.unknown,
+        pending: a.pending + r.pending,
+      }),
+      { start: 0, success: 0, rejected: 0, unknown: 0, pending: 0 },
+    );
+    const incomplete =
+      !data || data.meta.partial || data.meta.truncated || data.meta.validUntil <= now;
     return {
-      label, status: incomplete ? "未核验" : counts.unknown > 0 ? "需要关注" : counts.pending > 0 ? "待确认" : counts.start === 0 ? "暂无样本" : "正常", source: data ? `客户端遥测，${new Date(data.meta.from).toISOString()} 至 ${new Date(data.meta.capturedAt).toISOString()}（UTC）` : "客户端遥测：读取失败或未配置",
-      coverage: data ? `开始 ${counts.start}；成功 ${counts.success}；拒绝 ${counts.rejected}；未知 ${counts.unknown}；待定 ${counts.pending}${incomplete ? "；窗口不完整或已过期" : ""}` : "无可用样本",
-      reason: incomplete ? "来源不可用、窗口不完整或已过期，无法判定。" : counts.unknown > 0 ? "部分结果待确认。" : counts.pending > 0 ? "部分结果待确认，无法判断是否超时。" : counts.start === 0 ? "当前窗口暂无客户端样本。" : "当前窗口客户端样本均有成功或预期拒绝结果；不代表整体生产健康。",
+      label,
+      status: incomplete
+        ? "未核验"
+        : counts.unknown > 0
+          ? "需要关注"
+          : counts.pending > 0
+            ? "待确认"
+            : counts.start === 0
+              ? "暂无样本"
+              : "正常",
+      source: data
+        ? `客户端遥测，${new Date(data.meta.from).toISOString()} 至 ${new Date(data.meta.capturedAt).toISOString()}（UTC）`
+        : "客户端遥测：读取失败或未配置",
+      coverage: data
+        ? `开始 ${counts.start}；成功 ${counts.success}；拒绝 ${counts.rejected}；未知 ${counts.unknown}；待定 ${counts.pending}${incomplete ? "；窗口不完整或已过期" : ""}`
+        : "无可用样本",
+      reason: incomplete
+        ? "来源不可用、窗口不完整或已过期，无法判定。"
+        : counts.unknown > 0
+          ? "部分结果待确认。"
+          : counts.pending > 0
+            ? "部分结果待确认，无法判断是否超时。"
+            : counts.start === 0
+              ? "当前窗口暂无客户端样本。"
+              : "当前窗口客户端样本均有成功或预期拒绝结果；不代表整体生产健康。",
       action: "在产品遥测中按操作和版本查看；结果待确认时先核对业务事实与回执日志，不要直接重放。",
     };
   });
-  const missing = !jobs || jobs.length === 0 || jobs.some(job => !job.primaryTriggeredAt);
-  const unhealthy = jobs?.filter(job => job.status !== "normal").length ?? 0;
+  const missing = !jobs || jobs.length === 0 || jobs.some((job) => !job.primaryTriggeredAt);
+  const unhealthy = jobs?.filter((job) => job.status !== "normal").length ?? 0;
   const pendingDispatch = jobs?.some(hasUnconfirmedDispatch) ?? false;
-  const degraded = jobs?.some(job => job.primaryTriggeredAt && job.status === "degraded") ?? false;
+  const degraded =
+    jobs?.some((job) => job.primaryTriggeredAt && job.status === "degraded") ?? false;
   const scheduler: HealthItem = {
-    label: "定时任务", status: pendingDispatch || degraded ? "需要关注" : missing ? "未核验" : "正常",
+    label: "定时任务",
+    status: pendingDispatch || degraded ? "需要关注" : missing ? "未核验" : "正常",
     source: "scheduler 当前健康投影；各任务使用自身的新鲜度窗口",
-    coverage: jobs ? `${jobs.filter(job => job.primaryTriggeredAt).length} / ${jobs.length} 个任务有主调度记录；${unhealthy} 个未通过现有健康判定` : "读取失败",
-    reason: pendingDispatch ? "存在尚未确认成功的派发请求。" : degraded ? "现有健康判定发现调度记录异常或过期。" : missing ? "部分记录缺失或读取失败。" : "全部主调度记录通过现有健康判定。",
+    coverage: jobs
+      ? `${jobs.filter((job) => job.primaryTriggeredAt).length} / ${jobs.length} 个任务有主调度记录；${unhealthy} 个未通过现有健康判定`
+      : "读取失败",
+    reason: pendingDispatch
+      ? "存在尚未确认成功的派发请求。"
+      : degraded
+        ? "现有健康判定发现调度记录异常或过期。"
+        : missing
+          ? "部分记录缺失或读取失败。"
+          : "全部主调度记录通过现有健康判定。",
     action: "查看下方定时任务健康与运行日志，核对主调度、派发和业务状态。",
   };
-  return [...journeys, scheduler,
-    { label: "完整性", status: "未核验", source: "生产结构化日志与审计事实", coverage: "本页未读取日志事件", reason: "本页不自动读取，请按运维记录核验。", action: "检查服务 journal 中的 production security / invariant 事件，并核对审计事实。" },
-    { label: "依赖与备份保障", status: "未核验", source: "公共资源真实 GET、备份验证与 provider 控制台", coverage: "本页未读取这些证据", reason: "本页不自动读取，请按运维记录核验。", action: "核对公共资源 GET、最近可信 full backup 验证及 provider 用量与预算。" },
+  return [
+    ...journeys,
+    scheduler,
+    {
+      label: "完整性",
+      status: "未核验",
+      source: "生产结构化日志与审计事实",
+      coverage: "本页未读取日志事件",
+      reason: "本页不自动读取，请按运维记录核验。",
+      action: "检查服务 journal 中的 production security / invariant 事件，并核对审计事实。",
+    },
+    {
+      label: "依赖与备份保障",
+      status: "未核验",
+      source: "公共资源真实 GET、备份验证与 provider 控制台",
+      coverage: "本页未读取这些证据",
+      reason: "本页不自动读取，请按运维记录核验。",
+      action: "核对公共资源 GET、最近可信 full backup 验证及 provider 用量与预算。",
+    },
   ];
 }

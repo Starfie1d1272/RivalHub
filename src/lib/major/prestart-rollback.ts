@@ -36,8 +36,11 @@ export async function rollbackMajorPrestartEntrantsInTx(
     throw new AppError(ErrorCode.VALIDATION_FAILED, "请设置晚于当前时间的名单调整截止。");
   }
 
-  const [season] = await tx.select().from(seasons)
-    .where(eq(seasons.id, input.seasonId)).for("update");
+  const [season] = await tx
+    .select()
+    .from(seasons)
+    .where(eq(seasons.id, input.seasonId))
+    .for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
   if (season.status !== "registration") {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事已进入运行阶段，不能撤回冻结。");
@@ -48,58 +51,106 @@ export async function rollbackMajorPrestartEntrantsInTx(
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "正式名单尚未冻结。");
   }
   if (state.seedsLockedAt || state.seedsConfirmedAt) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事种子已经确认或正赛已开始，不能撤回冻结。");
+    throw new AppError(
+      ErrorCode.SEASON_INVALID_STATUS,
+      "赛事种子已经确认或正赛已开始，不能撤回冻结。",
+    );
   }
-  const [savedSeed] = await tx.select({ id: majorTournamentSeeds.id })
-    .from(majorTournamentSeeds).where(eq(majorTournamentSeeds.seasonId, season.id)).limit(1);
-  const [stageRun] = await tx.select({ id: majorStageRuns.id })
-    .from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)).limit(1);
+  const [savedSeed] = await tx
+    .select({ id: majorTournamentSeeds.id })
+    .from(majorTournamentSeeds)
+    .where(eq(majorTournamentSeeds.seasonId, season.id))
+    .limit(1);
+  const [stageRun] = await tx
+    .select({ id: majorStageRuns.id })
+    .from(majorStageRuns)
+    .where(eq(majorStageRuns.seasonId, season.id))
+    .limit(1);
   if (savedSeed || stageRun) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已有正式种子或正赛运行记录，不能撤回冻结。");
+    throw new AppError(
+      ErrorCode.SEASON_INVALID_STATUS,
+      "已有正式种子或正赛运行记录，不能撤回冻结。",
+    );
   }
 
-  const entrantRefs = await tx.select({ entryId: majorTournamentEntrants.competitionEntryId })
-    .from(majorTournamentEntrants).where(eq(majorTournamentEntrants.seasonId, season.id));
+  const entrantRefs = await tx
+    .select({ entryId: majorTournamentEntrants.competitionEntryId })
+    .from(majorTournamentEntrants)
+    .where(eq(majorTournamentEntrants.seasonId, season.id));
   if (entrantRefs.length !== entrantCapacity) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "正赛参赛队集合不完整，不能撤回冻结。");
   }
-  const coherent = await assertPrestartEntryCoherenceInTx(tx, season.id,
-    entrantRefs.map((row) => ({ competitionEntryId: row.entryId })));
-  if (coherent.length !== entrantCapacity || coherent.some((row) => row.eventRoster.status !== "frozen")) {
+  const coherent = await assertPrestartEntryCoherenceInTx(
+    tx,
+    season.id,
+    entrantRefs.map((row) => ({ competitionEntryId: row.entryId })),
+  );
+  if (
+    coherent.length !== entrantCapacity ||
+    coherent.some((row) => row.eventRoster.status !== "frozen")
+  ) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "正式赛事名单状态不一致，不能撤回冻结。");
   }
 
   // Top Fragger terms include frozen player IDs. A wagered player market
   // requires an explicit financial correction; never strand paid stakes.
-  const [playerWager] = await tx.select({ id: betStakes.id }).from(betStakes)
+  const [playerWager] = await tx
+    .select({ id: betStakes.id })
+    .from(betStakes)
     .innerJoin(betMarkets, eq(betStakes.marketId, betMarkets.id))
     .where(and(eq(betMarkets.seasonId, season.id), eq(betMarkets.type, "top_fragger")))
     .limit(1);
   if (playerWager) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事击杀王盘口已有投注，请先执行带退款的赛务更正。");
+    throw new AppError(
+      ErrorCode.SEASON_INVALID_STATUS,
+      "赛事击杀王盘口已有投注，请先执行带退款的赛务更正。",
+    );
   }
-  const [snapshot] = await tx.select().from(majorSeedRecommendationSnapshots)
-    .where(eq(majorSeedRecommendationSnapshots.seasonId, season.id)).for("update");
+  const [snapshot] = await tx
+    .select()
+    .from(majorSeedRecommendationSnapshots)
+    .where(eq(majorSeedRecommendationSnapshots.seasonId, season.id))
+    .for("update");
   if (!snapshot) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "冻结种子快照缺失，请先排查赛前数据。");
   }
 
   // The old frozen fingerprint is no longer valid once a roster is editable.
-  await tx.delete(majorSeedRecommendationSnapshots).where(eq(majorSeedRecommendationSnapshots.seasonId, season.id));
-  await tx.update(majorPrestartStates).set({
-    entrantsLockedAt: null, entrantsLockedBy: null, updatedAt: now,
-  }).where(eq(majorPrestartStates.id, state.id));
+  await tx
+    .delete(majorSeedRecommendationSnapshots)
+    .where(eq(majorSeedRecommendationSnapshots.seasonId, season.id));
+  await tx
+    .update(majorPrestartStates)
+    .set({
+      entrantsLockedAt: null,
+      entrantsLockedBy: null,
+      updatedAt: now,
+    })
+    .where(eq(majorPrestartStates.id, state.id));
 
   await tx.execute(sql`select set_config('rivalhub.major_entrant_rollback', 'on', true)`);
-  const reopened = await tx.update(eventRosters).set({
-    status: "confirmed", frozenAt: null, frozenBy: null, updatedAt: now,
-  }).where(inArray(eventRosters.id, coherent.map((row) => row.eventRoster.id)))
+  const reopened = await tx
+    .update(eventRosters)
+    .set({
+      status: "confirmed",
+      frozenAt: null,
+      frozenBy: null,
+      updatedAt: now,
+    })
+    .where(
+      inArray(
+        eventRosters.id,
+        coherent.map((row) => row.eventRoster.id),
+      ),
+    )
     .returning({ id: eventRosters.id });
   if (reopened.length !== entrantCapacity) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "未能完整恢复所有正式赛事名单。");
   }
 
-  await tx.update(seasons).set({ rosterChangeClosesAt: input.reopenUntil, updatedAt: now })
+  await tx
+    .update(seasons)
+    .set({ rosterChangeClosesAt: input.reopenUntil, updatedAt: now })
     .where(eq(seasons.id, season.id));
   await writeAuditInTx(tx, {
     seasonId: season.id,

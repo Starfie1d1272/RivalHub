@@ -5,11 +5,17 @@ import { seasons } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
-import { getAdminCommunityAwardDetail, getCommunityAwardFormOptions } from "@/lib/community-awards/data";
+import {
+  getAdminCommunityAwardDetail,
+  getCommunityAwardFormOptions,
+} from "@/lib/community-awards/data";
 
 async function authorizeAwardSeason(seasonId: string) {
   await requireSeasonAdmin(seasonId);
-  const [season] = await db.select({ stagePlan: seasons.stagePlan, enabled: seasons.hasCommunityAwards }).from(seasons).where(eq(seasons.id, seasonId));
+  const [season] = await db
+    .select({ stagePlan: seasons.stagePlan, enabled: seasons.hasCommunityAwards })
+    .from(seasons)
+    .where(eq(seasons.id, seasonId));
   if (!season?.enabled) throw new AppError(ErrorCode.NOT_FOUND, "社区奖管理已不可用。");
   return normalizeStagePlan(season.stagePlan);
 }

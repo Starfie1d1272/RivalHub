@@ -14,9 +14,11 @@ const MESSAGES = {
   nonManagedMatch: "非托管比赛的胜者更正会与既有赛程矛盾，必须通过赛事事故裁决处理。",
   downstreamStageMaterialized: "后续阶段已经基于本阶段结果建立，不能自动重建；需要走赛后裁决。",
   finalResultsPublished: "官方名次已经生成，胜者更正被禁止；请使用赛后裁决操作。",
-  downstreamMatchStarted: "存在 {count} 场已经开始或完成的下游托管比赛，系统拒绝自动重写；需要走赛后裁决并人工恢复。",
+  downstreamMatchStarted:
+    "存在 {count} 场已经开始或完成的下游托管比赛，系统拒绝自动重写；需要走赛后裁决并人工恢复。",
   qualificationFinalEntrants: "正赛参赛名单已经产生，资格赛胜者更正需要通过赛事事故裁决处理。",
-  qualificationMatchStarted: "存在 {count} 场已经开始或完成的后续资格赛比赛，系统拒绝自动重写；需要走赛事事故裁决。",
+  qualificationMatchStarted:
+    "存在 {count} 场已经开始或完成的后续资格赛比赛，系统拒绝自动重写；需要走赛事事故裁决。",
 } satisfies Record<MatchCorrectionBlocker["code"], string>;
 
 export function presentMatchCorrectionBlocker(reason: MatchCorrectionBlocker): string {
@@ -43,7 +45,9 @@ function diagnosticFor(reason: MatchCorrectionBlocker): string {
   }
 }
 
-export function matchCorrectionBlockedError(blockedReasons: readonly MatchCorrectionBlocker[]): AppError {
+export function matchCorrectionBlockedError(
+  blockedReasons: readonly MatchCorrectionBlocker[],
+): AppError {
   const productMessage = blockedReasons.map(presentMatchCorrectionBlocker).join("；");
   const diagnostic = blockedReasons.map(diagnosticFor).join("; ");
   return AppError.withPresentation(
@@ -52,7 +56,9 @@ export function matchCorrectionBlockedError(blockedReasons: readonly MatchCorrec
       owner: "match-corrections",
       key: "automaticRecoveryBlocked",
       params: { reasonCount: blockedReasons.length },
-      message: productMessage ? `该更正暂时不能自动应用：${productMessage}` : "该更正暂时不能自动应用。",
+      message: productMessage
+        ? `该更正暂时不能自动应用：${productMessage}`
+        : "该更正暂时不能自动应用。",
     },
     { diagnostic: diagnostic || "automatic_recovery_blocked: no blocker details" },
   );

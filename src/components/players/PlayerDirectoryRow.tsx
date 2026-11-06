@@ -29,7 +29,13 @@ export interface PlayerDirectoryData {
   } | null;
 }
 
-export function PlayerDirectoryRow({ player, seasonSlug }: { player: PlayerDirectoryData; seasonSlug?: string }) {
+export function PlayerDirectoryRow({
+  player,
+  seasonSlug,
+}: {
+  player: PlayerDirectoryData;
+  seasonSlug?: string;
+}) {
   return (
     <Panel hoverable contentClassName="p-3">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_auto] lg:items-center">
@@ -40,7 +46,12 @@ export function PlayerDirectoryRow({ player, seasonSlug }: { player: PlayerDirec
               aria-label={player.displayName}
               className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
             >
-              <PlayerAvatar name={player.displayName} avatarUrl={player.avatarUrl} hasActivePublicSanction={player.hasActivePublicSanction} size="sm" />
+              <PlayerAvatar
+                name={player.displayName}
+                avatarUrl={player.avatarUrl}
+                hasActivePublicSanction={player.hasActivePublicSanction}
+                size="sm"
+              />
               <span className="truncate">{player.displayName}</span>
             </PlayerProfileLink>
             <PosChip pos={positionLabel(player.primaryPosition)} />
@@ -50,7 +61,13 @@ export function PlayerDirectoryRow({ player, seasonSlug }: { player: PlayerDirec
               </span>
             )}
             <span className="text-xs text-[var(--color-fg-mid)]">
-              {player.teamId && seasonSlug ? <TeamProfileLink seasonSlug={seasonSlug} entryId={player.teamId}>{player.teamName}</TeamProfileLink> : player.teamName ?? "待分配队伍"}
+              {player.teamId && seasonSlug ? (
+                <TeamProfileLink seasonSlug={seasonSlug} entryId={player.teamId}>
+                  {player.teamName}
+                </TeamProfileLink>
+              ) : (
+                (player.teamName ?? "待分配队伍")
+              )}
             </span>
           </div>
         </div>
@@ -58,12 +75,18 @@ export function PlayerDirectoryRow({ player, seasonSlug }: { player: PlayerDirec
         {player.stats ? (
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-[var(--color-border)] pt-2 lg:justify-end lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
             <DirectoryMetric label="地图" value={player.stats.maps} />
-            <DirectoryMetric label="Rating" value={formatStat("ratingPro", player.stats.avgRating)} />
+            <DirectoryMetric
+              label="Rating"
+              value={formatStat("ratingPro", player.stats.avgRating)}
+            />
             <DirectoryMetric label="ADR" value={formatStat("adr", player.stats.avgAdr)} />
             <DirectoryMetric label="K/D" value={formatStat("kd", player.stats.avgKd)} />
           </div>
         ) : (
-          <div className="border-t border-[var(--color-border)] pt-2 text-xs uppercase text-[var(--color-fg-dim)] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0 lg:text-right" style={{ fontFamily: "var(--font-mono)" }}>
+          <div
+            className="border-t border-[var(--color-border)] pt-2 text-xs uppercase text-[var(--color-fg-dim)] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0 lg:text-right"
+            style={{ fontFamily: "var(--font-mono)" }}
+          >
             暂无正式比赛数据
           </div>
         )}

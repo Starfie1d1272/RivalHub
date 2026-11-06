@@ -31,7 +31,9 @@ export function MapPreferenceSection({
         <div className="mb-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
           <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2">
             <div className="font-mono text-[var(--color-fg-dim)]">PLAYABLE</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--color-fg)]">{playableCount}/3+</div>
+            <div className="mt-1 text-sm font-semibold text-[var(--color-fg)]">
+              {playableCount}/3+
+            </div>
           </div>
           <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2">
             <div className="font-mono text-[var(--color-fg-dim)]">STRONG</div>
@@ -49,7 +51,8 @@ export function MapPreferenceSection({
 
       <div className="space-y-2">
         {mapPool.map((map) => {
-          const currentLevel = mapPreferences.find((preference) => preference.map === map)?.level ?? null;
+          const currentLevel =
+            mapPreferences.find((preference) => preference.map === map)?.level ?? null;
           return (
             <div
               key={map}

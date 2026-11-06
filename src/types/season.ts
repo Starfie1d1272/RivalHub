@@ -5,13 +5,7 @@ import type { ConversionPolicyMapping } from "@/lib/competitive/conversion-polic
 export type SeasonKind = string;
 
 export type SeasonStatus =
-  | "draft"
-  | "registration"
-  | "voting"
-  | "drafting"
-  | "playing"
-  | "finished"
-  | "archived";
+  "draft" | "registration" | "voting" | "drafting" | "playing" | "finished" | "archived";
 
 export type RegistrationMode = "solo" | "team";
 export type StageType = "round_robin" | "double_elim" | "single_elim" | "swiss";

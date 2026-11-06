@@ -7,7 +7,8 @@ export const ADMIN_INVITE_DEFAULTS = {
   sort: "newest",
 } as const;
 
-export type AdminInviteSearchParams = Record<string, string | string[] | undefined> | URLSearchParams;
+export type AdminInviteSearchParams =
+  Record<string, string | string[] | undefined> | URLSearchParams;
 export type AdminInviteRoleFilter = "all" | "season_admin" | "super_admin";
 export type AdminInviteState = "all" | "usable" | "expired" | "revoked" | "exhausted";
 export type AdminInviteSort = "newest" | "oldest" | "expires_soon";

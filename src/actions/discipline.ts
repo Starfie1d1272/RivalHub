@@ -49,7 +49,11 @@ const issueSchema = z.object({
  */
 export async function issueSanction(input: unknown): Promise<ActionResult<{ caseId: string }>> {
   const parsed = issueSchema.safeParse(input);
-  if (!parsed.success) return actionError("issueSanction", new AppError(ErrorCode.VALIDATION_FAILED, "处罚参数不合法。"));
+  if (!parsed.success)
+    return actionError(
+      "issueSanction",
+      new AppError(ErrorCode.VALIDATION_FAILED, "处罚参数不合法。"),
+    );
   try {
     const admin = await requireSeasonAdmin(parsed.data.seasonId);
     const result = await db.transaction((tx) =>
@@ -78,13 +82,18 @@ export async function issueSanction(input: unknown): Promise<ActionResult<{ case
 /**
  * 撤销处罚。重复撤销为幂等成功且不产生重复审计。
  */
-export async function revokeSanction(
-  input: { caseId: string; reason: string },
-): Promise<ActionResult<{ alreadyRevoked: boolean; caseId: string }>> {
+export async function revokeSanction(input: {
+  caseId: string;
+  reason: string;
+}): Promise<ActionResult<{ alreadyRevoked: boolean; caseId: string }>> {
   const parsed = z
     .object({ caseId: z.guid(), reason: z.string().trim().min(1).max(1000) })
     .safeParse(input);
-  if (!parsed.success) return actionError("revokeSanction", new AppError(ErrorCode.VALIDATION_FAILED, "撤销参数不合法：必须填写撤销原因。"));
+  if (!parsed.success)
+    return actionError(
+      "revokeSanction",
+      new AppError(ErrorCode.VALIDATION_FAILED, "撤销参数不合法：必须填写撤销原因。"),
+    );
   try {
     const existing = await loadCase(parsed.data.caseId);
     const admin = await requireSeasonAdmin(existing.seasonId);
@@ -101,11 +110,12 @@ export async function revokeSanction(
   }
 }
 
-export async function expireSanction(
-  input: { caseId: string },
-): Promise<ActionResult<{ alreadyExpired: boolean; caseId: string }>> {
+export async function expireSanction(input: {
+  caseId: string;
+}): Promise<ActionResult<{ alreadyExpired: boolean; caseId: string }>> {
   const parsed = z.object({ caseId: z.guid() }).safeParse(input);
-  if (!parsed.success) return actionError("expireSanction", new AppError(ErrorCode.VALIDATION_FAILED, "参数不合法。"));
+  if (!parsed.success)
+    return actionError("expireSanction", new AppError(ErrorCode.VALIDATION_FAILED, "参数不合法。"));
   try {
     const existing = await loadCase(parsed.data.caseId);
     const admin = await requireSeasonAdmin(existing.seasonId);
@@ -126,7 +136,10 @@ export async function searchSanctionSubjects(
     .object({ seasonId: z.guid(), query: z.string().trim().min(2).max(64) })
     .safeParse(input);
   if (!parsed.success) {
-    return actionError("searchSanctionSubjects", new AppError(ErrorCode.VALIDATION_FAILED, "搜索词不合法：至少 2 个字符。"));
+    return actionError(
+      "searchSanctionSubjects",
+      new AppError(ErrorCode.VALIDATION_FAILED, "搜索词不合法：至少 2 个字符。"),
+    );
   }
   try {
     await requireSeasonAdmin(parsed.data.seasonId);

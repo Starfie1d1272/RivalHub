@@ -12,7 +12,11 @@ import { StatsMetricHelp } from "@/components/stats/StatsMetricHelp";
 import { StatsTooltip } from "@/components/stats/StatsTooltip";
 import { STATS_METRICS, type StatsMetricKey } from "@/lib/stats/metrics";
 import { partitionRankingPopulation } from "@/lib/stats/ranking";
-import { compareStatsValues, type StatsSortDirection, type StatsSortValue } from "@/lib/stats/sorting";
+import {
+  compareStatsValues,
+  type StatsSortDirection,
+  type StatsSortValue,
+} from "@/lib/stats/sorting";
 
 export interface StatsDataColumn<T> {
   key: string;
@@ -52,11 +56,26 @@ interface RankingState<T> {
   metricLabel: string;
 }
 
-export interface StatsTableState { sortKey: string; direction: StatsSortDirection; page: number }
+export interface StatsTableState {
+  sortKey: string;
+  direction: StatsSortDirection;
+  page: number;
+}
 
 export function StatsDataTable<T>({
-  rows, columns, rowKey, initialSortKey, initialDirection = "desc", pageSize = 25, showRank = false, embedded = false,
-  tableClassName = "min-w-max", emptyLabel = "暂无数据", rankingBaselineRows, state, onStateChange,
+  rows,
+  columns,
+  rowKey,
+  initialSortKey,
+  initialDirection = "desc",
+  pageSize = 25,
+  showRank = false,
+  embedded = false,
+  tableClassName = "min-w-max",
+  emptyLabel = "暂无数据",
+  rankingBaselineRows,
+  state,
+  onStateChange,
 }: {
   rows: readonly T[];
   columns: readonly StatsDataColumn<T>[];
@@ -80,18 +99,26 @@ export function StatsDataTable<T>({
   const page = state?.page ?? localPage;
   function update(next: StatsTableState) {
     if (onStateChange) onStateChange(next);
-    else { setSortKey(next.sortKey); setDirection(next.direction); setPage(next.page); }
+    else {
+      setSortKey(next.sortKey);
+      setDirection(next.direction);
+      setPage(next.page);
+    }
   }
   const activeColumn = columns.find((item) => item.key === sortKey);
 
   const rankingState = useMemo<RankingState<T> | null>(() => {
     if (!activeColumn?.sortValue || !activeColumn.rankingSample) return null;
     const { dynamicFloor, ranked, limited } = partitionRankingPopulation(
-      rows, activeColumn.sortValue, activeColumn.rankingSample, rankingBaselineRows ?? rows,
+      rows,
+      activeColumn.sortValue,
+      activeColumn.rankingSample,
+      rankingBaselineRows ?? rows,
     );
     if (!dynamicFloor) return null;
 
-    const compare = (left: T, right: T) => compareStatsValues(activeColumn.sortValue!(left), activeColumn.sortValue!(right), direction);
+    const compare = (left: T, right: T) =>
+      compareStatsValues(activeColumn.sortValue!(left), activeColumn.sortValue!(right), direction);
     ranked.sort(compare);
     limited.sort(compare);
 
@@ -100,7 +127,10 @@ export function StatsDataTable<T>({
       rankedCount: ranked.length,
       limitedCount: limited.length,
       floor: dynamicFloor.floor,
-      sampleLabel: activeColumn.metric ? (STATS_METRICS[activeColumn.metric].rankingSampleLabel ?? STATS_METRICS[activeColumn.metric].sampleLabel) : "samples",
+      sampleLabel: activeColumn.metric
+        ? (STATS_METRICS[activeColumn.metric].rankingSampleLabel ??
+          STATS_METRICS[activeColumn.metric].sampleLabel)
+        : "samples",
       metricLabel: statsColumnLabel(activeColumn),
     };
   }, [activeColumn, direction, rankingBaselineRows, rows]);
@@ -110,7 +140,9 @@ export function StatsDataTable<T>({
     if (!sortKey) return [...rows];
     const column = columns.find((item) => item.key === sortKey);
     if (!column?.sortValue) return [...rows];
-    return [...rows].sort((left, right) => compareStatsValues(column.sortValue!(left), column.sortValue!(right), direction));
+    return [...rows].sort((left, right) =>
+      compareStatsValues(column.sortValue!(left), column.sortValue!(right), direction),
+    );
   }, [columns, direction, rankingState, rows, sortKey]);
 
   const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
@@ -119,17 +151,32 @@ export function StatsDataTable<T>({
   const pageRows = sortedRows.slice(pageStart, safePage * pageSize);
 
   function sortBy(key: string) {
-    update({ sortKey: key, direction: sortKey === key && direction === "desc" ? "asc" : "desc", page: 1 });
+    update({
+      sortKey: key,
+      direction: sortKey === key && direction === "desc" ? "asc" : "desc",
+      page: 1,
+    });
     recordFilter("sort", key);
   }
 
   return (
-    <div className={embedded ? "min-w-0" : "min-w-0 overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]"}>
+    <div
+      className={
+        embedded
+          ? "min-w-0"
+          : "min-w-0 overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]"
+      }
+    >
       {rankingState && rankingState.limitedCount > 0 && (
         <div className="flex flex-wrap items-center justify-end gap-2 border-b border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-fg-dim)]">
-          <span>{rankingState.rankedCount} ranked · {rankingState.limitedCount} limited sample{rankingState.limitedCount === 1 ? "" : "s"}</span>
+          <span>
+            {rankingState.rankedCount} ranked · {rankingState.limitedCount} limited sample
+            {rankingState.limitedCount === 1 ? "" : "s"}
+          </span>
           <span className="inline-flex items-center gap-1">
-            <span>min {rankingState.floor} {sampleLabel(rankingState.sampleLabel, rankingState.floor)}</span>
+            <span>
+              min {rankingState.floor} {sampleLabel(rankingState.sampleLabel, rankingState.floor)}
+            </span>
             <StatsTooltip
               label="排名样本说明"
               content={`当前按 ${rankingState.metricLabel} 排序。min 表示进入排名所需的样本量；搜索与实体筛选不会改变这条样本线。`}
@@ -141,7 +188,11 @@ export function StatsDataTable<T>({
         <table className={`w-full ${tableClassName} text-sm`}>
           <thead className="text-xs uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
             <tr className="border-b border-[var(--color-border)]">
-              {showRank && <th className="sticky top-0 left-0 z-30 w-12 min-w-12 max-w-12 whitespace-nowrap bg-[var(--color-panel)] px-3 py-3 text-left text-[var(--color-fg-dim)]">#</th>}
+              {showRank && (
+                <th className="sticky top-0 left-0 z-30 w-12 min-w-12 max-w-12 whitespace-nowrap bg-[var(--color-panel)] px-3 py-3 text-left text-[var(--color-fg-dim)]">
+                  #
+                </th>
+              )}
               {columns.map((column, index) => {
                 const active = sortKey === column.key;
                 const arrow = direction === "desc" ? "↓" : "↑";
@@ -150,10 +201,14 @@ export function StatsDataTable<T>({
                 return (
                   <th
                     key={column.key}
-                    aria-sort={active ? direction === "desc" ? "descending" : "ascending" : "none"}
+                    aria-sort={
+                      active ? (direction === "desc" ? "descending" : "ascending") : "none"
+                    }
                     className={`sticky top-0 z-20 bg-[var(--color-panel)] ${column.identity ? "w-[6rem] min-w-[6rem] max-w-[6rem] sm:w-[14rem] sm:min-w-[14rem] sm:max-w-[14rem]" : "whitespace-nowrap"} py-3 ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-8 sm:pr-9" : "px-3"} text-right` : "px-3 text-left"} ${column.className ?? ""} ${index === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}
                   >
-                    <div className={`relative flex min-h-6 min-w-0 items-center ${column.numeric ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`relative flex min-h-6 min-w-0 items-center ${column.numeric ? "justify-end" : "justify-start"}`}
+                    >
                       {column.sortable && column.sortValue ? (
                         <button
                           type="button"
@@ -161,20 +216,38 @@ export function StatsDataTable<T>({
                           onClick={() => sortBy(column.key)}
                           className={`inline-flex min-h-6 items-center transition-colors hover:text-[var(--color-fg)] ${active ? "text-[var(--color-fg)]" : ""}`}
                         >
-                          <span className={column.identity ? "min-w-0 truncate" : undefined}>{label}</span>
+                          <span className={column.identity ? "min-w-0 truncate" : undefined}>
+                            {label}
+                          </span>
                         </button>
-                      ) : <span className={column.identity ? "min-w-0 truncate" : undefined}>{label}</span>}
+                      ) : (
+                        <span className={column.identity ? "min-w-0 truncate" : undefined}>
+                          {label}
+                        </span>
+                      )}
                       {column.numeric ? (
                         hasNumericAdornment(column) && (
                           <span className="absolute left-full ml-1 inline-flex items-center gap-1">
                             {column.metric && <StatsMetricHelp metric={column.metric} />}
-                            {active && <span aria-hidden="true" className="text-[var(--color-accent)]">{arrow}</span>}
+                            {active && (
+                              <span aria-hidden="true" className="text-[var(--color-accent)]">
+                                {arrow}
+                              </span>
+                            )}
                           </span>
                         )
                       ) : (
                         <>
-                          {column.metric && <span className="ml-1"><StatsMetricHelp metric={column.metric} /></span>}
-                          {active && <span aria-hidden="true" className="ml-1.5 text-[var(--color-accent)]">{arrow}</span>}
+                          {column.metric && (
+                            <span className="ml-1">
+                              <StatsMetricHelp metric={column.metric} />
+                            </span>
+                          )}
+                          {active && (
+                            <span aria-hidden="true" className="ml-1.5 text-[var(--color-accent)]">
+                              {arrow}
+                            </span>
+                          )}
                         </>
                       )}
                     </div>
@@ -187,36 +260,79 @@ export function StatsDataTable<T>({
             {pageRows.map((row, index) => {
               const globalIndex = pageStart + index;
               const limited = Boolean(rankingState && globalIndex >= rankingState.rankedCount);
-              const limitedBoundary = rankingState && rankingState.limitedCount > 0 && globalIndex === rankingState.rankedCount;
+              const limitedBoundary =
+                rankingState &&
+                rankingState.limitedCount > 0 &&
+                globalIndex === rankingState.rankedCount;
               return (
                 <Fragment key={rowKey(row, globalIndex)}>
                   {limitedBoundary && (
                     <tr>
-                      <td colSpan={columns.length + Number(showRank)} className="bg-[var(--color-panel-low)] px-3 py-2 text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">
-                        Limited sample · below {rankingState.floor} {sampleLabel(rankingState.sampleLabel, rankingState.floor)}
+                      <td
+                        colSpan={columns.length + Number(showRank)}
+                        className="bg-[var(--color-panel-low)] px-3 py-2 text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]"
+                      >
+                        Limited sample · below {rankingState.floor}{" "}
+                        {sampleLabel(rankingState.sampleLabel, rankingState.floor)}
                       </td>
                     </tr>
                   )}
                   <tr className="transition-colors hover:bg-[var(--color-panel-hi)]">
                     {showRank && (
-                      <td className={`sticky left-0 z-10 w-12 min-w-12 max-w-12 bg-[var(--color-panel)] px-3 py-2.5 font-mono tabular-nums ${globalIndex === 0 ? "font-semibold text-[var(--color-accent)]" : "text-[var(--color-fg-dim)]"}`}>
+                      <td
+                        className={`sticky left-0 z-10 w-12 min-w-12 max-w-12 bg-[var(--color-panel)] px-3 py-2.5 font-mono tabular-nums ${globalIndex === 0 ? "font-semibold text-[var(--color-accent)]" : "text-[var(--color-fg-dim)]"}`}
+                      >
                         {limited ? "—" : globalIndex + 1}
                       </td>
                     )}
                     {columns.map((column, columnIndex) => (
-                      <td key={column.key} style={sortKey === column.key ? { backgroundColor: "color-mix(in srgb, var(--color-accent) 4%, var(--color-panel))" } : undefined} className={`${column.identity ? "w-[6rem] min-w-[6rem] max-w-[6rem] sm:w-[14rem] sm:min-w-[14rem] sm:max-w-[14rem] overflow-hidden" : "whitespace-nowrap"} py-2.5 align-top ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-8 sm:pr-9" : "px-3"} text-right tabular-nums [&_.stats-metric-value]:items-end [&_.stats-metric-value]:text-right` : "px-3 text-left"} ${column.className ?? ""} ${columnIndex === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}>
-                        {column.identity ? <div className="min-w-0 max-w-full truncate">{column.render(row, globalIndex)}</div> : column.render(row, globalIndex)}
+                      <td
+                        key={column.key}
+                        style={
+                          sortKey === column.key
+                            ? {
+                                backgroundColor:
+                                  "color-mix(in srgb, var(--color-accent) 4%, var(--color-panel))",
+                              }
+                            : undefined
+                        }
+                        className={`${column.identity ? "w-[6rem] min-w-[6rem] max-w-[6rem] sm:w-[14rem] sm:min-w-[14rem] sm:max-w-[14rem] overflow-hidden" : "whitespace-nowrap"} py-2.5 align-top ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-8 sm:pr-9" : "px-3"} text-right tabular-nums [&_.stats-metric-value]:items-end [&_.stats-metric-value]:text-right` : "px-3 text-left"} ${column.className ?? ""} ${columnIndex === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}
+                      >
+                        {column.identity ? (
+                          <div className="min-w-0 max-w-full truncate">
+                            {column.render(row, globalIndex)}
+                          </div>
+                        ) : (
+                          column.render(row, globalIndex)
+                        )}
                       </td>
                     ))}
                   </tr>
                 </Fragment>
               );
             })}
-            {pageRows.length === 0 && <tr><td colSpan={columns.length + Number(showRank)} className="px-4 py-8 text-center text-[var(--color-fg-mid)]">{emptyLabel}</td></tr>}
+            {pageRows.length === 0 && (
+              <tr>
+                <td
+                  colSpan={columns.length + Number(showRank)}
+                  className="px-4 py-8 text-center text-[var(--color-fg-mid)]"
+                >
+                  {emptyLabel}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
-      {totalPages > 1 && <div className="border-t border-[var(--color-border)] p-3"><PaginationControls page={safePage} totalPages={totalPages} onPageChange={(page) => update({ sortKey, direction, page })} /></div>}
+      {totalPages > 1 && (
+        <div className="border-t border-[var(--color-border)] p-3">
+          <PaginationControls
+            page={safePage}
+            totalPages={totalPages}
+            onPageChange={(page) => update({ sortKey, direction, page })}
+          />
+        </div>
+      )}
     </div>
   );
 }

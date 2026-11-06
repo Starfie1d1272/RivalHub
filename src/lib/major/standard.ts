@@ -1,7 +1,16 @@
 import type { Season } from "@/db/schema/seasons";
-import { capabilitiesFromSeason, checkStandardMajorCapabilities, resolveManagedMajorProfile, type SeasonCapabilityRow } from "@/lib/competition/definition";
+import {
+  capabilitiesFromSeason,
+  checkStandardMajorCapabilities,
+  resolveManagedMajorProfile,
+  type SeasonCapabilityRow,
+} from "@/lib/competition/definition";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { materializeMajorStagePlan, parseMajorRunSnapshot, type MajorRunPresentation } from "@/lib/major/run-snapshot";
+import {
+  materializeMajorStagePlan,
+  parseMajorRunSnapshot,
+  type MajorRunPresentation,
+} from "@/lib/major/run-snapshot";
 
 type StandardMajorSeason = Pick<Season, "competitionTemplate"> & SeasonCapabilityRow;
 
@@ -30,8 +39,16 @@ export function getStandardMajorDefinition(
       messages.notStandard ?? "当前赛事不是标准 Major，不能使用标准 Major 运行时。",
     );
   }
-  if (!result.managedProfile) throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前 Major 没有可运行的 managed profile。");
-  return { capabilities, entrantCapacity: result.entrantCapacity, managedProfile: result.managedProfile };
+  if (!result.managedProfile)
+    throw new AppError(
+      ErrorCode.SEASON_CAPABILITY_DISABLED,
+      "当前 Major 没有可运行的 managed profile。",
+    );
+  return {
+    capabilities,
+    entrantCapacity: result.entrantCapacity,
+    managedProfile: result.managedProfile,
+  };
 }
 
 /** Resolve result capacity only from the immutable playoff StageRun snapshot. */
@@ -42,6 +59,10 @@ export function getManagedMajorProfileFromRunSnapshot(ruleSnapshot: unknown, sta
 export function getManagedMajorProfileFromRunPresentation(presentation: MajorRunPresentation) {
   const stagePlan = materializeMajorStagePlan(presentation);
   const profile = resolveManagedMajorProfile({ stagePlan });
-  if (!profile) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式结果关联的冻结 StageRun 不包含受支持的 Major profile。");
+  if (!profile)
+    throw new AppError(
+      ErrorCode.INTERNAL_ERROR,
+      "正式结果关联的冻结 StageRun 不包含受支持的 Major profile。",
+    );
   return profile;
 }

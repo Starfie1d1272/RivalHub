@@ -55,9 +55,7 @@ function assertNonEmptyId(value: string, label: string): void {
 }
 
 function pairKey(entryAId: string, entryBId: string): string {
-  return entryAId < entryBId
-    ? `${entryAId}\u0000${entryBId}`
-    : `${entryBId}\u0000${entryAId}`;
+  return entryAId < entryBId ? `${entryAId}\u0000${entryBId}` : `${entryBId}\u0000${entryAId}`;
 }
 
 function loserOf(match: MajorPlayoffMatchFact): string {
@@ -162,9 +160,7 @@ function assertExpectedPair(
   expectedTeamAId: string,
   expectedTeamBId: string,
 ): void {
-  if (
-    pairKey(match.entryAId, match.entryBId) !== pairKey(expectedTeamAId, expectedTeamBId)
-  ) {
+  if (pairKey(match.entryAId, match.entryBId) !== pairKey(expectedTeamAId, expectedTeamBId)) {
     throw new Error(
       `${match.round} slot ${match.slot} has invalid participants: ` +
         `expected ${expectedTeamAId} vs ${expectedTeamBId}`,
@@ -226,16 +222,8 @@ export function projectMajorPlayoff(input: {
 
   const semifinalOne = semifinals.get(1)!;
   const semifinalTwo = semifinals.get(2)!;
-  assertExpectedPair(
-    semifinalOne,
-    quarterfinals.get(1)!.winnerId,
-    quarterfinals.get(2)!.winnerId,
-  );
-  assertExpectedPair(
-    semifinalTwo,
-    quarterfinals.get(3)!.winnerId,
-    quarterfinals.get(4)!.winnerId,
-  );
+  assertExpectedPair(semifinalOne, quarterfinals.get(1)!.winnerId, quarterfinals.get(2)!.winnerId);
+  assertExpectedPair(semifinalTwo, quarterfinals.get(3)!.winnerId, quarterfinals.get(4)!.winnerId);
 
   const final = finals.get(1)!;
   assertExpectedPair(final, semifinalOne.winnerId, semifinalTwo.winnerId);
@@ -277,10 +265,12 @@ export function generateMajorPlayoffNextRound(input: {
       if (!pair || seen.has(`${round}:${fact.slot}`)) throw new Error("Invalid playoff slot");
       seen.add(`${round}:${fact.slot}`);
       assertExpectedPair(fact, pair.higherSeedTeamId, pair.lowerSeedTeamId);
-      if (![fact.entryAId, fact.entryBId].includes(fact.winnerId)) throw new Error("Invalid playoff winner");
+      if (![fact.entryAId, fact.entryBId].includes(fact.winnerId))
+        throw new Error("Invalid playoff winner");
     }
     if (facts.length !== pairs.length) {
-      if (input.matches.some((m) => m.round !== "third_place" && !seen.has(`${m.round}:${m.slot}`))) throw new Error("Playoff has results beyond an incomplete round");
+      if (input.matches.some((m) => m.round !== "third_place" && !seen.has(`${m.round}:${m.slot}`)))
+        throw new Error("Playoff has results beyond an incomplete round");
       return pairs;
     }
     if (round === "final") return [];
@@ -291,7 +281,14 @@ export function generateMajorPlayoffNextRound(input: {
       const b = bySlot.get(i * 2 + 2)!.winnerId;
       const as = input.entrants.find((e) => e.teamId === a)!.playoffSeed;
       const bs = input.entrants.find((e) => e.teamId === b)!.playoffSeed;
-      return { round: next, slot: i + 1, higherSeedTeamId: a, lowerSeedTeamId: b, higherSeed: as, lowerSeed: bs };
+      return {
+        round: next,
+        slot: i + 1,
+        higherSeedTeamId: a,
+        lowerSeedTeamId: b,
+        higherSeed: as,
+        lowerSeed: bs,
+      };
     });
   }
   return [];

@@ -13,7 +13,10 @@ import type { StageConfig } from "@/types/season";
  */
 export function calculateStageRoundRobinStandings(input: {
   stage: Pick<StageConfig, "type" | "teamCount">;
-  stageMatches: readonly Pick<Match, "id" | "seasonId" | "entryAId" | "entryBId" | "stage" | "status" | "scoreA" | "scoreB">[];
+  stageMatches: readonly Pick<
+    Match,
+    "id" | "seasonId" | "entryAId" | "entryBId" | "stage" | "status" | "scoreA" | "scoreB"
+  >[];
   entries: readonly Pick<CompetitionEntry, "id" | "name" | "formationOrder">[];
   roundScoresByMatchId: ReadonlyMap<string, readonly MatchRoundScore[]>;
   stageEntrantIds?: readonly string[];
@@ -22,9 +25,10 @@ export function calculateStageRoundRobinStandings(input: {
   const stageMatches = input.stageMatches.filter(isCompetitionMatch);
   if (stage.type !== "round_robin" || stageMatches.length === 0) return [];
 
-  const entryIds = stageEntrantIds && stageEntrantIds.length > 0
-    ? [...stageEntrantIds]
-    : resolveStrictHistoricalRoundRobinEntryIds(stage.teamCount, stageMatches);
+  const entryIds =
+    stageEntrantIds && stageEntrantIds.length > 0
+      ? [...stageEntrantIds]
+      : resolveStrictHistoricalRoundRobinEntryIds(stage.teamCount, stageMatches);
   if (!entryIds) return [];
 
   const stageEntryIds = new Set(entryIds);

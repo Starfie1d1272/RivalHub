@@ -15,10 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { seasons } from "./seasons";
 import { users } from "./users";
-import type {
-  Pick,
-  PredictionRules,
-} from "@/lib/predictions/types";
+import type { Pick, PredictionRules } from "@/lib/predictions/types";
 const time = (name: string) => timestamp(name, { withTimezone: true });
 export const predictionPrograms = pgTable("prediction_programs", {
   seasonId: uuid("season_id")
@@ -40,9 +37,7 @@ export const predictionContests = pgTable(
     stageKey: text("stage_key").notNull(),
     kind: text("kind", { enum: ["swiss", "single_elim"] }).notNull(),
     stageRunId: uuid("stage_run_id"),
-    entrants: jsonb("entrants")
-      .$type<{ teamId: string; seed: number }[]>()
-      .notNull(),
+    entrants: jsonb("entrants").$type<{ teamId: string; seed: number }[]>().notNull(),
     deadline: time("deadline"),
     lockedAt: time("locked_at"),
     voidedAt: time("voided_at"),
@@ -146,14 +141,24 @@ export const predictionMarkets = pgTable(
   ],
 );
 /** Immutable options; stakes cannot reference an option from another market. */
-export const predictionMarketOptions = pgTable("prediction_market_options", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  marketId: uuid("market_id").notNull().references(() => predictionMarkets.id),
-  key: text("key").notNull(),
-  label: text("label").notNull(),
-  entryId: uuid("entry_id"),
-  position: integer("position").notNull(),
-}, (t) => [unique().on(t.marketId, t.key), unique().on(t.id, t.marketId), unique().on(t.marketId, t.position)]);
+export const predictionMarketOptions = pgTable(
+  "prediction_market_options",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    marketId: uuid("market_id")
+      .notNull()
+      .references(() => predictionMarkets.id),
+    key: text("key").notNull(),
+    label: text("label").notNull(),
+    entryId: uuid("entry_id"),
+    position: integer("position").notNull(),
+  },
+  (t) => [
+    unique().on(t.marketId, t.key),
+    unique().on(t.id, t.marketId),
+    unique().on(t.marketId, t.position),
+  ],
+);
 export const predictionStakes = pgTable(
   "prediction_stakes",
   {
@@ -178,7 +183,10 @@ export const predictionStakes = pgTable(
       columns: [t.accountId, t.seasonId],
       foreignColumns: [predictionAccounts.id, predictionAccounts.seasonId],
     }),
-    foreignKey({ columns: [t.optionId, t.marketId], foreignColumns: [predictionMarketOptions.id, predictionMarketOptions.marketId] }),
+    foreignKey({
+      columns: [t.optionId, t.marketId],
+      foreignColumns: [predictionMarketOptions.id, predictionMarketOptions.marketId],
+    }),
     index("prediction_stakes_season_market_option_idx").on(t.seasonId, t.marketId, t.optionId),
     check("prediction_stake_positive", sql`${t.amount} > 0`),
   ],
@@ -201,10 +209,7 @@ export const predictionSettlements = pgTable(
       .default(sql`clock_timestamp()`),
   },
   (t) => [
-    check(
-      "prediction_settlement_state",
-      sql`${t.state} IN ('pending','settled','refunded')`,
-    ),
+    check("prediction_settlement_state", sql`${t.state} IN ('pending','settled','refunded')`),
   ],
 );
 export const predictionLedger = pgTable(
@@ -218,14 +223,7 @@ export const predictionLedger = pgTable(
       .notNull()
       .default(sql`0`),
     kind: text("kind", {
-      enum: [
-        "initial",
-        "stage",
-        "participation",
-        "stake",
-        "settlement",
-        "reversal",
-      ],
+      enum: ["initial", "stage", "participation", "stake", "settlement", "reversal"],
     }).notNull(),
     source: text("source").notNull(),
     createdAt: time("created_at")

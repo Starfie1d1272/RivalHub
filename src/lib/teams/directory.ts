@@ -2,7 +2,14 @@ import "server-only";
 
 import { and, asc, desc, eq, gt, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { recruitmentIntents, seasons, steamProfiles, teamMemberships, teams, users } from "@/db/schema";
+import {
+  recruitmentIntents,
+  seasons,
+  steamProfiles,
+  teamMemberships,
+  teams,
+  users,
+} from "@/db/schema";
 import { escapeLikePattern } from "@/lib/db/search";
 import { teamRecruitmentTargetAvailableCondition } from "@/lib/recruitment/target-policy";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -33,7 +40,10 @@ export interface TeamDirectoryData {
 export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamDirectoryData> {
   const now = new Date();
   const memberCounts = db
-    .select({ teamId: teamMemberships.teamId, memberCount: sql<number>`count(*)::int`.as("member_count") })
+    .select({
+      teamId: teamMemberships.teamId,
+      memberCount: sql<number>`count(*)::int`.as("member_count"),
+    })
     .from(teamMemberships)
     .innerJoin(users, and(eq(teamMemberships.userId, users.id), eq(users.status, "active")))
     .where(isNull(teamMemberships.endedAt))
@@ -54,40 +64,45 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
   const conditions = [statusCondition];
   if (query.q) {
     const pattern = `%${escapeLikePattern(query.q)}%`;
-    conditions.push(or(
-      ilike(teams.name, pattern),
-      ilike(users.displayName, pattern),
-      ilike(steamProfiles.personaName, pattern),
-      ilike(users.perfectName, pattern),
-    )!);
+    conditions.push(
+      or(
+        ilike(teams.name, pattern),
+        ilike(users.displayName, pattern),
+        ilike(steamProfiles.personaName, pattern),
+        ilike(users.perfectName, pattern),
+      )!,
+    );
   }
-  if (query.recruiting) conditions.push(and(isNotNull(recruitmentIntents.id), recruitmentTargetAvailable)!);
+  if (query.recruiting)
+    conditions.push(and(isNotNull(recruitmentIntents.id), recruitmentTargetAvailable)!);
   const where = and(...conditions);
   const hasOpenRecruitment = sql<boolean>`${recruitmentIntents.id} IS NOT NULL AND ${recruitmentTargetAvailable}`;
   const memberCount = sql<number>`coalesce(${memberCounts.memberCount}, 0)::int`;
-  const orderBy = query.sort === "name"
-    ? [asc(teams.name), asc(teams.id)]
-    : query.sort === "members_asc"
-      ? [asc(memberCount), asc(teams.name), asc(teams.id)]
-      : query.sort === "members_desc"
-        ? [desc(memberCount), asc(teams.name), asc(teams.id)]
-        : [desc(hasOpenRecruitment), asc(teams.name), asc(teams.id)];
+  const orderBy =
+    query.sort === "name"
+      ? [asc(teams.name), asc(teams.id)]
+      : query.sort === "members_asc"
+        ? [asc(memberCount), asc(teams.name), asc(teams.id)]
+        : query.sort === "members_desc"
+          ? [desc(memberCount), asc(teams.name), asc(teams.id)]
+          : [desc(hasOpenRecruitment), asc(teams.name), asc(teams.id)];
 
   const [rows, allTeamsRows] = await Promise.all([
-    db.select({
-      id: teams.id,
-      slug: teams.slug,
-      name: teams.name,
-      logoUrl: teams.logoUrl,
-      description: teams.description,
-      hasOpenRecruitment,
-      status: teams.status,
-      captainUserId: users.id,
-      captainDisplayName: users.displayName,
-      captainPersonaName: steamProfiles.personaName,
-      captainPerfectName: users.perfectName,
-      memberCount,
-    })
+    db
+      .select({
+        id: teams.id,
+        slug: teams.slug,
+        name: teams.name,
+        logoUrl: teams.logoUrl,
+        description: teams.description,
+        hasOpenRecruitment,
+        status: teams.status,
+        captainUserId: users.id,
+        captainDisplayName: users.displayName,
+        captainPersonaName: steamProfiles.personaName,
+        captainPerfectName: users.perfectName,
+        memberCount,
+      })
       .from(teams)
       .leftJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
@@ -102,7 +117,11 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
   return {
     rows: rows.map(({ captainDisplayName, captainPersonaName, captainPerfectName, ...row }) => ({
       ...row,
-      captainName: getPublicDisplayName({ displayName: captainDisplayName, personaName: captainPersonaName, perfectName: captainPerfectName }),
+      captainName: getPublicDisplayName({
+        displayName: captainDisplayName,
+        personaName: captainPersonaName,
+        perfectName: captainPerfectName,
+      }),
     })),
     total: rows.length,
     hasAnyTeams: allTeamsRows.length > 0,

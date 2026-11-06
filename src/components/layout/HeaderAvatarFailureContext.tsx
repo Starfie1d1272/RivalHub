@@ -14,8 +14,15 @@ const HeaderAvatarFailureContext = createContext<HeaderAvatarFailureContextValue
 
 export function HeaderAvatarFailureProvider({ children }: { children: ReactNode }) {
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
-  const value = useMemo(() => ({ failedAvatarUrl, markAvatarFailed: setFailedAvatarUrl }), [failedAvatarUrl]);
-  return <HeaderAvatarFailureContext.Provider value={value}>{children}</HeaderAvatarFailureContext.Provider>;
+  const value = useMemo(
+    () => ({ failedAvatarUrl, markAvatarFailed: setFailedAvatarUrl }),
+    [failedAvatarUrl],
+  );
+  return (
+    <HeaderAvatarFailureContext.Provider value={value}>
+      {children}
+    </HeaderAvatarFailureContext.Provider>
+  );
 }
 
 export function useHeaderAvatarFailure(avatarUrl?: string | null) {

@@ -12,7 +12,10 @@ export function avgNums(vals: (number | null)[]): number | null {
 }
 
 /** 按权重（如击杀数）对值做加权平均 */
-export function weightedAvgNums(vals: (number | null)[], weights: (number | null)[]): number | null {
+export function weightedAvgNums(
+  vals: (number | null)[],
+  weights: (number | null)[],
+): number | null {
   let totalWeight = 0;
   let weightedSum = 0;
   for (let i = 0; i < vals.length; i++) {

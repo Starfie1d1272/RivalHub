@@ -5,7 +5,11 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Play, Pause, RotateCcw } from "lucide-react";
-import { startDraft as telemetry_startDraft, pauseDraft as telemetry_pauseDraft, resumeDraft as telemetry_resumeDraft } from "@/actions/draft";
+import {
+  startDraft as telemetry_startDraft,
+  pauseDraft as telemetry_pauseDraft,
+  resumeDraft as telemetry_resumeDraft,
+} from "@/actions/draft";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
@@ -37,8 +41,7 @@ export function DraftAdminPanel({
   const state = data?.state ?? null;
   const isLive = state?.isActive ?? false;
   const isDrafting = seasonStatus === "drafting";
-  const canStart =
-    isDrafting && !state && teamCount > 0;
+  const canStart = isDrafting && !state && teamCount > 0;
   const canPause = isLive;
   const canResume = isDrafting && state && !isLive;
 
@@ -102,9 +105,7 @@ export function DraftAdminPanel({
           <div>
             <span className="text-[var(--color-fg-dim)]">进度</span>
             <p className="font-medium text-[var(--color-fg)] tabular">
-              {state
-                ? `第 ${state.currentRound} / ${DRAFT_TOTAL_ROUNDS} 轮`
-                : "-"}
+              {state ? `第 ${state.currentRound} / ${DRAFT_TOTAL_ROUNDS} 轮` : "-"}
             </p>
           </div>
         </div>
@@ -124,11 +125,7 @@ export function DraftAdminPanel({
             </Button>
           )}
           {canPause && (
-            <Button
-              variant="outline"
-              onClick={handlePause}
-              disabled={isPending}
-            >
+            <Button variant="outline" onClick={handlePause} disabled={isPending}>
               <Pause size={16} className="mr-1.5" />
               暂停
             </Button>
@@ -175,7 +172,9 @@ export function DraftAdminPanel({
             <div>
               <span className="text-[var(--color-fg-dim)]">当前队伍：</span>
               <span className="text-[var(--color-fg)] ml-1">
-                <TeamProfileLink entryId={state.currentEntryId}>{data.teams.find((t) => t.entryId === state.currentEntryId)?.teamName ?? "无"}</TeamProfileLink>
+                <TeamProfileLink entryId={state.currentEntryId}>
+                  {data.teams.find((t) => t.entryId === state.currentEntryId)?.teamName ?? "无"}
+                </TeamProfileLink>
               </span>
             </div>
             <div>

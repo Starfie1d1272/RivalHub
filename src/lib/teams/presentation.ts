@@ -16,11 +16,14 @@ export function presentTeamStatus(status: "active" | "disbanded"): StatusPresent
   return TEAM_STATUS_PRESENTATIONS[status];
 }
 
-export function presentTeamMembershipStatus(status: "active" | "benched" | "left"): StatusPresentation {
+export function presentTeamMembershipStatus(
+  status: "active" | "benched" | "left",
+): StatusPresentation {
   return TEAM_MEMBERSHIP_PRESENTATIONS[status];
 }
 
-type TeamShareInvitationState = "available" | "accepted" | "revoked" | "expired" | "disbanded" | "unavailable";
+type TeamShareInvitationState =
+  "available" | "accepted" | "revoked" | "expired" | "disbanded" | "unavailable";
 
 interface TeamShareInvitationPresentation {
   state: TeamShareInvitationState;
@@ -29,36 +32,71 @@ interface TeamShareInvitationPresentation {
   canAccept: boolean;
 }
 
-type TeamShareInvitationStateInput = Pick<TeamInvitation, "status" | "expiresAt"> & { teamStatus: Team["status"] };
+type TeamShareInvitationStateInput = Pick<TeamInvitation, "status" | "expiresAt"> & {
+  teamStatus: Team["status"];
+};
 
 export function presentTeamShareInvitation(
   invitation: TeamShareInvitationStateInput,
   now = new Date(),
 ): TeamShareInvitationPresentation {
   if (invitation.teamStatus === "disbanded") {
-    return { state: "disbanded", title: "队伍已解散", sub: "这支队伍已解散，这个邀请已失效。", canAccept: false };
+    return {
+      state: "disbanded",
+      title: "队伍已解散",
+      sub: "这支队伍已解散，这个邀请已失效。",
+      canAccept: false,
+    };
   }
   if (invitation.teamStatus !== "active") {
-    return { state: "unavailable", title: "邀请已失效", sub: "这个邀请链接当前不可用。", canAccept: false };
+    return {
+      state: "unavailable",
+      title: "邀请已失效",
+      sub: "这个邀请链接当前不可用。",
+      canAccept: false,
+    };
   }
   if (invitation.status === "accepted") {
-    return { state: "accepted", title: "邀请已被使用", sub: "这个邀请链接已经被使用，无法再次加入队伍。", canAccept: false };
+    return {
+      state: "accepted",
+      title: "邀请已被使用",
+      sub: "这个邀请链接已经被使用，无法再次加入队伍。",
+      canAccept: false,
+    };
   }
   if (invitation.status === "revoked") {
-    return { state: "revoked", title: "邀请已撤销", sub: "这个邀请已被队长撤销。", canAccept: false };
+    return {
+      state: "revoked",
+      title: "邀请已撤销",
+      sub: "这个邀请已被队长撤销。",
+      canAccept: false,
+    };
   }
   if (invitation.status === "expired" || invitation.expiresAt.getTime() <= now.getTime()) {
-    return { state: "expired", title: "邀请链接已过期", sub: "这个邀请链接已过期。", canAccept: false };
+    return {
+      state: "expired",
+      title: "邀请链接已过期",
+      sub: "这个邀请链接已过期。",
+      canAccept: false,
+    };
   }
   if (invitation.status === "pending") {
     return { state: "available", title: "队伍邀请", sub: "接受邀请，加入队伍。", canAccept: true };
   }
-  return { state: "unavailable", title: "邀请已失效", sub: "这个邀请链接当前不可用。", canAccept: false };
+  return {
+    state: "unavailable",
+    title: "邀请已失效",
+    sub: "这个邀请链接当前不可用。",
+    canAccept: false,
+  };
 }
 
 export type TeamViewerRole = "captain" | "member" | null;
 
-export function getTeamDirectoryCta(role: TeamViewerRole, pendingDirectInvitationCount: number): { href: string; label: string } {
+export function getTeamDirectoryCta(
+  role: TeamViewerRole,
+  pendingDirectInvitationCount: number,
+): { href: string; label: string } {
   if (role === "captain") return { href: "/my/teams", label: "管理我的队伍" };
   if (role === "member") return { href: "/my/teams", label: "查看我的队伍" };
   if (pendingDirectInvitationCount > 0) return { href: "/my/teams", label: "处理队伍邀请" };

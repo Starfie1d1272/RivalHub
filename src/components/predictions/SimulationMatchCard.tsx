@@ -31,22 +31,39 @@ export function SimulationMatchCard({
   const preview = match.source === "preview";
   const actual = match.source === "official";
   const description = `${SIMULATION_SOURCE_LABELS[match.source]} · ${match.format.toUpperCase()}`;
-  const matchHref = match.officialMatchId && seasonSlug
-    ? `/${encodeURIComponent(seasonSlug)}/matches/${encodeURIComponent(match.officialMatchId)}` as Route
-    : null;
+  const matchHref =
+    match.officialMatchId && seasonSlug
+      ? (`/${encodeURIComponent(seasonSlug)}/matches/${encodeURIComponent(match.officialMatchId)}` as Route)
+      : null;
   const matchLabel = `查看 ${teams.get(match.a)?.name ?? "队伍"} 对 ${teams.get(match.b)?.name ?? "队伍"} 比赛`;
-  const navigation = matchHref
-    ? <Link href={matchHref} className={compact ? styles.matchLink : styles.scoreMatchLink} aria-label={matchLabel} title="查看比赛"><ArrowUpRight size={14} aria-hidden="true" /></Link>
-    : seasonSlug ? <div className={compact ? styles.teamLinks : styles.scoreTeamLinks}>
-      {[match.a, match.b].map((id) => <Link key={id}
-        href={`/${encodeURIComponent(seasonSlug)}/teams/${encodeURIComponent(id)}` as Route}
-        aria-label={`查看 ${teams.get(id)?.name ?? "队伍"} 队伍资料`}
-        title={`查看 ${teams.get(id)?.name ?? "队伍"}`}><ArrowUpRight size={13} aria-hidden="true" /></Link>)}
-    </div> : null;
+  const navigation = matchHref ? (
+    <Link
+      href={matchHref}
+      className={compact ? styles.matchLink : styles.scoreMatchLink}
+      aria-label={matchLabel}
+      title="查看比赛"
+    >
+      <ArrowUpRight size={14} aria-hidden="true" />
+    </Link>
+  ) : seasonSlug ? (
+    <div className={compact ? styles.teamLinks : styles.scoreTeamLinks}>
+      {[match.a, match.b].map((id) => (
+        <Link
+          key={id}
+          href={`/${encodeURIComponent(seasonSlug)}/teams/${encodeURIComponent(id)}` as Route}
+          aria-label={`查看 ${teams.get(id)?.name ?? "队伍"} 队伍资料`}
+          title={`查看 ${teams.get(id)?.name ?? "队伍"}`}
+        >
+          <ArrowUpRight size={13} aria-hidden="true" />
+        </Link>
+      ))}
+    </div>
+  ) : null;
   const side = (id: string, index: number) => {
     const team = teams.get(id);
     const winning = match.winner === id;
-    const score = index === 0 ? (match.displayScore ?? match).scoreA : (match.displayScore ?? match).scoreB;
+    const score =
+      index === 0 ? (match.displayScore ?? match).scoreA : (match.displayScore ?? match).scoreB;
     return (
       <button
         key={id}
@@ -64,7 +81,9 @@ export function SimulationMatchCard({
           logoUrl={team?.logoUrl ?? null}
           className={compact ? styles.smallLogo : styles.logo}
         />
-        <span className={styles.teamName} title={team?.name}>{team?.name ?? "队伍"}</span>
+        <span className={styles.teamName} title={team?.name}>
+          {team?.name ?? "队伍"}
+        </span>
         {compact && (
           <strong className={styles.rowScore}>
             {actual ? (score ?? "—") : winning && !preview ? "✓" : "—"}
@@ -104,9 +123,7 @@ export function SimulationMatchCard({
             ) : (
               <>
                 <strong>{preview ? "VS" : "✓"}</strong>
-                <small>
-                  {actual ? match.format : preview ? "高种子" : "我的选择"}
-                </small>
+                <small>{actual ? match.format : preview ? "高种子" : "我的选择"}</small>
               </>
             )}
             {navigation}

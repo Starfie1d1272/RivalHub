@@ -3,12 +3,7 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import {
-  matchDemoImports,
-  matchMaps,
-  matches,
-  userGameplaySteamIds,
-} from "@/db/schema";
+import { matchDemoImports, matchMaps, matches, userGameplaySteamIds } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
 import {
@@ -23,26 +18,40 @@ import { lockDemoImportLineageInTx } from "./promotion";
 import { revalidateStoredDemoImportInTx, type StoredDemoRevalidationResult } from "./revalidation";
 import { sha256Json } from "./revision";
 import { isCurrentDakSemanticProfile } from "./semantic-profile";
-import { hasConfirmableParticipantIdentityIssue, loadCanonicalTarget, validateCanonicalTarget } from "./validation";
+import {
+  hasConfirmableParticipantIdentityIssue,
+  loadCanonicalTarget,
+  validateCanonicalTarget,
+} from "./validation";
 
-export const GAMEPLAY_STEAM_CONFLICT_MESSAGE = "这个 Steam64 ID 已关联到另一位选手，请先核对选手身份。";
+export const GAMEPLAY_STEAM_CONFLICT_MESSAGE =
+  "这个 Steam64 ID 已关联到另一位选手，请先核对选手身份。";
 const INVALID_STORED_PAYLOAD_MESSAGE = "这份 Demo 数据无法重新读取，请核对或拒绝。";
 
 async function loadReviewImport(tx: TxDb, importId: string) {
-  const [scope] = await tx.select({ matchMapId: matchDemoImports.matchMapId }).from(matchDemoImports)
+  const [scope] = await tx
+    .select({ matchMapId: matchDemoImports.matchMapId })
+    .from(matchDemoImports)
     .where(eq(matchDemoImports.id, importId));
   if (!scope) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
   await lockDemoImportLineageInTx(tx, scope.matchMapId);
-  const [row] = await tx.select().from(matchDemoImports)
+  const [row] = await tx
+    .select()
+    .from(matchDemoImports)
     .where(eq(matchDemoImports.id, importId))
     .for("update");
   if (!row) throw new AppError(ErrorCode.NOT_FOUND, "待处理的 Demo 数据不存在。");
-  if (row.matchMapId !== scope.matchMapId) throw new AppError(ErrorCode.INTERNAL_ERROR, "Demo 数据在处理期间发生了目标变化。");
-  const [match] = await tx.select().from(matches)
+  if (row.matchMapId !== scope.matchMapId)
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "Demo 数据在处理期间发生了目标变化。");
+  const [match] = await tx
+    .select()
+    .from(matches)
     .where(and(eq(matches.id, row.matchId), eq(matches.seasonId, row.seasonId)))
     .for("update");
   if (!match) throw new AppError(ErrorCode.NOT_FOUND, "Demo 对应的比赛不存在。");
-  const [map] = await tx.select().from(matchMaps)
+  const [map] = await tx
+    .select()
+    .from(matchMaps)
     .where(and(eq(matchMaps.id, row.matchMapId), eq(matchMaps.matchId, match.id)));
   if (!map) throw new AppError(ErrorCode.NOT_FOUND, "Demo 对应的地图不存在。");
   return { row, match, map };
@@ -111,20 +120,39 @@ export async function confirmStoredDemoParticipantIdentityInTx(
     throw new AppError(ErrorCode.VALIDATION_FAILED, "只有当前 Demo 数据版本可以处理。");
   }
   if (row.status === "confirmed") {
-    return { status: "confirmed", importId: row.id, issues: [], alreadyConfirmed: true, aliasCreated: false };
+    return {
+      status: "confirmed",
+      importId: row.id,
+      issues: [],
+      alreadyConfirmed: true,
+      aliasCreated: false,
+    };
   }
   assertReviewable(row);
   const evidence = readStoredEvidence(row);
-  const participant = evidence.participants.find((item) => item.steamId64 === input.observedSteam64);
+  const participant = evidence.participants.find(
+    (item) => item.steamId64 === input.observedSteam64,
+  );
   if (!participant) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "这个 Steam64 不在该份 Demo 数据中，不能确认。");
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "这个 Steam64 不在该份 Demo 数据中，不能确认。",
+    );
   }
 
   const target = await loadCanonicalTarget(tx, evidence.target);
   const validation = await validateCanonicalTarget(tx, evidence, target);
-  const candidate = target.roster.find((member) => member.eventRosterMemberId === input.eventRosterMemberId);
-  if (!candidate) throw new AppError(ErrorCode.VALIDATION_FAILED, "候选选手不在本场当前首发名单中。");
-  const expectedTeam = candidate.entryId === match.entryAId ? "teamA" : candidate.entryId === match.entryBId ? "teamB" : null;
+  const candidate = target.roster.find(
+    (member) => member.eventRosterMemberId === input.eventRosterMemberId,
+  );
+  if (!candidate)
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "候选选手不在本场当前首发名单中。");
+  const expectedTeam =
+    candidate.entryId === match.entryAId
+      ? "teamA"
+      : candidate.entryId === match.entryBId
+        ? "teamB"
+        : null;
   if (expectedTeam === null || participant.observedTeamKey !== expectedTeam) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Demo 中的队伍与所选本场首发选手不一致。");
   }
@@ -133,14 +161,26 @@ export async function confirmStoredDemoParticipantIdentityInTx(
   if (currentResolution && currentResolution.userId !== candidate.userId) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, GAMEPLAY_STEAM_CONFLICT_MESSAGE);
   }
-  const currentIdentityIssue = hasConfirmableParticipantIdentityIssue(validation.issues, input.observedSteam64);
-  const storedIdentityIssue = hasConfirmableParticipantIdentityIssue(row.issues, input.observedSteam64);
+  const currentIdentityIssue = hasConfirmableParticipantIdentityIssue(
+    validation.issues,
+    input.observedSteam64,
+  );
+  const storedIdentityIssue = hasConfirmableParticipantIdentityIssue(
+    row.issues,
+    input.observedSteam64,
+  );
   // A stale stored issue may have been resolved by the same user's primary or
   // active alias before this action acquired the import lock. That path is
   // revalidation-only; a fresh score/QA issue still cannot authorize identity
   // mutation because it has no exact participant identity issue.
-  if (!currentIdentityIssue && !(storedIdentityIssue && currentResolution?.userId === candidate.userId)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "这名选手当前没有待确认的 Steam 身份问题，请刷新后重试。");
+  if (
+    !currentIdentityIssue &&
+    !(storedIdentityIssue && currentResolution?.userId === candidate.userId)
+  ) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "这名选手当前没有待确认的 Steam 身份问题，请刷新后重试。",
+    );
   }
   const identity = currentResolution
     ? { created: false }
@@ -186,7 +226,10 @@ export async function rejectStoredDemoImportInTx(
   const { row, match, map } = await loadReviewImport(tx, input.importId);
   if (row.status === "rejected") return { alreadyRejected: true };
   assertReviewable(row);
-  await tx.update(matchDemoImports).set({ status: "rejected" }).where(eq(matchDemoImports.id, row.id));
+  await tx
+    .update(matchDemoImports)
+    .set({ status: "rejected" })
+    .where(eq(matchDemoImports.id, row.id));
   await writeAuditInTx(tx, {
     seasonId: match.seasonId,
     action: "match.demo.reject",
@@ -213,13 +256,16 @@ export async function retireSeasonGameplaySteamIdentityInTx(
   if (reason.length < 2 || reason.length > 500) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "撤销比赛 Steam 身份必须填写原因。");
   }
-  const [identity] = await tx.select().from(userGameplaySteamIds)
+  const [identity] = await tx
+    .select()
+    .from(userGameplaySteamIds)
     .where(eq(userGameplaySteamIds.id, input.identityId));
   if (!identity) throw new AppError(ErrorCode.NOT_FOUND, "Steam 游戏身份不存在。");
   if (identity.provenance !== "admin_confirmed_alternate" || !identity.sourceImportId) {
     throw new AppError(ErrorCode.FORBIDDEN, "只能撤销由比赛确认产生的 Steam 身份。");
   }
-  const [sourceImport] = await tx.select({ seasonId: matchDemoImports.seasonId })
+  const [sourceImport] = await tx
+    .select({ seasonId: matchDemoImports.seasonId })
     .from(matchDemoImports)
     .where(eq(matchDemoImports.id, identity.sourceImportId));
   if (!sourceImport || sourceImport.seasonId !== input.seasonId) {
@@ -227,12 +273,22 @@ export async function retireSeasonGameplaySteamIdentityInTx(
   }
 
   await lockDemoIdentityInvalidationSeasonsInTx(tx, { steam64: identity.steam64 }, input.seasonId);
-  const [lockedIdentity] = await tx.select().from(userGameplaySteamIds)
-    .where(eq(userGameplaySteamIds.id, input.identityId)).for("update");
-  const [lockedSource] = await tx.select({ seasonId: matchDemoImports.seasonId }).from(matchDemoImports)
+  const [lockedIdentity] = await tx
+    .select()
+    .from(userGameplaySteamIds)
+    .where(eq(userGameplaySteamIds.id, input.identityId))
+    .for("update");
+  const [lockedSource] = await tx
+    .select({ seasonId: matchDemoImports.seasonId })
+    .from(matchDemoImports)
     .where(eq(matchDemoImports.id, identity.sourceImportId));
-  if (!lockedIdentity || lockedIdentity.steam64 !== identity.steam64 || lockedIdentity.sourceImportId !== identity.sourceImportId
-    || lockedIdentity.provenance !== identity.provenance || lockedSource?.seasonId !== input.seasonId) {
+  if (
+    !lockedIdentity ||
+    lockedIdentity.steam64 !== identity.steam64 ||
+    lockedIdentity.sourceImportId !== identity.sourceImportId ||
+    lockedIdentity.provenance !== identity.provenance ||
+    lockedSource?.seasonId !== input.seasonId
+  ) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam 身份或来源赛事已变化，请重新读取。");
   }
   const result = await retireCanonicalGameplaySteamIdentityInTx(tx, {

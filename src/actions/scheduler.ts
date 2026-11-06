@@ -8,16 +8,27 @@ import { db } from "@/db/client";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { executeScheduledJobManually } from "@/lib/scheduler/execution";
-import { getSchedulerJobDefinition, SCHEDULER_JOB_KEYS, type SchedulerJobKey } from "@/lib/scheduler/definitions";
+import {
+  getSchedulerJobDefinition,
+  SCHEDULER_JOB_KEYS,
+  type SchedulerJobKey,
+} from "@/lib/scheduler/definitions";
 import { runSchedulerJobByKey } from "@/lib/scheduler/runners";
 import { fail, ok, type ActionResult } from "@/types/action";
-import { CommittedDefaultLineupsError, DefaultLineupMaterializationError, DEFAULT_LINEUP_RECOVERY_MESSAGE, COMMITTED_DEFAULT_LINEUP_RECOVERY_MESSAGE } from "@/lib/matches/default-lineup-error";
+import {
+  CommittedDefaultLineupsError,
+  DefaultLineupMaterializationError,
+  DEFAULT_LINEUP_RECOVERY_MESSAGE,
+  COMMITTED_DEFAULT_LINEUP_RECOVERY_MESSAGE,
+} from "@/lib/matches/default-lineup-error";
 import { captureException } from "@/lib/observability/server";
 import { ErrorCode } from "@/lib/errors";
 
 const jobKeySchema = z.enum(SCHEDULER_JOB_KEYS);
 
-export async function runSchedulerJobManually(input: unknown): Promise<ActionResult<{ jobKey: SchedulerJobKey; businessTransitions: number }>> {
+export async function runSchedulerJobManually(
+  input: unknown,
+): Promise<ActionResult<{ jobKey: SchedulerJobKey; businessTransitions: number }>> {
   const parsed = z.object({ jobKey: jobKeySchema }).safeParse(input);
   if (!parsed.success) return failValidation("定时任务标识无效。");
 
@@ -31,7 +42,8 @@ export async function runSchedulerJobManually(input: unknown): Promise<ActionRes
       seasonId: null,
       action: "scheduler.manual_trigger",
       actorId: auditActorId(admin),
-      targetId: jobKey,meta: { jobKey, force: true, source: "super-admin-manual" },
+      targetId: jobKey,
+      meta: { jobKey, force: true, source: "super-admin-manual" },
     });
 
     const result = await executeScheduledJobManually(jobKey, () => runSchedulerJobByKey(jobKey));
@@ -39,11 +51,27 @@ export async function runSchedulerJobManually(input: unknown): Promise<ActionRes
     return ok({ jobKey, businessTransitions: result.businessTransitions });
   } catch (error) {
     if (error instanceof DefaultLineupMaterializationError) {
-      captureException("action.unexpected_error", error, { scope: "action", operation: "runSchedulerJobManually", requestId: error.requestId,
-        safeContext: { phase: error instanceof CommittedDefaultLineupsError ? "proposal_read_after_lineups" : "materialization" } });
+      captureException("action.unexpected_error", error, {
+        scope: "action",
+        operation: "runSchedulerJobManually",
+        requestId: error.requestId,
+        safeContext: {
+          phase:
+            error instanceof CommittedDefaultLineupsError
+              ? "proposal_read_after_lineups"
+              : "materialization",
+        },
+      });
       revalidatePath("/admin/settings");
-      const message = error instanceof CommittedDefaultLineupsError ? COMMITTED_DEFAULT_LINEUP_RECOVERY_MESSAGE : DEFAULT_LINEUP_RECOVERY_MESSAGE;
-      return fail({ code: ErrorCode.INTERNAL_ERROR, requestId: error.requestId, message: `${message} 排查编号：${error.requestId}` });
+      const message =
+        error instanceof CommittedDefaultLineupsError
+          ? COMMITTED_DEFAULT_LINEUP_RECOVERY_MESSAGE
+          : DEFAULT_LINEUP_RECOVERY_MESSAGE;
+      return fail({
+        code: ErrorCode.INTERNAL_ERROR,
+        requestId: error.requestId,
+        message: `${message} 排查编号：${error.requestId}`,
+      });
     }
     return actionError("runSchedulerJobManually", error);
   }

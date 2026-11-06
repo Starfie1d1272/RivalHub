@@ -15,7 +15,10 @@ import {
 } from "@/db/schema";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { majorRunPresentationSelection } from "@/lib/major/run-snapshot-query";
-import { parseMajorRunPresentation, resolveMajorStagePlanFromPresentations } from "@/lib/major/run-snapshot";
+import {
+  parseMajorRunPresentation,
+  resolveMajorStagePlanFromPresentations,
+} from "@/lib/major/run-snapshot";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { projectPredictionStages } from "./stage-projection";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -25,13 +28,7 @@ import { predictionMatchSelection, type PredictionMatch } from "./match-selectio
 export function officialWinner(
   match: Pick<
     typeof matches.$inferSelect,
-    | "status"
-    | "completedAt"
-    | "scoreA"
-    | "scoreB"
-    | "format"
-    | "entryAId"
-    | "entryBId"
+    "status" | "completedAt" | "scoreA" | "scoreB" | "format" | "entryAId" | "entryBId"
   >,
 ): string | null {
   if (
@@ -51,11 +48,8 @@ export function officialWinner(
 export async function loadBaselineRead(
   db: DB | TxDb,
   seasonId: string,
-): Promise<{baseline:Baseline;official:PredictionMatch[]}> {
-  const [season] = await db
-    .select()
-    .from(seasons)
-    .where(eq(seasons.id, seasonId));
+): Promise<{ baseline: Baseline; official: PredictionMatch[] }> {
+  const [season] = await db.select().from(seasons).where(eq(seasons.id, seasonId));
   if (!season) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在");
   const runs = await db
     .select({
@@ -68,9 +62,7 @@ export async function loadBaselineRead(
     .where(eq(majorStageRuns.seasonId, seasonId));
   // Frozen StageRun rules remain readable after live configuration changes.
   const plan = resolveMajorStagePlanFromPresentations(
-    runs.length
-      ? []
-      : getStandardMajorDefinition(season).capabilities.stagePlan,
+    runs.length ? [] : getStandardMajorDefinition(season).capabilities.stagePlan,
     runs.map((run) => ({
       stageKey: run.stageKey,
       presentation: parseMajorRunPresentation(run.presentationInput, run.stageKey),
@@ -92,10 +84,7 @@ export async function loadBaselineRead(
         .from(majorTournamentSeeds)
         .innerJoin(
           majorTournamentEntrants,
-          eq(
-            majorTournamentEntrants.id,
-            majorTournamentSeeds.tournamentEntrantId,
-          ),
+          eq(majorTournamentEntrants.id, majorTournamentSeeds.tournamentEntrantId),
         )
         .innerJoin(
           competitionEntries,
@@ -118,9 +107,7 @@ export async function loadBaselineRead(
   const rawOfficial = await db
     .select(predictionMatchSelection)
     .from(matches)
-    .where(
-      and(eq(matches.seasonId, seasonId), eq(matches.ownership, "major_stage")),
-    );
+    .where(and(eq(matches.seasonId, seasonId), eq(matches.ownership, "major_stage")));
   const official = rawOfficial.map(requireCompetitionMatch);
   const baseline: Baseline = {
     version: SIMULATION_VERSION,
@@ -143,21 +130,14 @@ export async function loadBaselineRead(
         (m) =>
           m.managedKey &&
           m.entryRound !== "third_place" &&
-          runs.some(
-            (r) => r.id === m.majorStageRunId && r.stageKey === m.stage,
-          ),
+          runs.some((r) => r.id === m.majorStageRunId && r.stageKey === m.stage),
       )
       .map((m) => ({
         id: m.id,
         stageKey: m.stage,
         key: m.managedKey!,
         round:
-          m.round ??
-          (m.entryRound === "quarterfinal"
-            ? 1
-            : m.entryRound === "semifinal"
-              ? 2
-              : 3),
+          m.round ?? (m.entryRound === "quarterfinal" ? 1 : m.entryRound === "semifinal" ? 2 : 3),
         a: m.entryAId,
         b: m.entryBId,
         winner: officialWinner(m),
@@ -173,16 +153,14 @@ export async function loadBaselineRead(
       JSON.stringify({
         version: baseline.version,
         stages: baseline.stages,
-        teams: [...baseline.teams].sort(
-          (a, b) => a.tournamentSeed - b.tournamentSeed,
-        ),
+        teams: [...baseline.teams].sort((a, b) => a.tournamentSeed - b.tournamentSeed),
         runs: [...baseline.runs].sort((a, b) => a.key.localeCompare(b.key)),
         matches: [...baseline.matches].sort((a, b) => a.id.localeCompare(b.id)),
       }),
     )
     .digest("hex");
-  return {baseline,official:rawOfficial};
+  return { baseline, official: rawOfficial };
 }
 export async function loadBaseline(db: DB | TxDb, seasonId: string): Promise<Baseline> {
-  return (await loadBaselineRead(db,seasonId)).baseline;
+  return (await loadBaselineRead(db, seasonId)).baseline;
 }

@@ -10,5 +10,10 @@ export function AnalysisContentReady({ view }: { view: string }) {
     const frame = requestAnimationFrame(() => setReady(true));
     return () => cancelAnimationFrame(frame);
   }, []);
-  return <><ContentReady module="admin" phase="primary" /><span hidden data-testid={ready ? "telemetry-content-ready" : undefined} data-view={view} /></>;
+  return (
+    <>
+      <ContentReady module="admin" phase="primary" />
+      <span hidden data-testid={ready ? "telemetry-content-ready" : undefined} data-view={view} />
+    </>
+  );
 }

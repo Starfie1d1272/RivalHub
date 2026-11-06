@@ -9,8 +9,14 @@ import { updateMatchCompletionDeadline as telemetry_updateMatchCompletionDeadlin
 import { setMatchScheduledAt as telemetry_updateMatchScheduledAt } from "@/actions/matches/scheduling";
 import { observeAction } from "@/lib/telemetry/client";
 
-const updateMatchCompletionDeadline = observeAction("matches.updateMatchCompletionDeadline", telemetry_updateMatchCompletionDeadline);
-const updateMatchScheduledAt = observeAction("matches.updateMatchScheduledAt", telemetry_updateMatchScheduledAt);
+const updateMatchCompletionDeadline = observeAction(
+  "matches.updateMatchCompletionDeadline",
+  telemetry_updateMatchCompletionDeadline,
+);
+const updateMatchScheduledAt = observeAction(
+  "matches.updateMatchScheduledAt",
+  telemetry_updateMatchScheduledAt,
+);
 
 interface ScheduledAtInputProps {
   matchId: string;
@@ -24,13 +30,18 @@ export function ScheduledAtInput({
   currentCompletionDeadline,
 }: ScheduledAtInputProps) {
   const [value, setValue] = useState(toCSTDateTimeInput(currentScheduledAt) ?? "");
-  const [deadlineValue, setDeadlineValue] = useState(toCSTDateTimeInput(currentCompletionDeadline) ?? "");
+  const [deadlineValue, setDeadlineValue] = useState(
+    toCSTDateTimeInput(currentCompletionDeadline) ?? "",
+  );
   const [isPending, startTransition] = useTransition();
 
   function handleSave() {
-    const date = value === (toCSTDateTimeInput(currentScheduledAt) ?? "")
-      ? currentScheduledAt
-      : value ? parseCSTInput(value) : null;
+    const date =
+      value === (toCSTDateTimeInput(currentScheduledAt) ?? "")
+        ? currentScheduledAt
+        : value
+          ? parseCSTInput(value)
+          : null;
     if (value && !date) {
       toast.error("请输入有效的时间");
       return;
@@ -96,11 +107,23 @@ export function ScheduledAtInput({
           className="w-48 text-xs h-8"
           disabled={isPending}
         />
-        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleSave} disabled={isPending}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs"
+          onClick={handleSave}
+          disabled={isPending}
+        >
           保存
         </Button>
         {currentScheduledAt && (
-          <Button size="sm" variant="ghost" className="h-8 text-xs text-[var(--color-fg-mid)]" onClick={handleClear} disabled={isPending}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-xs text-[var(--color-fg-mid)]"
+            onClick={handleClear}
+            disabled={isPending}
+          >
             清除
           </Button>
         )}
@@ -114,16 +137,29 @@ export function ScheduledAtInput({
           className="w-48 text-xs h-8"
           disabled={isPending}
         />
-        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleSaveDeadline} disabled={isPending}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs"
+          onClick={handleSaveDeadline}
+          disabled={isPending}
+        >
           保存
         </Button>
         {currentCompletionDeadline && (
-          <Button size="sm" variant="ghost" className="h-8 text-xs text-[var(--color-fg-mid)]" onClick={handleClearDeadline} disabled={isPending}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-xs text-[var(--color-fg-mid)]"
+            onClick={handleClearDeadline}
+            disabled={isPending}
+          >
             清除
           </Button>
         )}
         <span className="text-xs text-[var(--color-fg-dim)]">
-          队长可协商至此时间；计划开赛须为未来时间且不晚于此时间。首次提议满 24 小时、距开赛至少 2 小时才可自动采纳。
+          队长可协商至此时间；计划开赛须为未来时间且不晚于此时间。首次提议满 24 小时、距开赛至少 2
+          小时才可自动采纳。
         </span>
       </div>
     </div>

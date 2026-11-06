@@ -1,5 +1,11 @@
 import type { CompetitionMatch } from "@/lib/matches/competition-context";
-import type { CompetitionEntry, Match as DbMatch, MatchMap, MatchRosterStatus, Season } from "@/db/schema";
+import type {
+  CompetitionEntry,
+  Match as DbMatch,
+  MatchMap,
+  MatchRosterStatus,
+  Season,
+} from "@/db/schema";
 import type { MajorPlayoffRuntimeData, MajorSwissRuntimeData } from "@/lib/admin/major-runtime";
 import type { TeamStanding } from "@/lib/standings";
 import type { StageConfig, StagePlan } from "@/types/season";
@@ -10,8 +16,17 @@ import type { AdminDemoQuality } from "./demo-quality";
 
 type Match = CompetitionMatch<DbMatch>;
 
-export type OperatorLineupPlayer = { name: string; userId?: string; steam64: string | null; profileUrl: string | null };
-export type OperatorLineupDifference = { missing: OperatorLineupPlayer[]; unexpected: OperatorLineupPlayer[]; duplicated: OperatorLineupPlayer[] };
+export type OperatorLineupPlayer = {
+  name: string;
+  userId?: string;
+  steam64: string | null;
+  profileUrl: string | null;
+};
+export type OperatorLineupDifference = {
+  missing: OperatorLineupPlayer[];
+  unexpected: OperatorLineupPlayer[];
+  duplicated: OperatorLineupPlayer[];
+};
 
 export interface TeamMemberData {
   userId: string;
@@ -86,7 +101,8 @@ export interface AdminDemoReviewParticipant {
   observedSteam64: string;
   demoName: string;
   teamName: string;
-  state: "confirmable" | "conflict-retirable" | "conflict-nonretirable" | "roster-mismatch" | "blocked";
+  state:
+    "confirmable" | "conflict-retirable" | "conflict-nonretirable" | "roster-mismatch" | "blocked";
   currentPlayer: { userId: string; name: string } | null;
   retirableIdentityId: string | null;
   note: string | null;
@@ -142,7 +158,10 @@ export interface AdminMatchOverviewData {
   /** All official matches, independent of the selected stage/list scope. */
   matchCount: number;
   stageViews: { stage: StageConfig; matches: AdminMatchSummary[] }[];
-  qualificationRun: Pick<CompetitionQualificationRun, "id" | "format" | "playInEntryCount" | "startedAt" | "completedAt"> | null;
+  qualificationRun: Pick<
+    CompetitionQualificationRun,
+    "id" | "format" | "playInEntryCount" | "startedAt" | "completedAt"
+  > | null;
   unconfiguredMatches: Pick<AdminMatchSummary, "id" | "stage">[];
   pagination: { total: number; page: number; pageSize: number; totalPages: number } | null;
   standingsByStage: Map<string, TeamStanding[]>;
@@ -181,13 +200,57 @@ export interface AdminMatchWorkbenchData {
   officialMapStart?: { mapId: string; mapName: string } | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
-  demoReviewSummaries?: Pick<AdminDemoQuality, "importId" | "matchMapId" | "mapOrder" | "mapName">[];
+  demoReviewSummaries?: Pick<
+    AdminDemoQuality,
+    "importId" | "matchMapId" | "mapOrder" | "mapName"
+  >[];
   demoQuality?: AdminDemoQuality[];
-  demoQualitySummaries?: Pick<AdminDemoQuality, "importId" | "matchMapId" | "mapOrder" | "mapName">[];
+  demoQualitySummaries?: Pick<
+    AdminDemoQuality,
+    "importId" | "matchMapId" | "mapOrder" | "mapName"
+  >[];
   operator: {
-    liveScope?: { authorityRevision: number; generation: number; epoch: number; mapId: string | null } | null;
-    problemRecovery?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding: boolean; mapLabel: string; reportContext: { programSourceGeneration: number; lastReliableSeq: number; currentMapId: string | null } } | null;
-    review?: { expectedTeams: string; currentMap: string | null; officialScore: string | null; evidence: { lineupDifference?: OperatorLineupDifference | null; at: string; mapBinding: string; mapName: string | null; scoreA: number | null; scoreB: number | null } | null }; workflow: OperatorWorkflow; roomGuide: PerfectRoomGuideData | null; recoveryMapLabel?: string | null; takeover?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding?: boolean } | null };
+    liveScope?: {
+      authorityRevision: number;
+      generation: number;
+      epoch: number;
+      mapId: string | null;
+    } | null;
+    problemRecovery?: {
+      sessionId: string;
+      mapEpoch: number;
+      mapId: string;
+      recoverMapBinding: boolean;
+      mapLabel: string;
+      reportContext: {
+        programSourceGeneration: number;
+        lastReliableSeq: number;
+        currentMapId: string | null;
+      };
+    } | null;
+    review?: {
+      expectedTeams: string;
+      currentMap: string | null;
+      officialScore: string | null;
+      evidence: {
+        lineupDifference?: OperatorLineupDifference | null;
+        at: string;
+        mapBinding: string;
+        mapName: string | null;
+        scoreA: number | null;
+        scoreB: number | null;
+      } | null;
+    };
+    workflow: OperatorWorkflow;
+    roomGuide: PerfectRoomGuideData | null;
+    recoveryMapLabel?: string | null;
+    takeover?: {
+      sessionId: string;
+      mapEpoch: number;
+      mapId: string;
+      recoverMapBinding?: boolean;
+    } | null;
+  };
   commentary: AdminMatchCommentaryData;
 }
 

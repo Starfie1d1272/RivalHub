@@ -13,7 +13,8 @@ export const EDUCATION_REVIEW_DEFAULTS = {
 export type EducationReviewFilterStatus = EducationVerificationStatus | "all";
 export type EducationReviewAcademic = AcademicStatus | "all";
 export type EducationReviewSort = "oldest" | "newest" | "recently_reviewed";
-export type EducationEvidenceLabel = "学信网学籍在线验证报告" | "学信网学历材料" | "学校邮箱" | "录取通知书材料";
+export type EducationEvidenceLabel =
+  "学信网学籍在线验证报告" | "学信网学历材料" | "学校邮箱" | "录取通知书材料";
 
 export interface EducationReviewQuery {
   q?: string;
@@ -25,7 +26,8 @@ export interface EducationReviewQuery {
   pageSize: typeof EDUCATION_REVIEW_PAGE_SIZE;
 }
 
-export type EducationReviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams;
+export type EducationReviewSearchParams =
+  Record<string, string | string[] | undefined> | URLSearchParams;
 
 export interface EducationReviewRow {
   id: string;

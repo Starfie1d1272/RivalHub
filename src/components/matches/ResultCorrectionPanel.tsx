@@ -17,9 +17,18 @@ import {
 } from "@/actions/matches/corrections";
 import { observeAction } from "@/lib/telemetry/client";
 
-const applyMatchResultCorrection = observeAction("matches.corrections.applyMatchResultCorrection", telemetry_applyMatchResultCorrection);
-const planMatchResultCorrection = observeAction("matches.corrections.planMatchResultCorrection", telemetry_planMatchResultCorrection);
-const recordMatchRecoveryAdjudication = observeAction("matches.corrections.recordMatchRecoveryAdjudication", telemetry_recordMatchRecoveryAdjudication);
+const applyMatchResultCorrection = observeAction(
+  "matches.corrections.applyMatchResultCorrection",
+  telemetry_applyMatchResultCorrection,
+);
+const planMatchResultCorrection = observeAction(
+  "matches.corrections.planMatchResultCorrection",
+  telemetry_planMatchResultCorrection,
+);
+const recordMatchRecoveryAdjudication = observeAction(
+  "matches.corrections.recordMatchRecoveryAdjudication",
+  telemetry_recordMatchRecoveryAdjudication,
+);
 
 interface ResultCorrectionPanelProps {
   matchId: string;
@@ -131,13 +140,22 @@ export function ResultCorrectionPanel({
   return (
     <Panel label="比分更正与恢复" contentClassName="space-y-3 p-4">
       <p className="text-sm font-medium text-[var(--color-fg)]">
-        比分更正与恢复 · <TeamProfileLink seasonSlug={seasonSlug} entryId={entryAId}>{teamAName}</TeamProfileLink> vs <TeamProfileLink seasonSlug={seasonSlug} entryId={entryBId}>{teamBName}</TeamProfileLink>（{format.toUpperCase()}）
+        比分更正与恢复 ·{" "}
+        <TeamProfileLink seasonSlug={seasonSlug} entryId={entryAId}>
+          {teamAName}
+        </TeamProfileLink>{" "}
+        vs{" "}
+        <TeamProfileLink seasonSlug={seasonSlug} entryId={entryBId}>
+          {teamBName}
+        </TeamProfileLink>
+        （{format.toUpperCase()}）
       </p>
       <p className="text-xs text-[var(--color-fg-mid)]">
         先计算影响清单并审阅；改变胜者会要求显式确认恢复。资格赛只会撤销尚未开始的后续轮；正赛名单已产生或后续比赛已开始/结束时须走赛事裁决。
       </p>
       <p className="text-xs text-[var(--color-fg-mid)]">
-        这里填写官方系列赛比分（BO1 为 1:0 / 0:1；BO3、BO5 为地图胜场比分），实际单图回合比分请在逐图修正中处理。
+        这里填写官方系列赛比分（BO1 为 1:0 / 0:1；BO3、BO5
+        为地图胜场比分），实际单图回合比分请在逐图修正中处理。
       </p>
 
       {!plan ? (
@@ -180,25 +198,38 @@ export function ResultCorrectionPanel({
       ) : (
         <div className="space-y-2 text-xs">
           <p className="text-[var(--color-fg)]">
-            当前 {plan.current.isForfeit ? `${plan.current.scoreA}:${plan.current.scoreB}（弃赛）` : `${plan.current.scoreA ?? "-"}:${plan.current.scoreB ?? "-"}`}
+            当前{" "}
+            {plan.current.isForfeit
+              ? `${plan.current.scoreA}:${plan.current.scoreB}（弃赛）`
+              : `${plan.current.scoreA ?? "-"}:${plan.current.scoreB ?? "-"}`}
             {" → "}
-            提议 {plan.proposed.isForfeit ? `${plan.proposed.scoreA}:${plan.proposed.scoreB}（弃赛）` : `${plan.proposed.scoreA}:${plan.proposed.scoreB}`}
+            提议{" "}
+            {plan.proposed.isForfeit
+              ? `${plan.proposed.scoreA}:${plan.proposed.scoreB}（弃赛）`
+              : `${plan.proposed.scoreA}:${plan.proposed.scoreB}`}
             {plan.winnerChanges && " · 胜者将变更"}
           </p>
           {plan.impacts.length > 0 && (
             <ul className="list-disc space-y-0.5 pl-4 text-[var(--color-fg-mid)]">
               {plan.impacts.map((impact, index) => (
-                <li key={`impact-${index}`}>
-                  {impact.label}
-                </li>
+                <li key={`impact-${index}`}>{impact.label}</li>
               ))}
             </ul>
           )}
           {plan.blockedReasons.length > 0 && (
-            <StatusBanner tone="error" title="当前更正不能自动执行" sub={`${plan.blockedReasons.join(" ")} 如确需处理，请在下方记录赛后裁决。`} />
+            <StatusBanner
+              tone="error"
+              title="当前更正不能自动执行"
+              sub={`${plan.blockedReasons.join(" ")} 如确需处理，请在下方记录赛后裁决。`}
+            />
           )}
           {plan.requiredRecoveryActions.length > 0 && !plan.blockedReasons.length && (
-            <Checklist items={plan.requiredRecoveryActions.map((label) => ({ label, state: "pending" as const }))} />
+            <Checklist
+              items={plan.requiredRecoveryActions.map((label) => ({
+                label,
+                state: "pending" as const,
+              }))}
+            />
           )}
           <div className="flex flex-wrap gap-2 pt-1">
             {plan.winnerChanges && plan.blockedReasons.length === 0 && (

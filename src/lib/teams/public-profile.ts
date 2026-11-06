@@ -20,9 +20,7 @@ import {
   teams,
   users,
 } from "@/db/schema";
-import {
-  publicCompetitionEntryCondition,
-} from "@/lib/competition-entries/public-visibility";
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { getPublicTeamRecruitment, type PublicRecruitmentIntent } from "@/lib/recruitment/data";
 import type { PublicPlayerIdentity } from "@/lib/identity/public-player";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -41,10 +39,12 @@ export interface PublicTeamIdentity {
 
 export interface PublicTeamProfile {
   team: PublicTeamIdentity;
-  currentMembers: Array<PublicPlayerIdentity & {
-    id: string;
-    status: PublicTeamMembershipStatus;
-  }>;
+  currentMembers: Array<
+    PublicPlayerIdentity & {
+      id: string;
+      status: PublicTeamMembershipStatus;
+    }
+  >;
   entries: Array<{
     id: string;
     name: string;
@@ -78,7 +78,9 @@ export interface PublicTeamProfile {
 }
 
 /** Resolve a public Team URL, including the existing slug-alias redirect path. */
-export async function resolvePublicTeamProfileTarget(slug: string): Promise<PublicTeamIdentity | null> {
+export async function resolvePublicTeamProfileTarget(
+  slug: string,
+): Promise<PublicTeamIdentity | null> {
   const team = await db.query.teams.findFirst({
     where: eq(teams.slug, slug),
     columns: {
@@ -99,33 +101,9 @@ export async function resolvePublicTeamProfileTarget(slug: string): Promise<Publ
   });
   if (!alias) return null;
 
-  return (await db.query.teams.findFirst({
-    where: eq(teams.id, alias.teamId),
-    columns: {
-      id: true,
-      slug: true,
-      name: true,
-      logoUrl: true,
-      description: true,
-      status: true,
-      captainUserId: true,
-    },
-  })) ?? null;
-}
-
-export type PublicTeamProfileCore = Omit<PublicTeamProfile, "currentUserMembership" | "viewerInterested" | "viewerInvited" | "loggedIn">;
-type TeamProfileViewerState = Pick<PublicTeamProfile, "currentUserMembership" | "viewerInterested" | "viewerInvited" | "loggedIn">;
-type PublicTeamOfficialMatch = Pick<typeof matches.$inferSelect, "entryAId" | "entryBId" | "scoreA" | "scoreB" | "completedAt">;
-
-/** Viewer-independent facts can be shared without caching private recruitment state. */
-export async function getPublicTeamProfileBasics(
-  teamId: string,
-  knownTeam?: PublicTeamIdentity,
-) {
-  const team = knownTeam?.id === teamId
-    ? knownTeam
-    : await db.query.teams.findFirst({
-      where: eq(teams.id, teamId),
+  return (
+    (await db.query.teams.findFirst({
+      where: eq(teams.id, alias.teamId),
       columns: {
         id: true,
         slug: true,
@@ -135,7 +113,40 @@ export async function getPublicTeamProfileBasics(
         status: true,
         captainUserId: true,
       },
-    });
+    })) ?? null
+  );
+}
+
+export type PublicTeamProfileCore = Omit<
+  PublicTeamProfile,
+  "currentUserMembership" | "viewerInterested" | "viewerInvited" | "loggedIn"
+>;
+type TeamProfileViewerState = Pick<
+  PublicTeamProfile,
+  "currentUserMembership" | "viewerInterested" | "viewerInvited" | "loggedIn"
+>;
+type PublicTeamOfficialMatch = Pick<
+  typeof matches.$inferSelect,
+  "entryAId" | "entryBId" | "scoreA" | "scoreB" | "completedAt"
+>;
+
+/** Viewer-independent facts can be shared without caching private recruitment state. */
+export async function getPublicTeamProfileBasics(teamId: string, knownTeam?: PublicTeamIdentity) {
+  const team =
+    knownTeam?.id === teamId
+      ? knownTeam
+      : await db.query.teams.findFirst({
+          where: eq(teams.id, teamId),
+          columns: {
+            id: true,
+            slug: true,
+            name: true,
+            logoUrl: true,
+            description: true,
+            status: true,
+            captainUserId: true,
+          },
+        });
   if (!team) return null;
 
   const [members, names, captains, entries, recruitment] = await Promise.all([
@@ -154,7 +165,13 @@ export async function getPublicTeamProfileBasics(
       .from(teamMemberships)
       .innerJoin(users, eq(users.id, teamMemberships.userId))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(and(eq(teamMemberships.teamId, team.id), isNull(teamMemberships.endedAt), ne(teamMemberships.status, "left")))
+      .where(
+        and(
+          eq(teamMemberships.teamId, team.id),
+          isNull(teamMemberships.endedAt),
+          ne(teamMemberships.status, "left"),
+        ),
+      )
       .orderBy(asc(teamMemberships.startedAt)),
     db
       .select({
@@ -191,25 +208,41 @@ export async function getPublicTeamProfileBasics(
       })
       .from(competitionEntries)
       .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
-      .where(and(
-        eq(competitionEntries.teamId, team.id),
-        ne(seasons.status, "draft"),
-        publicCompetitionEntryCondition(),
-      ))
+      .where(
+        and(
+          eq(competitionEntries.teamId, team.id),
+          ne(seasons.status, "draft"),
+          publicCompetitionEntryCondition(),
+        ),
+      )
       .orderBy(asc(seasons.name), asc(competitionEntries.id)),
     getPublicTeamRecruitment(team.id),
   ]);
 
   const currentMembers = members
-    .filter((member): member is typeof member & { status: PublicTeamMembershipStatus } => member.endedAt === null && member.status !== "left")
-    .map(({ id, userId, displayName, personaName, perfectName, status, avatarUrl, hasActivePublicSanction }) => ({
-      id,
-      userId,
-      name: getPublicDisplayName({ displayName, personaName, perfectName }),
-      status,
-      avatarUrl,
-      hasActivePublicSanction,
-    }));
+    .filter(
+      (member): member is typeof member & { status: PublicTeamMembershipStatus } =>
+        member.endedAt === null && member.status !== "left",
+    )
+    .map(
+      ({
+        id,
+        userId,
+        displayName,
+        personaName,
+        perfectName,
+        status,
+        avatarUrl,
+        hasActivePublicSanction,
+      }) => ({
+        id,
+        userId,
+        name: getPublicDisplayName({ displayName, personaName, perfectName }),
+        status,
+        avatarUrl,
+        hasActivePublicSanction,
+      }),
+    );
   return { team, currentMembers, entries, names, captains, recruitment };
 }
 
@@ -219,19 +252,32 @@ export async function getPublicTeamProfileCore(
   knownMatches?: readonly PublicTeamOfficialMatch[],
   knownBasics?: NonNullable<Awaited<ReturnType<typeof getPublicTeamProfileBasics>>>,
 ): Promise<PublicTeamProfileCore | null> {
-  const basics = knownBasics ?? await getPublicTeamProfileBasics(teamId, knownTeam);
+  const basics = knownBasics ?? (await getPublicTeamProfileBasics(teamId, knownTeam));
   if (!basics) return null;
   const { team, currentMembers, entries, names, captains, recruitment } = basics;
   const entryIds = entries.map((entry) => entry.id);
-  const rawPlayed = knownMatches ?? (entryIds.length
-    ? await db
-      .select({ entryAId: matches.entryAId, entryBId: matches.entryBId, scoreA: matches.scoreA, scoreB: matches.scoreB, completedAt: matches.completedAt })
-      .from(matches)
-      .where(and(officialMatchCondition(), and(
-        eq(matches.status, "finished"),
-        or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
-      )))
-    : []);
+  const rawPlayed =
+    knownMatches ??
+    (entryIds.length
+      ? await db
+          .select({
+            entryAId: matches.entryAId,
+            entryBId: matches.entryBId,
+            scoreA: matches.scoreA,
+            scoreB: matches.scoreB,
+            completedAt: matches.completedAt,
+          })
+          .from(matches)
+          .where(
+            and(
+              officialMatchCondition(),
+              and(
+                eq(matches.status, "finished"),
+                or(inArray(matches.entryAId, entryIds), inArray(matches.entryBId, entryIds)),
+              ),
+            ),
+          )
+      : []);
   const played = rawPlayed.map(requireCompetitionFields);
   const completedAtByEntryId = new Map<string, Date>();
   for (const match of played) {
@@ -239,12 +285,17 @@ export async function getPublicTeamProfileCore(
     for (const entryId of [match.entryAId, match.entryBId]) {
       if (!entryIds.includes(entryId)) continue;
       const current = completedAtByEntryId.get(entryId);
-      if (!current || current < match.completedAt) completedAtByEntryId.set(entryId, match.completedAt);
+      if (!current || current < match.completedAt)
+        completedAtByEntryId.set(entryId, match.completedAt);
     }
   }
   const careerEntries = entries
     .map((entry) => ({ ...entry, completedAt: completedAtByEntryId.get(entry.id) ?? null }))
-    .sort((a, b) => (b.completedAt?.getTime() ?? -Infinity) - (a.completedAt?.getTime() ?? -Infinity) || a.seasonName.localeCompare(b.seasonName));
+    .sort(
+      (a, b) =>
+        (b.completedAt?.getTime() ?? -Infinity) - (a.completedAt?.getTime() ?? -Infinity) ||
+        a.seasonName.localeCompare(b.seasonName),
+    );
   const wins = played.filter((match) => {
     const isA = entryIds.includes(match.entryAId);
     const ownScore = isA ? match.scoreA : match.scoreB;
@@ -277,29 +328,31 @@ export async function getTeamProfileViewerState(
 ): Promise<TeamProfileViewerState> {
   const { team, currentMembers, recruitment } = profile;
   const currentUserMembership = viewerUserId
-    ? currentMembers.find((member) => member.userId === viewerUserId) ?? null
+    ? (currentMembers.find((member) => member.userId === viewerUserId) ?? null)
     : null;
-  const viewerInterest = viewerUserId && recruitment
-    ? await db.query.recruitmentInterests.findFirst({
-      where: and(
-        eq(recruitmentInterests.recruitmentIntentId, recruitment.id),
-        eq(recruitmentInterests.userId, viewerUserId),
-      ),
-      columns: { id: true },
-    })
-    : null;
-  const viewerInvitation = viewerUserId && recruitment && !currentUserMembership
-    ? await db.query.teamInvitations.findFirst({
-      where: and(
-        eq(teamInvitations.teamId, team.id),
-        eq(teamInvitations.kind, "direct"),
-        eq(teamInvitations.invitedUserId, viewerUserId),
-        eq(teamInvitations.status, "pending"),
-        gt(teamInvitations.expiresAt, new Date()),
-      ),
-      columns: { id: true },
-    })
-    : null;
+  const viewerInterest =
+    viewerUserId && recruitment
+      ? await db.query.recruitmentInterests.findFirst({
+          where: and(
+            eq(recruitmentInterests.recruitmentIntentId, recruitment.id),
+            eq(recruitmentInterests.userId, viewerUserId),
+          ),
+          columns: { id: true },
+        })
+      : null;
+  const viewerInvitation =
+    viewerUserId && recruitment && !currentUserMembership
+      ? await db.query.teamInvitations.findFirst({
+          where: and(
+            eq(teamInvitations.teamId, team.id),
+            eq(teamInvitations.kind, "direct"),
+            eq(teamInvitations.invitedUserId, viewerUserId),
+            eq(teamInvitations.status, "pending"),
+            gt(teamInvitations.expiresAt, new Date()),
+          ),
+          columns: { id: true },
+        })
+      : null;
 
   return {
     currentUserMembership,
@@ -315,10 +368,15 @@ export async function getPublicTeamProfile(
   knownTeam?: PublicTeamIdentity,
 ): Promise<PublicTeamProfile | null> {
   const core = await getPublicTeamProfileCore(teamId, knownTeam);
-  return core ? { ...core, ...await getTeamProfileViewerState(core, viewerUserId) } : null;
+  return core ? { ...core, ...(await getTeamProfileViewerState(core, viewerUserId)) } : null;
 }
 
 /** Event profiles need only this public link, never the long-team viewer overlay. */
 export async function getPublicTeamProfileLink(teamId: string) {
-  return await db.query.teams.findFirst({ where: eq(teams.id, teamId), columns: { id: true, name: true, slug: true } }) ?? null;
+  return (
+    (await db.query.teams.findFirst({
+      where: eq(teams.id, teamId),
+      columns: { id: true, name: true, slug: true },
+    })) ?? null
+  );
 }

@@ -10,7 +10,10 @@ export const hashOpaque = (value: string) => createHash("sha256").update(value).
 /** A poll-token hash alone cannot reconstruct either integration's credential. */
 export function pairingProof(intentId: string, pollTokenHash: string, domain = "") {
   const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret || secret.length < 32) throw new AppError(ErrorCode.INTERNAL_ERROR, "连接服务未配置安全凭据。");
-  const message = domain ? `${domain}:${intentId}:${pollTokenHash}` : `${intentId}:${pollTokenHash}`;
+  if (!secret || secret.length < 32)
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "连接服务未配置安全凭据。");
+  const message = domain
+    ? `${domain}:${intentId}:${pollTokenHash}`
+    : `${intentId}:${pollTokenHash}`;
   return createHmac("sha256", secret).update(message).digest("hex");
 }

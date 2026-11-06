@@ -24,8 +24,9 @@ export function Panel({
   return (
     <Card
       className={cn(
-        hoverable && "transition-all duration-[var(--duration-normal)] ease-[var(--ease-tactical)] hover:-translate-y-0.5 hover:border-[var(--color-border-hover)] hover:shadow-[0_4px_20px_color-mix(in_srgb,var(--color-accent)_3%,transparent)]",
-        className
+        hoverable &&
+          "transition-all duration-[var(--duration-normal)] ease-[var(--ease-tactical)] hover:-translate-y-0.5 hover:border-[var(--color-border-hover)] hover:shadow-[0_4px_20px_color-mix(in_srgb,var(--color-accent)_3%,transparent)]",
+        className,
       )}
       style={{
         background: hi ? "var(--color-panel-hi)" : "var(--color-panel)",

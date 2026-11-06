@@ -25,7 +25,10 @@ export function createPublicAuthClient() {
   assertPreviewAuthEnvironment();
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL),
+    requireSupabasePublicKey(
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+    ),
     {
       auth: { autoRefreshToken: false, persistSession: false },
       global: { fetch },

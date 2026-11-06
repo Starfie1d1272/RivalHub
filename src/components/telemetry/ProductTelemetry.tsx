@@ -3,7 +3,19 @@ import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useReportWebVitals } from "next/web-vitals";
 import type { Bootstrap } from "@/lib/telemetry/protocol";
-import { configureTelemetry, recordTelemetryVisibility, restoreTelemetryPage, flushTelemetry, markHistoryNavigation, recordClientError, recordPage, recordWebVital, renewTelemetryIfNeeded, setTelemetryScene, telemetryFlushInterval } from "@/lib/telemetry/client";
+import {
+  configureTelemetry,
+  recordTelemetryVisibility,
+  restoreTelemetryPage,
+  flushTelemetry,
+  markHistoryNavigation,
+  recordClientError,
+  recordPage,
+  recordWebVital,
+  renewTelemetryIfNeeded,
+  setTelemetryScene,
+  telemetryFlushInterval,
+} from "@/lib/telemetry/client";
 
 export function ProductTelemetry({ config }: { config: Bootstrap | null }) {
   const pathname = usePathname();
@@ -11,9 +23,18 @@ export function ProductTelemetry({ config }: { config: Bootstrap | null }) {
   useEffect(() => {
     configureTelemetry(config);
     if (!config) return;
-    const renew = () => { void renewTelemetryIfNeeded(); };
-    const timer = setInterval(() => { flushTelemetry(); renew(); }, telemetryFlushInterval);
-    const hidden = () => { recordTelemetryVisibility(); if (document.visibilityState === "hidden") flushTelemetry(); else renew(); };
+    const renew = () => {
+      void renewTelemetryIfNeeded();
+    };
+    const timer = setInterval(() => {
+      flushTelemetry();
+      renew();
+    }, telemetryFlushInterval);
+    const hidden = () => {
+      recordTelemetryVisibility();
+      if (document.visibilityState === "hidden") flushTelemetry();
+      else renew();
+    };
     renew();
     window.addEventListener("popstate", markHistoryNavigation);
     window.addEventListener("pagehide", flushTelemetry);
@@ -42,7 +63,17 @@ export function ProductTelemetry({ config }: { config: Bootstrap | null }) {
   return null;
 }
 
-export function TelemetryScene({ prefix, scene, eventId }: { prefix: string; scene: string; eventId: string }) {
-  useEffect(() => { setTelemetryScene(prefix, scene, eventId); }, [prefix, scene, eventId]);
+export function TelemetryScene({
+  prefix,
+  scene,
+  eventId,
+}: {
+  prefix: string;
+  scene: string;
+  eventId: string;
+}) {
+  useEffect(() => {
+    setTelemetryScene(prefix, scene, eventId);
+  }, [prefix, scene, eventId]);
   return null;
 }

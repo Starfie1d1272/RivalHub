@@ -118,7 +118,9 @@ export function deriveCurrentVetoTurn(input: {
 
     let mapName: string | null = null;
     if (definition.actionType === "decider") {
-      const used = new Set(input.steps.filter((step) => step.actionType !== "side_pick").map((step) => step.mapName));
+      const used = new Set(
+        input.steps.filter((step) => step.actionType !== "side_pick").map((step) => step.mapName),
+      );
       mapName = input.steps.find((step) => step.turnKey === definition.key)?.mapName ?? null;
       if (mapName === null) {
         const remaining = input.mapPool.filter((name) => !used.has(name));
@@ -126,7 +128,8 @@ export function deriveCurrentVetoTurn(input: {
         if (remaining.length === 1) mapName = remaining[0] ?? null;
       }
     } else if (definition.mapFromTurnKey) {
-      mapName = input.steps.find((step) => step.turnKey === definition.mapFromTurnKey)?.mapName ?? null;
+      mapName =
+        input.steps.find((step) => step.turnKey === definition.mapFromTurnKey)?.mapName ?? null;
     }
 
     return {
@@ -141,7 +144,12 @@ export function deriveCurrentVetoTurn(input: {
 
 export function resolveActorEntry(
   actor: VetoActorRole,
-  input: { entryAId: string; entryBId: string; privilegedEntryId: string | null; vetoTeamAEntryId: string | null },
+  input: {
+    entryAId: string;
+    entryBId: string;
+    privilegedEntryId: string | null;
+    vetoTeamAEntryId: string | null;
+  },
 ): string | null {
   if (actor === "system") return null;
   if (actor === "veto_a") return input.vetoTeamAEntryId;
@@ -149,13 +157,18 @@ export function resolveActorEntry(
   return input.vetoTeamAEntryId === input.entryAId ? input.entryBId : input.entryAId;
 }
 
-export function getEligibleVetoMaps(pool: readonly string[], steps: readonly VetoStepFact[]): string[] {
-  const used = new Set(steps.filter((step) => step.actionType !== "side_pick").map((step) => step.mapName));
+export function getEligibleVetoMaps(
+  pool: readonly string[],
+  steps: readonly VetoStepFact[],
+): string[] {
+  const used = new Set(
+    steps.filter((step) => step.actionType !== "side_pick").map((step) => step.mapName),
+  );
   return pool.filter((mapName) => !used.has(mapName));
 }
 
 export function sortVetoOptions(options: readonly string[]): string[] {
-  return [...new Set(options)].sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+  return [...new Set(options)].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 }
 
 export function chooseVetoOptions(
@@ -177,19 +190,29 @@ export function projectVetoMapPlan(input: {
   steps: readonly VetoStepFact[];
   entryAId: string;
   format: MatchFormat;
-}): Array<{ mapOrder: number; mapName: string; pickedByEntryId: string | null; teamAStartSide: Side | null }> {
+}): Array<{
+  mapOrder: number;
+  mapName: string;
+  pickedByEntryId: string | null;
+  teamAStartSide: Side | null;
+}> {
   const picks = input.steps.filter((step) => step.actionType === "pick");
   const decider = input.steps.find((step) => step.actionType === "decider");
   const mapSteps = [...picks, ...(decider ? [decider] : [])];
 
   return mapSteps.map((mapStep, index) => {
-    const sidePick = input.steps.find((step) => step.actionType === "side_pick" && step.mapName === mapStep.mapName);
+    const sidePick = input.steps.find(
+      (step) => step.actionType === "side_pick" && step.mapName === mapStep.mapName,
+    );
     const knifeMap = input.format === "bo5" && index === 4;
-    const teamAStartSide = sidePick && !knifeMap
-      ? (sidePick.entryId === input.entryAId || sidePick.side === null
-        ? sidePick.side
-        : sidePick.side === "t" ? "ct" : "t")
-      : null;
+    const teamAStartSide =
+      sidePick && !knifeMap
+        ? sidePick.entryId === input.entryAId || sidePick.side === null
+          ? sidePick.side
+          : sidePick.side === "t"
+            ? "ct"
+            : "t"
+        : null;
     return {
       mapOrder: index + 1,
       mapName: mapStep.mapName,
@@ -200,7 +223,10 @@ export function projectVetoMapPlan(input: {
 }
 
 export function isVetoTurnKey(format: MatchFormat, turnKey: string): boolean {
-  return turnKey === "choose-veto-team-a" || getVetoTurnDefinitions(format).some((turn) => turn.key === turnKey);
+  return (
+    turnKey === "choose-veto-team-a" ||
+    getVetoTurnDefinitions(format).some((turn) => turn.key === turnKey)
+  );
 }
 
 export interface VetoSequenceStep {
@@ -226,9 +252,8 @@ function expectedLegacySequence(
   entryBId: string,
 ): VetoSequenceStep[] {
   const vetoBEntryId = otherEntry(vetoAEntryId, entryAId, entryBId);
-  const actorEntry = (actor: VetoActorRole) => actor === "veto_a"
-    ? vetoAEntryId
-    : actor === "veto_b" ? vetoBEntryId : null;
+  const actorEntry = (actor: VetoActorRole) =>
+    actor === "veto_a" ? vetoAEntryId : actor === "veto_b" ? vetoBEntryId : null;
   const expected: VetoSequenceStep[] = [];
   for (const definition of getVetoTurnDefinitions(format)) {
     if (definition.actionType === "ban" || definition.actionType === "pick") {
@@ -257,17 +282,24 @@ export function assertVetoSequence(
     throw new AppError(ErrorCode.VALIDATION_FAILED, "BP 首步必须由本场参赛队执行");
   }
   const expected = expectedLegacySequence(format, firstEntryId, entryAId, entryBId);
-  if (steps.length !== expected.length || steps.some((step, index) => step.actionType !== expected[index]?.actionType)) {
+  if (
+    steps.length !== expected.length ||
+    steps.some((step, index) => step.actionType !== expected[index]?.actionType)
+  ) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, format.toUpperCase() + " BP 步骤顺序不合法");
   }
   if (steps.some((step, index) => step.entryId !== expected[index]?.entryId)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, format.toUpperCase() + " BP 操作顺序不合法");
   }
-  if (steps.some((step, index) => (
-    step.side !== null &&
-    step.side !== undefined &&
-    (expected[index]?.actionType === "ban" || (format === "bo5" && expected[index]?.actionType === "decider"))
-  ))) {
+  if (
+    steps.some(
+      (step, index) =>
+        step.side !== null &&
+        step.side !== undefined &&
+        (expected[index]?.actionType === "ban" ||
+          (format === "bo5" && expected[index]?.actionType === "decider")),
+    )
+  ) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "该 BP 步骤不应包含选边事实");
   }
 }
@@ -282,9 +314,8 @@ export function legacyVetoStepsToFacts(
   assertVetoSequence(format, steps, entryAId, entryBId);
   const vetoAEntryId = steps[0]!.entryId!;
   const vetoBEntryId = otherEntry(vetoAEntryId, entryAId, entryBId);
-  const actorEntry = (actor: VetoActorRole) => actor === "veto_a"
-    ? vetoAEntryId
-    : actor === "veto_b" ? vetoBEntryId : null;
+  const actorEntry = (actor: VetoActorRole) =>
+    actor === "veto_a" ? vetoAEntryId : actor === "veto_b" ? vetoBEntryId : null;
   const facts: VetoStepFact[] = [];
   const mapByTurnKey = new Map<string, string>();
   let legacyIndex = 0;
@@ -307,19 +338,29 @@ export function legacyVetoStepsToFacts(
     if (definition.actionType === "decider") {
       const step = steps[legacyIndex++]!;
       mapByTurnKey.set(definition.key, step.mapName);
-      facts.push({ turnKey: definition.key, actionType: "decider", mapName: step.mapName, entryId: null, side: null });
+      facts.push({
+        turnKey: definition.key,
+        actionType: "decider",
+        mapName: step.mapName,
+        entryId: null,
+        side: null,
+      });
       continue;
     }
 
     const mapName = mapByTurnKey.get(definition.mapFromTurnKey ?? "");
     if (!mapName) continue;
-    const sideStep = definition.mapFromTurnKey === "system-decider"
-      ? steps[steps.length - 1]
-      : steps.find((step) => step.actionType === "pick" && step.mapName === mapName);
+    const sideStep =
+      definition.mapFromTurnKey === "system-decider"
+        ? steps[steps.length - 1]
+        : steps.find((step) => step.actionType === "pick" && step.mapName === mapName);
     if (!sideStep?.side) continue;
-    const sidePickerEntryId = definition.mapFromTurnKey === "system-decider"
-      ? sideStep.entryId
-      : sideStep.entryId ? otherEntry(sideStep.entryId, entryAId, entryBId) : null;
+    const sidePickerEntryId =
+      definition.mapFromTurnKey === "system-decider"
+        ? sideStep.entryId
+        : sideStep.entryId
+          ? otherEntry(sideStep.entryId, entryAId, entryBId)
+          : null;
     facts.push({
       turnKey: definition.key,
       actionType: "side_pick",

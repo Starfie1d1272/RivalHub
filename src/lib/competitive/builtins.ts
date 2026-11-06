@@ -33,10 +33,10 @@ export type BuiltInPlatformDefinition = {
 /** Explicit in-rank star ranges; every rank without an entry is starless. */
 const STAR_RANGES_BY_RANK = {
   // Perfect World S tiers.
-  "青铜S": [0, 9],
-  "黄金S": [10, 24],
-  "钻石S": [25, 49],
-  "魔王S": [50, null],
+  青铜S: [0, 9],
+  黄金S: [10, 24],
+  钻石S: [25, 49],
+  魔王S: [50, null],
   // 5E S tiers.
   S: [0, 19],
   SS: [20, 39],
@@ -49,7 +49,13 @@ const BELOW_S_ORDER = PERFECT_WORLD_RANK_ORDER.slice(0, PERFECT_WORLD_RANK_ORDER
 function rankDefinitions(order: readonly string[]): BuiltInRankDefinition[] {
   return order.map((rankKey, sortOrder) => {
     const range = STAR_RANGES_BY_RANK[rankKey as keyof typeof STAR_RANGES_BY_RANK];
-    return { rankKey, label: rankKey, sortOrder, starMin: range?.[0] ?? null, starMax: range?.[1] ?? null };
+    return {
+      rankKey,
+      label: rankKey,
+      sortOrder,
+      starMin: range?.[0] ?? null,
+      starMax: range?.[1] ?? null,
+    };
   });
 }
 
@@ -73,7 +79,9 @@ export const BUILT_IN_COMPETITIVE_PLATFORMS: {
 
 export type BuiltInCompetitivePlatformKey = keyof typeof BUILT_IN_COMPETITIVE_PLATFORMS;
 
-export const BUILT_IN_COMPETITIVE_PLATFORM_KEYS = Object.keys(BUILT_IN_COMPETITIVE_PLATFORMS) as BuiltInCompetitivePlatformKey[];
+export const BUILT_IN_COMPETITIVE_PLATFORM_KEYS = Object.keys(
+  BUILT_IN_COMPETITIVE_PLATFORMS,
+) as BuiltInCompetitivePlatformKey[];
 
 /**
  * Product-owned presentation and evidence priority. Never derive this from a
@@ -83,14 +91,20 @@ export const BUILT_IN_COMPETITIVE_PLATFORM_KEYS = Object.keys(BUILT_IN_COMPETITI
 const COMPETITIVE_PLATFORM_PRIORITY = ["perfect_world", "fivee"] as const;
 
 export function compareCompetitivePlatformPriority(left: string, right: string): number {
-  const leftIndex = COMPETITIVE_PLATFORM_PRIORITY.indexOf(left as typeof COMPETITIVE_PLATFORM_PRIORITY[number]);
-  const rightIndex = COMPETITIVE_PLATFORM_PRIORITY.indexOf(right as typeof COMPETITIVE_PLATFORM_PRIORITY[number]);
+  const leftIndex = COMPETITIVE_PLATFORM_PRIORITY.indexOf(
+    left as (typeof COMPETITIVE_PLATFORM_PRIORITY)[number],
+  );
+  const rightIndex = COMPETITIVE_PLATFORM_PRIORITY.indexOf(
+    right as (typeof COMPETITIVE_PLATFORM_PRIORITY)[number],
+  );
   const normalizedLeft = leftIndex < 0 ? Number.MAX_SAFE_INTEGER : leftIndex;
   const normalizedRight = rightIndex < 0 ? Number.MAX_SAFE_INTEGER : rightIndex;
   return normalizedLeft - normalizedRight || left.localeCompare(right);
 }
 
-export function isBuiltInCompetitivePlatformKey(value: string): value is BuiltInCompetitivePlatformKey {
+export function isBuiltInCompetitivePlatformKey(
+  value: string,
+): value is BuiltInCompetitivePlatformKey {
   // hasOwnProperty instead of `in`: the `in` operator walks the prototype
   // chain, so "toString" / "constructor" / "__proto__" would pass.
   return Object.prototype.hasOwnProperty.call(BUILT_IN_COMPETITIVE_PLATFORMS, value);
@@ -98,6 +112,10 @@ export function isBuiltInCompetitivePlatformKey(value: string): value is BuiltIn
 
 /** Whether a built-in rank definition requires an exact in-rank star count. */
 export function isBuiltInStarRank(platform: string, rankKey: string): boolean {
-  return isBuiltInCompetitivePlatformKey(platform)
-    && BUILT_IN_COMPETITIVE_PLATFORMS[platform].ranks.some((rank) => rank.rankKey === rankKey && rank.starMin !== null);
+  return (
+    isBuiltInCompetitivePlatformKey(platform) &&
+    BUILT_IN_COMPETITIVE_PLATFORMS[platform].ranks.some(
+      (rank) => rank.rankKey === rankKey && rank.starMin !== null,
+    )
+  );
 }

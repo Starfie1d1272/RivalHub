@@ -19,6 +19,12 @@ export function StatsHelpLabel({ children, help }: { children: ReactNode; help: 
   );
 }
 
-export function StatsMetricLabel({ metric, children }: { metric: StatsMetricKey; children: ReactNode }) {
+export function StatsMetricLabel({
+  metric,
+  children,
+}: {
+  metric: StatsMetricKey;
+  children: ReactNode;
+}) {
   return <StatsHelpLabel help={<StatsMetricHelp metric={metric} />}>{children}</StatsHelpLabel>;
 }

@@ -21,12 +21,16 @@ export function isPrimaryHealthHealthy(
   definition: Pick<SchedulerJobDefinition, "staleAfterMs">,
   now = new Date(),
 ): boolean {
-  if (!record?.lastPrimaryTriggeredAt || !isFresh(record.lastPrimaryTriggeredAt, definition.staleAfterMs, now)) {
+  if (
+    !record?.lastPrimaryTriggeredAt ||
+    !isFresh(record.lastPrimaryTriggeredAt, definition.staleAfterMs, now)
+  ) {
     return false;
   }
   if (!record.lastPrimaryDispatchRequestedAt) return true;
   return Boolean(
     record.lastPrimaryEndpointSucceededAt &&
-    record.lastPrimaryEndpointSucceededAt.getTime() >= record.lastPrimaryDispatchRequestedAt.getTime(),
+    record.lastPrimaryEndpointSucceededAt.getTime() >=
+      record.lastPrimaryDispatchRequestedAt.getTime(),
   );
 }

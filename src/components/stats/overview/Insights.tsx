@@ -30,32 +30,85 @@ function openingRecoverySummary(insight: Insight) {
   return `FD ${won.n} · Traded ${traded.x} · Team Wins ${won.x}`;
 }
 
-export function Insights({ insights, query, seasonSlug }: { insights: Insight[]; query: StatsQuery; seasonSlug: string }) {
+export function Insights({
+  insights,
+  query,
+  seasonSlug,
+}: {
+  insights: Insight[];
+  query: StatsQuery;
+  seasonSlug: string;
+}) {
   if (!insights.length) return null;
-  return <section aria-labelledby="insights-heading" className="space-y-3">
-    <h2 id="insights-heading" className="text-base font-semibold"><span className="relative inline-block">Insights<HelpTooltip className="absolute left-full top-1/2 ml-1 -translate-y-1/2" label="Insights 说明" content="从当前范围的数据中筛选出的突出表现与差异。" /></span></h2>
-    <ul className="grid gap-x-6 md:grid-cols-2 xl:grid-cols-3">
-      {insights.map((insight) => {
-        const openingSummary = openingRecoverySummary(insight);
-        return <li key={`${insight.entityKey}:${insight.rule}`} className="min-w-0 space-y-2 border-t border-[var(--color-border)] py-3 text-sm">
-          <p><Link href={insight.entityHref as Route} className="font-semibold hover:text-[var(--color-accent)]">{insight.entityName}</Link> · {insight.text}</p>
-          {openingSummary
-            ? <p className="tabular-nums">{openingSummary}</p>
-            : <p className="flex flex-wrap gap-x-4 gap-y-1 tabular-nums">{insight.observations.map((o) => <span key={o.metric}>{metricLabel(o.metric)}：{metricValue(o)}</span>)}</p>}
-          <div className="flex flex-wrap items-start gap-3 text-xs text-[var(--color-fg-mid)]">
-            <details className="min-w-0 flex-1"><summary className="w-fit cursor-pointer">为何出现</summary>
-              <div className="mt-2 space-y-1 leading-5">
-                <p>{insight.scope}</p>
-                {insight.observations.map((o) => <p key={o.metric}>
-                  {metricLabel(o.metric)}：P{(o.percentile * 100).toFixed(1)}
-                  {o.kind === "probability" && o.peerRate !== undefined ? ` · Peers ${formatStatsMetric(presentationMetric(o.metric), o.peerRate)}` : ""}
-                </p>)}
+  return (
+    <section aria-labelledby="insights-heading" className="space-y-3">
+      <h2 id="insights-heading" className="text-base font-semibold">
+        <span className="relative inline-block">
+          Insights
+          <HelpTooltip
+            className="absolute left-full top-1/2 ml-1 -translate-y-1/2"
+            label="Insights 说明"
+            content="从当前范围的数据中筛选出的突出表现与差异。"
+          />
+        </span>
+      </h2>
+      <ul className="grid gap-x-6 md:grid-cols-2 xl:grid-cols-3">
+        {insights.map((insight) => {
+          const openingSummary = openingRecoverySummary(insight);
+          return (
+            <li
+              key={`${insight.entityKey}:${insight.rule}`}
+              className="min-w-0 space-y-2 border-t border-[var(--color-border)] py-3 text-sm"
+            >
+              <p>
+                <Link
+                  href={insight.entityHref as Route}
+                  className="font-semibold hover:text-[var(--color-accent)]"
+                >
+                  {insight.entityName}
+                </Link>{" "}
+                · {insight.text}
+              </p>
+              {openingSummary ? (
+                <p className="tabular-nums">{openingSummary}</p>
+              ) : (
+                <p className="flex flex-wrap gap-x-4 gap-y-1 tabular-nums">
+                  {insight.observations.map((o) => (
+                    <span key={o.metric}>
+                      {metricLabel(o.metric)}：{metricValue(o)}
+                    </span>
+                  ))}
+                </p>
+              )}
+              <div className="flex flex-wrap items-start gap-3 text-xs text-[var(--color-fg-mid)]">
+                <details className="min-w-0 flex-1">
+                  <summary className="w-fit cursor-pointer">为何出现</summary>
+                  <div className="mt-2 space-y-1 leading-5">
+                    <p>{insight.scope}</p>
+                    {insight.observations.map((o) => (
+                      <p key={o.metric}>
+                        {metricLabel(o.metric)}：P{(o.percentile * 100).toFixed(1)}
+                        {o.kind === "probability" && o.peerRate !== undefined
+                          ? ` · Peers ${formatStatsMetric(presentationMetric(o.metric), o.peerRate)}`
+                          : ""}
+                      </p>
+                    ))}
+                  </div>
+                </details>
+                <Link
+                  href={statsHref(seasonSlug, query, {
+                    tab: insight.entityKey.startsWith("player:") ? "players" : "teams",
+                  })}
+                  scroll={false}
+                  className="hover:text-[var(--color-accent)]"
+                >
+                  Stats →
+                </Link>
               </div>
-            </details>
-            <Link href={statsHref(seasonSlug, query, { tab: insight.entityKey.startsWith("player:") ? "players" : "teams" })} scroll={false} className="hover:text-[var(--color-accent)]">Stats →</Link>
-          </div>
-        </li>;
-      })}
-    </ul>
-  </section>;
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }

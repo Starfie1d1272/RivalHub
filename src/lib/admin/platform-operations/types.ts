@@ -3,10 +3,7 @@ import { formatCSTShortDate, getCSTDateKey, getCSTDayStart } from "@/lib/utils/d
 export const PLATFORM_OPERATIONS_GROWTH_DAYS = 7;
 
 export type PlatformOperationsGrowthEventKind =
-  | "user_created"
-  | "education_approval"
-  | "team_created"
-  | "membership_started";
+  "user_created" | "education_approval" | "team_created" | "membership_started";
 
 export interface PlatformOperationsGrowthEvent {
   kind: PlatformOperationsGrowthEventKind;
@@ -68,7 +65,11 @@ export interface PlatformOperationsCurrentMembershipRow {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const TEAM_SIZE_BUCKETS: ReadonlyArray<{ key: string; label: string; matches: (size: number) => boolean }> = [
+const TEAM_SIZE_BUCKETS: ReadonlyArray<{
+  key: string;
+  label: string;
+  matches: (size: number) => boolean;
+}> = [
   { key: "0", label: "0 人", matches: (size) => size === 0 },
   { key: "1", label: "1 人", matches: (size) => size === 1 },
   { key: "2", label: "2 人", matches: (size) => size === 2 },
@@ -89,7 +90,9 @@ export function getPlatformOperationsGrowthStart(
   return new Date(getCSTDayStart(now).getTime() - Math.max(1, dayCount) * DAY_MS + DAY_MS);
 }
 
-export function buildTeamSizeDistribution(teamSizes: readonly number[]): PlatformOperationsTeamSizeBucket[] {
+export function buildTeamSizeDistribution(
+  teamSizes: readonly number[],
+): PlatformOperationsTeamSizeBucket[] {
   return TEAM_SIZE_BUCKETS.map(({ key, label, matches }) => ({
     key,
     label,
@@ -110,11 +113,12 @@ export function summarizeTeamSizes(
   const teamSizes = [...membersByTeam.values()].map((members) => members.size);
   const sortedSizes = [...teamSizes].sort((left, right) => left - right);
   const middle = Math.floor(sortedSizes.length / 2);
-  const medianTeamSize = sortedSizes.length === 0
-    ? null
-    : sortedSizes.length % 2 === 1
-      ? sortedSizes[middle]!
-      : ((sortedSizes[middle - 1] ?? 0) + (sortedSizes[middle] ?? 0)) / 2;
+  const medianTeamSize =
+    sortedSizes.length === 0
+      ? null
+      : sortedSizes.length % 2 === 1
+        ? sortedSizes[middle]!
+        : ((sortedSizes[middle - 1] ?? 0) + (sortedSizes[middle] ?? 0)) / 2;
 
   return {
     activeTeamCount: teamSizes.length,
@@ -131,14 +135,17 @@ export function summarizePlayerPool(input: {
   publicTeamRecruiting: number;
 }): PlatformOperationsPlayerPool {
   const currentTeamUserIds = new Set(
-    input.currentMemberships.flatMap((row) => row.userId ? [row.userId] : []),
+    input.currentMemberships.flatMap((row) => (row.userId ? [row.userId] : [])),
   );
   const certifiedUserIds = new Set(input.certifiedUserIds);
 
   return {
     currentTeamUsers: currentTeamUserIds.size,
-    certifiedWithoutTeam: [...certifiedUserIds].filter((userId) => !currentTeamUserIds.has(userId)).length,
-    teamWithoutCertification: [...currentTeamUserIds].filter((userId) => !certifiedUserIds.has(userId)).length,
+    certifiedWithoutTeam: [...certifiedUserIds].filter((userId) => !currentTeamUserIds.has(userId))
+      .length,
+    teamWithoutCertification: [...currentTeamUserIds].filter(
+      (userId) => !certifiedUserIds.has(userId),
+    ).length,
     publicPlayerLft: input.publicPlayerLft,
     publicTeamRecruiting: input.publicTeamRecruiting,
   };
@@ -169,7 +176,9 @@ export function buildPlatformOperationsGrowth(
     const day = byDate.get(getCSTDateKey(event.occurredAt));
     if (!day) continue;
     switch (event.kind) {
-      case "user_created": day.newUsers += 1; break;
+      case "user_created":
+        day.newUsers += 1;
+        break;
       case "education_approval": {
         const users = educationUsersByDate.get(day.date) ?? new Set<string>();
         if (!users.has(event.entityId)) {
@@ -179,8 +188,12 @@ export function buildPlatformOperationsGrowth(
         educationUsersByDate.set(day.date, users);
         break;
       }
-      case "team_created": day.newTeams += 1; break;
-      case "membership_started": day.newMemberships += 1; break;
+      case "team_created":
+        day.newTeams += 1;
+        break;
+      case "membership_started":
+        day.newMemberships += 1;
+        break;
     }
   }
 

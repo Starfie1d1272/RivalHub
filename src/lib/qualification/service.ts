@@ -1,9 +1,26 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitivePlatformSeasons, competitiveRankFacts, educationVerifications, institutions, steamProfiles, users } from "@/db/schema";
-import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey, isBuiltInStarRank } from "@/lib/competitive/builtins";
+import {
+  competitivePlatformSeasons,
+  competitiveRankFacts,
+  educationVerifications,
+  institutions,
+  steamProfiles,
+  users,
+} from "@/db/schema";
+import {
+  BUILT_IN_COMPETITIVE_PLATFORMS,
+  isBuiltInCompetitivePlatformKey,
+  isBuiltInStarRank,
+} from "@/lib/competitive/builtins";
 import { convertFiveeToPerfect } from "@/lib/competitive/conversion-policy";
-import { comparePlayerStrengthFacts, evaluateExternalStrengthRule, getPlayerStrengthFindings, type PlayerStrengthFact, type PlayerStrengthInput } from "@/lib/major/player-strength";
+import {
+  comparePlayerStrengthFacts,
+  evaluateExternalStrengthRule,
+  getPlayerStrengthFindings,
+  type PlayerStrengthFact,
+  type PlayerStrengthInput,
+} from "@/lib/major/player-strength";
 import { getDisplayName } from "@/lib/identity/display-name";
 import {
   blockersFromQualificationFindings,
@@ -53,7 +70,8 @@ export interface ParticipantQualificationFacts {
 }
 
 /** User rows already selected for the same request and executor, restricted to active users. */
-export type ParticipantQualificationUserRow = Pick<ParticipantQualificationFacts,
+export type ParticipantQualificationUserRow = Pick<
+  ParticipantQualificationFacts,
   "displayName" | "perfectName" | "personaName" | "email" | "emailVerifiedAt" | "steam64" | "qq"
 > & { id: string };
 
@@ -112,14 +130,18 @@ export interface ParticipantReadiness {
   educationState: ParticipantEducationReadiness;
 }
 
-function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | null): (
+function createCompetitiveCandidateResolver(
+  context: CompetitiveProfileConfig | null,
+): (
   primary: SelectableCompetitivePeak | null | undefined,
   fallbackFact: SelectableCompetitivePeak | null | undefined,
 ) => PlayerStrengthFact | null {
   const policy = context?.evidencePolicy;
   const fallback = context?.fallbackConversion;
   const sourceSelection = policy?.sourceSelection ?? "primary_then_fallback";
-  const nativeCandidate = (primary: SelectableCompetitivePeak | null | undefined): PlayerStrengthFact | null => {
+  const nativeCandidate = (
+    primary: SelectableCompetitivePeak | null | undefined,
+  ): PlayerStrengthFact | null => {
     // "Unranked" is evidence about the season state, not a rank. It must never
     // be silently rewritten to the bottom rung of the event ladder.
     if (primary?.status === "unranked") return null;
@@ -133,11 +155,18 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
       ...(primary.sourceRank !== undefined ? { sourceRank: primary.sourceRank } : {}),
     };
   };
-  const fallbackCandidate = (fallbackFact: SelectableCompetitivePeak | null | undefined): PlayerStrengthFact | null => {
+  const fallbackCandidate = (
+    fallbackFact: SelectableCompetitivePeak | null | undefined,
+  ): PlayerStrengthFact | null => {
     if (!fallback || !fallbackFact || fallbackFact.status === "unranked") return null;
-    if (!fallbackFact.rank || fallbackFact.rating === null || fallbackFact.rating === undefined) return null;
+    if (!fallbackFact.rank || fallbackFact.rating === null || fallbackFact.rating === undefined)
+      return null;
     if (fallback.mapping) {
-      const converted = convertFiveeToPerfect(fallbackFact.rank, fallbackFact.stars ?? null, fallback.mapping);
+      const converted = convertFiveeToPerfect(
+        fallbackFact.rank,
+        fallbackFact.stars ?? null,
+        fallback.mapping,
+      );
       // A 5E Rating+ has no reviewed conversion to Perfect Rating Pro. It can
       // establish an equivalent rank, but must not participate in Rating Pro's
       // final tie-break.
@@ -171,7 +200,8 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
     return null;
   };
   const candidateIsUsable = (candidate: PlayerStrengthFact): boolean =>
-    !isBuiltInStarRank(context?.platform ?? "perfect_world", candidate.rank) || candidate.stars !== null && candidate.stars !== undefined;
+    !isBuiltInStarRank(context?.platform ?? "perfect_world", candidate.rank) ||
+    (candidate.stars !== null && candidate.stars !== undefined);
   return (primary, fallbackFact) => {
     const native = nativeCandidate(primary);
     const converted = fallbackCandidate(fallbackFact);
@@ -185,13 +215,26 @@ function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | 
     const usableConverted = converted && candidateIsUsable(converted) ? converted : null;
     if (!usableNative) return usableConverted ?? native;
     if (!usableConverted) return usableNative;
-    return comparePlayerStrengthFacts(usableConverted, usableNative, context!) > 0 ? usableConverted : usableNative;
+    return comparePlayerStrengthFacts(usableConverted, usableNative, context!) > 0
+      ? usableConverted
+      : usableNative;
   };
 }
 
 /** Adapts long-term facts to the event's frozen evidence policy in one place. */
 export function toPlayerStrengthInput(
-  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "personaName" | "email" | "historicalPeak" | "seasonPeaks" | "platformSeasonOrder" | "fallbackFacts">,
+  fact: Pick<
+    ParticipantQualificationFacts,
+    | "userId"
+    | "displayName"
+    | "perfectName"
+    | "personaName"
+    | "email"
+    | "historicalPeak"
+    | "seasonPeaks"
+    | "platformSeasonOrder"
+    | "fallbackFacts"
+  >,
   context: CompetitiveProfileConfig | null,
 ): PlayerStrengthInput {
   const policy = context?.evidencePolicy;
@@ -199,26 +242,35 @@ export function toPlayerStrengthInput(
   const resolve = createCompetitiveCandidateResolver(context);
   const fallbackFor = (seasonKey: string) => {
     const sourceSeasonKey = fallback?.seasonKeyMap[seasonKey];
-    const source = sourceSeasonKey ? fact.fallbackFacts?.seasonPeaks.get(sourceSeasonKey) : undefined;
+    const source = sourceSeasonKey
+      ? fact.fallbackFacts?.seasonPeaks.get(sourceSeasonKey)
+      : undefined;
     return source
-      ? { ...source, sourcePlatform: source.sourcePlatform ?? fallback?.sourcePlatform, sourceSeasonKey: source.sourceSeasonKey ?? sourceSeasonKey }
+      ? {
+          ...source,
+          sourcePlatform: source.sourcePlatform ?? fallback?.sourcePlatform,
+          sourceSeasonKey: source.sourceSeasonKey ?? sourceSeasonKey,
+        }
       : undefined;
   };
   const referenceSeasonKey = policy?.referenceSeasonKey ?? context?.previousSeasonKey ?? "";
-  const recentSeasonKeys = policy?.recentSeasonKeys ?? (context?.currentSeasonKey ? [context.currentSeasonKey] : []);
-  const evidenceSeasonKeys = [...new Set([
-    referenceSeasonKey,
-    ...recentSeasonKeys,
-    context?.currentSeasonKey ?? "",
-  ].filter(Boolean))];
+  const recentSeasonKeys =
+    policy?.recentSeasonKeys ?? (context?.currentSeasonKey ? [context.currentSeasonKey] : []);
+  const evidenceSeasonKeys = [
+    ...new Set(
+      [referenceSeasonKey, ...recentSeasonKeys, context?.currentSeasonKey ?? ""].filter(Boolean),
+    ),
+  ];
   const catalogSeasonKeys = fact.platformSeasonOrder?.length
     ? fact.platformSeasonOrder
     : evidenceSeasonKeys;
-  const seasonOrder = [...new Set([
-    ...catalogSeasonKeys,
-    ...evidenceSeasonKeys,
-    ...(fact.seasonPeaks ? [...fact.seasonPeaks.keys()] : []),
-  ])];
+  const seasonOrder = [
+    ...new Set([
+      ...catalogSeasonKeys,
+      ...evidenceSeasonKeys,
+      ...(fact.seasonPeaks ? [...fact.seasonPeaks.keys()] : []),
+    ]),
+  ];
   const directForSeason = (seasonKey: string): PlayerStrengthFact | null =>
     resolve(fact.seasonPeaks?.get(seasonKey), fallbackFor(seasonKey));
   const lowerOneRung = (
@@ -233,7 +285,9 @@ export function toPlayerStrengthInput(
     // A bucket estimate is not an observed star count. Use the lower bucket's
     // inclusive ceiling so continuous strength can consume it with provenance.
     const estimatedStars = isBuiltInCompetitivePlatformKey(context.platform)
-      ? BUILT_IN_COMPETITIVE_PLATFORMS[context.platform].ranks.find(definition => definition.rankKey === rank)?.starMax ?? null
+      ? (BUILT_IN_COMPETITIVE_PLATFORMS[context.platform].ranks.find(
+          (definition) => definition.rankKey === rank,
+        )?.starMax ?? null)
       : null;
     return {
       rank,
@@ -271,7 +325,12 @@ export function toPlayerStrengthInput(
     const primary = fact.seasonPeaks?.get(seasonKey);
     const fallbackFact = fallbackFor(seasonKey);
     const direct = resolve(primary, fallbackFact);
-    if (direct || !context || (primary?.status !== "unranked" && fallbackFact?.status !== "unranked")) return direct;
+    if (
+      direct ||
+      !context ||
+      (primary?.status !== "unranked" && fallbackFact?.status !== "unranked")
+    )
+      return direct;
     return estimateUnrankedSeason(seasonKey);
   };
   return {
@@ -285,13 +344,45 @@ export function toPlayerStrengthInput(
 }
 
 /** Canonical long-term identity requirements shared by settings and read models. */
-export function getParticipantIdentityFindings(fact: ParticipantQualificationFacts): QualificationFinding[] {
+export function getParticipantIdentityFindings(
+  fact: ParticipantQualificationFacts,
+): QualificationFinding[] {
   const findings: QualificationFinding[] = [];
-  if (!fact.displayName?.trim()) findings.push({ code: "identity_incomplete", message: "请填写展示昵称。", waivable: false, metadata: { field: "display_name" } });
-  if (!fact.steam64?.trim()) findings.push({ code: "identity_incomplete", message: "请填写 Steam64 ID。", waivable: false, metadata: { field: "steam64" } });
-  if (!fact.perfectName?.trim()) findings.push({ code: "identity_incomplete", message: "请填写完美平台昵称。", waivable: false, metadata: { field: "perfect_name" } });
-  if (!fact.qq?.trim()) findings.push({ code: "identity_incomplete", message: "请填写 QQ 号。", waivable: false, metadata: { field: "qq" } });
-  if (!fact.emailVerifiedAt) findings.push({ code: "identity_incomplete", message: "请先验证邮箱。", waivable: false, metadata: { field: "email_verified_at" } });
+  if (!fact.displayName?.trim())
+    findings.push({
+      code: "identity_incomplete",
+      message: "请填写展示昵称。",
+      waivable: false,
+      metadata: { field: "display_name" },
+    });
+  if (!fact.steam64?.trim())
+    findings.push({
+      code: "identity_incomplete",
+      message: "请填写 Steam64 ID。",
+      waivable: false,
+      metadata: { field: "steam64" },
+    });
+  if (!fact.perfectName?.trim())
+    findings.push({
+      code: "identity_incomplete",
+      message: "请填写完美平台昵称。",
+      waivable: false,
+      metadata: { field: "perfect_name" },
+    });
+  if (!fact.qq?.trim())
+    findings.push({
+      code: "identity_incomplete",
+      message: "请填写 QQ 号。",
+      waivable: false,
+      metadata: { field: "qq" },
+    });
+  if (!fact.emailVerifiedAt)
+    findings.push({
+      code: "identity_incomplete",
+      message: "请先验证邮箱。",
+      waivable: false,
+      metadata: { field: "email_verified_at" },
+    });
   return findings;
 }
 
@@ -315,7 +406,12 @@ function getMissingStarFindings(
     return sourceSeasonKey ? fact.fallbackFacts?.seasonPeaks.get(sourceSeasonKey) : undefined;
   };
   const slots: CompetitiveEvidenceSlot[] = [
-    { label: "历史最高", targetKey: "historical", primary: fact.historicalPeak, fallback: fact.fallbackFacts?.historicalPeak },
+    {
+      label: "历史最高",
+      targetKey: "historical",
+      primary: fact.historicalPeak,
+      fallback: fact.fallbackFacts?.historicalPeak,
+    },
   ];
   const referenceSeasonKey = policy?.referenceSeasonKey ?? context.previousSeasonKey;
   slots.push({
@@ -327,23 +423,40 @@ function getMissingStarFindings(
   const recentSeasonKeys = policy?.recentSeasonKeys ?? [context.currentSeasonKey];
   for (const seasonKey of recentSeasonKeys) {
     slots.push({
-      label: policy ? `近期赛季 · ${qualificationSeasonLabel(seasonKey)}` : `当前赛季 · ${qualificationSeasonLabel(seasonKey)}`,
+      label: policy
+        ? `近期赛季 · ${qualificationSeasonLabel(seasonKey)}`
+        : `当前赛季 · ${qualificationSeasonLabel(seasonKey)}`,
       targetKey: seasonKey,
       primary: fact.seasonPeaks?.get(seasonKey),
       fallback: fallbackFor(seasonKey),
     });
   }
 
-  const definitionsByPlatform = new Map<string, Map<string, { label: string; starMin: number | null }>>();
+  const definitionsByPlatform = new Map<
+    string,
+    Map<string, { label: string; starMin: number | null }>
+  >();
   if (isBuiltInCompetitivePlatformKey(context.platform)) {
-    definitionsByPlatform.set(context.platform, new Map(
-      BUILT_IN_COMPETITIVE_PLATFORMS[context.platform].ranks.map((rank) => [rank.rankKey, { label: rank.label, starMin: rank.starMin }]),
-    ));
+    definitionsByPlatform.set(
+      context.platform,
+      new Map(
+        BUILT_IN_COMPETITIVE_PLATFORMS[context.platform].ranks.map((rank) => [
+          rank.rankKey,
+          { label: rank.label, starMin: rank.starMin },
+        ]),
+      ),
+    );
   }
   if (fallbackPlatform && isBuiltInCompetitivePlatformKey(fallbackPlatform)) {
-    definitionsByPlatform.set(fallbackPlatform, new Map(
-      BUILT_IN_COMPETITIVE_PLATFORMS[fallbackPlatform].ranks.map((rank) => [rank.rankKey, { label: rank.label, starMin: rank.starMin }]),
-    ));
+    definitionsByPlatform.set(
+      fallbackPlatform,
+      new Map(
+        BUILT_IN_COMPETITIVE_PLATFORMS[fallbackPlatform].ranks.map((rank) => [
+          rank.rankKey,
+          { label: rank.label, starMin: rank.starMin },
+        ]),
+      ),
+    );
   }
 
   const findings: QualificationFinding[] = [];
@@ -353,20 +466,33 @@ function getMissingStarFindings(
   ): { label: string; rankKey: string } | null => {
     if (!peak?.rank || !platform) return null;
     const rank = definitionsByPlatform.get(platform)?.get(peak.rank);
-    if (!rank || rank.starMin === null || rank.starMin === undefined || (peak.stars !== null && peak.stars !== undefined)) return null;
+    if (
+      !rank ||
+      rank.starMin === null ||
+      rank.starMin === undefined ||
+      (peak.stars !== null && peak.stars !== undefined)
+    )
+      return null;
     return { label: rank.label, rankKey: peak.rank };
   };
   for (const slot of slots) {
     const selected = resolve(slot.primary, slot.fallback);
     const primaryMissing = missingStarsFor(slot.primary, context.platform);
     const fallbackMissing = missingStarsFor(slot.fallback, fallbackPlatform);
-    const primaryHasPriorityInLegacy = slot.primary?.status !== "unranked" && Boolean(
-      slot.primary?.rank && slot.primary.rating !== null && slot.primary.rating !== undefined,
+    const primaryHasPriorityInLegacy =
+      slot.primary?.status !== "unranked" &&
+      Boolean(
+        slot.primary?.rank && slot.primary.rating !== null && slot.primary.rating !== undefined,
+      );
+    const selectedFallback = Boolean(
+      fallbackPlatform && selected?.sourcePlatform === fallbackPlatform,
     );
-    const selectedFallback = Boolean(fallbackPlatform && selected?.sourcePlatform === fallbackPlatform);
-    const report = sourceSelection === "strongest_equivalent"
-      ? fallbackMissing ?? (primaryMissing && !selectedFallback ? primaryMissing : null)
-      : primaryHasPriorityInLegacy ? primaryMissing : fallbackMissing;
+    const report =
+      sourceSelection === "strongest_equivalent"
+        ? (fallbackMissing ?? (primaryMissing && !selectedFallback ? primaryMissing : null))
+        : primaryHasPriorityInLegacy
+          ? primaryMissing
+          : fallbackMissing;
     if (report) {
       const reportUsesFallback = report === fallbackMissing;
       const sourcePeak = reportUsesFallback ? slot.fallback : slot.primary;
@@ -377,8 +503,11 @@ function getMissingStarFindings(
         metadata: {
           field: "stars",
           slot: slot.label,
-          platform: reportUsesFallback ? fallbackPlatform ?? context.platform : context.platform,
-          seasonKey: slot.targetKey === "historical" ? "historical" : sourcePeak?.sourceSeasonKey ?? slot.targetKey,
+          platform: reportUsesFallback ? (fallbackPlatform ?? context.platform) : context.platform,
+          seasonKey:
+            slot.targetKey === "historical"
+              ? "historical"
+              : (sourcePeak?.sourceSeasonKey ?? slot.targetKey),
           rankKey: report.rankKey,
           rankLabel: report.label,
         },
@@ -393,7 +522,15 @@ function getCompetitiveProfileFindings(
   fact: ParticipantQualificationFacts,
   context: CompetitiveProfileConfig | null,
 ): QualificationFinding[] {
-  if (!context) return [{ code: "competitive_context_unavailable", message: "本届赛事的竞技资料要求暂时无法确认，请联系赛事管理员。", waivable: false, metadata: { field: "competitive_context" } }];
+  if (!context)
+    return [
+      {
+        code: "competitive_context_unavailable",
+        message: "本届赛事的竞技资料要求暂时无法确认，请联系赛事管理员。",
+        waivable: false,
+        metadata: { field: "competitive_context" },
+      },
+    ];
   const strength = toPlayerStrengthInput(fact, context);
   const strengthFindings = getPlayerStrengthFindings(strength, context).map((finding) => {
     if (finding.code !== "competitive_profile_incomplete") return finding;
@@ -410,7 +547,10 @@ function getCompetitiveProfileFindings(
     }
     if (field === "recent_season_peak") {
       const seasonKeys = context.evidencePolicy?.recentSeasonKeys ?? [context.currentSeasonKey];
-      const seasonKey = seasonKeys.find((key) => !fact.seasonPeaks?.has(key)) ?? seasonKeys[0] ?? context.currentSeasonKey;
+      const seasonKey =
+        seasonKeys.find((key) => !fact.seasonPeaks?.has(key)) ??
+        seasonKeys[0] ??
+        context.currentSeasonKey;
       return {
         ...finding,
         message: context.evidencePolicy
@@ -420,7 +560,10 @@ function getCompetitiveProfileFindings(
       };
     }
     if (field === "historical_peak") {
-      return { ...finding, metadata: { ...finding.metadata, platform: context.platform, seasonKey: "historical" } };
+      return {
+        ...finding,
+        metadata: { ...finding.metadata, platform: context.platform, seasonKey: "historical" },
+      };
     }
     return finding;
   });
@@ -445,44 +588,56 @@ function isCompleteCompetitiveContext(config: CompetitiveProfileConfig): boolean
   );
   if (!baseComplete) return false;
   const policy = config.evidencePolicy;
-  const policyComplete = !policy || Boolean(
-    policy.historicalWeight === 50 &&
-    policy.referenceSeasonWeight === 20 &&
-    policy.recentSeasonWeight === 30 &&
-    policy.referenceSeasonKey.trim() &&
-    policy.recentSeasonKeys.length > 0 &&
-    policy.recentSeasonKeys.every((key) => key.trim()) &&
-    (policy.sourceSelection === undefined || policy.sourceSelection === "primary_then_fallback" || policy.sourceSelection === "strongest_equivalent"),
-  );
-  const requiredFallbackSeasonKeys = [...new Set([
-    config.currentSeasonKey,
-    policy?.referenceSeasonKey ?? config.previousSeasonKey,
-    ...(policy?.recentSeasonKeys ?? [config.currentSeasonKey]),
-  ])];
-  const fallbackComplete = !config.fallbackConversion || Boolean(
-    config.platform === "perfect_world" &&
-    config.fallbackConversion.sourcePlatform === "fivee" &&
-    config.fallbackConversion.version.trim() &&
-    requiredFallbackSeasonKeys.every((primary) => config.fallbackConversion!.seasonKeyMap[primary]?.trim()) &&
-    Object.entries(config.fallbackConversion.seasonKeyMap).every(([primary, source]) => primary.trim() && source.trim()) &&
-    (
-      (
-        config.fallbackConversion.mapping &&
+  const policyComplete =
+    !policy ||
+    Boolean(
+      policy.historicalWeight === 50 &&
+      policy.referenceSeasonWeight === 20 &&
+      policy.recentSeasonWeight === 30 &&
+      policy.referenceSeasonKey.trim() &&
+      policy.recentSeasonKeys.length > 0 &&
+      policy.recentSeasonKeys.every((key) => key.trim()) &&
+      (policy.sourceSelection === undefined ||
+        policy.sourceSelection === "primary_then_fallback" ||
+        policy.sourceSelection === "strongest_equivalent"),
+    );
+  const requiredFallbackSeasonKeys = [
+    ...new Set([
+      config.currentSeasonKey,
+      policy?.referenceSeasonKey ?? config.previousSeasonKey,
+      ...(policy?.recentSeasonKeys ?? [config.currentSeasonKey]),
+    ]),
+  ];
+  const fallbackComplete =
+    !config.fallbackConversion ||
+    Boolean(
+      config.platform === "perfect_world" &&
+      config.fallbackConversion.sourcePlatform === "fivee" &&
+      config.fallbackConversion.version.trim() &&
+      requiredFallbackSeasonKeys.every((primary) =>
+        config.fallbackConversion!.seasonKeyMap[primary]?.trim(),
+      ) &&
+      Object.entries(config.fallbackConversion.seasonKeyMap).every(
+        ([primary, source]) => primary.trim() && source.trim(),
+      ) &&
+      ((config.fallbackConversion.mapping &&
         Object.keys(config.fallbackConversion.mapping.belowSRankMap).length > 0 &&
         config.fallbackConversion.mapping.starSegments.length > 0 &&
-        config.fallbackConversion.mapping.starSegments.every((segment) => config.rankOrder.includes(segment.targetRank))
-      ) ||
-      (
-        config.fallbackConversion.rankMap &&
-        Object.keys(config.fallbackConversion.rankMap).length > 0 &&
-        Object.values(config.fallbackConversion.rankMap).every((rank) => config.rankOrder.includes(rank))
-      )
-    ),
-  );
+        config.fallbackConversion.mapping.starSegments.every((segment) =>
+          config.rankOrder.includes(segment.targetRank),
+        )) ||
+        (config.fallbackConversion.rankMap &&
+          Object.keys(config.fallbackConversion.rankMap).length > 0 &&
+          Object.values(config.fallbackConversion.rankMap).every((rank) =>
+            config.rankOrder.includes(rank),
+          ))),
+    );
   return policyComplete && fallbackComplete;
 }
 
-export async function resolveCompetitiveContext(config: CompetitiveProfileConfig): Promise<CompetitiveProfileConfig | null> {
+export async function resolveCompetitiveContext(
+  config: CompetitiveProfileConfig,
+): Promise<CompetitiveProfileConfig | null> {
   return isCompleteCompetitiveContext(config) ? config : null;
 }
 
@@ -503,30 +658,73 @@ export async function loadParticipantQualificationRawBundle(
 ) {
   const executor = options.executor ?? db;
   const ids = [...new Set(userIds)];
-  if (ids.length === 0) return { userRows: [], verificationRows: [], rankRows: [], platformSeasonRows: [] };
+  if (ids.length === 0)
+    return { userRows: [], verificationRows: [], rankRows: [], platformSeasonRows: [] };
   const includeCompetitiveFacts = options.includeCompetitiveFacts ?? true;
-  const platforms = [options.platform, options.fallbackPlatform].filter((item): item is string => Boolean(item));
-  const rankFactsFilter = platforms.length > 0
-    ? and(inArray(competitiveRankFacts.userId, ids), inArray(competitiveRankFacts.platform, platforms))
-    : inArray(competitiveRankFacts.userId, ids);
-  const userRows = options.userRows ?? await executor.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, email: users.email, emailVerifiedAt: users.emailVerifiedAt, steam64: users.steam64, qq: users.qq })
-    .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(inArray(users.id, ids), eq(users.status, "active")));
-  const verificationRows = await executor.select({ userId: educationVerifications.userId, id: educationVerifications.id, status: educationVerifications.status, academicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, submittedAt: educationVerifications.submittedAt })
-    .from(educationVerifications).innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active"))).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
+  const platforms = [options.platform, options.fallbackPlatform].filter((item): item is string =>
+    Boolean(item),
+  );
+  const rankFactsFilter =
+    platforms.length > 0
+      ? and(
+          inArray(competitiveRankFacts.userId, ids),
+          inArray(competitiveRankFacts.platform, platforms),
+        )
+      : inArray(competitiveRankFacts.userId, ids);
+  const userRows =
+    options.userRows ??
+    (await executor
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        perfectName: users.perfectName,
+        personaName: steamProfiles.personaName,
+        email: users.email,
+        emailVerifiedAt: users.emailVerifiedAt,
+        steam64: users.steam64,
+        qq: users.qq,
+      })
+      .from(users)
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .where(and(inArray(users.id, ids), eq(users.status, "active"))));
+  const verificationRows = await executor
+    .select({
+      userId: educationVerifications.userId,
+      id: educationVerifications.id,
+      status: educationVerifications.status,
+      academicStatus: educationVerifications.academicStatus,
+      institutionCode: institutions.moeInstitutionCode,
+      institutionName: institutions.name,
+      submittedAt: educationVerifications.submittedAt,
+    })
+    .from(educationVerifications)
+    .innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active")))
+    .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
     .where(inArray(educationVerifications.userId, ids));
   const rankRows = includeCompetitiveFacts
     ? await executor.select().from(competitiveRankFacts).where(rankFactsFilter)
     : [];
-  const platformSeasonRows = includeCompetitiveFacts && options.includePlatformChronology !== false
-    ? await executor.select({ platform: competitivePlatformSeasons.platform, seasonKey: competitivePlatformSeasons.seasonKey })
-      .from(competitivePlatformSeasons)
-      .where(options.platform ? eq(competitivePlatformSeasons.platform, options.platform) : undefined)
-      .orderBy(asc(competitivePlatformSeasons.sortOrder))
-    : [];
+  const platformSeasonRows =
+    includeCompetitiveFacts && options.includePlatformChronology !== false
+      ? await executor
+          .select({
+            platform: competitivePlatformSeasons.platform,
+            seasonKey: competitivePlatformSeasons.seasonKey,
+          })
+          .from(competitivePlatformSeasons)
+          .where(
+            options.platform
+              ? eq(competitivePlatformSeasons.platform, options.platform)
+              : undefined,
+          )
+          .orderBy(asc(competitivePlatformSeasons.sortOrder))
+      : [];
   return { userRows, verificationRows, rankRows, platformSeasonRows };
 }
 
-export type ParticipantQualificationRawBundle = Awaited<ReturnType<typeof loadParticipantQualificationRawBundle>>;
+export type ParticipantQualificationRawBundle = Awaited<
+  ReturnType<typeof loadParticipantQualificationRawBundle>
+>;
 
 /** Pure platform/fallback projection of facts read on one executor. */
 export function projectParticipantQualificationFacts(
@@ -536,7 +734,9 @@ export function projectParticipantQualificationFacts(
   const { userRows, verificationRows, rankRows, platformSeasonRows } = bundle;
   const facts = new Map<string, ParticipantQualificationFacts>();
   const platformSeasonOrder = options.platform
-    ? platformSeasonRows.filter(row => row.platform === options.platform).map(row => row.seasonKey)
+    ? platformSeasonRows
+        .filter((row) => row.platform === options.platform)
+        .map((row) => row.seasonKey)
     : [];
 
   const approvedEducation = new Set(
@@ -546,29 +746,79 @@ export function projectParticipantQualificationFacts(
   for (const row of verificationRows) {
     if (!row.status || !row.academicStatus || !row.institutionName) continue;
     const history = historyByUser.get(row.userId) ?? [];
-    history.push({ id: row.id, status: row.status, academicStatus: row.academicStatus, institutionCode: row.institutionCode, institutionName: row.institutionName, submittedAt: row.submittedAt });
+    history.push({
+      id: row.id,
+      status: row.status,
+      academicStatus: row.academicStatus,
+      institutionCode: row.institutionCode,
+      institutionName: row.institutionName,
+      submittedAt: row.submittedAt,
+    });
     historyByUser.set(row.userId, history);
   }
 
   for (const user of userRows) {
     const allPlatformFacts = rankRows.filter((row) => row.userId === user.id);
-    const platformFacts = options.platform ? allPlatformFacts.filter((row) => row.platform === options.platform) : allPlatformFacts;
-    const fallbackPlatformFacts = options.fallbackPlatform ? allPlatformFacts.filter((row) => row.platform === options.fallbackPlatform) : [];
-    const historical = platformFacts.find((row) => row.kind === "historical_peak" && row.platformSeasonKey === null);
+    const platformFacts = options.platform
+      ? allPlatformFacts.filter((row) => row.platform === options.platform)
+      : allPlatformFacts;
+    const fallbackPlatformFacts = options.fallbackPlatform
+      ? allPlatformFacts.filter((row) => row.platform === options.fallbackPlatform)
+      : [];
+    const historical = platformFacts.find(
+      (row) => row.kind === "historical_peak" && row.platformSeasonKey === null,
+    );
     const seasonPeaks = new Map<string, QualificationSeasonPeak>();
     for (const row of platformFacts) {
       if (row.kind === "season_peak" && row.platformSeasonKey !== null) {
-        seasonPeaks.set(row.platformSeasonKey, { status: row.status, rank: row.rank, rating: row.rating === null ? null : Number(row.rating), stars: row.stars, sourcePlatform: row.platform, sourceSeasonKey: row.platformSeasonKey, sourceRank: row.rank ?? undefined });
+        seasonPeaks.set(row.platformSeasonKey, {
+          status: row.status,
+          rank: row.rank,
+          rating: row.rating === null ? null : Number(row.rating),
+          stars: row.stars,
+          sourcePlatform: row.platform,
+          sourceSeasonKey: row.platformSeasonKey,
+          sourceRank: row.rank ?? undefined,
+        });
       }
     }
-    const fallbackHistorical = fallbackPlatformFacts.find((row) => row.kind === "historical_peak" && row.platformSeasonKey === null);
+    const fallbackHistorical = fallbackPlatformFacts.find(
+      (row) => row.kind === "historical_peak" && row.platformSeasonKey === null,
+    );
     const fallbackSeasonPeaks = new Map<string, QualificationSeasonPeak>();
-    for (const row of fallbackPlatformFacts) if (row.kind === "season_peak" && row.platformSeasonKey !== null) fallbackSeasonPeaks.set(row.platformSeasonKey, { status: row.status, rank: row.rank, rating: row.rating === null ? null : Number(row.rating), stars: row.stars, sourcePlatform: row.platform, sourceSeasonKey: row.platformSeasonKey, sourceRank: row.rank ?? undefined });
+    for (const row of fallbackPlatformFacts)
+      if (row.kind === "season_peak" && row.platformSeasonKey !== null)
+        fallbackSeasonPeaks.set(row.platformSeasonKey, {
+          status: row.status,
+          rank: row.rank,
+          rating: row.rating === null ? null : Number(row.rating),
+          stars: row.stars,
+          sourcePlatform: row.platform,
+          sourceSeasonKey: row.platformSeasonKey,
+          sourceRank: row.rank ?? undefined,
+        });
     const toHistoricalPeak = (row: typeof historical): QualificationPeak | null => {
       if (!row) return null;
-      if (row.status === "unranked") return { status: "unranked", rank: null, rating: null, stars: row.stars, sourcePlatform: row.platform, sourceSeasonKey: row.achievedSeasonKey, sourceRank: row.rank ?? undefined };
+      if (row.status === "unranked")
+        return {
+          status: "unranked",
+          rank: null,
+          rating: null,
+          stars: row.stars,
+          sourcePlatform: row.platform,
+          sourceSeasonKey: row.achievedSeasonKey,
+          sourceRank: row.rank ?? undefined,
+        };
       if (row.rank === null && row.rating === null) return null;
-      return { status: row.status, rank: row.rank, rating: row.rating === null ? null : Number(row.rating), stars: row.stars, sourcePlatform: row.platform, sourceSeasonKey: row.achievedSeasonKey, sourceRank: row.rank ?? undefined };
+      return {
+        status: row.status,
+        rank: row.rank,
+        rating: row.rating === null ? null : Number(row.rating),
+        stars: row.stars,
+        sourcePlatform: row.platform,
+        sourceSeasonKey: row.achievedSeasonKey,
+        sourceRank: row.rank ?? undefined,
+      };
     };
     facts.set(user.id, {
       userId: user.id,
@@ -584,7 +834,9 @@ export function projectParticipantQualificationFacts(
       historicalPeak: toHistoricalPeak(historical),
       seasonPeaks,
       platformSeasonOrder,
-      fallbackFacts: options.fallbackPlatform ? { historicalPeak: toHistoricalPeak(fallbackHistorical), seasonPeaks: fallbackSeasonPeaks } : undefined,
+      fallbackFacts: options.fallbackPlatform
+        ? { historicalPeak: toHistoricalPeak(fallbackHistorical), seasonPeaks: fallbackSeasonPeaks }
+        : undefined,
     });
   }
   return facts;
@@ -601,10 +853,18 @@ export async function loadParticipantQualificationFacts(
   } = {},
 ): Promise<Map<string, ParticipantQualificationFacts>> {
   if (userIds.length === 0) return new Map();
-  return projectParticipantQualificationFacts(await loadParticipantQualificationRawBundle(userIds, { ...options, includePlatformChronology: Boolean(options.platform) }), options);
+  return projectParticipantQualificationFacts(
+    await loadParticipantQualificationRawBundle(userIds, {
+      ...options,
+      includePlatformChronology: Boolean(options.platform),
+    }),
+    options,
+  );
 }
 
-function resolveParticipantEducationReadiness(fact: ParticipantQualificationFacts): ParticipantEducationReadiness {
+function resolveParticipantEducationReadiness(
+  fact: ParticipantQualificationFacts,
+): ParticipantEducationReadiness {
   if (fact.approvedEducation) return "ready";
   if (fact.educationHistory.some((entry) => entry.status === "pending")) return "pending_review";
   const latest = [...fact.educationHistory].sort(
@@ -613,13 +873,21 @@ function resolveParticipantEducationReadiness(fact: ParticipantQualificationFact
   return latest?.status === "rejected" ? "rejected" : "missing";
 }
 
-function educationReadinessFinding(state: Exclude<ParticipantEducationReadiness, "ready">): QualificationFinding {
-  const message = state === "pending_review"
-    ? "高校身份认证审核中 · 等待赛委会"
-    : state === "rejected"
-      ? "需要本人处理 · 高校身份认证已驳回"
-      : "需要本人补充 · 高校身份认证";
-  return { code: "education_incomplete", message, waivable: false, metadata: { field: "approved_education", state } };
+function educationReadinessFinding(
+  state: Exclude<ParticipantEducationReadiness, "ready">,
+): QualificationFinding {
+  const message =
+    state === "pending_review"
+      ? "高校身份认证审核中 · 等待赛委会"
+      : state === "rejected"
+        ? "需要本人处理 · 高校身份认证已驳回"
+        : "需要本人补充 · 高校身份认证";
+  return {
+    code: "education_incomplete",
+    message,
+    waivable: false,
+    metadata: { field: "approved_education", state },
+  };
 }
 
 /** Pure evaluation of one participant's readiness from loaded facts. */
@@ -631,10 +899,10 @@ export function computeParticipantReadiness(
   const educationState = resolveParticipantEducationReadiness(fact);
   const findings = context
     ? [
-      ...getParticipantIdentityFindings(fact),
-      ...(educationState === "ready" ? [] : [educationReadinessFinding(educationState)]),
-      ...getCompetitiveProfileFindings(fact, context),
-    ]
+        ...getParticipantIdentityFindings(fact),
+        ...(educationState === "ready" ? [] : [educationReadinessFinding(educationState)]),
+        ...getCompetitiveProfileFindings(fact, context),
+      ]
     : getCompetitiveProfileFindings(fact, null);
   const uniqueFindings = uniqueQualificationFindings(findings);
   return {
@@ -656,13 +924,38 @@ export async function getParticipantReadinessBatch(
   const context = await resolveCompetitiveContext(config);
   // Rank facts are platform-scoped: a participant's facts on another platform
   // must never satisfy this event's frozen context.
-  const facts = options.facts ?? await loadParticipantQualificationFacts(userIds, { platform: context?.platform ?? config.platform, fallbackPlatform: context?.fallbackConversion?.sourcePlatform });
+  const facts =
+    options.facts ??
+    (await loadParticipantQualificationFacts(userIds, {
+      platform: context?.platform ?? config.platform,
+      fallbackPlatform: context?.fallbackConversion?.sourcePlatform,
+    }));
   const result = new Map<string, ParticipantReadiness>();
   for (const userId of [...new Set(userIds)]) {
     const fact = facts.get(userId);
     if (!fact) {
-      const findings: QualificationFinding[] = [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }];
-      result.set(userId, { ready: false, blockers: blockersFromQualificationFindings(findings), findings, strength: { userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false, educationState: "missing" });
+      const findings: QualificationFinding[] = [
+        {
+          code: "participant_missing",
+          message: "选手账号不存在。",
+          waivable: false,
+          metadata: { field: "participant" },
+        },
+      ];
+      result.set(userId, {
+        ready: false,
+        blockers: blockersFromQualificationFindings(findings),
+        findings,
+        strength: {
+          userId,
+          label: "选手",
+          historicalPeak: null,
+          previousSeasonPeak: null,
+          currentSeasonPeak: null,
+        },
+        educationApproved: false,
+        educationState: "missing",
+      });
       continue;
     }
     result.set(userId, computeParticipantReadiness({ ...fact, userId }, context));
@@ -670,11 +963,34 @@ export async function getParticipantReadinessBatch(
   return result;
 }
 
-export async function getParticipantReadiness(userId: string, config: CompetitiveProfileConfig): Promise<ParticipantReadiness> {
+export async function getParticipantReadiness(
+  userId: string,
+  config: CompetitiveProfileConfig,
+): Promise<ParticipantReadiness> {
   const [readiness] = (await getParticipantReadinessBatch([userId], config)).values();
   if (readiness) return readiness;
-  const findings: QualificationFinding[] = [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }];
-  return { ready: false, blockers: blockersFromQualificationFindings(findings), findings, strength: { userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false, educationState: "missing" };
+  const findings: QualificationFinding[] = [
+    {
+      code: "participant_missing",
+      message: "选手账号不存在。",
+      waivable: false,
+      metadata: { field: "participant" },
+    },
+  ];
+  return {
+    ready: false,
+    blockers: blockersFromQualificationFindings(findings),
+    findings,
+    strength: {
+      userId,
+      label: "选手",
+      historicalPeak: null,
+      previousSeasonPeak: null,
+      currentSeasonPeak: null,
+    },
+    educationApproved: false,
+    educationState: "missing",
+  };
 }
 
 export interface RosterQualificationMember {
@@ -698,9 +1014,15 @@ function memberIsHomeFromFacts(
   fact: ParticipantQualificationFacts,
   affiliationRules: readonly InstitutionAffiliationRule[],
 ): boolean {
-  const selected = resolveSeasonEducationVerification(fact.educationHistory, affiliationRules).selectedVerification;
+  const selected = resolveSeasonEducationVerification(
+    fact.educationHistory,
+    affiliationRules,
+  ).selectedVerification;
   return isHomeAffiliatedMember(
-    { institutionCode: selected?.institutionCode ?? null, academicStatus: selected?.academicStatus ?? null },
+    {
+      institutionCode: selected?.institutionCode ?? null,
+      academicStatus: selected?.academicStatus ?? null,
+    },
     affiliationRules,
   );
 }
@@ -732,27 +1054,55 @@ export async function evaluateRosterQualificationFromFacts(input: {
     affiliationRules,
   );
   if (affiliationRules.length > 0) {
-    findings.push(...education.blockers.map((message) => ({
-      code: "education_incomplete",
-      message,
-      waivable: false,
-      metadata: { field: "affiliation" },
-    })));
+    findings.push(
+      ...education.blockers.map((message) => ({
+        code: "education_incomplete",
+        message,
+        waivable: false,
+        metadata: { field: "affiliation" },
+      })),
+    );
   }
 
   const readinessByUser = new Map<string, ParticipantReadiness>();
-  const context = competitiveProfile && isCompleteCompetitiveContext(competitiveProfile)
-    ? competitiveProfile
-    : null;
+  const context =
+    competitiveProfile && isCompleteCompetitiveContext(competitiveProfile)
+      ? competitiveProfile
+      : null;
   if (competitiveProfile && !context) {
-    findings.push({ code: "competitive_context_unavailable", message: "竞技平台赛季目录尚未完成当前与上一赛季配置。", waivable: false, metadata: { field: "competitive_context" } });
+    findings.push({
+      code: "competitive_context_unavailable",
+      message: "竞技平台赛季目录尚未完成当前与上一赛季配置。",
+      waivable: false,
+      metadata: { field: "competitive_context" },
+    });
   }
   if (context) {
     for (const member of members) {
       const fact = facts.get(member.userId);
       const readiness = fact
         ? computeParticipantReadiness({ ...fact, userId: member.userId }, context)
-        : { ready: false, blockers: ["选手账号不存在。"], findings: [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }], strength: { userId: member.userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false, educationState: "missing" as const };
+        : {
+            ready: false,
+            blockers: ["选手账号不存在。"],
+            findings: [
+              {
+                code: "participant_missing",
+                message: "选手账号不存在。",
+                waivable: false,
+                metadata: { field: "participant" },
+              },
+            ],
+            strength: {
+              userId: member.userId,
+              label: "选手",
+              historicalPeak: null,
+              previousSeasonPeak: null,
+              currentSeasonPeak: null,
+            },
+            educationApproved: false,
+            educationState: "missing" as const,
+          };
       readinessByUser.set(member.userId, readiness);
       findings.push(...readiness.findings);
     }
@@ -762,7 +1112,11 @@ export async function evaluateRosterQualificationFromFacts(input: {
           const member = members.find((item) => item.userId === userId);
           const readiness = readinessByUser.get(userId);
           if (!member || !readiness) return null;
-          const isHome = member.isHome ?? (facts.get(userId) ? memberIsHomeFromFacts(facts.get(userId)!, affiliationRules) : false);
+          const isHome =
+            member.isHome ??
+            (facts.get(userId)
+              ? memberIsHomeFromFacts(facts.get(userId)!, affiliationRules)
+              : false);
           return { ...readiness.strength, isHome };
         })
         .filter((item): item is PlayerStrengthInput & { isHome: boolean } => item !== null);
@@ -772,7 +1126,13 @@ export async function evaluateRosterQualificationFromFacts(input: {
   }
 
   const uniqueFindings = uniqueQualificationFindings(findings);
-  return { eligible: uniqueFindings.length === 0, blockers: blockersFromQualificationFindings(uniqueFindings), findings: uniqueFindings, education, readinessByUser };
+  return {
+    eligible: uniqueFindings.length === 0,
+    blockers: blockersFromQualificationFindings(uniqueFindings),
+    findings: uniqueFindings,
+    education,
+    readinessByUser,
+  };
 }
 
 /** Home-member test shared by application submit and admin review flows. */
@@ -783,7 +1143,11 @@ export function isHomeAffiliatedMember(
   return Boolean(
     member.institutionCode &&
     member.academicStatus &&
-    affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated")),
+    affiliationRules.some(
+      (rule) =>
+        rule.institutionCode === member.institutionCode &&
+        rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated"),
+    ),
   );
 }
 

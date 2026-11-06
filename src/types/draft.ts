@@ -3,7 +3,7 @@
 export interface DraftState {
   id: string;
   seasonId: string;
-  currentRound: number;       // 当前轮次（1-6）
+  currentRound: number; // 当前轮次（1-6）
   currentEntryId: string | null;
   roundDeadline: Date | null;
   isActive: boolean;

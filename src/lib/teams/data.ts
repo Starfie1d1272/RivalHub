@@ -23,14 +23,17 @@ export async function getTeamMapWinStats(
 ): Promise<Map<string, MapWinStats>> {
   if (!teamMatches.length) return new Map();
   const rows = await db.query.matchMaps.findMany({
-    where: inArray(matchMaps.matchId, teamMatches.map((m) => m.id)),
+    where: inArray(
+      matchMaps.matchId,
+      teamMatches.map((m) => m.id),
+    ),
     columns: { matchId: true, mapName: true, scoreA: true, scoreB: true },
   });
   return projectMapWinStats(entryId, teamMatches, rows);
 }
 
 function projectMapWinStats(entryId: string, teamMatches: MatchRef[], rows: MapFact[]) {
-  const matchRef = new Map(teamMatches.map(match => [match.id, match]));
+  const matchRef = new Map(teamMatches.map((match) => [match.id, match]));
   const mapStats = new Map<string, MapWinStats>();
   for (const mp of rows) {
     if (mp.scoreA === null || mp.scoreB === null) continue;
@@ -56,8 +59,16 @@ async function getTeamVetoActionStats(
 ): Promise<{ count: Map<string, number>; bpMatchCount: number }> {
   if (!matchIds.length) return { count: new Map(), bpMatchCount: 0 };
 
-  const actions = await db.select({ matchId: matchVetoSteps.matchId, entryId: matchVetoSteps.entryId, mapName: matchVetoSteps.mapName })
-    .from(matchVetoSteps).where(and(inArray(matchVetoSteps.matchId, matchIds), eq(matchVetoSteps.actionType, actionType)));
+  const actions = await db
+    .select({
+      matchId: matchVetoSteps.matchId,
+      entryId: matchVetoSteps.entryId,
+      mapName: matchVetoSteps.mapName,
+    })
+    .from(matchVetoSteps)
+    .where(
+      and(inArray(matchVetoSteps.matchId, matchIds), eq(matchVetoSteps.actionType, actionType)),
+    );
   return projectVetoStats(entryId, new Set(matchIds), actions);
 }
 
@@ -99,19 +110,48 @@ export async function getTeamMapProfiles(
   scopes: readonly { entryId: string; matches: MatchRef[] }[],
   executor: Pick<TxDb, "select"> = db,
 ) {
-  const ids = [...new Set(scopes.flatMap(scope => scope.matches.map(match => match.id)))];
-  const [maps, steps] = ids.length ? await Promise.all([
-    executor.select({ matchId: matchMaps.matchId, mapName: matchMaps.mapName, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB })
-      .from(matchMaps).where(inArray(matchMaps.matchId, ids)),
-    executor.select({ matchId: matchVetoSteps.matchId, entryId: matchVetoSteps.entryId, mapName: matchVetoSteps.mapName, actionType: matchVetoSteps.actionType })
-      .from(matchVetoSteps).where(and(inArray(matchVetoSteps.matchId, ids), inArray(matchVetoSteps.actionType, ["pick", "ban"]))),
-  ]) : [[], []];
-  return scopes.map(scope => {
-    const matchIds = new Set(scope.matches.map(match => match.id));
+  const ids = [...new Set(scopes.flatMap((scope) => scope.matches.map((match) => match.id)))];
+  const [maps, steps] = ids.length
+    ? await Promise.all([
+        executor
+          .select({
+            matchId: matchMaps.matchId,
+            mapName: matchMaps.mapName,
+            scoreA: matchMaps.scoreA,
+            scoreB: matchMaps.scoreB,
+          })
+          .from(matchMaps)
+          .where(inArray(matchMaps.matchId, ids)),
+        executor
+          .select({
+            matchId: matchVetoSteps.matchId,
+            entryId: matchVetoSteps.entryId,
+            mapName: matchVetoSteps.mapName,
+            actionType: matchVetoSteps.actionType,
+          })
+          .from(matchVetoSteps)
+          .where(
+            and(
+              inArray(matchVetoSteps.matchId, ids),
+              inArray(matchVetoSteps.actionType, ["pick", "ban"]),
+            ),
+          ),
+      ])
+    : [[], []];
+  return scopes.map((scope) => {
+    const matchIds = new Set(scope.matches.map((match) => match.id));
     return {
       mapWins: projectMapWinStats(scope.entryId, scope.matches, maps),
-      picks: projectVetoStats(scope.entryId, matchIds, steps.filter(step => step.actionType === "pick")),
-      bans: projectVetoStats(scope.entryId, matchIds, steps.filter(step => step.actionType === "ban")),
+      picks: projectVetoStats(
+        scope.entryId,
+        matchIds,
+        steps.filter((step) => step.actionType === "pick"),
+      ),
+      bans: projectVetoStats(
+        scope.entryId,
+        matchIds,
+        steps.filter((step) => step.actionType === "ban"),
+      ),
     };
   });
 }

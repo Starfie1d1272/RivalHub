@@ -26,7 +26,10 @@ export function AntiCheatPledgeSection({
           onChange={(event) => onCheckedChange(event.target.checked)}
         />
         <div>
-          <Label htmlFor="antiCheatPledge" className="text-[var(--color-fg)] cursor-pointer font-medium">
+          <Label
+            htmlFor="antiCheatPledge"
+            className="text-[var(--color-fg)] cursor-pointer font-medium"
+          >
             反作弊承诺 <span className="text-[var(--color-danger)]">*</span>
           </Label>
           <p className="text-sm text-[var(--color-fg-mid)] mt-1">

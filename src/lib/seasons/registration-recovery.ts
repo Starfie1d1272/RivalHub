@@ -11,11 +11,7 @@ export async function ensureRegistrationOpenForParticipantInTx(
   seasonId: string,
   now = new Date(),
 ): Promise<{ season: typeof seasons.$inferSelect; opened: boolean }> {
-  const [season] = await tx
-    .select()
-    .from(seasons)
-    .where(eq(seasons.id, seasonId))
-    .for("update");
+  const [season] = await tx.select().from(seasons).where(eq(seasons.id, seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
 
   const scheduledOpeningIsDue =
@@ -36,9 +32,6 @@ export async function ensureRegistrationOpenForParticipantInTx(
     now,
     mode: "scheduled",
   });
-  const [currentSeason] = await tx
-    .select()
-    .from(seasons)
-    .where(eq(seasons.id, seasonId));
+  const [currentSeason] = await tx.select().from(seasons).where(eq(seasons.id, seasonId));
   return { season: currentSeason ?? season, opened: result.opened };
 }

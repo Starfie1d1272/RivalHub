@@ -16,7 +16,17 @@ import { Button } from "@/components/ui/button";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 
 export default function AdminDashboardPage() {
-  return <Suspense fallback={<div role="status" className="min-h-64 p-6">正在读取可管理的赛事…</div>}><AdminDashboardContent /></Suspense>;
+  return (
+    <Suspense
+      fallback={
+        <div role="status" className="min-h-64 p-6">
+          正在读取可管理的赛事…
+        </div>
+      }
+    >
+      <AdminDashboardContent />
+    </Suspense>
+  );
 }
 
 async function AdminDashboardContent() {
@@ -31,11 +41,13 @@ async function AdminDashboardContent() {
       <PageHeader
         title="赛事"
         description={`${allSeasons.length} 个赛事`}
-        actions={admin.role === "super_admin" ? (
-          <Button size="sm" variant="outline" asChild>
-            <Link href="/admin/seasons/new">新建赛事</Link>
-          </Button>
-        ) : undefined}
+        actions={
+          admin.role === "super_admin" ? (
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/admin/seasons/new">新建赛事</Link>
+            </Button>
+          ) : undefined
+        }
       />
 
       {allSeasons.length === 0 ? (
@@ -49,17 +61,26 @@ async function AdminDashboardContent() {
             if (groupSeasons.length === 0) return null;
 
             return (
-              <section key={group.key} aria-labelledby={`season-group-${group.key}`} className="space-y-3">
+              <section
+                key={group.key}
+                aria-labelledby={`season-group-${group.key}`}
+                className="space-y-3"
+              >
                 <div className="flex items-end justify-between gap-3 border-b border-[var(--color-border)] pb-2">
                   <div>
                     <p className="font-mono text-[10px] tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">
                       {group.marker}
                     </p>
-                    <h2 id={`season-group-${group.key}`} className="mt-1 text-xl font-semibold text-[var(--color-fg)]">
+                    <h2
+                      id={`season-group-${group.key}`}
+                      className="mt-1 text-xl font-semibold text-[var(--color-fg)]"
+                    >
                       {group.label}
                     </h2>
                   </div>
-                  <span className="text-xs text-[var(--color-fg-dim)]">{groupSeasons.length} 个赛事</span>
+                  <span className="text-xs text-[var(--color-fg-dim)]">
+                    {groupSeasons.length} 个赛事
+                  </span>
                 </div>
 
                 <div className="grid gap-3">
@@ -77,8 +98,12 @@ async function AdminDashboardContent() {
                             <StatusPill {...presentSeasonLifecycle(season)} />
                             <StatusPill {...presentSeasonStatus(season.status)} />
                           </div>
-                          <p className="mt-1 font-mono text-xs text-[var(--color-fg-dim)]">{season.slug}</p>
-                          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{presentSeasonLifecycleSummary(season)}</p>
+                          <p className="mt-1 font-mono text-xs text-[var(--color-fg-dim)]">
+                            {season.slug}
+                          </p>
+                          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
+                            {presentSeasonLifecycleSummary(season)}
+                          </p>
                         </div>
 
                         <Button size="sm" className="shrink-0" asChild>

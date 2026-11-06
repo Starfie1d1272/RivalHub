@@ -1,4 +1,14 @@
-import { pgTable, uuid, text, boolean, timestamp, real, pgEnum, unique, jsonb } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  uuid,
+  text,
+  boolean,
+  timestamp,
+  real,
+  pgEnum,
+  unique,
+  jsonb,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
 import { seasons } from "./seasons";
@@ -15,8 +25,12 @@ export const seasonRegistrations = pgTable(
   "season_registrations",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    seasonId: uuid("season_id").notNull().references(() => seasons.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id),
 
     // ── 身份类型 ─────────────────────────────────────
     playerType: text("player_type").notNull().default("enrolled"),
@@ -26,8 +40,8 @@ export const seasonRegistrations = pgTable(
     secondaryPosition: text("secondary_position").notNull(), // 不能与主选相同
 
     // ── 段位 · 历史最高 ──────────────────────────────
-    peakRank: text("peak_rank").notNull(),              // e.g. "A+"
-    peakRankSeason: text("peak_rank_season").notNull(),  // e.g. "S1 2026"
+    peakRank: text("peak_rank").notNull(), // e.g. "A+"
+    peakRankSeason: text("peak_rank_season").notNull(), // e.g. "S1 2026"
     // rating：完美平台 Rating，0.01–3.00，两位小数
     peakRating: real("peak_rating").notNull(),
     // WE：Win Effect，0.0–16.0，一位小数
@@ -51,9 +65,9 @@ export const seasonRegistrations = pgTable(
       .default(sql`'[]'::jsonb`),
 
     // ── 风格与经历 ───────────────────────────────────
-    gameplayStyle: text("gameplay_style").notNull(),     // ≤100 字
-    competitionHistory: text("competition_history"),      // 可选
-    highlightVideoUrl: text("highlight_video_url"),       // 可选
+    gameplayStyle: text("gameplay_style").notNull(), // ≤100 字
+    competitionHistory: text("competition_history"), // 可选
+    highlightVideoUrl: text("highlight_video_url"), // 可选
 
     // ── 其他 ─────────────────────────────────────────
     status: registrationStatusEnum("status").notNull().default("pending"),
@@ -65,7 +79,7 @@ export const seasonRegistrations = pgTable(
   (t) => ({
     // one registration per user per season
     uniqueUserSeason: unique().on(t.userId, t.seasonId),
-  })
+  }),
 );
 
 export type SeasonRegistration = typeof seasonRegistrations.$inferSelect;

@@ -7,7 +7,10 @@ import { Input } from "@/components/ui/input";
 import { updateMatchCompletedAt as telemetry_updateMatchCompletedAt } from "@/actions/matches";
 import { observeAction } from "@/lib/telemetry/client";
 
-const updateMatchCompletedAt = observeAction("matches.updateMatchCompletedAt", telemetry_updateMatchCompletedAt);
+const updateMatchCompletedAt = observeAction(
+  "matches.updateMatchCompletedAt",
+  telemetry_updateMatchCompletedAt,
+);
 
 interface CompletedAtInputProps {
   matchId: string;
@@ -51,11 +54,23 @@ export function CompletedAtInput({ matchId, initialValue }: CompletedAtInputProp
         className="w-48 text-xs h-8"
         disabled={isPending}
       />
-      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleSave} disabled={isPending}>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 text-xs"
+        onClick={handleSave}
+        disabled={isPending}
+      >
         保存
       </Button>
       {initialValue && (
-        <Button size="sm" variant="ghost" className="h-8 text-xs text-[var(--color-fg-mid)]" onClick={handleClear} disabled={isPending}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 text-xs text-[var(--color-fg-mid)]"
+          onClick={handleClear}
+          disabled={isPending}
+        >
           清除
         </Button>
       )}

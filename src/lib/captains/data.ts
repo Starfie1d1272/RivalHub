@@ -1,7 +1,17 @@
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { captainVotes, seasonRegistrations, steamProfiles, users, competitionEntries } from "@/db/schema";
-import { CAPTAIN_TEAM_COUNT, compareCaptainSeedCandidates, selectCaptainSeeds } from "@/lib/captains/rules";
+import {
+  captainVotes,
+  seasonRegistrations,
+  steamProfiles,
+  users,
+  competitionEntries,
+} from "@/db/schema";
+import {
+  CAPTAIN_TEAM_COUNT,
+  compareCaptainSeedCandidates,
+  selectCaptainSeeds,
+} from "@/lib/captains/rules";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 /** Fields allowed to cross the public captains page boundary. */
@@ -69,7 +79,8 @@ export function serializePublicCaptainCandidate(
 }
 
 async function readCaptainVotingData(
-  seasonId: string, includeVoters: boolean,
+  seasonId: string,
+  includeVoters: boolean,
 ): Promise<PublicCaptainVotingData> {
   const registrations = await db
     .select({
@@ -110,23 +121,27 @@ async function readCaptainVotingData(
           .where(inArray(captainVotes.candidateRegistrationId, registrationIds))
           .groupBy(captainVotes.candidateRegistrationId);
 
-  const voteCounts = new Map(voteRows.map((vote) => [vote.candidateRegistrationId, vote.voteCount]));
+  const voteCounts = new Map(
+    voteRows.map((vote) => [vote.candidateRegistrationId, vote.voteCount]),
+  );
 
-  const voters: PublicCaptainVoter[] = includeVoters ? registrations.map((r) => ({
-    id: r.id,
-    userId: r.userId,
-    displayName: getPublicDisplayName(r),
-    primaryPosition: r.primaryPosition,
-    peakRank: r.peakRank,
-    peakRating: r.peakRating,
-  })) : [];
+  const voters: PublicCaptainVoter[] = includeVoters
+    ? registrations.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        displayName: getPublicDisplayName(r),
+        primaryPosition: r.primaryPosition,
+        peakRank: r.peakRank,
+        peakRating: r.peakRating,
+      }))
+    : [];
 
   const candidateRows: CaptainCandidateRankingRow[] = registrations
     .filter((r) => r.willingToBeCaptain)
     .map((r) => ({
       ...serializePublicCaptainCandidate({
         id: r.id,
-    userId: r.userId,
+        userId: r.userId,
         displayName: r.displayName,
         perfectName: r.perfectName,
         personaName: r.personaName,
@@ -144,7 +159,9 @@ async function readCaptainVotingData(
   const seedRows = selectCaptainSeeds(candidateRows);
   const sortedRankingRows = seedRows.concat(
     candidateRows
-      .filter((candidate) => !seedRows.some((seed) => seed.registrationId === candidate.registrationId))
+      .filter(
+        (candidate) => !seedRows.some((seed) => seed.registrationId === candidate.registrationId),
+      )
       .sort(compareCaptainSeedCandidates),
   );
 
@@ -163,33 +180,56 @@ async function readCaptainVotingData(
   };
 }
 
-export async function getPublicCaptainVotingData(seasonId: string): Promise<PublicCaptainVotingData> {
+export async function getPublicCaptainVotingData(
+  seasonId: string,
+): Promise<PublicCaptainVotingData> {
   return readCaptainVotingData(seasonId, true);
 }
 
 export type AdminCaptainSeed = Omit<PublicCaptainCandidate, "peakRank">;
 
 /** Confirmation still rechecks canonical ranking; the panel displays only eight seeds. */
-export async function getAdminCaptainRanking(seasonId: string): Promise<{ seeds: AdminCaptainSeed[]; candidateCount: number }> {
+export async function getAdminCaptainRanking(
+  seasonId: string,
+): Promise<{ seeds: AdminCaptainSeed[]; candidateCount: number }> {
   const { candidates } = await readCaptainVotingData(seasonId, false);
   return {
     candidateCount: candidates.length,
-    seeds: candidates.slice(0, CAPTAIN_TEAM_COUNT).map(({ id, userId, displayName, primaryPosition, peakRating, currentRating, voteCount }) =>
-      ({ id, userId, displayName, primaryPosition, peakRating, currentRating, voteCount })),
+    seeds: candidates
+      .slice(0, CAPTAIN_TEAM_COUNT)
+      .map(
+        ({ id, userId, displayName, primaryPosition, peakRating, currentRating, voteCount }) => ({
+          id,
+          userId,
+          displayName,
+          primaryPosition,
+          peakRating,
+          currentRating,
+          voteCount,
+        }),
+      ),
   };
 }
 
 export async function getSeasonTeamCount(seasonId: string): Promise<number> {
-  const [row] = await db.select({ count: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, seasonId));
+  const [row] = await db
+    .select({ count: count() })
+    .from(competitionEntries)
+    .where(eq(competitionEntries.competitionId, seasonId));
   return Number(row?.count ?? 0);
 }
 
 /** Public candidate facts establish the approved, active event membership first. */
 export async function getCaptainVotingViewer(data: PublicCaptainVotingData, userId: string | null) {
-  const currentVoter = data.voters.find(voter => voter.userId === userId) ?? null;
-  const votes: CaptainVoteRecord[] = currentVoter ? await db.select({
-    voterRegistrationId: captainVotes.voterRegistrationId,
-    candidateRegistrationId: captainVotes.candidateRegistrationId,
-  }).from(captainVotes).where(eq(captainVotes.voterRegistrationId, currentVoter.id)) : [];
+  const currentVoter = data.voters.find((voter) => voter.userId === userId) ?? null;
+  const votes: CaptainVoteRecord[] = currentVoter
+    ? await db
+        .select({
+          voterRegistrationId: captainVotes.voterRegistrationId,
+          candidateRegistrationId: captainVotes.candidateRegistrationId,
+        })
+        .from(captainVotes)
+        .where(eq(captainVotes.voterRegistrationId, currentVoter.id))
+    : [];
   return { currentVoter, votes };
 }

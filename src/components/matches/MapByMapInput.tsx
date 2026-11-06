@@ -6,7 +6,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { recordMapResult as telemetry_recordMapResult } from "@/actions/matches";
 import { getMaxMaps, getWinThreshold, SIDE_LABELS } from "@/types/match";
@@ -44,8 +50,15 @@ interface MapByMapInputProps {
 }
 
 export function MapByMapInput({
-  matchId, format, teamAName, teamBName, entryAId, entryBId,
-  completedMaps, pendingMaps = [], mapPool,
+  matchId,
+  format,
+  teamAName,
+  teamBName,
+  entryAId,
+  entryBId,
+  completedMaps,
+  pendingMaps = [],
+  mapPool,
 }: MapByMapInputProps) {
   const maxWins = getWinThreshold(format);
   const maxMaps = getMaxMaps(format);
@@ -84,23 +97,47 @@ export function MapByMapInput({
     e.preventDefault();
     const a = parseInt(scoreA, 10);
     const b = parseInt(scoreB, 10);
-    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) { toast.error("请输入有效的非负整数"); return; }
-    if (a === b) { toast.error("单图不能平局"); return; }
+    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
+      toast.error("请输入有效的非负整数");
+      return;
+    }
+    if (a === b) {
+      toast.error("单图不能平局");
+      return;
+    }
 
     const resolvedMapName = nextPending?.mapName ?? manualMapName;
-    if (!resolvedMapName) { toast.error("请选择地图"); return; }
+    if (!resolvedMapName) {
+      toast.error("请选择地图");
+      return;
+    }
 
     const pickedByEntryId = nextPending
       ? nextPending.pickedByEntryId
-      : (manualPickedBy === "decider" ? null : manualPickedBy);
+      : manualPickedBy === "decider"
+        ? null
+        : manualPickedBy;
     // BP 已记录选边时直接沿用，否则读取表单选择
-    const side = nextPending?.teamAStartSide
-      ?? (teamAStartSide === "none" ? null : teamAStartSide as "t" | "ct");
+    const side =
+      nextPending?.teamAStartSide ??
+      (teamAStartSide === "none" ? null : (teamAStartSide as "t" | "ct"));
 
     startTransition(async () => {
-      const result = await recordMapResult(matchId, nextMapOrder, resolvedMapName, a, b, pickedByEntryId, side);
+      const result = await recordMapResult(
+        matchId,
+        nextMapOrder,
+        resolvedMapName,
+        a,
+        b,
+        pickedByEntryId,
+        side,
+      );
       if (result.success) {
-        toast.success(result.data.seriesFinished ? "系列赛结束，大比分已自动更新" : `第 ${nextMapOrder} 图已录入`);
+        toast.success(
+          result.data.seriesFinished
+            ? "系列赛结束，大比分已自动更新"
+            : `第 ${nextMapOrder} 图已录入`,
+        );
         setManualMapName("");
         setManualPickedBy("decider");
         setTeamAStartSide("none");
@@ -116,7 +153,9 @@ export function MapByMapInput({
     <div className="space-y-3">
       <div className="flex items-center gap-3">
         <span className="text-xs text-[var(--color-fg-mid)]">{format.toUpperCase()} 进度</span>
-        <span className="font-mono font-bold text-[var(--color-accent)]">{mapWinsA} : {mapWinsB}</span>
+        <span className="font-mono font-bold text-[var(--color-accent)]">
+          {mapWinsA} : {mapWinsB}
+        </span>
         <span className="text-xs text-[var(--color-fg-mid)]">（先赢 {maxWins} 图胜）</span>
       </div>
 
@@ -124,51 +163,90 @@ export function MapByMapInput({
       {completedMaps.length > 0 && (
         <div className="space-y-1">
           {completedMaps.map((m) => (
-            <div key={m.mapOrder} className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-fg-mid)]">
+            <div
+              key={m.mapOrder}
+              className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-fg-mid)]"
+            >
               <span className="w-4">#{m.mapOrder}</span>
               <span className="font-medium text-[var(--color-fg)]">{mapLabel(m.mapName)}</span>
               <Badge variant="outline" className="text-xs">
-                <TeamProfileLink entryId={m.pickedByEntryId}>{resolvePickedByName(m.pickedByEntryId)}</TeamProfileLink> {m.pickedByEntryId ? "pick" : ""}
+                <TeamProfileLink entryId={m.pickedByEntryId}>
+                  {resolvePickedByName(m.pickedByEntryId)}
+                </TeamProfileLink>{" "}
+                {m.pickedByEntryId ? "pick" : ""}
               </Badge>
-              {m.teamAStartSide && <span><TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> {SIDE_LABELS[m.teamAStartSide]}先</span>}
-              <Badge variant="outline" className="text-xs font-mono">{m.scoreA} : {m.scoreB}</Badge>
-              <span><TeamProfileLink entryId={m.scoreA > m.scoreB ? entryAId : entryBId}>{m.scoreA > m.scoreB ? teamAName : teamBName}</TeamProfileLink> 胜</span>
+              {m.teamAStartSide && (
+                <span>
+                  <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink>{" "}
+                  {SIDE_LABELS[m.teamAStartSide]}先
+                </span>
+              )}
+              <Badge variant="outline" className="text-xs font-mono">
+                {m.scoreA} : {m.scoreB}
+              </Badge>
+              <span>
+                <TeamProfileLink entryId={m.scoreA > m.scoreB ? entryAId : entryBId}>
+                  {m.scoreA > m.scoreB ? teamAName : teamBName}
+                </TeamProfileLink>{" "}
+                胜
+              </span>
             </div>
           ))}
         </div>
       )}
 
       {!seriesFinished && nextMapOrder <= maxMaps && (
-        <form onSubmit={handleSubmit} className="space-y-3 pt-1 border-t border-[var(--color-border)]">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-3 pt-1 border-t border-[var(--color-border)]"
+        >
           {nextPending ? (
             // BP 引导模式：地图和 pick 方从 BP 读取
             <div className="flex flex-wrap items-center gap-2 pt-2">
-              <span className="text-xs text-[var(--color-fg-mid)]">第 {nextPending.mapOrder} 图</span>
-              <span className="text-xs font-medium text-[var(--color-fg)]">{mapLabel(nextPending.mapName)}</span>
+              <span className="text-xs text-[var(--color-fg-mid)]">
+                第 {nextPending.mapOrder} 图
+              </span>
+              <span className="text-xs font-medium text-[var(--color-fg)]">
+                {mapLabel(nextPending.mapName)}
+              </span>
               <Badge variant="outline" className="text-xs">
-                {resolvePickedByName(nextPending.pickedByEntryId)} {nextPending.pickedByEntryId ? "pick" : ""}
+                {resolvePickedByName(nextPending.pickedByEntryId)}{" "}
+                {nextPending.pickedByEntryId ? "pick" : ""}
               </Badge>
               {nextPending.teamAStartSide && (
                 <span className="text-xs text-[var(--color-fg-mid)]">
-                  <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> {SIDE_LABELS[nextPending.teamAStartSide]}先（BP）
+                  <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink>{" "}
+                  {SIDE_LABELS[nextPending.teamAStartSide]}先（BP）
                 </span>
               )}
             </div>
           ) : (
             // 手动模式：选择地图和 pick 方
-            <p className="text-xs font-medium text-[var(--color-fg-mid)] pt-2">录入第 {nextMapOrder} 图</p>
+            <p className="text-xs font-medium text-[var(--color-fg-mid)] pt-2">
+              录入第 {nextMapOrder} 图
+            </p>
           )}
 
-          <div className={nextPending ? "flex flex-wrap items-end gap-4" : "grid grid-cols-2 gap-3 sm:grid-cols-4"}>
+          <div
+            className={
+              nextPending
+                ? "flex flex-wrap items-end gap-4"
+                : "grid grid-cols-2 gap-3 sm:grid-cols-4"
+            }
+          >
             {!nextPending && (
               <>
                 <div className="space-y-1">
                   <Label className="text-xs text-[var(--color-fg-mid)]">地图</Label>
                   <Select value={manualMapName} onValueChange={setManualMapName}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择" /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="选择" />
+                    </SelectTrigger>
                     <SelectContent>
                       {availableMaps.map((m) => (
-                        <SelectItem key={m} value={m} className="text-xs">{mapLabel(m)}</SelectItem>
+                        <SelectItem key={m} value={m} className="text-xs">
+                          {mapLabel(m)}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -176,13 +254,29 @@ export function MapByMapInput({
 
                 <div className="space-y-1">
                   <Label className="text-xs text-[var(--color-fg-mid)]">Pick 方</Label>
-                  {manualPickedBy !== "decider" && <TeamProfileLink entryId={manualPickedBy} variant="dense" aria-label="查看所选 Pick 队伍资料">↗</TeamProfileLink>}
+                  {manualPickedBy !== "decider" && (
+                    <TeamProfileLink
+                      entryId={manualPickedBy}
+                      variant="dense"
+                      aria-label="查看所选 Pick 队伍资料"
+                    >
+                      ↗
+                    </TeamProfileLink>
+                  )}
                   <Select value={manualPickedBy} onValueChange={setManualPickedBy}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={entryAId} className="text-xs">{teamAName}</SelectItem>
-                      <SelectItem value={entryBId} className="text-xs">{teamBName}</SelectItem>
-                      <SelectItem value="decider" className="text-xs">决胜图</SelectItem>
+                      <SelectItem value={entryAId} className="text-xs">
+                        {teamAName}
+                      </SelectItem>
+                      <SelectItem value={entryBId} className="text-xs">
+                        {teamBName}
+                      </SelectItem>
+                      <SelectItem value="decider" className="text-xs">
+                        决胜图
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -192,15 +286,21 @@ export function MapByMapInput({
             {/* 仅在 BP 未记录选边时（决胜图或无 BP）才显示选边下拉 */}
             {!nextPending?.teamAStartSide && (
               <div className="space-y-1">
-                <Label className="text-xs text-[var(--color-fg-mid)]">
-                  {teamAName} 起始边
-                </Label>
+                <Label className="text-xs text-[var(--color-fg-mid)]">{teamAName} 起始边</Label>
                 <Select value={teamAStartSide} onValueChange={setTeamAStartSide}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="t" className="text-xs">{SIDE_LABELS.t}</SelectItem>
-                    <SelectItem value="ct" className="text-xs">{SIDE_LABELS.ct}</SelectItem>
-                    <SelectItem value="none" className="text-xs">不填</SelectItem>
+                    <SelectItem value="t" className="text-xs">
+                      {SIDE_LABELS.t}
+                    </SelectItem>
+                    <SelectItem value="ct" className="text-xs">
+                      {SIDE_LABELS.ct}
+                    </SelectItem>
+                    <SelectItem value="none" className="text-xs">
+                      不填
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -210,15 +310,39 @@ export function MapByMapInput({
               <Label className="sr-only">回合数</Label>
               <div className="flex items-end gap-3">
                 <div className="min-w-0 w-28 space-y-1 sm:w-40">
-                  <TeamProfileLink entryId={entryAId} className="block break-words text-sm text-[var(--color-fg-mid)]">{teamAName}</TeamProfileLink>
-                  <Input aria-label={`${teamAName} 回合数`} type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
-                    className="h-11 w-full text-center font-mono text-xl" placeholder="0" />
+                  <TeamProfileLink
+                    entryId={entryAId}
+                    className="block break-words text-sm text-[var(--color-fg-mid)]"
+                  >
+                    {teamAName}
+                  </TeamProfileLink>
+                  <Input
+                    aria-label={`${teamAName} 回合数`}
+                    type="number"
+                    min="0"
+                    value={scoreA}
+                    onChange={(e) => setScoreA(e.target.value)}
+                    className="h-11 w-full text-center font-mono text-xl"
+                    placeholder="0"
+                  />
                 </div>
                 <span className="text-[var(--color-fg-mid)] text-lg pb-2">:</span>
                 <div className="min-w-0 w-28 space-y-1 sm:w-40">
-                  <TeamProfileLink entryId={entryBId} className="block break-words text-sm text-[var(--color-fg-mid)]">{teamBName}</TeamProfileLink>
-                  <Input aria-label={`${teamBName} 回合数`} type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
-                    className="h-11 w-full text-center font-mono text-xl" placeholder="0" />
+                  <TeamProfileLink
+                    entryId={entryBId}
+                    className="block break-words text-sm text-[var(--color-fg-mid)]"
+                  >
+                    {teamBName}
+                  </TeamProfileLink>
+                  <Input
+                    aria-label={`${teamBName} 回合数`}
+                    type="number"
+                    min="0"
+                    value={scoreB}
+                    onChange={(e) => setScoreB(e.target.value)}
+                    className="h-11 w-full text-center font-mono text-xl"
+                    placeholder="0"
+                  />
                 </div>
               </div>
             </div>
@@ -232,7 +356,11 @@ export function MapByMapInput({
 
       {seriesFinished && (
         <p className="text-xs text-[var(--color-ok)] font-medium">
-          系列赛结束：<TeamProfileLink entryId={mapWinsA > mapWinsB ? entryAId : entryBId}>{mapWinsA > mapWinsB ? teamAName : teamBName}</TeamProfileLink> 胜 {Math.max(mapWinsA, mapWinsB)}:{Math.min(mapWinsA, mapWinsB)}
+          系列赛结束：
+          <TeamProfileLink entryId={mapWinsA > mapWinsB ? entryAId : entryBId}>
+            {mapWinsA > mapWinsB ? teamAName : teamBName}
+          </TeamProfileLink>{" "}
+          胜 {Math.max(mapWinsA, mapWinsB)}:{Math.min(mapWinsA, mapWinsB)}
         </p>
       )}
     </div>

@@ -10,7 +10,10 @@ import {
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
-import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
+import {
+  assertMajorPrestartEntrantsMutable,
+  ensureMajorPrestartStateInTx,
+} from "@/lib/major/prestart-state";
 import { normalizeAffiliationRules } from "@/lib/seasons/compatibility";
 
 export interface SaveMajorPrestartRosterInput {
@@ -40,14 +43,19 @@ export async function reconcileMajorPrestartRosterAfterApprovalInTx(
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
   if (season.competitionTemplate !== "major") return false;
 
-  const [entrantRef] = await tx.select({
-    id: majorTournamentEntrants.id,
-    seasonId: majorTournamentEntrants.seasonId,
-    competitionEntryId: majorTournamentEntrants.competitionEntryId,
-  }).from(majorTournamentEntrants).where(and(
-    eq(majorTournamentEntrants.seasonId, season.id),
-    eq(majorTournamentEntrants.competitionEntryId, input.entryId),
-  ));
+  const [entrantRef] = await tx
+    .select({
+      id: majorTournamentEntrants.id,
+      seasonId: majorTournamentEntrants.seasonId,
+      competitionEntryId: majorTournamentEntrants.competitionEntryId,
+    })
+    .from(majorTournamentEntrants)
+    .where(
+      and(
+        eq(majorTournamentEntrants.seasonId, season.id),
+        eq(majorTournamentEntrants.competitionEntryId, input.entryId),
+      ),
+    );
   if (!entrantRef) return false;
 
   const coherent = await assertSinglePrestartEntryCoherenceInTx(
@@ -56,11 +64,21 @@ export async function reconcileMajorPrestartRosterAfterApprovalInTx(
     { competitionEntryId: entrantRef.competitionEntryId },
     { requireEventRosterSync: false },
   );
-  const [entrant] = await tx.select().from(majorTournamentEntrants)
-    .where(and(eq(majorTournamentEntrants.id, entrantRef.id), eq(majorTournamentEntrants.seasonId, season.id)))
+  const [entrant] = await tx
+    .select()
+    .from(majorTournamentEntrants)
+    .where(
+      and(
+        eq(majorTournamentEntrants.id, entrantRef.id),
+        eq(majorTournamentEntrants.seasonId, season.id),
+      ),
+    )
     .for("update");
   if (!entrant || entrant.competitionEntryId !== entrantRef.competitionEntryId) {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队引用在名单自动同步期间发生变化，拒绝继续。 ");
+    throw new AppError(
+      ErrorCode.INTERNAL_ERROR,
+      "正式参赛队引用在名单自动同步期间发生变化，拒绝继续。 ",
+    );
   }
 
   const result = await syncApprovedRosterToEventRosterInTx(tx, {
@@ -73,7 +91,8 @@ export async function reconcileMajorPrestartRosterAfterApprovalInTx(
       seasonId: season.id,
       action: "major_prestart.reconcile_roster",
       actorId: input.actorId,
-      targetId: entrant.id,meta: {
+      targetId: entrant.id,
+      meta: {
         sourceRosterRevisionId: coherent.approvedRevision.id,
         rosterSize: result.rosterSize,
         eventRosterId: result.eventRosterId,
@@ -98,11 +117,17 @@ export async function saveMajorPrestartRosterInTx(
 ): Promise<{ seasonSlug: string }> {
   const reason = input.reason.trim();
   if (!reason) throw new AppError(ErrorCode.VALIDATION_FAILED, "名单补正必须填写原因。");
-  const [season] = await tx.select().from(seasons)
-    .where(eq(seasons.id, input.seasonId)).for("update");
+  const [season] = await tx
+    .select()
+    .from(seasons)
+    .where(eq(seasons.id, input.seasonId))
+    .for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
   if (input.userIds.length < season.minTeamSize || input.userIds.length > season.maxTeamSize) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `最终名单必须为 ${season.minTeamSize}-${season.maxTeamSize} 人。`);
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      `最终名单必须为 ${season.minTeamSize}-${season.maxTeamSize} 人。`,
+    );
   }
   if (new Set(input.userIds).size !== input.userIds.length) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单中不能重复同一位选手。");
@@ -111,12 +136,19 @@ export async function saveMajorPrestartRosterInTx(
   const state = await ensureMajorPrestartStateInTx(tx, season.id);
   assertMajorPrestartEntrantsMutable(state);
 
-  const [entrantRef] = await tx.select({
-    id: majorTournamentEntrants.id,
-    seasonId: majorTournamentEntrants.seasonId,
-    competitionEntryId: majorTournamentEntrants.competitionEntryId,
-  }).from(majorTournamentEntrants)
-    .where(and(eq(majorTournamentEntrants.id, input.entrantId), eq(majorTournamentEntrants.seasonId, season.id)));
+  const [entrantRef] = await tx
+    .select({
+      id: majorTournamentEntrants.id,
+      seasonId: majorTournamentEntrants.seasonId,
+      competitionEntryId: majorTournamentEntrants.competitionEntryId,
+    })
+    .from(majorTournamentEntrants)
+    .where(
+      and(
+        eq(majorTournamentEntrants.id, input.entrantId),
+        eq(majorTournamentEntrants.seasonId, season.id),
+      ),
+    );
   if (!entrantRef) throw new AppError(ErrorCode.NOT_FOUND, "正式参赛队不存在。");
 
   const coherent = await assertSinglePrestartEntryCoherenceInTx(
@@ -125,10 +157,25 @@ export async function saveMajorPrestartRosterInTx(
     { competitionEntryId: entrantRef.competitionEntryId },
     { requireEventRosterSync: false },
   );
-  const [entrant] = await tx.select().from(majorTournamentEntrants)
-    .where(and(eq(majorTournamentEntrants.id, entrantRef.id), eq(majorTournamentEntrants.seasonId, season.id))).for("update");
-  if (!entrant || entrant.seasonId !== entrantRef.seasonId || entrant.competitionEntryId !== entrantRef.competitionEntryId) {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "赛前参赛队引用在名单同步期间发生变化，拒绝继续保存。");
+  const [entrant] = await tx
+    .select()
+    .from(majorTournamentEntrants)
+    .where(
+      and(
+        eq(majorTournamentEntrants.id, entrantRef.id),
+        eq(majorTournamentEntrants.seasonId, season.id),
+      ),
+    )
+    .for("update");
+  if (
+    !entrant ||
+    entrant.seasonId !== entrantRef.seasonId ||
+    entrant.competitionEntryId !== entrantRef.competitionEntryId
+  ) {
+    throw new AppError(
+      ErrorCode.INTERNAL_ERROR,
+      "赛前参赛队引用在名单同步期间发生变化，拒绝继续保存。",
+    );
   }
 
   const eventRoster = coherent.eventRoster;
@@ -139,21 +186,32 @@ export async function saveMajorPrestartRosterInTx(
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先显式重新开放这支队伍的最终赛事名单。");
   }
 
-  const formalMembers = await tx.select({
-    userId: competitionEntryRosterMembers.userId,
-    participantId: competitionEntryRosterMembers.participantId,
-    primary: competitionEntryRosterMembers.isPrimaryStarter,
-  }).from(competitionEntryRosterMembers)
-    .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
-    .where(and(
-      eq(competitionEntryRosterMembers.revisionId, coherent.approvedRevision.id),
-      eq(competitionEntryParticipants.status, "confirmed"),
-      inArray(competitionEntryRosterMembers.userId, input.userIds),
-    ));
+  const formalMembers = await tx
+    .select({
+      userId: competitionEntryRosterMembers.userId,
+      participantId: competitionEntryRosterMembers.participantId,
+      primary: competitionEntryRosterMembers.isPrimaryStarter,
+    })
+    .from(competitionEntryRosterMembers)
+    .innerJoin(
+      competitionEntryParticipants,
+      eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId),
+    )
+    .where(
+      and(
+        eq(competitionEntryRosterMembers.revisionId, coherent.approvedRevision.id),
+        eq(competitionEntryParticipants.status, "confirmed"),
+        inArray(competitionEntryRosterMembers.userId, input.userIds),
+      ),
+    );
   if (formalMembers.length !== input.userIds.length) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单只能选择该正式队伍当前的成员。 ");
   }
-  const verificationIds = await loadApprovedRosterEducation(tx, input.userIds, normalizeAffiliationRules(season.affiliationRules));
+  const verificationIds = await loadApprovedRosterEducation(
+    tx,
+    input.userIds,
+    normalizeAffiliationRules(season.affiliationRules),
+  );
 
   await applyEventRosterMaterializationInTx(tx, {
     eventRosterId: eventRoster.id,
@@ -175,7 +233,12 @@ export async function saveMajorPrestartRosterInTx(
     seasonId: season.id,
     action: "major_prestart.repair_roster",
     actorId: input.actorId,
-    targetId: entrant.id,meta: { rosterSize: input.userIds.length, sourceRosterRevisionId: coherent.approvedRevision.id, reason },
+    targetId: entrant.id,
+    meta: {
+      rosterSize: input.userIds.length,
+      sourceRosterRevisionId: coherent.approvedRevision.id,
+      reason,
+    },
   });
   return { seasonSlug: season.slug };
 }

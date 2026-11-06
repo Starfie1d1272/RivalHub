@@ -7,7 +7,10 @@ import { executeSelfServiceUserMerge as telemetry_executeSelfServiceUserMerge } 
 import { Button } from "@/components/ui/button";
 import { observeAction } from "@/lib/telemetry/client";
 
-const executeSelfServiceUserMerge = observeAction("user-merge.executeSelfServiceUserMerge", telemetry_executeSelfServiceUserMerge);
+const executeSelfServiceUserMerge = observeAction(
+  "user-merge.executeSelfServiceUserMerge",
+  telemetry_executeSelfServiceUserMerge,
+);
 
 export function UserMergeConfirmation({
   authorizationId,
@@ -42,19 +45,23 @@ export function UserMergeConfirmation({
     });
   }
 
-  return <div className="space-y-4">
-    <label className="flex cursor-pointer items-start gap-3 text-sm leading-6">
-      <input
-        type="checkbox"
-        className="mt-1 size-4"
-        checked={confirmed}
-        onChange={(event) => setConfirmed(event.target.checked)}
-        disabled={!executable || pending}
-      />
-      <span>我确认保留所选账号。另一个账号会标记为已归并；可安全迁移的个人事实和登录身份会归到保留账号，历史执行人和冻结赛事事实保持原记录。</span>
-    </label>
-    <Button type="button" onClick={execute} disabled={!executable || !confirmed || pending}>
-      {pending ? "归并中…" : executable ? "确认并归并账号" : "存在冲突，暂不能归并"}
-    </Button>
-  </div>;
+  return (
+    <div className="space-y-4">
+      <label className="flex cursor-pointer items-start gap-3 text-sm leading-6">
+        <input
+          type="checkbox"
+          className="mt-1 size-4"
+          checked={confirmed}
+          onChange={(event) => setConfirmed(event.target.checked)}
+          disabled={!executable || pending}
+        />
+        <span>
+          我确认保留所选账号。另一个账号会标记为已归并；可安全迁移的个人事实和登录身份会归到保留账号，历史执行人和冻结赛事事实保持原记录。
+        </span>
+      </label>
+      <Button type="button" onClick={execute} disabled={!executable || !confirmed || pending}>
+        {pending ? "归并中…" : executable ? "确认并归并账号" : "存在冲突，暂不能归并"}
+      </Button>
+    </div>
+  );
 }

@@ -79,5 +79,5 @@ export const ROUTES = [
   "/admin/[seasonSlug]/matches/[matchId]",
   "/[seasonSlug]/matches/[matchId]/veto",
   "/[seasonSlug]/matches/[matchId]",
-  "/[seasonSlug]/teams/[entryId]"
+  "/[seasonSlug]/teams/[entryId]",
 ] as const;

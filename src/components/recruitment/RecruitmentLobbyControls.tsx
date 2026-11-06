@@ -27,7 +27,8 @@ const TEAM_SIZE_OPTIONS: Array<{ value: RecruitmentTeamSize; label: string }> = 
   { value: "large", label: "≥ 7 人" },
 ];
 
-const selectClassName = "h-10 min-w-0 max-w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
+const selectClassName =
+  "h-10 min-w-0 max-w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
 const tabClassName = "min-w-0 flex-1 sm:flex-none";
 
 interface RecruitmentLobbyControlsProps {
@@ -39,12 +40,20 @@ interface RecruitmentLobbyControlsProps {
   playerCount: number;
 }
 
-function currentPosition(value: string | null, fallback: Cs2Position | undefined): Cs2Position | undefined {
-  return CS2_POSITION_VALUES.includes(value as Cs2Position) ? value as Cs2Position : fallback;
+function currentPosition(
+  value: string | null,
+  fallback: Cs2Position | undefined,
+): Cs2Position | undefined {
+  return CS2_POSITION_VALUES.includes(value as Cs2Position) ? (value as Cs2Position) : fallback;
 }
 
-function currentTeamSize(value: string | null, fallback: RecruitmentTeamSize | undefined): RecruitmentTeamSize | undefined {
-  return TEAM_SIZE_OPTIONS.some((option) => option.value === value) ? value as RecruitmentTeamSize : fallback;
+function currentTeamSize(
+  value: string | null,
+  fallback: RecruitmentTeamSize | undefined,
+): RecruitmentTeamSize | undefined {
+  return TEAM_SIZE_OPTIONS.some((option) => option.value === value)
+    ? (value as RecruitmentTeamSize)
+    : fallback;
 }
 
 export function RecruitmentLobbyControls({
@@ -55,14 +64,19 @@ export function RecruitmentLobbyControls({
   teamCount,
   playerCount,
 }: RecruitmentLobbyControlsProps) {
-  const { searchParams, update } = useListQueryParams({ routeBase: "/teams/recruitment", defaults: RECRUITMENT_QUERY_DEFAULTS });
+  const { searchParams, update } = useListQueryParams({
+    routeBase: "/teams/recruitment",
+    defaults: RECRUITMENT_QUERY_DEFAULTS,
+  });
   const searchFieldRef = useRef<ListSearchFieldHandle>(null);
   const position = currentPosition(searchParams.get("position"), normalizedFilters.position);
   const targetSeasonId = targetSeasons.some((season) => season.id === searchParams.get("event"))
-    ? searchParams.get("event") ?? undefined
+    ? (searchParams.get("event") ?? undefined)
     : normalizedFilters.targetSeasonId;
   const teamSize = currentTeamSize(searchParams.get("size"), normalizedFilters.teamSize);
-  const map = mapOptions.includes(searchParams.get("map") ?? "") ? searchParams.get("map") ?? undefined : normalizedFilters.map;
+  const map = mapOptions.includes(searchParams.get("map") ?? "")
+    ? (searchParams.get("map") ?? undefined)
+    : normalizedFilters.map;
 
   function switchView(nextView: "teams" | "players") {
     update({ view: nextView, size: undefined, map: undefined });
@@ -72,10 +86,26 @@ export function RecruitmentLobbyControls({
     <div className="min-w-0 space-y-4">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-y border-[var(--color-border)] py-3">
         <div className="flex min-w-0 flex-wrap gap-2" role="tablist" aria-label="组队大厅视图">
-          <Button type="button" role="tab" aria-selected={view === "teams"} variant={view === "teams" ? "outline" : "ghost"} size="sm" className={tabClassName} onClick={() => switchView("teams")}>
+          <Button
+            type="button"
+            role="tab"
+            aria-selected={view === "teams"}
+            variant={view === "teams" ? "outline" : "ghost"}
+            size="sm"
+            className={tabClassName}
+            onClick={() => switchView("teams")}
+          >
             队伍招募 {teamCount}
           </Button>
-          <Button type="button" role="tab" aria-selected={view === "players"} variant={view === "players" ? "outline" : "ghost"} size="sm" className={tabClassName} onClick={() => switchView("players")}>
+          <Button
+            type="button"
+            role="tab"
+            aria-selected={view === "players"}
+            variant={view === "players" ? "outline" : "ghost"}
+            size="sm"
+            className={tabClassName}
+            onClick={() => switchView("players")}
+          >
             选手找队 {playerCount}
           </Button>
         </div>
@@ -95,9 +125,22 @@ export function RecruitmentLobbyControls({
         <div className="min-w-0 w-full flex-1 basis-full lg:basis-[45%]">
           <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">位置</span>
           <div className="flex min-w-0 flex-wrap gap-1.5" role="group" aria-label="招募位置">
-            <Button type="button" size="sm" variant={!position ? "outline" : "ghost"} onClick={() => update({ position: undefined })}>全部</Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={!position ? "outline" : "ghost"}
+              onClick={() => update({ position: undefined })}
+            >
+              全部
+            </Button>
             {CS2_POSITION_VALUES.map((item) => (
-              <Button key={item} type="button" size="sm" variant={position === item ? "outline" : "ghost"} onClick={() => update({ position: item })}>
+              <Button
+                key={item}
+                type="button"
+                size="sm"
+                variant={position === item ? "outline" : "ghost"}
+                onClick={() => update({ position: item })}
+              >
                 {item}
               </Button>
             ))}
@@ -108,11 +151,20 @@ export function RecruitmentLobbyControls({
           <select
             aria-label="目标赛事"
             value={targetSeasonId ?? ""}
-            onChange={(event) => update({ event: event.target.value, ...(view === "players" ? { map: undefined } : {}) })}
+            onChange={(event) =>
+              update({
+                event: event.target.value,
+                ...(view === "players" ? { map: undefined } : {}),
+              })
+            }
             className={selectClassName}
           >
             <option value="">全部赛事</option>
-            {targetSeasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}
+            {targetSeasons.map((season) => (
+              <option key={season.id} value={season.id}>
+                {season.name}
+              </option>
+            ))}
           </select>
         </label>
         {view === "teams" ? (
@@ -125,7 +177,11 @@ export function RecruitmentLobbyControls({
               className={selectClassName}
             >
               <option value="">全部规模</option>
-              {TEAM_SIZE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {TEAM_SIZE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
         ) : (
@@ -138,7 +194,11 @@ export function RecruitmentLobbyControls({
               className={selectClassName}
             >
               <option value="">全部地图</option>
-              {mapOptions.map((item) => <option key={item} value={item}>{mapLabel(item)}</option>)}
+              {mapOptions.map((item) => (
+                <option key={item} value={item}>
+                  {mapLabel(item)}
+                </option>
+              ))}
             </select>
           </label>
         )}

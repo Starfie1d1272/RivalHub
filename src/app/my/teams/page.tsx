@@ -11,6 +11,14 @@ export const instant = false;
 export default async function MyTeamsPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/my/teams");
-  const [model, personalCompetitions] = await Promise.all([loadMyTeamWorkspace(session.userId), loadMyCompetitionContexts(session.userId)]);
-  return <><ContentReady module="account" phase="primary" /><MyTeamWorkspace model={model} personalCompetitions={personalCompetitions} /></>;
+  const [model, personalCompetitions] = await Promise.all([
+    loadMyTeamWorkspace(session.userId),
+    loadMyCompetitionContexts(session.userId),
+  ]);
+  return (
+    <>
+      <ContentReady module="account" phase="primary" />
+      <MyTeamWorkspace model={model} personalCompetitions={personalCompetitions} />
+    </>
+  );
 }

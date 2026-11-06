@@ -1,10 +1,7 @@
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import type { CompetitionTemplate } from "@/lib/competition/templates";
 import type { SeasonCapabilities } from "@/types/season";
-import {
-  buildMajorOpeningPlan,
-  type MajorOpeningPlan,
-} from "./opening";
+import { buildMajorOpeningPlan, type MajorOpeningPlan } from "./opening";
 
 export type MajorPrestartCheckKey =
   | "rules"
@@ -145,10 +142,17 @@ function checkRosters(
     if (Number.isInteger(policy.maxTeamSize) && team.playerIds.length > policy.maxTeamSize) {
       teamBlockers.push(`队伍 ${label} 名单超过上限 ${policy.maxTeamSize} 人。`);
     }
-    if (Number.isInteger(policy.starterCount) && policy.starterCount > 0 && team.playerIds.length < policy.starterCount) {
+    if (
+      Number.isInteger(policy.starterCount) &&
+      policy.starterCount > 0 &&
+      team.playerIds.length < policy.starterCount
+    ) {
       teamBlockers.push(`队伍 ${label} 无法组成 ${policy.starterCount} 名首发。`);
     }
-    if (team.educationVerificationIds.length !== team.playerIds.length || team.educationVerificationIds.some((id) => !id?.trim())) {
+    if (
+      team.educationVerificationIds.length !== team.playerIds.length ||
+      team.educationVerificationIds.some((id) => !id?.trim())
+    ) {
       teamBlockers.push(`队伍 ${label} 存在未冻结的教育认证依据。`);
     }
     return teamBlockers;
@@ -175,13 +179,16 @@ function checkDuplicatePlayers(teams: readonly MajorPrestartTeamFact[] | null): 
       const memberships = playerTeams.get(playerId) ?? [];
       memberships.push(teamLabel(team));
       playerTeams.set(playerId, memberships);
-      if (!playerLabels.has(playerId)) playerLabels.set(playerId, team.playerLabels?.[playerId] || playerId);
+      if (!playerLabels.has(playerId))
+        playerLabels.set(playerId, team.playerLabels?.[playerId] || playerId);
     }
   }
 
   for (const [playerId, teamIds] of playerTeams) {
     if (teamIds.length > 1) {
-      blockers.push(`选手 ${playerLabels.get(playerId) ?? playerId} 同时出现在 ${teamIds.join("、")} 的名单中。`);
+      blockers.push(
+        `选手 ${playerLabels.get(playerId) ?? playerId} 同时出现在 ${teamIds.join("、")} 的名单中。`,
+      );
     }
   }
   return blockers.length === 0
@@ -204,16 +211,20 @@ function checkTeamConfirmations(
   const blockers: string[] = [];
   for (const fact of facts) {
     if (!teamIds.has(fact.teamId)) {
-      blockers.push(`${label}包含不在本届赛事内的队伍 ${teamLabels.get(fact.teamId) ?? fact.teamId}。`);
+      blockers.push(
+        `${label}包含不在本届赛事内的队伍 ${teamLabels.get(fact.teamId) ?? fact.teamId}。`,
+      );
     }
     if (seen.has(fact.teamId)) {
       blockers.push(`队伍 ${teamLabels.get(fact.teamId) ?? fact.teamId} 存在重复的${label}记录。`);
     }
     seen.add(fact.teamId);
-    if (!fact.confirmed) blockers.push(`队伍 ${teamLabels.get(fact.teamId) ?? fact.teamId} 尚未${label}。`);
+    if (!fact.confirmed)
+      blockers.push(`队伍 ${teamLabels.get(fact.teamId) ?? fact.teamId} 尚未${label}。`);
   }
   for (const teamId of teamIds) {
-    if (!seen.has(teamId)) blockers.push(`队伍 ${teamLabels.get(teamId) ?? teamId} 缺少${label}记录。`);
+    if (!seen.has(teamId))
+      blockers.push(`队伍 ${teamLabels.get(teamId) ?? teamId} 缺少${label}记录。`);
   }
   return blockers.length === 0 ? ready(key, label) : blocked(key, label, blockers);
 }
@@ -239,13 +250,11 @@ function checkSeedRecommendation(
 ): MajorPrestartCheck {
   if (fact === null) return unavailable("seed-recommendation", "系统种子参考");
   if (fact.status === "ready") return ready("seed-recommendation", "系统种子参考");
-  return blocked(
-    "seed-recommendation",
-    "系统种子参考",
-    [fact.status === "missing"
+  return blocked("seed-recommendation", "系统种子参考", [
+    fact.status === "missing"
       ? "系统种子参考尚未生成，请先完成正式参赛队和正式名单的统一冻结。"
-      : "系统种子参考与当前冻结的参赛队或正式名单不一致，请重新核对冻结事实。"],
-  );
+      : "系统种子参考与当前冻结的参赛队或正式名单不一致，请重新核对冻结事实。",
+  ]);
 }
 
 function checkSeeds(
@@ -263,11 +272,21 @@ function checkSeeds(
   const seenSeeds = new Set<number>();
   const blockers: string[] = [];
   for (const fact of facts) {
-    if (!teamIds.has(fact.teamId)) blockers.push(`种子 ${fact.tournamentSeed} 指向不存在的队伍 ${teamLabels.get(fact.teamId) ?? fact.teamId}。`);
-    if (seenTeams.has(fact.teamId)) blockers.push(`队伍 ${teamLabels.get(fact.teamId) ?? fact.teamId} 被分配了重复种子。`);
+    if (!teamIds.has(fact.teamId))
+      blockers.push(
+        `种子 ${fact.tournamentSeed} 指向不存在的队伍 ${teamLabels.get(fact.teamId) ?? fact.teamId}。`,
+      );
+    if (seenTeams.has(fact.teamId))
+      blockers.push(`队伍 ${teamLabels.get(fact.teamId) ?? fact.teamId} 被分配了重复种子。`);
     seenTeams.add(fact.teamId);
-    if (!Number.isInteger(fact.tournamentSeed) || fact.tournamentSeed < 1 || fact.tournamentSeed > capacity) {
-      blockers.push(`队伍 ${teamLabels.get(fact.teamId) ?? fact.teamId} 的种子必须是 1–${capacity} 的整数。`);
+    if (
+      !Number.isInteger(fact.tournamentSeed) ||
+      fact.tournamentSeed < 1 ||
+      fact.tournamentSeed > capacity
+    ) {
+      blockers.push(
+        `队伍 ${teamLabels.get(fact.teamId) ?? fact.teamId} 的种子必须是 1–${capacity} 的整数。`,
+      );
     } else if (seenSeeds.has(fact.tournamentSeed)) {
       blockers.push(`赛事种子 ${fact.tournamentSeed} 重复。`);
     }
@@ -277,10 +296,14 @@ function checkSeeds(
     if (!seenSeeds.has(seed)) blockers.push(`赛事种子 ${seed} 尚未分配。`);
   }
   for (const teamId of teamIds) {
-    if (!seenTeams.has(teamId)) blockers.push(`队伍 ${teamLabels.get(teamId) ?? teamId} 尚未分配赛事种子。`);
+    if (!seenTeams.has(teamId))
+      blockers.push(`队伍 ${teamLabels.get(teamId) ?? teamId} 尚未分配赛事种子。`);
   }
   return {
-    check: blockers.length === 0 ? ready("seeds", `赛事 1–${capacity} 种子`) : blocked("seeds", `赛事 1–${capacity} 种子`, blockers),
+    check:
+      blockers.length === 0
+        ? ready("seeds", `赛事 1–${capacity} 种子`)
+        : blocked("seeds", `赛事 1–${capacity} 种子`, blockers),
     seeds: blockers.length === 0 ? facts : null,
   };
 }
@@ -294,9 +317,10 @@ function checkSeeds(
 export function evaluateMajorPrestartReadiness(
   input: MajorPrestartReadinessInput,
 ): MajorPrestartReadiness {
-  const rules = input.competitionTemplate === "major"
-    ? checkStandardMajorCapabilities(input.capabilities)
-    : null;
+  const rules =
+    input.competitionTemplate === "major"
+      ? checkStandardMajorCapabilities(input.capabilities)
+      : null;
   const ruleBlockers = rules
     ? rules.failures.map((failure) => failure.reason)
     : ["当前赛事模板不是 major，不能进入 Major runtime。"];
@@ -307,14 +331,17 @@ export function evaluateMajorPrestartReadiness(
   ];
   const entrantCapacity = rules?.entrantCapacity ?? 0;
 
-  const teamBlockers = input.teams === null
-    ? null
-    : [
-        ...invalidTeamIds(input.teams),
-        ...(rules?.isStandardMajor === true && input.teams.length === entrantCapacity
-          ? []
-          : [`当前有 ${input.teams.length} 支队伍，Major 开赛需要恰好 ${entrantCapacity || "标准容量"} 支队伍。`]),
-      ];
+  const teamBlockers =
+    input.teams === null
+      ? null
+      : [
+          ...invalidTeamIds(input.teams),
+          ...(rules?.isStandardMajor === true && input.teams.length === entrantCapacity
+            ? []
+            : [
+                `当前有 ${input.teams.length} 支队伍，Major 开赛需要恰好 ${entrantCapacity || "标准容量"} 支队伍。`,
+              ]),
+        ];
   checks.push(
     teamBlockers === null
       ? unavailable("teams", `${entrantCapacity || "标准容量"} 支参赛队伍`)
@@ -325,7 +352,9 @@ export function evaluateMajorPrestartReadiness(
   checks.push(checkEntrantsLocked(input.entrantsLocked));
   checks.push(checkRosters(input.teams, input.capabilities));
   checks.push(checkDuplicatePlayers(input.teams));
-  checks.push(checkTeamConfirmations("confirmations", "参赛确认", input.confirmations, input.teams));
+  checks.push(
+    checkTeamConfirmations("confirmations", "参赛确认", input.confirmations, input.teams),
+  );
   const seedResult = checkSeeds(input.teams, input.tournamentSeeds, entrantCapacity);
   checks.push(seedResult.check);
   checks.push(checkSeedRecommendation(input.seedRecommendation));
@@ -339,7 +368,11 @@ export function evaluateMajorPrestartReadiness(
     seedResult.seeds === null ||
     entrantCapacity <= 0
   ) {
-    checks.push(blocked("opening-plan", "开赛计划", [`开赛计划不可用：标准 Major 结构、${entrantCapacity || "标准容量"} 队身份、完整 1–${entrantCapacity || "标准容量"} 种子和阶段一赛制必须先可用于构造预览。`]));
+    checks.push(
+      blocked("opening-plan", "开赛计划", [
+        `开赛计划不可用：标准 Major 结构、${entrantCapacity || "标准容量"} 队身份、完整 1–${entrantCapacity || "标准容量"} 种子和阶段一赛制必须先可用于构造预览。`,
+      ]),
+    );
   } else {
     try {
       openingPlan = buildMajorOpeningPlan({
@@ -348,7 +381,9 @@ export function evaluateMajorPrestartReadiness(
       });
       checks.push(ready("opening-plan", "开赛计划"));
     } catch {
-      checks.push(blocked("opening-plan", "开赛计划", ["开赛计划无法构造，请核对赛事种子和阶段规则。"]));
+      checks.push(
+        blocked("opening-plan", "开赛计划", ["开赛计划无法构造，请核对赛事种子和阶段规则。"]),
+      );
     }
   }
 

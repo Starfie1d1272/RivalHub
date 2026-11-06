@@ -33,25 +33,19 @@ export function projectPredictionStages(plan: StagePlan): PublicStage[] {
   });
 }
 
-export function orderedPredictionStages(
-  stages: readonly PublicStage[],
-): PublicStage[] {
+export function orderedPredictionStages(stages: readonly PublicStage[]): PublicStage[] {
   const roots = stages.filter((stage) => stage.previousKey === null);
   if (roots.length !== 1) throw new Error("Invalid prediction stage topology");
   const ordered: PublicStage[] = [];
   let stage: PublicStage | undefined = roots[0];
   while (stage) {
-    if (ordered.some((s) => s.key === stage!.key))
-      throw new Error("Cyclic stage topology");
+    if (ordered.some((s) => s.key === stage!.key)) throw new Error("Cyclic stage topology");
     ordered.push(stage);
-    const next: PublicStage | undefined = stages.find(
-      (s) => s.key === stage!.nextKey,
-    );
+    const next: PublicStage | undefined = stages.find((s) => s.key === stage!.nextKey);
     if (stage.nextKey && (!next || next.previousKey !== stage.key))
       throw new Error("Broken stage transition");
     stage = next;
   }
-  if (ordered.length !== stages.length)
-    throw new Error("Disconnected stage topology");
+  if (ordered.length !== stages.length) throw new Error("Disconnected stage topology");
   return ordered;
 }

@@ -6,7 +6,10 @@ export default function ForgotPasswordPage() {
     <PageLayout variant="narrow" className="min-h-screen flex items-center justify-center">
       <div className="w-full max-w-sm">
         <div className="space-y-1 text-center mb-6">
-          <h1 className="font-semibold text-2xl" style={{ fontFamily: "var(--font-display)", color: "var(--color-fg)" }}>
+          <h1
+            className="font-semibold text-2xl"
+            style={{ fontFamily: "var(--font-display)", color: "var(--color-fg)" }}
+          >
             忘记密码
           </h1>
           <p className="text-sm" style={{ color: "var(--color-fg-mid)" }}>

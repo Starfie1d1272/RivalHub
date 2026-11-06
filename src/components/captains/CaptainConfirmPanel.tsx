@@ -45,9 +45,7 @@ export function CaptainConfirmPanel({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const seeds = candidates.slice(0, CAPTAIN_TEAM_COUNT);
   const canConfirm =
-    seasonStatus === "voting" &&
-    teamCount === 0 &&
-    seeds.length === CAPTAIN_TEAM_COUNT;
+    seasonStatus === "voting" && teamCount === 0 && seeds.length === CAPTAIN_TEAM_COUNT;
 
   function handleConfirm() {
     startTransition(async () => {
@@ -84,7 +82,11 @@ export function CaptainConfirmPanel({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="default">#{index + 1}</Badge>
-                      <h3 className="font-semibold"><PlayerProfileLink userId={candidate.userId}>{candidate.displayName}</PlayerProfileLink></h3>
+                      <h3 className="font-semibold">
+                        <PlayerProfileLink userId={candidate.userId}>
+                          {candidate.displayName}
+                        </PlayerProfileLink>
+                      </h3>
                     </div>
                     <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                       {positionLabel(candidate.primaryPosition)} · Peak {candidate.peakRating} ·
@@ -161,13 +163,17 @@ export function CaptainConfirmPanel({
           <DialogBody>
             <div className="space-y-3 text-sm leading-6 text-[var(--color-fg-secondary)]">
               <p>
-                即将确认前 <strong>{CAPTAIN_TEAM_COUNT}</strong> 名队长并生成队伍，
-                赛季将从 <strong>voting</strong> 推进到 <strong>drafting</strong>。
+                即将确认前 <strong>{CAPTAIN_TEAM_COUNT}</strong> 名队长并生成队伍， 赛季将从{" "}
+                <strong>voting</strong> 推进到 <strong>drafting</strong>。
               </p>
-              <div className="rounded-sm border p-3 text-sm" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}>
-                <p className="font-medium text-[var(--color-warn)]">
-                  此操作不可撤销
-                </p>
+              <div
+                className="rounded-sm border p-3 text-sm"
+                style={{
+                  borderColor: "var(--color-warn-edge)",
+                  background: "var(--color-warn-soft)",
+                }}
+              >
+                <p className="font-medium text-[var(--color-warn)]">此操作不可撤销</p>
                 <ul className="mt-1 list-inside list-disc space-y-0.5 text-[var(--color-fg-mid)]">
                   <li>将生成 {CAPTAIN_TEAM_COUNT} 支队伍并写入队长成员</li>
                   <li>生成后无法回退到投票阶段</li>

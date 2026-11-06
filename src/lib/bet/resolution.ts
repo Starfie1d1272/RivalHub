@@ -18,10 +18,7 @@ export function resolveMarketOptions(
       factRevision: fact.revision,
     };
   const winners = [...new Set(fact.winningKeys)].sort();
-  if (
-    !winners.length ||
-    winners.some((key) => !options.some((option) => option.key === key))
-  )
+  if (!winners.length || winners.some((key) => !options.some((option) => option.key === key)))
     throw new Error("Confirmed outcome is not represented by this market");
   return {
     state: "settled",

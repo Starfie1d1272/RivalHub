@@ -1,11 +1,12 @@
 "use client";
 import React, { useMemo } from "react";
 import { useClientReady } from "@/components/rivalhub/useClientReady";
+import { MAJOR_SWISS_WIN_THRESHOLD, MAJOR_SWISS_LOSS_THRESHOLD } from "@/lib/major/swiss";
 import {
-  MAJOR_SWISS_WIN_THRESHOLD,
-  MAJOR_SWISS_LOSS_THRESHOLD,
-} from "@/lib/major/swiss";
-import { SwissRecordGroup, TournamentResult, swissResultRecords } from "@/components/tournament/SwissPrimitives";
+  SwissRecordGroup,
+  TournamentResult,
+  swissResultRecords,
+} from "@/components/tournament/SwissPrimitives";
 import type { Baseline, SimMatch, SimStage } from "@/lib/predictions/types";
 import { SimulationMatchCard } from "./SimulationMatchCard";
 import { TournamentFlow, type TournamentView } from "@/components/tournament/TournamentFlow";
@@ -33,17 +34,12 @@ export function TournamentBoard({
 }) {
   // SSR buttons must remain disabled until React can handle a user's choice.
   const interactive = useClientReady();
-  const teamMap = useMemo(
-    () => new Map(teams.map((t) => [t.teamId, t])),
-    [teams],
-  );
+  const teamMap = useMemo(() => new Map(teams.map((t) => [t.teamId, t])), [teams]);
   const seeds = useMemo(
     () => new Map(stage.entrants.map((entrant) => [entrant.teamId, entrant.seed])),
     [stage.entrants],
   );
-  const rounds = [...new Set(stage.matches.map((m) => m.round))].sort(
-    (a, b) => a - b,
-  );
+  const rounds = [...new Set(stage.matches.map((m) => m.round))].sort((a, b) => a - b);
   const policy = stage.swissPolicy ?? {
     winThreshold: MAJOR_SWISS_WIN_THRESHOLD,
     lossThreshold: MAJOR_SWISS_LOSS_THRESHOLD,
@@ -68,9 +64,7 @@ export function TournamentBoard({
     if (swiss)
       return swissResultRecords(policy)
         .filter((r) =>
-          view === "flow"
-            ? r.wins + r.losses === beforeRound - 1
-            : r.wins + r.losses < beforeRound,
+          view === "flow" ? r.wins + r.losses === beforeRound - 1 : r.wins + r.losses < beforeRound,
         )
         .map((r) => ({
           key: `${r.wins}-${r.losses}`,
@@ -108,8 +102,18 @@ export function TournamentBoard({
     return groups;
   }
   const resultCard = (group: ResultGroup) => (
-    <TournamentResult key={group.key} label={group.label} record={group.record} tone={group.tone} view={view}
-      teams={group.ids.map(id => ({ id, name: teamMap.get(id)?.name ?? "队伍", logoUrl: teamMap.get(id)?.logoUrl }))} />
+    <TournamentResult
+      key={group.key}
+      label={group.label}
+      record={group.record}
+      tone={group.tone}
+      view={view}
+      teams={group.ids.map((id) => ({
+        id,
+        name: teamMap.get(id)?.name ?? "队伍",
+        logoUrl: teamMap.get(id)?.logoUrl,
+      }))}
+    />
   );
   const roundBody = (round: number) => {
     const matches = stage.matches.filter((m) => m.round === round);
@@ -118,26 +122,56 @@ export function TournamentBoard({
     const lower = exits.filter((g) => g.tone !== "advance" && g.tone !== "champion");
     const records = [
       ...new Set(
-        matches.map((m) =>
-          m.record ? `${m.record.wins}–${m.record.losses}` : `${round - 1}–0`,
-        ),
+        matches.map((m) => (m.record ? `${m.record.wins}–${m.record.losses}` : `${round - 1}–0`)),
       ),
     ];
     return (
       <>
         {upper.map(resultCard)}
         {records.map((record) => (
-          <SwissRecordGroup key={record} round={round} record={record}
-            heading={view !== "flow" ? <>{record} <small>({matches.find(m => (m.record ? `${m.record.wins}–${m.record.losses}` : `${round - 1}–0`) === record)?.format.toUpperCase()})</small></> : undefined}>
-            {matches.filter(m => (m.record ? `${m.record.wins}–${m.record.losses}` : `${round - 1}–0`) === record).map(card)}
+          <SwissRecordGroup
+            key={record}
+            round={round}
+            record={record}
+            heading={
+              view !== "flow" ? (
+                <>
+                  {record}{" "}
+                  <small>
+                    (
+                    {matches
+                      .find(
+                        (m) =>
+                          (m.record ? `${m.record.wins}–${m.record.losses}` : `${round - 1}–0`) ===
+                          record,
+                      )
+                      ?.format.toUpperCase()}
+                    )
+                  </small>
+                </>
+              ) : undefined
+            }
+          >
+            {matches
+              .filter(
+                (m) =>
+                  (m.record ? `${m.record.wins}–${m.record.losses}` : `${round - 1}–0`) === record,
+              )
+              .map(card)}
           </SwissRecordGroup>
         ))}
         {lower.map(resultCard)}
       </>
     );
   };
-  return <TournamentFlow rounds={rounds} view={view}
-    renderRound={roundBody} finalResults={results((rounds.at(-1) ?? 0) + 1).map(resultCard)}
-    label={swiss ? "Swiss 完整赛事推演" : "淘汰赛完整晋级路径"}
-    resultLabel={stage.complete ? "推演结果" : "预览结果"} />;
+  return (
+    <TournamentFlow
+      rounds={rounds}
+      view={view}
+      renderRound={roundBody}
+      finalResults={results((rounds.at(-1) ?? 0) + 1).map(resultCard)}
+      label={swiss ? "Swiss 完整赛事推演" : "淘汰赛完整晋级路径"}
+      resultLabel={stage.complete ? "推演结果" : "预览结果"}
+    />
+  );
 }

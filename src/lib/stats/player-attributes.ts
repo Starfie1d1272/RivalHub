@@ -9,13 +9,7 @@ import { getDynamicRankingFloor, isRankingEligible } from "./ranking";
 import type { StatsMetricKey } from "./metrics";
 
 export type PlayerAttributeKey =
-  | "firepower"
-  | "entrying"
-  | "trading"
-  | "opening"
-  | "clutching"
-  | "sniping"
-  | "utility";
+  "firepower" | "entrying" | "trading" | "opening" | "clutching" | "sniping" | "utility";
 
 export type PlayerAttributeMetricKey =
   | "kpr"
@@ -110,11 +104,13 @@ export const PLAYER_ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
   {
     key: "firepower",
     label: "Firepower",
-    description: "衡量选手直接制造击杀、伤害与多杀爆发的能力，是七项属性中最偏向实际输出表现的一项。",
-    formula: "KPR 45% + ADR 40% + 2K+ Round% 15%。各输入先按 RivalHub 全站历史合格样本换算为 0–100 相对分，再按权重合成。",
+    description:
+      "衡量选手直接制造击杀、伤害与多杀爆发的能力，是七项属性中最偏向实际输出表现的一项。",
+    formula:
+      "KPR 45% + ADR 40% + 2K+ Round% 15%。各输入先按 RivalHub 全站历史合格样本换算为 0–100 相对分，再按权重合成。",
     scoreInputs: [
       { key: "kpr", metric: "kpr", weight: 0.45 },
-      { key: "adr", metric: "adr", weight: 0.40 },
+      { key: "adr", metric: "adr", weight: 0.4 },
       { key: "multiKillRoundRate", metric: "multiKillRoundRate", weight: 0.15 },
     ],
     details: [
@@ -128,11 +124,13 @@ export const PLAYER_ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
   {
     key: "entrying",
     label: "Entrying",
-    description: "衡量选手承担第一身位风险、并让自己的死亡处于可补枪结构中的程度。它更接近打法特征，不应简单理解成高分就一定更强。",
-    formula: "Traded Deaths/100r 60% + Opening Deaths Traded% 40%。两项分别描述整体可交易死亡频率，以及首死后被队友及时补枪的比例。",
+    description:
+      "衡量选手承担第一身位风险、并让自己的死亡处于可补枪结构中的程度。它更接近打法特征，不应简单理解成高分就一定更强。",
+    formula:
+      "Traded Deaths/100r 60% + Opening Deaths Traded% 40%。两项分别描述整体可交易死亡频率，以及首死后被队友及时补枪的比例。",
     scoreInputs: [
-      { key: "tradedDeathRate", metric: "tradedDeathRate", weight: 0.60 },
-      { key: "openingDeathTradedRate", metric: "openingDeathTradedRate", weight: 0.40 },
+      { key: "tradedDeathRate", metric: "tradedDeathRate", weight: 0.6 },
+      { key: "openingDeathTradedRate", metric: "openingDeathTradedRate", weight: 0.4 },
     ],
     details: [
       { key: "tradedDeathRate", metric: "tradedDeathRate" },
@@ -146,10 +144,11 @@ export const PLAYER_ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
     key: "trading",
     label: "Trading",
     description: "衡量选手作为后续枪位完成补枪的频率，以及补枪击杀在个人击杀结构中的占比。",
-    formula: "Trade/100r 60% + Trade Kill Share 40%。前者看补枪产量，后者看个人击杀中有多少来自补枪场景。",
+    formula:
+      "Trade/100r 60% + Trade Kill Share 40%。前者看补枪产量，后者看个人击杀中有多少来自补枪场景。",
     scoreInputs: [
-      { key: "trade", metric: "trade", weight: 0.60 },
-      { key: "tradeKillShare", metric: "tradeKillShare", weight: 0.40 },
+      { key: "trade", metric: "trade", weight: 0.6 },
+      { key: "tradeKillShare", metric: "tradeKillShare", weight: 0.4 },
     ],
     details: [
       { key: "trade", metric: "trade" },
@@ -161,8 +160,10 @@ export const PLAYER_ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
   {
     key: "opening",
     label: "Opening",
-    description: "衡量选手主动参与回合首次交火的程度。高分表示更频繁参与首杀对枪，并不等同于首杀胜率更高。",
-    formula: "Attempts% 65% + FK/100r 35%。参与度是主信号，首杀产出用于补充实际结果；Success% 等效率指标只作为详情展示。",
+    description:
+      "衡量选手主动参与回合首次交火的程度。高分表示更频繁参与首杀对枪，并不等同于首杀胜率更高。",
+    formula:
+      "Attempts% 65% + FK/100r 35%。参与度是主信号，首杀产出用于补充实际结果；Success% 等效率指标只作为详情展示。",
     scoreInputs: [
       { key: "openingAttempt", metric: "openingAttempt", weight: 0.65 },
       { key: "firstKill", metric: "firstKill", weight: 0.35 },
@@ -179,11 +180,13 @@ export const PLAYER_ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
   {
     key: "clutching",
     label: "Clutching",
-    description: "衡量选手进入 1vX 残局的频率和实际赢下残局的效率，同时保留不同人数残局作为解释信息。",
-    formula: "Clutch Attempts/100r 40% + Clutch% 60%。进入残局的频率描述角色处境，残局胜率承担更高权重。",
+    description:
+      "衡量选手进入 1vX 残局的频率和实际赢下残局的效率，同时保留不同人数残局作为解释信息。",
+    formula:
+      "Clutch Attempts/100r 40% + Clutch% 60%。进入残局的频率描述角色处境，残局胜率承担更高权重。",
     scoreInputs: [
-      { key: "clutchAttemptRate", metric: "clutchAttemptRate", weight: 0.40 },
-      { key: "clutch", metric: "clutch", weight: 0.60 },
+      { key: "clutchAttemptRate", metric: "clutchAttemptRate", weight: 0.4 },
+      { key: "clutch", metric: "clutch", weight: 0.6 },
     ],
     details: [
       { key: "clutchAttemptRate", metric: "clutchAttemptRate" },
@@ -197,11 +200,10 @@ export const PLAYER_ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
   {
     key: "sniping",
     label: "Sniping",
-    description: "衡量 AWP / SSG 08 在个人击杀结构中的占比，主要反映狙击角色使用强度，而不是单独评价狙击枪法。完全没有狙击击杀时记为 0 分。",
+    description:
+      "衡量 AWP / SSG 08 在个人击杀结构中的占比，主要反映狙击角色使用强度，而不是单独评价狙击枪法。完全没有狙击击杀时记为 0 分。",
     formula: "Sniper Kill Share 100%。0 使用直接记 0；有狙击击杀的样本在正使用人群中进行相对比较。",
-    scoreInputs: [
-      { key: "sniperKillShare", metric: "sniperKillShare", weight: 1 },
-    ],
+    scoreInputs: [{ key: "sniperKillShare", metric: "sniperKillShare", weight: 1 }],
     details: [
       { key: "sniperKillShare", metric: "sniperKillShare" },
       { key: "sniperKillsPerRound", metric: "sniperKillsPerRound" },
@@ -212,10 +214,12 @@ export const PLAYER_ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
   {
     key: "utility",
     label: "Utility",
-    description: "衡量道具使用量、伤害贡献和闪光助攻贡献。三部分相关性并不高，因此共同用于描述更完整的道具参与。",
-    formula: "Nades/r 30% + Util/r 35% + FA/100r 35%。使用量、伤害和闪光助攻分别形成独立的相对分后再合成。",
+    description:
+      "衡量道具使用量、伤害贡献和闪光助攻贡献。三部分相关性并不高，因此共同用于描述更完整的道具参与。",
+    formula:
+      "Nades/r 30% + Util/r 35% + FA/100r 35%。使用量、伤害和闪光助攻分别形成独立的相对分后再合成。",
     scoreInputs: [
-      { key: "grenadeUsage", metric: "grenadeUsage", weight: 0.30 },
+      { key: "grenadeUsage", metric: "grenadeUsage", weight: 0.3 },
       { key: "utility", metric: "utility", weight: 0.35 },
       { key: "flashAssist", metric: "flashAssist", weight: 0.35 },
     ],
@@ -256,11 +260,11 @@ function awpKills(player: TournamentPerformancePlayerSummary) {
 function killRounds(player: TournamentPerformancePlayerSummary) {
   const combat = player.slices.overall.combat;
   const value =
-    combat.kills
-    - combat.twoKillRounds
-    - 2 * combat.threeKillRounds
-    - 3 * combat.fourKillRounds
-    - 4 * combat.fiveKillRounds;
+    combat.kills -
+    combat.twoKillRounds -
+    2 * combat.threeKillRounds -
+    3 * combat.fourKillRounds -
+    4 * combat.fiveKillRounds;
   return Math.max(0, Math.min(player.slices.overall.sample.rounds, value));
 }
 
@@ -278,19 +282,17 @@ export function getPlayerAttributeMetricObservation(
       return { value: slice.combat.damagePerRound.rate, sample: rounds };
     case "multiKillRoundRate": {
       const multiKillRounds =
-        slice.combat.twoKillRounds
-        + slice.combat.threeKillRounds
-        + slice.combat.fourKillRounds
-        + slice.combat.fiveKillRounds;
+        slice.combat.twoKillRounds +
+        slice.combat.threeKillRounds +
+        slice.combat.fourKillRounds +
+        slice.combat.fiveKillRounds;
       return { value: ratio(multiKillRounds, rounds), sample: rounds };
     }
     case "killRoundRate":
       return { value: ratio(killRounds(player), rounds), sample: rounds };
     case "threePlusKillRoundRate": {
       const roundsWithThreePlus =
-        slice.combat.threeKillRounds
-        + slice.combat.fourKillRounds
-        + slice.combat.fiveKillRounds;
+        slice.combat.threeKillRounds + slice.combat.fourKillRounds + slice.combat.fiveKillRounds;
       return { value: ratio(roundsWithThreePlus, rounds), sample: rounds };
     }
     case "tradedDeathRate":
@@ -309,7 +311,10 @@ export function getPlayerAttributeMetricObservation(
     case "trade":
       return { value: slice.trade.tradeKillsPerRound.rate, sample: rounds };
     case "tradeKillShare":
-      return { value: ratio(slice.trade.tradeKills, slice.combat.kills), sample: slice.combat.kills };
+      return {
+        value: ratio(slice.trade.tradeKills, slice.combat.kills),
+        sample: slice.combat.kills,
+      };
     case "damagePerKill":
       return { value: ratio(slice.combat.damage, slice.combat.kills), sample: slice.combat.kills };
     case "openingAttempt":
@@ -363,10 +368,10 @@ export function getPlayerAttributeMetricObservation(
       return { value: ratio(awpKills(player), rounds), sample: rounds };
     case "grenadeUsage": {
       const throws =
-        slice.utility.flashesThrown
-        + slice.utility.heThrows
-        + slice.utility.fireThrows
-        + slice.utility.smokesThrown;
+        slice.utility.flashesThrown +
+        slice.utility.heThrows +
+        slice.utility.fireThrows +
+        slice.utility.smokesThrown;
       return { value: ratio(throws, rounds), sample: rounds };
     }
     case "utility":
@@ -374,7 +379,10 @@ export function getPlayerAttributeMetricObservation(
     case "flashAssist":
       return { value: slice.utility.flashAssistsPerRound.rate, sample: rounds };
     case "blindPerFlash":
-      return { value: slice.utility.enemyBlindSecondsPerFlash.rate, sample: slice.utility.flashesThrown };
+      return {
+        value: slice.utility.enemyBlindSecondsPerFlash.rate,
+        sample: slice.utility.flashesThrown,
+      };
     case "hePerThrow":
       return { value: slice.utility.heDamagePerThrow.rate, sample: slice.utility.heThrows };
     case "firePerThrow":
@@ -389,9 +397,13 @@ const SNIPER_METRICS = new Set<PlayerAttributeMetricKey>([
   "awpKillsPerRound",
 ]);
 
-const ALL_METRIC_KEYS = Array.from(new Set(
-  PLAYER_ATTRIBUTE_DEFINITIONS.flatMap((attribute) => attribute.details.map((detail) => detail.key)),
-)) as PlayerAttributeMetricKey[];
+const ALL_METRIC_KEYS = Array.from(
+  new Set(
+    PLAYER_ATTRIBUTE_DEFINITIONS.flatMap((attribute) =>
+      attribute.details.map((detail) => detail.key),
+    ),
+  ),
+) as PlayerAttributeMetricKey[];
 
 function buildSniperBenchmark(observations: readonly MetricObservation[]): MetricBenchmark | null {
   const valid = observations.filter((row) => row.value != null && Number.isFinite(row.value));
@@ -407,14 +419,20 @@ function buildSniperBenchmark(observations: readonly MetricObservation[]): Metri
   return { floor, qualifiedValues };
 }
 
-function buildBenchmarks(population: readonly TournamentPerformancePlayerSummary[]): MetricBenchmarks {
-  return Object.fromEntries(ALL_METRIC_KEYS.map((key) => {
-    const observations = population.map((player) => getPlayerAttributeMetricObservation(player, key));
-    const benchmark = SNIPER_METRICS.has(key)
-      ? buildSniperBenchmark(observations)
-      : buildMetricBenchmark(observations);
-    return [key, benchmark];
-  })) as MetricBenchmarks;
+function buildBenchmarks(
+  population: readonly TournamentPerformancePlayerSummary[],
+): MetricBenchmarks {
+  return Object.fromEntries(
+    ALL_METRIC_KEYS.map((key) => {
+      const observations = population.map((player) =>
+        getPlayerAttributeMetricObservation(player, key),
+      );
+      const benchmark = SNIPER_METRICS.has(key)
+        ? buildSniperBenchmark(observations)
+        : buildMetricBenchmark(observations);
+      return [key, benchmark];
+    }),
+  ) as MetricBenchmarks;
 }
 
 function projectMetric(
@@ -430,7 +448,9 @@ function projectMetric(
     return {
       percentile: 0,
       score: 0,
-      status: isRankingEligible(observation.sample, benchmark.floor.floor) ? "qualified" : "limited",
+      status: isRankingEligible(observation.sample, benchmark.floor.floor)
+        ? "qualified"
+        : "limited",
       floor: benchmark.floor.floor,
       qualifiedCount: benchmark.qualifiedValues.length,
     };
@@ -483,11 +503,12 @@ function projectAttributes(
 
     const availableWeight = scored.reduce((sum, metric) => sum + (metric.weight ?? 0), 0);
     const score = Math.round(
-      scored.reduce((sum, metric) => sum + metric.score! * (metric.weight ?? 0), 0) / availableWeight,
+      scored.reduce((sum, metric) => sum + metric.score! * (metric.weight ?? 0), 0) /
+        availableWeight,
     );
     const qualified =
-      scoreInputs.length === definition.scoreInputs.length
-      && scoreInputs.every((metric) => metric.status === "qualified");
+      scoreInputs.length === definition.scoreInputs.length &&
+      scoreInputs.every((metric) => metric.status === "qualified");
 
     return {
       key: definition.key,
@@ -513,15 +534,22 @@ export function compilePlayerAttributeBenchmark(
   population: readonly TournamentPerformancePlayerSummary[],
 ): CompiledPlayerAttributeBenchmark {
   const benchmarks = buildBenchmarks(population);
-  const populationAttributes = population.map((candidate) => projectAttributes(candidate, benchmarks));
-  const rankedScores = Object.fromEntries(PLAYER_ATTRIBUTE_DEFINITIONS.map((definition) => [
-    definition.key,
-    populationAttributes
-      .map((candidate) => candidate.find((row) => row.key === definition.key))
-      .filter((row): row is PlayerAttributeProjection => row != null && row.status === "qualified" && row.score != null)
-      .map((row) => row.score!)
-      .sort((left, right) => right - left),
-  ])) as Record<PlayerAttributeKey, number[]>;
+  const populationAttributes = population.map((candidate) =>
+    projectAttributes(candidate, benchmarks),
+  );
+  const rankedScores = Object.fromEntries(
+    PLAYER_ATTRIBUTE_DEFINITIONS.map((definition) => [
+      definition.key,
+      populationAttributes
+        .map((candidate) => candidate.find((row) => row.key === definition.key))
+        .filter(
+          (row): row is PlayerAttributeProjection =>
+            row != null && row.status === "qualified" && row.score != null,
+        )
+        .map((row) => row.score!)
+        .sort((left, right) => right - left),
+    ]),
+  ) as Record<PlayerAttributeKey, number[]>;
   return { metrics: benchmarks, rankedScores };
 }
 
@@ -532,9 +560,10 @@ export function projectPlayerAttributeProfile(
   const attributes = projectAttributes(player, benchmark.metrics).map((attribute) => {
     const rankedScores = benchmark.rankedScores[attribute.key];
 
-    const rank = attribute.status === "qualified" && attribute.score != null
-      ? 1 + rankedScores.filter((score) => score > attribute.score!).length
-      : null;
+    const rank =
+      attribute.status === "qualified" && attribute.score != null
+        ? 1 + rankedScores.filter((score) => score > attribute.score!).length
+        : null;
 
     return {
       ...attribute,

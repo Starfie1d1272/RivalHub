@@ -44,12 +44,8 @@ export function usePredictionConfirmation() {
           <AlertDialogDescription>{message}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => resolve(false)}>
-            取消
-          </AlertDialogCancel>
-          <AlertDialogAction onClick={() => resolve(true)}>
-            确认继续
-          </AlertDialogAction>
+          <AlertDialogCancel onClick={() => resolve(false)}>取消</AlertDialogCancel>
+          <AlertDialogAction onClick={() => resolve(true)}>确认继续</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

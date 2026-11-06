@@ -9,10 +9,15 @@ type Details = { kind: string; scopeHash: string; receivedCursor?: number; store
 type Window = { firstAt: number; lastAt: number; count: number };
 const slot = Symbol.for("rivalhub.mizar-rejections.v1");
 const host = process as unknown as Record<symbol, Map<Reason, Window> | undefined>;
-const windows = host[slot] ??= new Map<Reason, Window>();
+const windows = (host[slot] ??= new Map<Reason, Window>());
 
 /** Fixed reason buckets bound memory and log volume even for unauthenticated floods. */
-export function recordMizarReliableRejection(reason: Reason, phase: Phase, requestId: string, details?: Details): boolean {
+export function recordMizarReliableRejection(
+  reason: Reason,
+  phase: Phase,
+  requestId: string,
+  details?: Details,
+): boolean {
   try {
     const now = Date.now();
     const previous = windows.get(reason);
@@ -23,23 +28,45 @@ export function recordMizarReliableRejection(reason: Reason, phase: Phase, reque
     }
     if (previous) flushWindow(reason, previous);
     windows.set(reason, { firstAt: now, lastAt: now, count: 1 });
-    return tryLogEvent({ event: "mizar.reliable.reject", scope: "mizar", operation: "reliable", requestId, safeContext: { reason, phase, count: 1, ...details } });
-  } catch { return false; /* Best effort diagnostics must not change the HTTP response. */ }
+    return tryLogEvent({
+      event: "mizar.reliable.reject",
+      scope: "mizar",
+      operation: "reliable",
+      requestId,
+      safeContext: { reason, phase, count: 1, ...details },
+    });
+  } catch {
+    return false; /* Best effort diagnostics must not change the HTTP response. */
+  }
 }
 
 function flushWindow(reason: Reason, window: Window): void {
-  if (window.count > 1) withoutObservabilityContext(() => logEvent({
-    event: "mizar.reliable.reject", scope: "mizar", operation: "reliable", safeContext: { reason, firstAt: window.firstAt, lastAt: window.lastAt, count: window.count },
-  }));
+  if (window.count > 1)
+    withoutObservabilityContext(() =>
+      logEvent({
+        event: "mizar.reliable.reject",
+        scope: "mizar",
+        operation: "reliable",
+        safeContext: {
+          reason,
+          firstAt: window.firstAt,
+          lastAt: window.lastAt,
+          count: window.count,
+        },
+      }),
+    );
 }
 
 export function flushMizarReliableRejections(now = Date.now()): void {
   try {
-    for (const [reason, window] of windows) if (now - window.firstAt >= 60_000) {
-      windows.delete(reason);
-      flushWindow(reason, window);
-    }
-  } catch { /* Open windows can be lost on log failure or process exit. */ }
+    for (const [reason, window] of windows)
+      if (now - window.firstAt >= 60_000) {
+        windows.delete(reason);
+        flushWindow(reason, window);
+      }
+  } catch {
+    /* Open windows can be lost on log failure or process exit. */
+  }
 }
 
 registerRuntimeHealthFlush("mizar_reliable_reject", () => flushMizarReliableRejections());

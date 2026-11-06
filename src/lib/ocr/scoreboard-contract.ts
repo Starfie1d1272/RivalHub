@@ -1,9 +1,18 @@
 import type { OperatorScoreboardRow } from "@/lib/matches/operator-scoreboard";
 
 export type ScoreboardOperation = "save" | "clear";
-export interface ScoreboardCommand { operationId: string; expectedVersion: string; expectedActor: string }
-export interface ScoreboardSnapshot { rows: OperatorScoreboardRow[]; version: string }
-export interface AuthorizedScoreboardSnapshot extends ScoreboardSnapshot { actorScope: string }
+export interface ScoreboardCommand {
+  operationId: string;
+  expectedVersion: string;
+  expectedActor: string;
+}
+export interface ScoreboardSnapshot {
+  rows: OperatorScoreboardRow[];
+  version: string;
+}
+export interface AuthorizedScoreboardSnapshot extends ScoreboardSnapshot {
+  actorScope: string;
+}
 export interface ScoreboardReceipt {
   operationId: string;
   mapId: string;
@@ -14,9 +23,11 @@ export interface ScoreboardReceipt {
   resultCount: number;
   createdAt: string;
 }
-export type ScoreboardReceiptStatus = { status: "unconfirmed" } | {
-  status: "committed";
-  receipt: ScoreboardReceipt;
-  snapshot: AuthorizedScoreboardSnapshot;
-  superseded: boolean;
-};
+export type ScoreboardReceiptStatus =
+  | { status: "unconfirmed" }
+  | {
+      status: "committed";
+      receipt: ScoreboardReceipt;
+      snapshot: AuthorizedScoreboardSnapshot;
+      superseded: boolean;
+    };

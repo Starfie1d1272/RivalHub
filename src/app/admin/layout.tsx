@@ -17,7 +17,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const seasonOptions = await listAdminSeasonDirectory();
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-[224px_minmax(0,1fr)]">
-      <AdminSidebar seasons={seasonOptions} email={session.email} role={session.role === "super_admin" ? "super_admin" : "season_admin"} />
+      <AdminSidebar
+        seasons={seasonOptions}
+        email={session.email}
+        role={session.role === "super_admin" ? "super_admin" : "season_admin"}
+      />
       <main className="min-w-0">{children}</main>
     </div>
   );

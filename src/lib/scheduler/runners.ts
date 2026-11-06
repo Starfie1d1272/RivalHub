@@ -6,14 +6,29 @@ import { refreshSteamProfiles } from "@/lib/steam-profiles";
 import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { matchVetoSessions, matchVetoAppeals, matchVetoTimeoutIncidents, matchMaps, matches, seasons } from "@/db/schema";
+import {
+  matchVetoSessions,
+  matchVetoAppeals,
+  matchVetoTimeoutIncidents,
+  matchMaps,
+  matches,
+  seasons,
+} from "@/db/schema";
 import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
 import { runDraftTimeoutCron } from "@/lib/draft/operations";
 import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
-import { CommittedDefaultLineupsError, DefaultLineupMaterializationError } from "@/lib/matches/default-lineup-error";
+import {
+  CommittedDefaultLineupsError,
+  DefaultLineupMaterializationError,
+} from "@/lib/matches/default-lineup-error";
 import { purgeExpiredEducationEvidence } from "@/lib/education/retention";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
-import { revalidateMatchPaths, revalidatePublicSeasonTags, revalidatePublicStatsTag, revalidateSeasonPaths } from "@/lib/revalidation";
+import {
+  revalidateMatchPaths,
+  revalidatePublicSeasonTags,
+  revalidatePublicStatsTag,
+  revalidateSeasonPaths,
+} from "@/lib/revalidation";
 import { reconcileVetoRoom } from "@/lib/matches/veto-room/service";
 import { dispatchMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/dispatcher";
 import { settleExpiredMatchMvpVotes } from "@/lib/matches/mvp";
@@ -21,12 +36,14 @@ import { reconcileMissingStatisticsProjections } from "@/lib/stats/projection-ba
 import type { SchedulerJobKey } from "./definitions";
 import type { SchedulerRunnerResult } from "./execution";
 
-export async function runRegistrationDeadlineJob(): Promise<SchedulerRunnerResult<{
-  processed: number;
-  opened: number;
-  advanced: number;
-  skipped: number;
-}>> {
+export async function runRegistrationDeadlineJob(): Promise<
+  SchedulerRunnerResult<{
+    processed: number;
+    opened: number;
+    advanced: number;
+    skipped: number;
+  }>
+> {
   const activeSeasons = await db
     .select({ id: seasons.id })
     .from(seasons)
@@ -70,7 +87,9 @@ export async function runRegistrationDeadlineJob(): Promise<SchedulerRunnerResul
 
 export async function runDraftTimeoutJob() {
   const result = await runDraftTimeoutCron((slug) => {
-    revalidateSeasonPaths(slug, ["draft", "draftCaptain", "teams", "adminDraft"], { mode: "route" });
+    revalidateSeasonPaths(slug, ["draft", "draftCaptain", "teams", "adminDraft"], {
+      mode: "route",
+    });
   });
   return {
     result: {
@@ -87,7 +106,7 @@ export async function runDraftTimeoutJob() {
 }
 
 export async function runMatchTimeAutoAwardJob() {
-  const result = await runMatchTimeAutoAwardCron().catch(error => {
+  const result = await runMatchTimeAutoAwardCron().catch((error) => {
     if (error instanceof CommittedDefaultLineupsError) {
       for (const { seasonSlug, matchId } of error.affectedMatches) {
         revalidateMatchPaths(seasonSlug, matchId, { mode: "route" });
@@ -100,7 +119,8 @@ export async function runMatchTimeAutoAwardJob() {
     revalidateMatchPaths(seasonSlug, matchId, { mode: "route" });
   }
   // Refresh every committed success before surfacing a partial batch failure.
-  if (lineupFailures.length) throw new DefaultLineupMaterializationError(lineupFailures[0], lineupRequestId);
+  if (lineupFailures.length)
+    throw new DefaultLineupMaterializationError(lineupFailures[0], lineupRequestId);
   return {
     result: summary,
     businessTransitions: result.awarded + result.lineups.created,
@@ -129,38 +149,45 @@ export async function runMatchVetoTimeoutJob() {
     .from(matchVetoSessions)
     .innerJoin(matches, eq(matches.id, matchVetoSessions.matchId))
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
-    .where(or(
-      and(
-        eq(matches.status, "in_progress"),
-        isNotNull(matchVetoSessions.startedAt),
-        isNull(matchVetoSessions.completedAt),
-        isNull(matchVetoSessions.pausedAt),
-        sql`${matchVetoSessions.turnDeadlineAt} < clock_timestamp() - interval '2 seconds'`,
-      ),
-      and(
-        eq(matches.status, "scheduled"),
-        isNull(matchVetoSessions.startedAt),
-        isNull(matchVetoSessions.completedAt),
-        or(isNotNull(matchVetoSessions.entryAStartRequestedAt), isNotNull(matchVetoSessions.entryBStartRequestedAt)),
-        or(
-          isNull(matches.scheduledAt),
-          sql`${matches.scheduledAt} <= clock_timestamp() + interval '15 minutes'`,
+    .where(
+      or(
+        and(
+          eq(matches.status, "in_progress"),
+          isNotNull(matchVetoSessions.startedAt),
+          isNull(matchVetoSessions.completedAt),
+          isNull(matchVetoSessions.pausedAt),
+          sql`${matchVetoSessions.turnDeadlineAt} < clock_timestamp() - interval '2 seconds'`,
         ),
-      ),
-      sql`${canPublishVetoAppealClosure()} AND EXISTS (SELECT 1 FROM ${matchVetoAppeals} appeal
+        and(
+          eq(matches.status, "scheduled"),
+          isNull(matchVetoSessions.startedAt),
+          isNull(matchVetoSessions.completedAt),
+          or(
+            isNotNull(matchVetoSessions.entryAStartRequestedAt),
+            isNotNull(matchVetoSessions.entryBStartRequestedAt),
+          ),
+          or(
+            isNull(matches.scheduledAt),
+            sql`${matches.scheduledAt} <= clock_timestamp() + interval '15 minutes'`,
+          ),
+        ),
+        sql`${canPublishVetoAppealClosure()} AND EXISTS (SELECT 1 FROM ${matchVetoAppeals} appeal
         JOIN ${matchVetoTimeoutIncidents} incident ON incident.id = appeal.timeout_incident_id
         WHERE incident.match_id = ${matches.id} AND appeal.status = 'pending')
         AND (${matches.gameplayStartedAt} IS NOT NULL OR EXISTS (
           SELECT 1 FROM ${matchMaps} played_map WHERE played_map.match_id = ${matches.id}
           AND (played_map.started_at IS NOT NULL OR played_map.score_a IS NOT NULL OR played_map.score_b IS NOT NULL OR played_map.completed_at IS NOT NULL)))`,
-    ));
+      ),
+    );
 
   let changed = 0;
   let firstFailure: unknown;
   for (const candidate of candidates) {
     try {
-      if (await reconcileVetoRoom(candidate.matchId) === "applied") changed += 1;
-    } catch (error) { firstFailure ??= error; }
+      if ((await reconcileVetoRoom(candidate.matchId)) === "applied") changed += 1;
+    } catch (error) {
+      firstFailure ??= error;
+    }
   }
   if (firstFailure) throw firstFailure;
   return { result: { processed: candidates.length, changed }, businessTransitions: changed };
@@ -170,24 +197,50 @@ export async function runMatchVetoTimeoutJob() {
 export async function runMatchVetoScheduledJob() {
   let lifecycle: Awaited<ReturnType<typeof runMatchVetoTimeoutJob>> | undefined;
   let firstFailure: unknown;
-  try { lifecycle = await runMatchVetoTimeoutJob(); } catch (error) { firstFailure = error; }
+  try {
+    lifecycle = await runMatchVetoTimeoutJob();
+  } catch (error) {
+    firstFailure = error;
+  }
   let delivery: Awaited<ReturnType<typeof dispatchMatchProjectionInvalidations>> | undefined;
-  try { delivery = await dispatchMatchProjectionInvalidations(); } catch (error) { firstFailure ??= error; }
+  try {
+    delivery = await dispatchMatchProjectionInvalidations();
+  } catch (error) {
+    firstFailure ??= error;
+  }
   if (firstFailure) throw firstFailure;
-  return { result: { ...lifecycle!.result, deliveryProcessed: delivery!.processed, deliveryPending: delivery!.pending }, businessTransitions: lifecycle!.businessTransitions };
+  return {
+    result: {
+      ...lifecycle!.result,
+      deliveryProcessed: delivery!.processed,
+      deliveryPending: delivery!.pending,
+    },
+    businessTransitions: lifecycle!.businessTransitions,
+  };
 }
 
-export async function runSchedulerJobByKey(key: SchedulerJobKey): Promise<SchedulerRunnerResult<unknown>> {
+export async function runSchedulerJobByKey(
+  key: SchedulerJobKey,
+): Promise<SchedulerRunnerResult<unknown>> {
   switch (key) {
-    case "rebuild-statistics-projections": return runStatisticsProjectionRebuildJob();
-    case "settle-match-mvp": return runMatchMvpSettlementJob();
-    case "reconcile-predictions": return runPredictionReconciliationJob();
-    case "refresh-steam-profiles": return runSteamProfileRefreshJob();
-    case "resolve-match-veto-timeouts": return runMatchVetoScheduledJob();
-    case "draft-timeout": return runDraftTimeoutJob();
-    case "check-registration-deadline": return runRegistrationDeadlineJob();
-    case "match-time-auto-award": return runMatchTimeAutoAwardJob();
-    case "cleanup-education-evidence": return runEducationEvidenceCleanupJob();
+    case "rebuild-statistics-projections":
+      return runStatisticsProjectionRebuildJob();
+    case "settle-match-mvp":
+      return runMatchMvpSettlementJob();
+    case "reconcile-predictions":
+      return runPredictionReconciliationJob();
+    case "refresh-steam-profiles":
+      return runSteamProfileRefreshJob();
+    case "resolve-match-veto-timeouts":
+      return runMatchVetoScheduledJob();
+    case "draft-timeout":
+      return runDraftTimeoutJob();
+    case "check-registration-deadline":
+      return runRegistrationDeadlineJob();
+    case "match-time-auto-award":
+      return runMatchTimeAutoAwardJob();
+    case "cleanup-education-evidence":
+      return runEducationEvidenceCleanupJob();
   }
 }
 
@@ -199,13 +252,18 @@ export async function runMatchMvpSettlementJob() {
   // Invalidate committed successes even when another match failed. Pending
   // matches remain due, and scheduler health must report the failed batch.
   if (failures.length > 0) throw new AggregateError(failures, "MVP settlement failed");
-  return { result, businessTransitions: result.settled } satisfies SchedulerRunnerResult<typeof result>;
+  return { result, businessTransitions: result.settled } satisfies SchedulerRunnerResult<
+    typeof result
+  >;
 }
 
 export async function runStatisticsProjectionRebuildJob() {
   const result = await reconcileMissingStatisticsProjections(db);
   const transitions = result.rebuilt + result.invalid;
   if (transitions > 0) revalidatePublicStatsTag("stats.projection_rebuild");
-  if (result.failed > 0) throw new Error(`Failed to rebuild ${result.failed} statistics projections`);
-  return { result, businessTransitions: transitions } satisfies SchedulerRunnerResult<typeof result>;
+  if (result.failed > 0)
+    throw new Error(`Failed to rebuild ${result.failed} statistics projections`);
+  return { result, businessTransitions: transitions } satisfies SchedulerRunnerResult<
+    typeof result
+  >;
 }

@@ -3,11 +3,11 @@ import React from "react";
 type Tone = "info" | "success" | "warn" | "error" | "live";
 
 const TONE_CONFIG: Record<Tone, { color: string; glyph: string }> = {
-  info:    { color: "var(--color-info)", glyph: "●" },
+  info: { color: "var(--color-info)", glyph: "●" },
   success: { color: "var(--color-ok)", glyph: "✓" },
-  warn:    { color: "var(--color-warn)", glyph: "▲" },
-  error:   { color: "var(--color-danger)", glyph: "✕" },
-  live:    { color: "var(--color-danger)", glyph: "●" },
+  warn: { color: "var(--color-warn)", glyph: "▲" },
+  error: { color: "var(--color-danger)", glyph: "✕" },
+  live: { color: "var(--color-danger)", glyph: "●" },
 };
 
 interface StatusBannerProps {
@@ -18,13 +18,7 @@ interface StatusBannerProps {
   onDismiss?: () => void;
 }
 
-export function StatusBanner({
-  tone = "info",
-  title,
-  sub,
-  action,
-  onDismiss,
-}: StatusBannerProps) {
+export function StatusBanner({ tone = "info", title, sub, action, onDismiss }: StatusBannerProps) {
   const c = TONE_CONFIG[tone].color;
   return (
     <div
@@ -63,9 +57,7 @@ export function StatusBanner({
           {title}
         </div>
         {sub && (
-          <p className="mt-1 font-sans text-sm leading-6 text-[var(--color-fg-secondary)]">
-            {sub}
-          </p>
+          <p className="mt-1 font-sans text-sm leading-6 text-[var(--color-fg-secondary)]">{sub}</p>
         )}
       </div>
       {action && <div>{action}</div>}

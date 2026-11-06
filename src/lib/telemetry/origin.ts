@@ -4,6 +4,13 @@ import "server-only";
 export function configuredTelemetryOrigin(): string | null {
   try {
     const url = new URL(process.env.PRODUCT_TELEMETRY_ORIGIN ?? "");
-    return url.protocol === "https:" && !url.username && !url.password && url.href === `${url.origin}/` ? url.origin : null;
-  } catch { return null; }
+    return url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      url.href === `${url.origin}/`
+      ? url.origin
+      : null;
+  } catch {
+    return null;
+  }
 }

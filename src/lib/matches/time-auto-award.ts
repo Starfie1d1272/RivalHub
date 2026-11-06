@@ -37,10 +37,21 @@ export async function runMatchTimeAutoAwardCron(
   const lineups = { created: 0, blocked: 0, failed: 0 };
   const lineupFailures: unknown[] = [];
   const affectedMatches: MatchTimeAutoAwardCronSummary["affectedMatches"] = [];
-  const dueLineups = await db.select().from(matches).where(and(isNotNull(matches.seasonId), isNull(matches.testConfig), eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt), lte(matches.scheduledAt, new Date(now.getTime() + 2 * 60 * 60_000))));
+  const dueLineups = await db
+    .select()
+    .from(matches)
+    .where(
+      and(
+        isNotNull(matches.seasonId),
+        isNull(matches.testConfig),
+        eq(matches.status, "scheduled"),
+        isNotNull(matches.scheduledAt),
+        lte(matches.scheduledAt, new Date(now.getTime() + 2 * 60 * 60_000)),
+      ),
+    );
   for (const match of dueLineups) {
     try {
-      const outcome = await db.transaction(async tx => {
+      const outcome = await db.transaction(async (tx) => {
         const locked = await lockMatchInTx(tx, match.id);
         assertCompetitionMatch(locked);
         const created = await materializeDefaultLineupsInTx(tx, locked, clock());
@@ -63,35 +74,38 @@ export async function runMatchTimeAutoAwardCron(
       lineups.failed += 1;
       lineupFailures.push(error);
       captureException("match.default_lineup.failure", error, {
-        scope: "match", operation: "default_lineup.materialize",
+        scope: "match",
+        operation: "default_lineup.materialize",
         requestId: lineupRequestId,
         safeContext: { phase: "materialization" },
       });
     }
   }
-  const proposalTimeoutResult = await autoAcceptExpiredProposals(clock).catch(error => {
+  const proposalTimeoutResult = await autoAcceptExpiredProposals(clock).catch((error) => {
     // These transactions have already committed. A later read failure must
     // not discard their cache invalidation targets or replay their writes.
-    if (affectedMatches.length) throw new CommittedDefaultLineupsError(error, lineupRequestId, affectedMatches);
+    if (affectedMatches.length)
+      throw new CommittedDefaultLineupsError(error, lineupRequestId, affectedMatches);
     throw error;
   });
 
-  return { ...proposalTimeoutResult, lineups, lineupFailures, lineupRequestId,
-    affectedMatches: [...affectedMatches, ...proposalTimeoutResult.affectedMatches] };
+  return {
+    ...proposalTimeoutResult,
+    lineups,
+    lineupFailures,
+    lineupRequestId,
+    affectedMatches: [...affectedMatches, ...proposalTimeoutResult.affectedMatches],
+  };
 }
 
-async function autoAcceptExpiredProposals(
-  clock: () => Date,
-): Promise<{
+async function autoAcceptExpiredProposals(clock: () => Date): Promise<{
   processed: number;
   awarded: number;
   skipped: number;
   failed: number;
   affectedMatches: Array<{ seasonSlug: string; matchId: string }>;
 }> {
-  const expiredBefore = new Date(
-    clock().getTime() - PROPOSAL_RESPONSE_HOURS * 60 * 60 * 1000,
-  );
+  const expiredBefore = new Date(clock().getTime() - PROPOSAL_RESPONSE_HOURS * 60 * 60 * 1000);
 
   const expiredProposals = await db.query.matchTimeProposals.findMany({
     where: and(
@@ -130,61 +144,75 @@ async function autoAcceptSingleProposal(
   proposalId: string,
   matchId: string,
   clock: () => Date,
-): Promise<{ awarded: false; matchId: string } | { awarded: true; matchId: string; seasonSlug: string }> {
-  return db.transaction<{ awarded: false; matchId: string } | { awarded: true; matchId: string; seasonSlug: string }>(async (tx) => {
-    const existing = await tx.query.matches.findFirst({ where: eq(matches.id, matchId), columns: { id: true } });
-    if (!existing) return { awarded: false, matchId };
-    const match = await lockMatchInTx(tx, matchId);
-    assertCompetitionMatch(match);
-    const proposal = await tx.query.matchTimeProposals.findFirst({
-      where: and(
-        eq(matchTimeProposals.id, proposalId),
-        eq(matchTimeProposals.status, "pending"),
-      ),
+): Promise<
+  { awarded: false; matchId: string } | { awarded: true; matchId: string; seasonSlug: string }
+> {
+  return db
+    .transaction<
+      { awarded: false; matchId: string } | { awarded: true; matchId: string; seasonSlug: string }
+    >(async (tx) => {
+      const existing = await tx.query.matches.findFirst({
+        where: eq(matches.id, matchId),
+        columns: { id: true },
+      });
+      if (!existing) return { awarded: false, matchId };
+      const match = await lockMatchInTx(tx, matchId);
+      assertCompetitionMatch(match);
+      const proposal = await tx.query.matchTimeProposals.findFirst({
+        where: and(eq(matchTimeProposals.id, proposalId), eq(matchTimeProposals.status, "pending")),
+      });
+      if (!proposal) return { awarded: false, matchId };
+      let now = clock();
+      // Read pending under the same match lock as every participant/admin mutation.
+      if (
+        match.status !== "scheduled" ||
+        proposal.proposedTime <= now ||
+        (match.completionDeadline && proposal.proposedTime > match.completionDeadline)
+      ) {
+        await tx
+          .update(matchTimeProposals)
+          .set({ status: "expired", updatedAt: now })
+          .where(
+            and(eq(matchTimeProposals.id, proposalId), eq(matchTimeProposals.status, "pending")),
+          );
+        await releaseMatchCoverageHoldInTx(tx, matchId, now);
+        return { awarded: false, matchId };
+      }
+      // An existing schedule stays valid. A delayed cron may also have missed
+      // the safe notice window; either case still requires explicit consent.
+      if (!canAutoAcceptProposal(match, proposal, now)) return { awarded: false, matchId };
+
+      await allocateHeldCoverageInTx(tx, matchId, proposal.proposedTime, clock);
+      // Coverage may wait on another match's slot lock too. Roll back any resource
+      // changes if the notice window elapsed while waiting for that lock.
+      now = clock();
+      if (!canAutoAcceptProposal(match, proposal, now)) throw new AutoAcceptWindowElapsed();
+
+      await acceptProposalInTx(tx, matchId, proposalId, proposal.proposedTime, "auto_timeout", now);
+
+      await writeAuditInTx(tx, {
+        seasonId: match.seasonId,
+        action: "match.auto_accept_proposal_timeout",
+        actorId: "system",
+        targetId: matchId,
+        meta: {
+          proposalId: proposal.id,
+          proposedBy: proposal.proposedBy,
+          scheduledAt: proposal.proposedTime.toISOString(),
+          reason: "对方 24h 未回应自动采纳",
+        },
+      });
+
+      assertCompetitionMatch(match);
+      const season = await tx.query.seasons.findFirst({
+        where: eq(seasons.id, match.seasonId),
+      });
+      return season
+        ? { awarded: true, matchId, seasonSlug: season.slug }
+        : { awarded: false, matchId };
+    })
+    .catch((error) => {
+      if (error instanceof AutoAcceptWindowElapsed) return { awarded: false as const, matchId };
+      throw error;
     });
-    if (!proposal) return { awarded: false, matchId };
-    let now = clock();
-    // Read pending under the same match lock as every participant/admin mutation.
-    if (match.status !== "scheduled" || proposal.proposedTime <= now ||
-        (match.completionDeadline && proposal.proposedTime > match.completionDeadline)) {
-      await tx.update(matchTimeProposals).set({ status: "expired", updatedAt: now })
-        .where(and(eq(matchTimeProposals.id, proposalId), eq(matchTimeProposals.status, "pending")));
-      await releaseMatchCoverageHoldInTx(tx, matchId, now);
-      return { awarded: false, matchId };
-    }
-    // An existing schedule stays valid. A delayed cron may also have missed
-    // the safe notice window; either case still requires explicit consent.
-    if (!canAutoAcceptProposal(match, proposal, now)) return { awarded: false, matchId };
-
-    await allocateHeldCoverageInTx(tx, matchId, proposal.proposedTime, clock);
-    // Coverage may wait on another match's slot lock too. Roll back any resource
-    // changes if the notice window elapsed while waiting for that lock.
-    now = clock();
-    if (!canAutoAcceptProposal(match, proposal, now)) throw new AutoAcceptWindowElapsed();
-
-    await acceptProposalInTx(tx, matchId, proposalId, proposal.proposedTime, "auto_timeout", now);
-
-    await writeAuditInTx(tx, {
-      seasonId: match.seasonId,
-      action: "match.auto_accept_proposal_timeout",
-      actorId: "system",
-      targetId: matchId,meta: {
-        proposalId: proposal.id,
-        proposedBy: proposal.proposedBy,
-        scheduledAt: proposal.proposedTime.toISOString(),
-        reason: "对方 24h 未回应自动采纳",
-      },
-    });
-
-    assertCompetitionMatch(match);
-    const season = await tx.query.seasons.findFirst({
-      where: eq(seasons.id, match.seasonId),
-    });
-    return season
-      ? { awarded: true, matchId, seasonSlug: season.slug }
-      : { awarded: false, matchId };
-  }).catch(error => {
-    if (error instanceof AutoAcceptWindowElapsed) return { awarded: false as const, matchId };
-    throw error;
-  });
 }

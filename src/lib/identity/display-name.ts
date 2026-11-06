@@ -29,7 +29,10 @@ export function getDisplayName(user: {
 }
 
 /** Match scoreboard presentation only; never use this nickname to resolve identity. */
-export function getMatchPlayerDisplayName(name: string, teamName: string | null | undefined): string {
+export function getMatchPlayerDisplayName(
+  name: string,
+  teamName: string | null | undefined,
+): string {
   const team = teamName?.trim();
   if (!team) return name;
   const prefixes = [`[${team}]`, `【${team}】`, team];

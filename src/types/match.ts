@@ -76,18 +76,24 @@ export function getWinner(match: Match): string | null {
 /** 该 format 最多地图数 */
 export function getMaxMaps(format: MatchFormat): number {
   switch (format) {
-    case "bo1": return 1;
-    case "bo3": return 3;
-    case "bo5": return 5;
+    case "bo1":
+      return 1;
+    case "bo3":
+      return 3;
+    case "bo5":
+      return 5;
   }
 }
 
 /** 该 format 系列赛获胜所需的图数 */
 export function getWinThreshold(format: MatchFormat): number {
   switch (format) {
-    case "bo1": return 1;
-    case "bo3": return 2;
-    case "bo5": return 3;
+    case "bo1":
+      return 1;
+    case "bo3":
+      return 2;
+    case "bo5":
+      return 3;
   }
 }
 

@@ -36,7 +36,12 @@ export function EventPlayerDirectoryRow({
               aria-label={player.name}
               className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
             >
-              <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} hasActivePublicSanction={player.hasActivePublicSanction} size="sm" />
+              <PlayerAvatar
+                name={player.name}
+                avatarUrl={player.avatarUrl}
+                hasActivePublicSanction={player.hasActivePublicSanction}
+                size="sm"
+              />
               <span className="truncate">{player.name}</span>
             </PlayerProfileLink>
             <span className="border border-[var(--color-border)] px-1.5 py-0.5 text-[11px] text-[var(--color-fg-mid)]">
@@ -44,7 +49,8 @@ export function EventPlayerDirectoryRow({
             </span>
           </div>
           <TeamProfileLink
-            seasonSlug={seasonSlug} entryId={player.entryId}
+            seasonSlug={seasonSlug}
+            entryId={player.entryId}
             className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
           >
             {player.entryName}
@@ -54,7 +60,10 @@ export function EventPlayerDirectoryRow({
         {player.stats ? (
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-[var(--color-border)] pt-2 lg:justify-end lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
             <DirectoryMetric label="地图" value={player.stats.maps} />
-            <DirectoryMetric label="Rating" value={formatStat("ratingPro", player.stats.avgRating)} />
+            <DirectoryMetric
+              label="Rating"
+              value={formatStat("ratingPro", player.stats.avgRating)}
+            />
             <DirectoryMetric label="ADR" value={formatStat("adr", player.stats.avgAdr)} />
             <DirectoryMetric label="K/D" value={formatStat("kd", player.stats.avgKd)} />
           </div>

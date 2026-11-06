@@ -16,20 +16,24 @@ export type TurnstileFailure =
 declare global {
   interface Window {
     turnstile?: {
-      render: (el: string | HTMLElement, options: {
-        sitekey: string;
-        appearance?: "always" | "execute" | "interaction-only";
-        callback: (token: string) => void;
-        "error-callback"?: (errorCode?: string) => boolean | void;
-        "expired-callback"?: () => void;
-      }) => string;
+      render: (
+        el: string | HTMLElement,
+        options: {
+          sitekey: string;
+          appearance?: "always" | "execute" | "interaction-only";
+          callback: (token: string) => void;
+          "error-callback"?: (errorCode?: string) => boolean | void;
+          "expired-callback"?: () => void;
+        },
+      ) => string;
       reset: (id?: string) => void;
     };
     onLoadTurnstile?: () => void;
   }
 }
 
-const TURNSTILE_SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onLoadTurnstile";
+const TURNSTILE_SCRIPT_SRC =
+  "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onLoadTurnstile";
 
 function safeErrorCode(value: string | undefined): string | undefined {
   const code = value?.trim();
@@ -42,8 +46,12 @@ export function TurnstileWidget({ onVerify, onError, resetSignal = 0 }: Turnstil
   const onVerifyRef = useRef(onVerify);
   const onErrorRef = useRef(onError);
 
-  useEffect(() => { onVerifyRef.current = onVerify; }, [onVerify]);
-  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  useEffect(() => {
+    onVerifyRef.current = onVerify;
+  }, [onVerify]);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   const renderWidget = useCallback(() => {
     if (!ref.current || !window.turnstile) return;

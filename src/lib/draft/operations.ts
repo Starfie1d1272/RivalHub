@@ -15,7 +15,7 @@ import {
   draftState,
   draftPicks,
   seasonRegistrations,
-  } from "@/db/schema";
+} from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { logEvent } from "@/lib/observability/server";
 import { DRAFT_ROUND_TIMEOUT_SECONDS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
@@ -116,15 +116,18 @@ export async function executeDraftPick(
     );
   }
   if (season.status !== "drafting") {
-    throw new AppError(
-      ErrorCode.SEASON_INVALID_STATUS,
-      "只有 drafting 状态的赛季可以进行选秀",
-    );
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 drafting 状态的赛季可以进行选秀");
   }
 
   const ds =
     input.prefetchedDs ??
-    (await tx.select().from(draftState).where(eq(draftState.seasonId, input.seasonId)).for("update"))[0];
+    (
+      await tx
+        .select()
+        .from(draftState)
+        .where(eq(draftState.seasonId, input.seasonId))
+        .for("update")
+    )[0];
   if (!ds) {
     throw new AppError(ErrorCode.DRAFT_NOT_ACTIVE, ERROR_MESSAGES.DRAFT_NOT_ACTIVE);
   }
@@ -138,10 +141,7 @@ export async function executeDraftPick(
       existingByRequestId.entryId !== input.entryId ||
       existingByRequestId.registrationId !== input.registrationId
     ) {
-      throw new AppError(
-        ErrorCode.VALIDATION_FAILED,
-        "clientRequestId 已被其他 pick 使用",
-      );
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "clientRequestId 已被其他 pick 使用");
     }
     return {
       pickId: existingByRequestId.id,
@@ -160,7 +160,10 @@ export async function executeDraftPick(
   assertDeadline(ds.roundDeadline, input.deadlinePolicy, now);
 
   const entry = await tx.query.competitionEntries.findFirst({
-    where: and(eq(competitionEntries.id, input.entryId), eq(competitionEntries.competitionId, input.seasonId)),
+    where: and(
+      eq(competitionEntries.id, input.entryId),
+      eq(competitionEntries.competitionId, input.seasonId),
+    ),
   });
   if (!entry) {
     throw new AppError(ErrorCode.NOT_FOUND, "参赛者不存在");
@@ -206,20 +209,20 @@ export async function executeDraftPick(
     ),
   });
   if (existingPick) {
-    throw new AppError(
-      ErrorCode.PLAYER_ALREADY_PICKED,
-      ERROR_MESSAGES.PLAYER_ALREADY_PICKED,
-    );
+    throw new AppError(ErrorCode.PLAYER_ALREADY_PICKED, ERROR_MESSAGES.PLAYER_ALREADY_PICKED);
   }
 
   const [positionCount] = await tx
     .select({ count: count() })
     .from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-    .innerJoin(seasonRegistrations, and(
-      eq(eventRosterMembers.userId, seasonRegistrations.userId),
-      eq(seasonRegistrations.seasonId, input.seasonId),
-    ))
+    .innerJoin(
+      seasonRegistrations,
+      and(
+        eq(eventRosterMembers.userId, seasonRegistrations.userId),
+        eq(seasonRegistrations.seasonId, input.seasonId),
+      ),
+    )
     .where(
       and(
         eq(eventRosters.entryId, input.entryId),
@@ -253,18 +256,33 @@ export async function executeDraftPick(
     })
     .returning({ id: draftPicks.id });
 
-  const [participant] = await tx.insert(competitionEntryParticipants).values({
-    entryId: input.entryId,
-    userId: targetRegistration.userId,
-    status: "confirmed",
-    confirmedAt: now,
-    invitedByUserId: entry.representativeUserId,
-  }).returning({ id: competitionEntryParticipants.id });
-  const [roster] = await tx.select({ id: eventRosters.id }).from(eventRosters)
-    .where(eq(eventRosters.entryId, input.entryId)).for("update");
-  const [revision] = await tx.select({ id: competitionEntryRosterRevisions.id }).from(competitionEntryRosterRevisions)
-    .where(and(eq(competitionEntryRosterRevisions.entryId, input.entryId), eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId))).for("update");
-  if (!roster || !revision) throw new AppError(ErrorCode.INTERNAL_ERROR, "选秀参赛者缺少 roster owner。");
+  const [participant] = await tx
+    .insert(competitionEntryParticipants)
+    .values({
+      entryId: input.entryId,
+      userId: targetRegistration.userId,
+      status: "confirmed",
+      confirmedAt: now,
+      invitedByUserId: entry.representativeUserId,
+    })
+    .returning({ id: competitionEntryParticipants.id });
+  const [roster] = await tx
+    .select({ id: eventRosters.id })
+    .from(eventRosters)
+    .where(eq(eventRosters.entryId, input.entryId))
+    .for("update");
+  const [revision] = await tx
+    .select({ id: competitionEntryRosterRevisions.id })
+    .from(competitionEntryRosterRevisions)
+    .where(
+      and(
+        eq(competitionEntryRosterRevisions.entryId, input.entryId),
+        eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId),
+      ),
+    )
+    .for("update");
+  if (!roster || !revision)
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "选秀参赛者缺少 roster owner。");
   await tx.insert(competitionEntryRosterMembers).values({
     revisionId: revision.id,
     participantId: participant.id,
@@ -282,7 +300,8 @@ export async function executeDraftPick(
     seasonId: input.seasonId,
     action: "draft.pick",
     actorId: input.captainUserId ?? "system:auto-pick",
-    targetId: pick.id,meta: {
+    targetId: pick.id,
+    meta: {
       entryId: input.entryId,
       registrationId: input.registrationId,
       round: ds.currentRound,
@@ -292,9 +311,17 @@ export async function executeDraftPick(
   });
 
   const seasonTeams = await tx
-    .select({ id: competitionEntries.id, draftOrder: sql<number>`${competitionEntries.formationOrder}`.as("draft_order") })
+    .select({
+      id: competitionEntries.id,
+      draftOrder: sql<number>`${competitionEntries.formationOrder}`.as("draft_order"),
+    })
     .from(competitionEntries)
-    .where(and(eq(competitionEntries.competitionId, input.seasonId), isNotNull(competitionEntries.formationOrder)))
+    .where(
+      and(
+        eq(competitionEntries.competitionId, input.seasonId),
+        isNotNull(competitionEntries.formationOrder),
+      ),
+    )
     .orderBy(asc(competitionEntries.formationOrder));
   const next = getNextEntryId(seasonTeams, input.entryId, ds.currentRound);
 
@@ -353,14 +380,21 @@ export async function finalizeDraft(
       frozenBy: input.actorId,
       updatedAt: input.now,
     })
-    .where(sql`${eventRosters.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId})`);
+    .where(
+      sql`${eventRosters.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId})`,
+    );
   await tx
     .update(competitionEntryRosterRevisions)
     .set({ status: "approved", submittedAt: input.now, approvedAt: input.now })
-    .where(sql`${competitionEntryRosterRevisions.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId}) AND ${competitionEntryRosterRevisions.id} = (SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${competitionEntryRosterRevisions.entryId})`);
+    .where(
+      sql`${competitionEntryRosterRevisions.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId}) AND ${competitionEntryRosterRevisions.id} = (SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${competitionEntryRosterRevisions.entryId})`,
+    );
   await tx
     .update(competitionEntries)
-    .set({ approvedRosterRevisionId: competitionEntries.currentRosterRevisionId, updatedAt: input.now })
+    .set({
+      approvedRosterRevisionId: competitionEntries.currentRosterRevisionId,
+      updatedAt: input.now,
+    })
     .where(eq(competitionEntries.competitionId, input.seasonId));
 }
 
@@ -450,10 +484,16 @@ async function getTeamPositionCounts(
     })
     .from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-    .innerJoin(seasonRegistrations, and(
-      eq(eventRosterMembers.userId, seasonRegistrations.userId),
-      eq(seasonRegistrations.seasonId, sql`(SELECT competition_id FROM competition_entries WHERE id = ${entryId})`),
-    ))
+    .innerJoin(
+      seasonRegistrations,
+      and(
+        eq(eventRosterMembers.userId, seasonRegistrations.userId),
+        eq(
+          seasonRegistrations.seasonId,
+          sql`(SELECT competition_id FROM competition_entries WHERE id = ${entryId})`,
+        ),
+      ),
+    )
     .where(and(eq(eventRosters.entryId, entryId), eq(eventRosterMembers.isCurrent, true)))
     .groupBy(seasonRegistrations.primaryPosition);
 
@@ -493,10 +533,7 @@ async function getAutoPickCandidates(
     })
     .from(seasonRegistrations)
     .where(
-      and(
-        eq(seasonRegistrations.seasonId, seasonId),
-        eq(seasonRegistrations.status, "approved"),
-      ),
+      and(eq(seasonRegistrations.seasonId, seasonId), eq(seasonRegistrations.status, "approved")),
     );
 
   return candidates

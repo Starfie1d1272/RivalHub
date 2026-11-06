@@ -7,9 +7,15 @@ import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { ok, type ActionResult } from "@/types/action";
 
-const inputSchema = z.object({ seasonSlug: z.string().min(1).max(160), scope: z.union([
-  z.object({ matchId: z.guid() }).strict(), z.object({ stage: z.string().min(1).max(100) }).strict(),
-]) }).strict();
+const inputSchema = z
+  .object({
+    seasonSlug: z.string().min(1).max(160),
+    scope: z.union([
+      z.object({ matchId: z.guid() }).strict(),
+      z.object({ stage: z.string().min(1).max(100) }).strict(),
+    ]),
+  })
+  .strict();
 
 export async function readPublicMatchRefreshToken(input: unknown): Promise<ActionResult<string>> {
   const parsed = inputSchema.safeParse(input);

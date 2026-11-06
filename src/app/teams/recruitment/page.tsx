@@ -7,7 +7,15 @@ import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { teamMemberships, teams } from "@/db/schema";
-import { EmptyState, PageHeader, PageLayout, Panel, PosChip, ResultSummary, StatusPill } from "@/components/rivalhub";
+import {
+  EmptyState,
+  PageHeader,
+  PageLayout,
+  Panel,
+  PosChip,
+  ResultSummary,
+  StatusPill,
+} from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { InviteRecruitingPlayerButton } from "@/components/recruitment/InviteRecruitingPlayerButton";
 import { PlayerLftEditorDialog } from "@/components/recruitment/PlayerLftEditorDialog";
@@ -18,7 +26,12 @@ import { TeamSectionNav } from "@/components/teams/TeamSectionNav";
 import { Button } from "@/components/ui/button";
 import { CS2_POSITION_VALUES, type Cs2Position } from "@/lib/config/cs2-positions";
 import { getUserSession } from "@/lib/auth/session";
-import { getPublicPlayerLft, getRecruitmentLobbyData, type RecruitmentFilters, type RecruitmentTeamSize } from "@/lib/recruitment/data";
+import {
+  getPublicPlayerLft,
+  getRecruitmentLobbyData,
+  type RecruitmentFilters,
+  type RecruitmentTeamSize,
+} from "@/lib/recruitment/data";
 import { formatCSTShortDate } from "@/lib/utils/date";
 import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/lib/config/cs2-maps";
 
@@ -36,14 +49,21 @@ function isPosition(value: string | undefined): value is Cs2Position {
 }
 
 function isUuid(value: string | undefined): value is string {
-  return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
+  return Boolean(
+    value &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value),
+  );
 }
 
 function isTeamSize(value: string | undefined): value is RecruitmentTeamSize {
   return value === "small" || value === "medium" || value === "large";
 }
 
-export default async function RecruitmentLobbyPage({ searchParams }: { searchParams: Promise<RecruitmentSearchParams> }) {
+export default async function RecruitmentLobbyPage({
+  searchParams,
+}: {
+  searchParams: Promise<RecruitmentSearchParams>;
+}) {
   const params = await searchParams;
 
   const rawPosition = firstValue(params.position);
@@ -58,13 +78,40 @@ export default async function RecruitmentLobbyPage({ searchParams }: { searchPar
   };
   const session = await getUserSession();
   const [currentCaptainTeam, viewerCurrentTeam, ownLft] = await Promise.all([
-    session ? db.select({ id: teams.id, name: teams.name }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, session.userId), isNull(teamMemberships.endedAt), eq(teams.captainUserId, session.userId), eq(teams.status, "active"))).limit(1) : Promise.resolve([]),
-    session ? db.select({ teamId: teamMemberships.teamId }).from(teamMemberships).where(and(eq(teamMemberships.userId, session.userId), isNull(teamMemberships.endedAt))).limit(1) : Promise.resolve([]),
+    session
+      ? db
+          .select({ id: teams.id, name: teams.name })
+          .from(teamMemberships)
+          .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
+          .where(
+            and(
+              eq(teamMemberships.userId, session.userId),
+              isNull(teamMemberships.endedAt),
+              eq(teams.captainUserId, session.userId),
+              eq(teams.status, "active"),
+            ),
+          )
+          .limit(1)
+      : Promise.resolve([]),
+    session
+      ? db
+          .select({ teamId: teamMemberships.teamId })
+          .from(teamMemberships)
+          .where(and(eq(teamMemberships.userId, session.userId), isNull(teamMemberships.endedAt)))
+          .limit(1)
+      : Promise.resolve([]),
     session ? getPublicPlayerLft(session.userId) : Promise.resolve(null),
   ]);
   const captainTeam = currentCaptainTeam[0] ?? null;
-  const activeView = resolveRecruitmentView(firstValue(params.view), Boolean(ownLft), Boolean(captainTeam));
-  const lobby = await getRecruitmentLobbyData(filters, session?.userId, { view: activeView, page: Number(firstValue(params.page)) || 1 });
+  const activeView = resolveRecruitmentView(
+    firstValue(params.view),
+    Boolean(ownLft),
+    Boolean(captainTeam),
+  );
+  const lobby = await getRecruitmentLobbyData(filters, session?.userId, {
+    view: activeView,
+    page: Number(firstValue(params.page)) || 1,
+  });
   const viewerCurrentTeamId = viewerCurrentTeam[0]?.teamId ?? null;
   const normalizedFilters = lobby.normalizedFilters ?? filters;
   const loginHref = `/login?next=${encodeURIComponent(recruitmentHref(activeView, normalizedFilters))}`;
@@ -77,9 +124,24 @@ export default async function RecruitmentLobbyPage({ searchParams }: { searchPar
       <PageHeader
         title="组队大厅"
         description="找到正在补充队员的队伍，或公开当前找队意向"
-        actions={session ? activeView === "players" && captainTeam ? <Button size="sm" asChild><Link href="/my/teams#team-recruitment">管理队伍招募</Link></Button> : <PlayerLftEditorDialog targetSeasons={targetSeasons} existing={ownLft} /> : <Button size="sm" asChild><Link href={loginHref as never}>登录后发布找队</Link></Button>}
+        actions={
+          session ? (
+            activeView === "players" && captainTeam ? (
+              <Button size="sm" asChild>
+                <Link href="/my/teams#team-recruitment">管理队伍招募</Link>
+              </Button>
+            ) : (
+              <PlayerLftEditorDialog targetSeasons={targetSeasons} existing={ownLft} />
+            )
+          ) : (
+            <Button size="sm" asChild>
+              <Link href={loginHref as never}>登录后发布找队</Link>
+            </Button>
+          )
+        }
       />
-      <ContentReady module="team" phase="primary" /><TeamSectionNav active="recruitment" />
+      <ContentReady module="team" phase="primary" />
+      <TeamSectionNav active="recruitment" />
       <RecruitmentLobbyControls
         view={activeView}
         normalizedFilters={normalizedFilters}
@@ -89,13 +151,227 @@ export default async function RecruitmentLobbyPage({ searchParams }: { searchPar
         playerCount={lobby.playerCount}
       />
       <div className="flex items-center justify-between gap-3">
-        <ResultSummary total={activeView === "teams" ? lobby.teamCount : lobby.playerCount} page={lobby.page} pageSize={lobby.pageSize} totalPages={lobby.totalPages} />
+        <ResultSummary
+          total={activeView === "teams" ? lobby.teamCount : lobby.playerCount}
+          page={lobby.page}
+          pageSize={lobby.pageSize}
+          totalPages={lobby.totalPages}
+        />
         <nav aria-label="组队大厅分页" className="flex gap-3 text-sm">
-          {lobby.page > 1 && <Link href={`${recruitmentHref(activeView, normalizedFilters)}&page=${lobby.page - 1}` as never}>上一页</Link>}
-          {lobby.page < lobby.totalPages && <Link href={`${recruitmentHref(activeView, normalizedFilters)}&page=${lobby.page + 1}` as never}>下一页</Link>}
+          {lobby.page > 1 && (
+            <Link
+              href={
+                `${recruitmentHref(activeView, normalizedFilters)}&page=${lobby.page - 1}` as never
+              }
+            >
+              上一页
+            </Link>
+          )}
+          {lobby.page < lobby.totalPages && (
+            <Link
+              href={
+                `${recruitmentHref(activeView, normalizedFilters)}&page=${lobby.page + 1}` as never
+              }
+            >
+              下一页
+            </Link>
+          )}
         </nav>
       </div>
-      {cards.length === 0 ? <EmptyState title={activeView === "teams" ? "暂时没有符合条件的公开队伍招募" : "暂时没有符合条件的选手找队信息"} sub="公开信息到期、关闭或更新后会自动反映在这里。" /> : <div className="grid gap-4 md:grid-cols-2">{activeView === "teams" ? lobby.teamRecruitments.map((item) => <Panel key={item.id} contentClassName="p-5"><div className="space-y-4"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><TeamLogo logoUrl={item.logoUrl} teamName={item.teamName} /><div className="min-w-0"><TeamProfileLink slug={item.teamSlug} className="block break-words text-lg font-semibold hover:text-[var(--color-accent)]">{item.teamName}</TeamProfileLink><p className="text-xs text-[var(--color-fg-mid)]">队长 <PlayerProfileLink userId={item.captainUserId}>{item.captainName}</PlayerProfileLink> · 当前 {item.memberCount} 名成员</p></div></div><StatusPill label="招募中" tone="accent" /></div><div className="flex flex-wrap gap-1.5">{item.positions.length ? item.positions.map((role) => <PosChip key={role} pos={role} />) : <span className="text-sm text-[var(--color-fg-mid)]">位置不限</span>}</div>{item.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {item.targetSeasonName}</p>}{item.targetMinRoster != null && <p className="text-sm text-[var(--color-fg-mid)]">{item.memberCount < item.targetMinRoster ? `人数上距本届最低名单规模还差 ${item.targetMinRoster - item.memberCount} 人` : "人数已达到本届最低名单规模"}</p>}{item.note && <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{item.note}</p>}<div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-[var(--color-fg-dim)]">最近更新 · {formatCSTShortDate(item.updatedAt)}</p><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" asChild><TeamProfileLink slug={item.teamSlug}>查看队伍</TeamProfileLink></Button>{item.teamId !== viewerCurrentTeamId && <RecruitmentInterestButton recruitmentIntentId={item.id} interested={lobby.viewerInterestedIntentIds.has(item.id)} invited={lobby.viewerInvitedTeamIds.has(item.teamId)} loggedIn={Boolean(session)} loginHref={loginHref} />}</div></div></div></Panel>) : lobby.playerLfts.map((item) => <Panel key={item.id} contentClassName="p-5"><div className="space-y-4"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><PlayerAvatar name={item.name} avatarUrl={item.avatarUrl} hasActivePublicSanction={item.hasActivePublicSanction} /><div className="min-w-0"><PlayerProfileLink userId={item.userId} className="block break-words text-lg font-semibold hover:text-[var(--color-accent)]">{item.name}</PlayerProfileLink>{item.currentTeamName && <p className="text-xs text-[var(--color-fg-mid)]">当前队伍 · <TeamProfileLink slug={item.currentTeamSlug}>{item.currentTeamName}</TeamProfileLink></p>}</div></div><StatusPill label="找队中" tone="accent" /></div><div className="flex flex-wrap gap-1.5">{item.positions.map((role) => <PosChip key={role} pos={role} />)}</div>{item.competitiveSummary.length > 0 && <div className="space-y-2">{item.competitiveSummary.map((platform) => <div key={platform.displayName} className="space-y-1"><p className="text-xs font-medium text-[var(--color-fg-mid)]">{platform.displayName}</p><div className="flex flex-wrap gap-x-3 gap-y-1">{platform.facts.map((fact) => <span key={`${fact.label}-${fact.rankLabel}`} className="text-xs text-[var(--color-fg-dim)]">{fact.label} · {fact.rankLabel}{fact.stars !== null && <> · {fact.stars}★</>}{fact.ratingLabel && fact.rating !== null && <> · {fact.ratingLabel} {fact.rating}</>}</span>)}</div></div>)}</div>}{item.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {item.targetSeasonName}</p>}{item.note && <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{item.note}</p>}{item.competitiveRoles.length > 0 && <p className="text-xs text-[var(--color-fg-dim)]">常用位置 · {item.competitiveRoles.join(" · ")}</p>}{item.mapPreferences.length > 0 ? <div className="space-y-1"><p className="text-xs font-medium text-[var(--color-fg-mid)]">{item.mapPreferenceContextLabel ?? (item.targetSeasonName ? "目标赛事图池熟练度" : "当前地图池熟练度")}</p><MapPreferenceChips preferences={item.mapPreferences} compact minLevel="playable" showUnfilled /></div> : <p className="text-xs text-[var(--color-fg-dim)]">未填写地图熟练度</p>}<div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-[var(--color-fg-dim)]">最近更新 · {formatCSTShortDate(item.updatedAt)}</p><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" asChild><PlayerProfileLink userId={item.userId}>查看个人主页</PlayerProfileLink></Button>{captainTeam && captainTeam.id !== item.currentTeamId && item.userId !== session?.userId && <InviteRecruitingPlayerButton teamId={captainTeam.id} userId={item.userId} />}</div></div></div></Panel>)}</div>}
+      {cards.length === 0 ? (
+        <EmptyState
+          title={
+            activeView === "teams"
+              ? "暂时没有符合条件的公开队伍招募"
+              : "暂时没有符合条件的选手找队信息"
+          }
+          sub="公开信息到期、关闭或更新后会自动反映在这里。"
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {activeView === "teams"
+            ? lobby.teamRecruitments.map((item) => (
+                <Panel key={item.id} contentClassName="p-5">
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <TeamLogo logoUrl={item.logoUrl} teamName={item.teamName} />
+                        <div className="min-w-0">
+                          <TeamProfileLink
+                            slug={item.teamSlug}
+                            className="block break-words text-lg font-semibold hover:text-[var(--color-accent)]"
+                          >
+                            {item.teamName}
+                          </TeamProfileLink>
+                          <p className="text-xs text-[var(--color-fg-mid)]">
+                            队长{" "}
+                            <PlayerProfileLink userId={item.captainUserId}>
+                              {item.captainName}
+                            </PlayerProfileLink>{" "}
+                            · 当前 {item.memberCount} 名成员
+                          </p>
+                        </div>
+                      </div>
+                      <StatusPill label="招募中" tone="accent" />
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.positions.length ? (
+                        item.positions.map((role) => <PosChip key={role} pos={role} />)
+                      ) : (
+                        <span className="text-sm text-[var(--color-fg-mid)]">位置不限</span>
+                      )}
+                    </div>
+                    {item.targetSeasonName && (
+                      <p className="text-sm text-[var(--color-fg-mid)]">
+                        目标赛事 · {item.targetSeasonName}
+                      </p>
+                    )}
+                    {item.targetMinRoster != null && (
+                      <p className="text-sm text-[var(--color-fg-mid)]">
+                        {item.memberCount < item.targetMinRoster
+                          ? `人数上距本届最低名单规模还差 ${item.targetMinRoster - item.memberCount} 人`
+                          : "人数已达到本届最低名单规模"}
+                      </p>
+                    )}
+                    {item.note && (
+                      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{item.note}</p>
+                    )}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs text-[var(--color-fg-dim)]">
+                        最近更新 · {formatCSTShortDate(item.updatedAt)}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" asChild>
+                          <TeamProfileLink slug={item.teamSlug}>查看队伍</TeamProfileLink>
+                        </Button>
+                        {item.teamId !== viewerCurrentTeamId && (
+                          <RecruitmentInterestButton
+                            recruitmentIntentId={item.id}
+                            interested={lobby.viewerInterestedIntentIds.has(item.id)}
+                            invited={lobby.viewerInvitedTeamIds.has(item.teamId)}
+                            loggedIn={Boolean(session)}
+                            loginHref={loginHref}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </Panel>
+              ))
+            : lobby.playerLfts.map((item) => (
+                <Panel key={item.id} contentClassName="p-5">
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <PlayerAvatar
+                          name={item.name}
+                          avatarUrl={item.avatarUrl}
+                          hasActivePublicSanction={item.hasActivePublicSanction}
+                        />
+                        <div className="min-w-0">
+                          <PlayerProfileLink
+                            userId={item.userId}
+                            className="block break-words text-lg font-semibold hover:text-[var(--color-accent)]"
+                          >
+                            {item.name}
+                          </PlayerProfileLink>
+                          {item.currentTeamName && (
+                            <p className="text-xs text-[var(--color-fg-mid)]">
+                              当前队伍 ·{" "}
+                              <TeamProfileLink slug={item.currentTeamSlug}>
+                                {item.currentTeamName}
+                              </TeamProfileLink>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <StatusPill label="找队中" tone="accent" />
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.positions.map((role) => (
+                        <PosChip key={role} pos={role} />
+                      ))}
+                    </div>
+                    {item.competitiveSummary.length > 0 && (
+                      <div className="space-y-2">
+                        {item.competitiveSummary.map((platform) => (
+                          <div key={platform.displayName} className="space-y-1">
+                            <p className="text-xs font-medium text-[var(--color-fg-mid)]">
+                              {platform.displayName}
+                            </p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1">
+                              {platform.facts.map((fact) => (
+                                <span
+                                  key={`${fact.label}-${fact.rankLabel}`}
+                                  className="text-xs text-[var(--color-fg-dim)]"
+                                >
+                                  {fact.label} · {fact.rankLabel}
+                                  {fact.stars !== null && <> · {fact.stars}★</>}
+                                  {fact.ratingLabel && fact.rating !== null && (
+                                    <>
+                                      {" "}
+                                      · {fact.ratingLabel} {fact.rating}
+                                    </>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {item.targetSeasonName && (
+                      <p className="text-sm text-[var(--color-fg-mid)]">
+                        目标赛事 · {item.targetSeasonName}
+                      </p>
+                    )}
+                    {item.note && (
+                      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{item.note}</p>
+                    )}
+                    {item.competitiveRoles.length > 0 && (
+                      <p className="text-xs text-[var(--color-fg-dim)]">
+                        常用位置 · {item.competitiveRoles.join(" · ")}
+                      </p>
+                    )}
+                    {item.mapPreferences.length > 0 ? (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-[var(--color-fg-mid)]">
+                          {item.mapPreferenceContextLabel ??
+                            (item.targetSeasonName ? "目标赛事图池熟练度" : "当前地图池熟练度")}
+                        </p>
+                        <MapPreferenceChips
+                          preferences={item.mapPreferences}
+                          compact
+                          minLevel="playable"
+                          showUnfilled
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[var(--color-fg-dim)]">未填写地图熟练度</p>
+                    )}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs text-[var(--color-fg-dim)]">
+                        最近更新 · {formatCSTShortDate(item.updatedAt)}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" asChild>
+                          <PlayerProfileLink userId={item.userId}>查看个人主页</PlayerProfileLink>
+                        </Button>
+                        {captainTeam &&
+                          captainTeam.id !== item.currentTeamId &&
+                          item.userId !== session?.userId && (
+                            <InviteRecruitingPlayerButton
+                              teamId={captainTeam.id}
+                              userId={item.userId}
+                            />
+                          )}
+                      </div>
+                    </div>
+                  </div>
+                </Panel>
+              ))}
+        </div>
+      )}
     </PageLayout>
   );
 }

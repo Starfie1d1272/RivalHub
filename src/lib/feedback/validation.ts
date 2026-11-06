@@ -39,7 +39,13 @@ export function feedbackStatusLabel(status: FeedbackStatus): string {
 export function safePublicPathname(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const pathname = value.trim();
-  if (!pathname.startsWith("/") || pathname.startsWith("//") || pathname.includes("?") || pathname.includes("#")) return null;
+  if (
+    !pathname.startsWith("/") ||
+    pathname.startsWith("//") ||
+    pathname.includes("?") ||
+    pathname.includes("#")
+  )
+    return null;
   if (/[\\\u0000-\u001f\u007f]/.test(pathname)) return null;
   return pathname.length <= 512 ? pathname : null;
 }

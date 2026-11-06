@@ -2,16 +2,41 @@ import { withoutObservabilityContext } from "./context";
 import { logEvent } from "./logger";
 import { registerRuntimeHealthFlush } from "./runtime-health";
 
-const OUTCOMES = ["accepted", "frame_expired", "contended", "delivery_dropped", "broadcast_unavailable", "rejected", "error"] as const;
-export type LiveIngestOutcome = typeof OUTCOMES[number];
-const STAGES = ["received", "admitted", "authorized", "send_success", "expired", "capacity", "contended", "unknown_send"] as const;
-type LiveIngestStage = typeof STAGES[number];
+const OUTCOMES = [
+  "accepted",
+  "frame_expired",
+  "contended",
+  "delivery_dropped",
+  "broadcast_unavailable",
+  "rejected",
+  "error",
+] as const;
+export type LiveIngestOutcome = (typeof OUTCOMES)[number];
+const STAGES = [
+  "received",
+  "admitted",
+  "authorized",
+  "send_success",
+  "expired",
+  "capacity",
+  "contended",
+  "unknown_send",
+] as const;
+type LiveIngestStage = (typeof STAGES)[number];
 type Totals = { count: number; duration: number };
-type WindowState = { start: number; outcomes: Map<LiveIngestOutcome, Totals>; stages: Map<LiveIngestStage, Totals> };
+type WindowState = {
+  start: number;
+  outcomes: Map<LiveIngestOutcome, Totals>;
+  stages: Map<LiveIngestStage, Totals>;
+};
 const KEY = Symbol.for("rivalhub.live-outcome-window.v1");
 // Next module graphs can have distinct globalThis/VM views in one Node process.
 const processState = process as typeof process & { [KEY]?: WindowState };
-const state = processState[KEY] ??= { start: performance.now(), outcomes: new Map(), stages: new Map() };
+const state = (processState[KEY] ??= {
+  start: performance.now(),
+  outcomes: new Map(),
+  stages: new Map(),
+});
 
 function record<K extends string>(counts: Map<K, Totals>, key: K, durationMs: number): void {
   const value = counts.get(key) ?? { count: 0, duration: 0 };
@@ -26,7 +51,9 @@ export function recordLiveIngestOutcome(outcome: LiveIngestOutcome, durationMs: 
     if (!OUTCOMES.includes(outcome) || !Number.isFinite(durationMs) || durationMs < 0) return;
     flushLiveIngestOutcomes();
     record(state.outcomes, outcome, durationMs);
-  } catch { /* Observation cannot alter frame delivery. */ }
+  } catch {
+    /* Observation cannot alter frame delivery. */
+  }
 }
 
 /** Fixed categories only; never retain a frame, credential, source or request context. */
@@ -35,7 +62,9 @@ export function recordLiveIngestStage(stage: LiveIngestStage, durationMs = 0): v
     if (!STAGES.includes(stage) || !Number.isFinite(durationMs) || durationMs < 0) return;
     flushLiveIngestOutcomes();
     record(state.stages, stage, durationMs);
-  } catch { /* Observation cannot alter frame delivery. */ }
+  } catch {
+    /* Observation cannot alter frame delivery. */
+  }
 }
 
 /** Called by the process sampler, including idle ticks. SIGKILL can lose the open window. */
@@ -53,12 +82,19 @@ export function flushLiveIngestOutcomes(now = performance.now()): void {
       for (const [event, entries] of [
         ["mizar.live.outcome_window", outcomes],
         ["mizar.live.stage_window", stages],
-      ] as const) for (const [outcome, value] of entries) logEvent({
-        event, scope: "match", operation: "live.ingest", durationMs: value.duration / value.count,
-        safeContext: { outcome, count: value.count, phase: "periodic_window", durationMs },
-      });
+      ] as const)
+        for (const [outcome, value] of entries)
+          logEvent({
+            event,
+            scope: "match",
+            operation: "live.ingest",
+            durationMs: value.duration / value.count,
+            safeContext: { outcome, count: value.count, phase: "periodic_window", durationMs },
+          });
     });
-  } catch { /* Logging failure drops this window; never replay delivery. */ }
+  } catch {
+    /* Logging failure drops this window; never replay delivery. */
+  }
 }
 
 // Register only; the shared Node instrumentation owner starts its single timer.

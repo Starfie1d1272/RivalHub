@@ -16,7 +16,10 @@ export interface FreePredictionModel {
 }
 
 export interface FreePredictionControls {
-  submitAction: (model: FreePredictionModel, keys: string[]) => Promise<ActionResult<FreePredictionModel>>;
+  submitAction: (
+    model: FreePredictionModel,
+    keys: string[],
+  ) => Promise<ActionResult<FreePredictionModel>>;
   refreshAction: (model: FreePredictionModel) => Promise<ActionResult<FreePredictionModel>>;
 }
 

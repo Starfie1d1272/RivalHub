@@ -101,6 +101,10 @@ jobs:
         if: always()
         run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RIVALHUB_BOOTSTRAP_STARTED_MS"
 
+      - name: Check source formatting
+        if: ${{ matrix.task == 'checks' || matrix.task == 'type-app' }}
+        run: pnpm format:check
+
       - name: Run static task
         env:
           RIVALHUB_TIMING_TEST_KIND: ${{ startsWith(matrix.task, 'unit-') && 'unit' || '' }}

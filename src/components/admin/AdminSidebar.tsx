@@ -6,9 +6,23 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { logoutAndClearPreviousViews } from "@/components/auth/logout";
-import { getAdminNavigation, getSeasonAdminNavigation, getActiveAdminNavigationHref, type AdminRole, type AdminSeasonOption } from "@/lib/admin/navigation";
+import {
+  getAdminNavigation,
+  getSeasonAdminNavigation,
+  getActiveAdminNavigationHref,
+  type AdminRole,
+  type AdminSeasonOption,
+} from "@/lib/admin/navigation";
 
-export function AdminSidebar({ email, role, seasons }: { email: string; role: AdminRole; seasons: AdminSeasonOption[] }) {
+export function AdminSidebar({
+  email,
+  role,
+  seasons,
+}: {
+  email: string;
+  role: AdminRole;
+  seasons: AdminSeasonOption[];
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const params = useParams();
@@ -20,7 +34,10 @@ export function AdminSidebar({ email, role, seasons }: { email: string; role: Ad
   function handleLogout() {
     startTransition(async () => {
       const result = await logoutAndClearPreviousViews();
-      if (!result.success) { toast.error(result.error.message); return; }
+      if (!result.success) {
+        toast.error(result.error.message);
+        return;
+      }
       toast.success("已退出登录");
       router.push("/login");
     });
@@ -47,21 +64,37 @@ export function AdminSidebar({ email, role, seasons }: { email: string; role: Ad
       </div>
 
       <div className="space-y-3 border-b border-[var(--color-border)] px-4 pb-4">
-        <label className="block text-xs text-[var(--color-fg-mid)]" htmlFor="admin-season-switch">当前工作范围</label>
-        <select id="admin-season-switch" value={season?.slug ?? ""}
-          onChange={(event) => router.push(event.target.value ? `/admin/${event.target.value}` : "/admin/operations")}
-          className="w-full min-w-0 rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm">
+        <label className="block text-xs text-[var(--color-fg-mid)]" htmlFor="admin-season-switch">
+          当前工作范围
+        </label>
+        <select
+          id="admin-season-switch"
+          value={season?.slug ?? ""}
+          onChange={(event) =>
+            router.push(event.target.value ? `/admin/${event.target.value}` : "/admin/operations")
+          }
+          className="w-full min-w-0 rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm"
+        >
           <option value="">平台管理</option>
-          {seasons.map((option) => <option key={option.id} value={option.slug}>{option.name}</option>)}
+          {seasons.map((option) => (
+            <option key={option.id} value={option.slug}>
+              {option.name}
+            </option>
+          ))}
         </select>
         <div className="flex flex-wrap gap-3 text-xs text-[var(--color-fg-mid)]">
           <Link href="/admin">赛事目录</Link>
           {season && <Link href={`/${season.slug}`}>查看公开赛事 ↗</Link>}
         </div>
       </div>
-      <p className="px-4 pt-2 text-xs text-[var(--color-fg-dim)] md:hidden">左右滑动查看全部管理入口</p>
+      <p className="px-4 pt-2 text-xs text-[var(--color-fg-dim)] md:hidden">
+        左右滑动查看全部管理入口
+      </p>
       {/* nav */}
-      <nav aria-label="管理后台导航" className="flex min-w-0 flex-1 overflow-x-auto md:block md:overflow-y-auto">
+      <nav
+        aria-label="管理后台导航"
+        className="flex min-w-0 flex-1 overflow-x-auto md:block md:overflow-y-auto"
+      >
         {navigation.map((group) => (
           <div key={group.key} className="shrink-0 md:mb-3">
             <div

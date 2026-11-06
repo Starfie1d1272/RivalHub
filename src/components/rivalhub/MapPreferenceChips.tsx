@@ -25,8 +25,13 @@ export function MapPreferenceChips({
 }: MapPreferenceChipsProps) {
   const threshold = mapPreferenceWeight(minLevel);
   const visible = preferences
-    .filter((preference) => preference.level !== null && mapPreferenceWeight(preference.level) >= threshold)
-    .sort((a, b) => mapPreferenceWeight(b.level ?? "none") - mapPreferenceWeight(a.level ?? "none"));
+    .filter(
+      (preference) =>
+        preference.level !== null && mapPreferenceWeight(preference.level) >= threshold,
+    )
+    .sort(
+      (a, b) => mapPreferenceWeight(b.level ?? "none") - mapPreferenceWeight(a.level ?? "none"),
+    );
   const unfilledCount = preferences.filter((preference) => preference.level === null).length;
 
   if (visible.length === 0) {
@@ -47,7 +52,9 @@ export function MapPreferenceChips({
           className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-medium ${compact ? "text-[10px]" : "text-xs"} ${LEVEL_CLASS[preference.level ?? "none"]}`}
         >
           <span>{mapLabel(preference.map)}</span>
-          {!compact && <span className="opacity-75">{mapPreferenceLabel(preference.level ?? "none")}</span>}
+          {!compact && (
+            <span className="opacity-75">{mapPreferenceLabel(preference.level ?? "none")}</span>
+          )}
         </span>
       ))}
       {showUnfilled && unfilledCount > 0 && (

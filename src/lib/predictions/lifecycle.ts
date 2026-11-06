@@ -10,41 +10,68 @@ export function officialPickEmStages(base: Baseline, projected = simulateMajor(b
     if (stage.previousKey && previous?.finalizedRound !== 5) return [];
     const projection = projected.find((candidate) => candidate.key === stage.key);
     if (!projection || projection.entrants.length !== (stage.type === "swiss" ? 16 : 8)) return [];
-    return [{
-      key: stage.key,
-      kind: stage.type,
-      stageRunId: base.runs.find((run) => run.key === stage.key)?.id ?? null,
-      entrants: projection.entrants,
-    }];
+    return [
+      {
+        key: stage.key,
+        kind: stage.type,
+        stageRunId: base.runs.find((run) => run.key === stage.key)?.id ?? null,
+        entrants: projection.entrants,
+      },
+    ];
   });
 }
 
 /** No independent deadline. An elapsed deadline or an actual start is irreversible. */
 export function pickEmWindowState(
   base: Baseline,
-  contest: { stageKey: string; deadline: Date | null; lockedAt: Date | null; entrants?: readonly unknown[] },
+  contest: {
+    stageKey: string;
+    deadline: Date | null;
+    lockedAt: Date | null;
+    entrants?: readonly unknown[];
+  },
   now: Date,
 ) {
   const matches = base.matches.filter((match) => match.stageKey === contest.stageKey);
   const scheduled = matches.flatMap((match) =>
-    match.status !== "cancelled" && match.scheduledAt ? [new Date(match.scheduledAt).getTime()] : [],
+    match.status !== "cancelled" && match.scheduledAt
+      ? [new Date(match.scheduledAt).getTime()]
+      : [],
   );
   const deadline = scheduled.length ? new Date(Math.min(...scheduled)) : null;
-  const locked = !!contest.lockedAt ||
+  const locked =
+    !!contest.lockedAt ||
     (!!contest.deadline && contest.deadline <= now) ||
     (!!deadline && deadline <= now) ||
     matches.some((match) => match.status === "in_progress" || match.status === "finished");
   const firstRound = matches.filter((match) => match.round === 1 && match.status !== "cancelled");
-  const expectedFirstRound = (contest.entrants?.length ?? (base.stages.find((stage) => stage.key === contest.stageKey)?.type === "single_elim" ? 8 : 16)) / 2;
-  const deadlineTentative = !locked && !!deadline && (firstRound.length < expectedFirstRound || firstRound.some((match) => !match.scheduledAt));
-  return { deadlineTentative, deadline: contest.lockedAt || (contest.deadline && contest.deadline <= now) ? contest.deadline : deadline, locked };
+  const expectedFirstRound =
+    (contest.entrants?.length ??
+      (base.stages.find((stage) => stage.key === contest.stageKey)?.type === "single_elim"
+        ? 8
+        : 16)) / 2;
+  const deadlineTentative =
+    !locked &&
+    !!deadline &&
+    (firstRound.length < expectedFirstRound || firstRound.some((match) => !match.scheduledAt));
+  return {
+    deadlineTentative,
+    deadline:
+      contest.lockedAt || (contest.deadline && contest.deadline <= now)
+        ? contest.deadline
+        : deadline,
+    locked,
+  };
 }
 
 export function samePredictionEntrants(
   a: readonly { teamId: string; seed: number }[],
   b: readonly { teamId: string; seed: number }[],
 ) {
-  return a.length === b.length && a.every((entry) =>
-    b.some((other) => entry.teamId === other.teamId && entry.seed === other.seed),
+  return (
+    a.length === b.length &&
+    a.every((entry) =>
+      b.some((other) => entry.teamId === other.teamId && entry.seed === other.seed),
+    )
   );
 }

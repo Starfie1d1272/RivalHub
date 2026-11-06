@@ -27,5 +27,12 @@ export function useStatsProfileHref(href: string) {
 }
 export function StatsReturnLink({ href }: { href?: string | null }) {
   const from = safeStatsReturn(href);
-  return from ? <Link href={from as import("next").Route} className="inline-flex py-2 text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-accent)]">← 返回筛选后的统计</Link> : null;
+  return from ? (
+    <Link
+      href={from as import("next").Route}
+      className="inline-flex py-2 text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-accent)]"
+    >
+      ← 返回筛选后的统计
+    </Link>
+  ) : null;
 }

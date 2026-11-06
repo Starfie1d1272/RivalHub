@@ -1,34 +1,116 @@
 import type { DisplayScore } from "@/lib/matches/display-score";
-export const MARKET_TYPES = ["champion", "top_fragger", "match_winner", "exact_score", "total_maps", "veto_map", "veto_first", "veto_decider", "veto_present", "map_winner", "total_rounds"] as const;
-export type MarketType = typeof MARKET_TYPES[number];
+export const MARKET_TYPES = [
+  "champion",
+  "top_fragger",
+  "match_winner",
+  "exact_score",
+  "total_maps",
+  "veto_map",
+  "veto_first",
+  "veto_decider",
+  "veto_present",
+  "map_winner",
+  "total_rounds",
+] as const;
+export type MarketType = (typeof MARKET_TYPES)[number];
 export type BetSubject =
   | { kind: "event"; entryIds: string[]; playerIds: string[] }
-  | { kind: "match"; entryIds: [string, string]; runId: string; format: "bo1" | "bo3" | "bo5"; mapPool: string[] }
-  | { kind: "map"; entryIds: [string, string]; runId: string; format: "bo1" | "bo3" | "bo5"; mapId: string; mapOrder: number; mapName: string }
-  | { kind: "map_slot"; entryIds: [string, string]; runId: string; format: "bo1" | "bo3" | "bo5"; mapOrder: number };
+  | {
+      kind: "match";
+      entryIds: [string, string];
+      runId: string;
+      format: "bo1" | "bo3" | "bo5";
+      mapPool: string[];
+    }
+  | {
+      kind: "map";
+      entryIds: [string, string];
+      runId: string;
+      format: "bo1" | "bo3" | "bo5";
+      mapId: string;
+      mapOrder: number;
+      mapName: string;
+    }
+  | {
+      kind: "map_slot";
+      entryIds: [string, string];
+      runId: string;
+      format: "bo1" | "bo3" | "bo5";
+      mapOrder: number;
+    };
 export type BetState = "open" | "locked" | "settled" | "refunded";
-export type BetOptionEntity = { kind: "team"; entryId: string } | { kind: "player"; userId: string } | null;
+export type BetOptionEntity =
+  { kind: "team"; entryId: string } | { kind: "player"; userId: string } | null;
 export interface BetMarketDTO {
-  id: string; matchId: string | null; type: MarketType; title: string; help: string; group: "赛事" | "比赛" | "BP" | "单图";
-  context: string; state: BetState; pool: string; participants: number; canStake: boolean; restriction: string | null;
-  options: { id: string; label: string; entity: BetOptionEntity; pool: string; percent: number; winner: boolean }[];
+  id: string;
+  matchId: string | null;
+  type: MarketType;
+  title: string;
+  help: string;
+  group: "赛事" | "比赛" | "BP" | "单图";
+  context: string;
+  state: BetState;
+  pool: string;
+  participants: number;
+  canStake: boolean;
+  restriction: string | null;
+  options: {
+    id: string;
+    label: string;
+    entity: BetOptionEntity;
+    pool: string;
+    percent: number;
+    winner: boolean;
+  }[];
   mine: { optionId: string; amount: string; payout: string | null; profit: string | null } | null;
 }
 export interface BetBoardDTO {
-  seasonId: string; enabled: boolean; paused: boolean; joined: boolean;
+  seasonId: string;
+  enabled: boolean;
+  paused: boolean;
+  joined: boolean;
   joinEligibility?: { canJoin: boolean; reason: string | null };
-  balance: string; debt: string; profit: string; rank: number | null;
-  leaderboard: { userId: string; playerUserId: string | null; name: string; profit: string; settledCount: number; rank: number }[];
+  balance: string;
+  debt: string;
+  profit: string;
+  rank: number | null;
+  leaderboard: {
+    userId: string;
+    playerUserId: string | null;
+    name: string;
+    profit: string;
+    settledCount: number;
+    rank: number;
+  }[];
   recordsHasMore?: boolean;
   recordsNextCursor?: string;
   records: { createdAt: string; amount: string; label: string; context: string | null }[];
   markets: BetMarketDTO[];
-  matches: { id: string; entryAId: string; entryBId: string; a: string; b: string; logoA: string | null; logoB: string | null; stage: string; format: string; scheduledAt: string | null; status?: "scheduled" | "in_progress" | "finished" | "cancelled"; displayScore?: DisplayScore }[];
+  matches: {
+    id: string;
+    entryAId: string;
+    entryBId: string;
+    a: string;
+    b: string;
+    logoA: string | null;
+    logoB: string | null;
+    stage: string;
+    format: string;
+    scheduledAt: string | null;
+    status?: "scheduled" | "in_progress" | "finished" | "cancelled";
+    displayScore?: DisplayScore;
+  }[];
 }
 
 export type BetPredictionRankingSort = "profit" | "hits" | "accuracy";
 export interface BetPredictionRankingRowDTO {
-  userId: string; playerUserId: string | null; name: string; profit: string | null;
-  hits: number | null; judged: number | null; accuracy: number | null;
-  rank: number | null; group: "ranked" | "limited";
+  userId: string;
+  playerUserId: string | null;
+  name: string;
+  profit: string | null;
+  hits: number | null;
+  judged: number | null;
+  accuracy: number | null;
+  rank: number | null;
+  group: "ranked" | "limited";
 }

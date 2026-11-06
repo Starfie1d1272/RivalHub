@@ -3,12 +3,23 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { ParticipantDirectoryToolbar } from "@/components/season/ParticipantDirectoryToolbar";
-import { parseParticipantDirectoryQuery, matchesDirectorySearch, supportsRegistrationPositionDirectory } from "@/lib/players/directory-query";
+import {
+  parseParticipantDirectoryQuery,
+  matchesDirectorySearch,
+  supportsRegistrationPositionDirectory,
+} from "@/lib/players/directory-query";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { notFound, redirect } from "next/navigation";
 import { eq, and, asc, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, steamProfiles, users } from "@/db/schema";
+import {
+  competitionEntries,
+  eventRosterMembers,
+  eventRosters,
+  seasonRegistrations,
+  steamProfiles,
+  users,
+} from "@/db/schema";
 import { PageHeader, PageLayout, Stat } from "@/components/rivalhub";
 import { EventPlayerDirectoryRow } from "@/components/players/EventPlayerDirectoryRow";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
@@ -34,13 +45,25 @@ export async function generateMetadata({ params }: PlayersPageProps): Promise<Me
 }
 
 export default function PlayersPage(props: PlayersPageProps) {
-  return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载…</p></PageLayout>}><PlayersPageContent {...props} /></Suspense>;
+  return (
+    <Suspense
+      fallback={
+        <PageLayout variant="wide">
+          <p role="status">正在加载…</p>
+        </PageLayout>
+      }
+    >
+      <PlayersPageContent {...props} />
+    </Suspense>
+  );
 }
 export async function PlayersPageContent({ params, searchParams }: PlayersPageProps) {
   await connection();
   const { seasonSlug } = await params;
   const rawQuery = await searchParams;
-  const position = positionValues.includes(rawQuery.position as typeof positionValues[number]) ? rawQuery.position! : "";
+  const position = positionValues.includes(rawQuery.position as (typeof positionValues)[number])
+    ? rawQuery.position!
+    : "";
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
@@ -52,27 +75,53 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
 
   if (!supportsRegistrationPositionDirectory(season.competitionTemplate)) {
     const projection = await getPublicEventRosterPlayerProjection(season.id);
-    const teamOptions = [...new Map(projection.players.map((player) => [player.entryId, { id: player.entryId, name: player.entryName }])).values()];
+    const teamOptions = [
+      ...new Map(
+        projection.players.map((player) => [
+          player.entryId,
+          { id: player.entryId, name: player.entryName },
+        ]),
+      ).values(),
+    ];
     const query = parseParticipantDirectoryQuery(rawQuery, teamOptions);
-    const visiblePlayers = projection.players.filter((player) => (!query.team || query.team === player.entryId) && matchesDirectorySearch(query.q, player.name));
+    const visiblePlayers = projection.players.filter(
+      (player) =>
+        (!query.team || query.team === player.entryId) &&
+        matchesDirectorySearch(query.q, player.name),
+    );
     const playersWithStats = projection.players.filter((player) => player.stats !== null).length;
 
     return (
       <PageLayout as="div" variant="wide" className="space-y-6">
-        <PageHeader title="报名名单" eyebrow={season.name} description="以下选手来自本届已确认参赛名单。" />
+        <PageHeader
+          title="报名名单"
+          eyebrow={season.name}
+          description="以下选手来自本届已确认参赛名单。"
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <Stat label="选手" value={projection.players.length} />
           <Stat label="所属队伍" value={projection.teamCount} />
           <Stat label="正式比赛数据" value={playersWithStats} accent />
         </div>
-        <Link className="text-sm text-[var(--color-accent)]" href={`/${seasonSlug}/teams`}>← 参赛阵容</Link>
-        <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
+        <Link className="text-sm text-[var(--color-accent)]" href={`/${seasonSlug}/teams`}>
+          ← 参赛阵容
+        </Link>
+        <ParticipantDirectoryToolbar
+          query={query.q}
+          team={query.team}
+          teams={teamOptions}
+          total={visiblePlayers.length}
+        />
         {visiblePlayers.length === 0 ? (
           <div className="py-16 text-center text-[var(--color-fg-mid)]">暂无符合条件的选手</div>
         ) : (
           <div className="space-y-3">
             {visiblePlayers.map((player) => (
-              <EventPlayerDirectoryRow key={`${player.entryId}-${player.userId}`} player={player} seasonSlug={seasonSlug} />
+              <EventPlayerDirectoryRow
+                key={`${player.entryId}-${player.userId}`}
+                player={player}
+                seasonSlug={seasonSlug}
+              />
             ))}
           </div>
         )}
@@ -89,10 +138,7 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
           eq(seasonRegistrations.secondaryPosition, position),
         ),
       )
-    : and(
-        eq(seasonRegistrations.seasonId, season.id),
-        eq(seasonRegistrations.status, "approved"),
-      );
+    : and(eq(seasonRegistrations.seasonId, season.id), eq(seasonRegistrations.status, "approved"));
 
   const registrationsPromise = db
     .select({
@@ -125,25 +171,47 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
     .from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
     .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
-    .leftJoin(seasonRegistrations, and(eq(seasonRegistrations.userId, eventRosterMembers.userId), eq(seasonRegistrations.seasonId, season.id)))
-    .where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition(), eq(eventRosterMembers.isCurrent, true)));
+    .leftJoin(
+      seasonRegistrations,
+      and(
+        eq(seasonRegistrations.userId, eventRosterMembers.userId),
+        eq(seasonRegistrations.seasonId, season.id),
+      ),
+    )
+    .where(
+      and(
+        eq(competitionEntries.competitionId, season.id),
+        publicCompetitionEntryCondition(),
+        eq(eventRosterMembers.isCurrent, true),
+      ),
+    );
 
-  const [registrations, teamMemberRows] = await Promise.all([registrationsPromise, teamMemberRowsPromise]);
+  const [registrations, teamMemberRows] = await Promise.all([
+    registrationsPromise,
+    teamMemberRowsPromise,
+  ]);
 
-  const teamByRegId = new Map(teamMemberRows.flatMap((row) => row.registrationId ? [[row.registrationId, row.teamName] as const] : []));
+  const teamByRegId = new Map(
+    teamMemberRows.flatMap((row) =>
+      row.registrationId ? [[row.registrationId, row.teamName] as const] : [],
+    ),
+  );
 
   const statsByUserId = await getVerifiedPlayerStatsBySeason(
     season.id,
     registrations.map((registration) => registration.userId),
   );
 
-  const filteredPlayersWithStats = registrations.filter((reg) => statsByUserId.has(reg.userId)).length;
+  const filteredPlayersWithStats = registrations.filter((reg) =>
+    statsByUserId.has(reg.userId),
+  ).length;
   const directoryPlayers = sortPlayerDirectory(
     registrations.map((reg) => ({
       userId: reg.userId,
       registrationId: reg.registrationId,
       displayName: getPublicDisplayName(reg),
-      avatarUrl: reg.avatarUrl, hasActivePublicSanction: reg.hasActivePublicSanction,
+      avatarUrl: reg.avatarUrl,
+      hasActivePublicSanction: reg.hasActivePublicSanction,
       name: getPublicDisplayName(reg),
       primaryPosition: reg.primaryPosition,
       secondaryPosition: reg.secondaryPosition,
@@ -152,14 +220,23 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
       currentRank: reg.currentRank,
       currentRating: reg.currentRating,
       teamName: teamByRegId.get(reg.registrationId) ?? null,
-      teamId: teamMemberRows.find((row) => row.registrationId === reg.registrationId)?.teamId ?? null,
+      teamId:
+        teamMemberRows.find((row) => row.registrationId === reg.registrationId)?.teamId ?? null,
       stats: statsByUserId.get(reg.userId) ?? null,
     })),
   );
 
-  const teamOptions = [...new Map(teamMemberRows.map((row) => [row.teamId, { id: row.teamId, name: row.teamName }])).values()];
+  const teamOptions = [
+    ...new Map(
+      teamMemberRows.map((row) => [row.teamId, { id: row.teamId, name: row.teamName }]),
+    ).values(),
+  ];
   const query = parseParticipantDirectoryQuery(rawQuery, teamOptions);
-  const visiblePlayers = directoryPlayers.filter((player) => (!query.team || player.teamId === query.team) && matchesDirectorySearch(query.q, player.displayName));
+  const visiblePlayers = directoryPlayers.filter(
+    (player) =>
+      (!query.team || player.teamId === query.team) &&
+      matchesDirectorySearch(query.q, player.displayName),
+  );
 
   return (
     <PageLayout as="div" variant="wide" className="space-y-6">
@@ -171,12 +248,17 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Stat label="选手" value={registrations.length} />
-        <Stat label="已分配队伍" value={countDirectoryPlayersWithTeam(registrations, teamByRegId)} />
+        <Stat
+          label="已分配队伍"
+          value={countDirectoryPlayersWithTeam(registrations, teamByRegId)}
+        />
         <Stat label="已有数据" value={filteredPlayersWithStats} accent />
         <Stat label="位置" value={position ? positionLabel(position) : "全部"} />
       </div>
 
-      <Link className="text-sm text-[var(--color-accent)]" href={`/${seasonSlug}/teams`}>← 参赛阵容</Link>
+      <Link className="text-sm text-[var(--color-accent)]" href={`/${seasonSlug}/teams`}>
+        ← 参赛阵容
+      </Link>
       <ParticipantDirectoryToolbar
         query={query.q}
         team={query.team}

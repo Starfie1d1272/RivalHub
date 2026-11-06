@@ -48,17 +48,29 @@ export function MatchHeadToHead({
     <Panel label="历史交锋">
       {/* 汇总标题行 */}
       <div className="flex items-center justify-center gap-3 pb-4 mb-2 border-b border-[var(--color-border)]">
-        <TeamProfileLink seasonSlug={seasonSlug} entryId={entryAId} className="font-bold text-sm" style={{ color: "var(--color-accent)" }}>
+        <TeamProfileLink
+          seasonSlug={seasonSlug}
+          entryId={entryAId}
+          className="font-bold text-sm"
+          style={{ color: "var(--color-accent)" }}
+        >
           {teamAName}
         </TeamProfileLink>
         <span className="font-mono font-bold text-base" style={{ color: "var(--color-accent)" }}>
           {teamAWins} 胜
         </span>
-        <span className="text-sm" style={{ color: "var(--color-fg-dim)" }}>vs</span>
+        <span className="text-sm" style={{ color: "var(--color-fg-dim)" }}>
+          vs
+        </span>
         <span className="font-mono font-bold text-base" style={{ color: "var(--color-accent-b)" }}>
           {teamBWins} 胜
         </span>
-        <TeamProfileLink seasonSlug={seasonSlug} entryId={entryBId} className="font-bold text-sm" style={{ color: "var(--color-accent-b)" }}>
+        <TeamProfileLink
+          seasonSlug={seasonSlug}
+          entryId={entryBId}
+          className="font-bold text-sm"
+          style={{ color: "var(--color-accent-b)" }}
+        >
           {teamBName}
         </TeamProfileLink>
       </div>
@@ -68,7 +80,9 @@ export function MatchHeadToHead({
         {displayed.map((m) => {
           const displayTime = m.completedAt ?? m.scheduledAt;
           const stageLabel = presentMatchStage(m.stage, stagePlan);
-          const formatLabel = MATCH_FORMAT_LABELS[m.format as keyof typeof MATCH_FORMAT_LABELS] ?? m.format.toUpperCase();
+          const formatLabel =
+            MATCH_FORMAT_LABELS[m.format as keyof typeof MATCH_FORMAT_LABELS] ??
+            m.format.toUpperCase();
 
           return (
             <div

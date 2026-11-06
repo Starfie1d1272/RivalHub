@@ -9,10 +9,7 @@ import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { matches, seasons } from "@/db/schema";
 import type { Season } from "@/db/schema/seasons";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
-import {
-  PUBLIC_SEASON_CATALOG_TAG,
-  publicSeasonTag,
-} from "@/lib/cache/tags";
+import { PUBLIC_SEASON_CATALOG_TAG, publicSeasonTag } from "@/lib/cache/tags";
 
 /**
  * Public season data is deliberately selected field-by-field. Keep internal
@@ -105,10 +102,26 @@ export async function getPublicSeasonCatalog(): Promise<PublicSeasonWithCompleti
     const completionRows = await db
       .select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
       .from(matches)
-      .where(and(officialMatchCondition(), and(inArray(matches.seasonId, rows.map((row) => row.id)), eq(matches.status, "finished"))))
+      .where(
+        and(
+          officialMatchCondition(),
+          and(
+            inArray(
+              matches.seasonId,
+              rows.map((row) => row.id),
+            ),
+            eq(matches.status, "finished"),
+          ),
+        ),
+      )
       .groupBy(matches.seasonId);
-    const lastCompletedAtBySeasonId = new Map(completionRows.map((row) => [row.seasonId, row.lastCompletedAt]));
-    return rows.map((row) => ({ ...row, lastCompletedAt: lastCompletedAtBySeasonId.get(row.id) ?? null }));
+    const lastCompletedAtBySeasonId = new Map(
+      completionRows.map((row) => [row.seasonId, row.lastCompletedAt]),
+    );
+    return rows.map((row) => ({
+      ...row,
+      lastCompletedAt: lastCompletedAtBySeasonId.get(row.id) ?? null,
+    }));
   });
 }
 
@@ -139,7 +152,8 @@ export async function getPublicOrAuthorizedDraftSeason(
   if (publicSeason) return publicSeason;
 
   // Only a fresh authorization from this server request may be supplied.
-  const authorization = requestAuthorization === undefined ? await getCurrentUserAuthorization() : requestAuthorization;
+  const authorization =
+    requestAuthorization === undefined ? await getCurrentUserAuthorization() : requestAuthorization;
   if (!authorization) return null;
 
   const [draftSeason] = await db
@@ -150,8 +164,7 @@ export async function getPublicOrAuthorizedDraftSeason(
 
   if (
     !draftSeason ||
-    (authorization.role !== "super_admin" &&
-      !authorization.seasonIds.includes(draftSeason.id))
+    (authorization.role !== "super_admin" && !authorization.seasonIds.includes(draftSeason.id))
   ) {
     return null;
   }

@@ -4,11 +4,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import {
-  seasons,
-  competitionEntries,
-  draftState,
-  } from "@/db/schema";
+import { seasons, competitionEntries, draftState } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
@@ -53,33 +49,32 @@ export async function startDraft(
         );
       }
       if (season.status !== "drafting") {
-        throw new AppError(
-          ErrorCode.SEASON_INVALID_STATUS,
-          "只有 drafting 状态的赛季可以启动选秀",
-        );
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 drafting 状态的赛季可以启动选秀");
       }
 
       const existing = await tx.query.draftState.findFirst({
         where: eq(draftState.seasonId, seasonId),
       });
       if (existing) {
-        throw new AppError(
-          ErrorCode.SEASON_INVALID_STATUS,
-          "选秀已启动",
-        );
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "选秀已启动");
       }
 
       const seasonTeams = await tx
-        .select({ id: competitionEntries.id, draftOrder: sql<number>`${competitionEntries.formationOrder}`.as("draft_order") })
+        .select({
+          id: competitionEntries.id,
+          draftOrder: sql<number>`${competitionEntries.formationOrder}`.as("draft_order"),
+        })
         .from(competitionEntries)
-        .where(and(eq(competitionEntries.competitionId, seasonId), isNotNull(competitionEntries.formationOrder)))
+        .where(
+          and(
+            eq(competitionEntries.competitionId, seasonId),
+            isNotNull(competitionEntries.formationOrder),
+          ),
+        )
         .orderBy(asc(competitionEntries.formationOrder));
 
       if (seasonTeams.length === 0) {
-        throw new AppError(
-          ErrorCode.VALIDATION_FAILED,
-          "该赛季没有队伍，请先确认队长生成队伍",
-        );
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "该赛季没有队伍，请先确认队长生成队伍");
       }
       if (seasonTeams.length !== DRAFT_TEAMS) {
         throw new AppError(
@@ -113,7 +108,8 @@ export async function startDraft(
         seasonId,
         action: "draft.start",
         actorId: auditActorId(admin),
-        targetId: seasonId,meta: { firstEntryId, roundDeadline: deadline.toISOString(), actorEmail: admin.email },
+        targetId: seasonId,
+        meta: { firstEntryId, roundDeadline: deadline.toISOString(), actorEmail: admin.email },
       });
 
       return { draftStateId: draft.id, slug: season.slug };
@@ -158,7 +154,8 @@ export async function pauseDraft(
         seasonId: parsed.data.seasonId,
         action: "draft.pause",
         actorId: auditActorId(admin),
-        targetId: ds.id,meta: { actorEmail: admin.email },
+        targetId: ds.id,
+        meta: { actorEmail: admin.email },
       });
 
       const season = await tx.query.seasons.findFirst({
@@ -211,7 +208,8 @@ export async function resumeDraft(
         seasonId: parsed.data.seasonId,
         action: "draft.resume",
         actorId: auditActorId(admin),
-        targetId: ds.id,meta: { roundDeadline: deadline.toISOString(), actorEmail: admin.email },
+        targetId: ds.id,
+        meta: { roundDeadline: deadline.toISOString(), actorEmail: admin.email },
       });
 
       const season = await tx.query.seasons.findFirst({

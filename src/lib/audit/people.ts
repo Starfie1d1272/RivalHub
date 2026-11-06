@@ -1,6 +1,9 @@
 /** Shared audit identity semantics. Machine identifiers are never human labels. */
 export function isAuditUserId(value: unknown): value is string {
-  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  );
 }
 
 /** New Mizar facts carry an explicit machine namespace; legacy UUIDs remain read-compatible. */
@@ -17,8 +20,17 @@ export function isAuditUserEmail(value: string): boolean {
   return /^[^\s@:]+@[^\s@]+$/.test(value);
 }
 
-export function getAuditActorLabel(actorId: string | null, names: ReadonlyMap<string, string>): string {
-  if (!actorId || actorId === "system" || actorId === "veto-system" || actorId.startsWith("system:")) return "系统";
+export function getAuditActorLabel(
+  actorId: string | null,
+  names: ReadonlyMap<string, string>,
+): string {
+  if (
+    !actorId ||
+    actorId === "system" ||
+    actorId === "veto-system" ||
+    actorId.startsWith("system:")
+  )
+    return "系统";
   if (readMizarAuditInstallationId(actorId)) return "Mizar";
   if (actorId.startsWith("dak:")) return "DAK Studio";
   if (actorId.startsWith("release:")) return "发布流程";
@@ -39,7 +51,10 @@ const CONTEXT_USER_FIELDS: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** Only these action-specific references may reach the server-side user lookup. */
-export function getAuditContextUserReferences(action: string, meta: unknown): ReadonlyMap<string, string> {
+export function getAuditContextUserReferences(
+  action: string,
+  meta: unknown,
+): ReadonlyMap<string, string> {
   const refs = new Map<string, string>();
   if (!meta || typeof meta !== "object" || Array.isArray(meta)) return refs;
   const fields = Object.hasOwn(CONTEXT_USER_FIELDS, action) ? CONTEXT_USER_FIELDS[action] : [];
@@ -50,20 +65,31 @@ export function getAuditContextUserReferences(action: string, meta: unknown): Re
   return refs;
 }
 
-export function summarizeAuditPeople(action: string, meta: unknown, names: ReadonlyMap<string, string>): string | null {
+export function summarizeAuditPeople(
+  action: string,
+  meta: unknown,
+  names: ReadonlyMap<string, string>,
+): string | null {
   const refs = getAuditContextUserReferences(action, meta);
   if (refs.size === 0) return null;
   const name = (field: string) => names.get(refs.get(field) ?? "") ?? "未知用户";
   switch (action) {
-    case "team.captain.transfer": return `队长：${name("fromUserId")} → ${name("toUserId")}`;
-    case "competition_entry.representative.transfer": return `赛事代表：${name("fromUserId")} → ${name("toUserId")}`;
+    case "team.captain.transfer":
+      return `队长：${name("fromUserId")} → ${name("toUserId")}`;
+    case "competition_entry.representative.transfer":
+      return `赛事代表：${name("fromUserId")} → ${name("toUserId")}`;
     case "postmatch.report.submit":
-    case "postmatch.report.revoke": return `资料提交者：${name("submittedByUserId")}`;
+    case "postmatch.report.revoke":
+      return `资料提交者：${name("submittedByUserId")}`;
     case "postmatch.commentator.add":
     case "postmatch.commentator.cancel":
-    case "postmatch.commentator.remove": return `解说：${name("commentatorUserId")}`;
-    case "sanction.issue": return `处罚对象：${name("subjectUserId")}`;
-    case "user_identity.merge": return `合并来源：${name("mergedUserId")}`;
-    default: return null;
+    case "postmatch.commentator.remove":
+      return `解说：${name("commentatorUserId")}`;
+    case "sanction.issue":
+      return `处罚对象：${name("subjectUserId")}`;
+    case "user_identity.merge":
+      return `合并来源：${name("mergedUserId")}`;
+    default:
+      return null;
   }
 }

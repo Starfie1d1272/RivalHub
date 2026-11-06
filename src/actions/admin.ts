@@ -9,7 +9,7 @@ import { db } from "@/db/client";
 import {
   seasons,
   seasonRegistrations,
-    adminInvites,
+  adminInvites,
   seasonAdminGrants,
   users,
   draftPicks,
@@ -17,18 +17,11 @@ import {
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError, failValidation } from "@/lib/action-utils";
-import {
-  auditActorId,
-  requireSeasonAdmin,
-  requireSuperAdmin,
-} from "@/lib/auth/session";
+import { auditActorId, requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
 import { updatePublicHomeTag, updatePublicSeasonTags } from "@/lib/revalidation";
-import {
-  type RegistrationStatus,
-  validateTransition,
-} from "@/lib/registration-transitions";
+import { type RegistrationStatus, validateTransition } from "@/lib/registration-transitions";
 
 // ── 审核报名 ────────────────────────────────────────────
 
@@ -80,10 +73,7 @@ export async function reviewRegistration(input: ReviewInput) {
           .from(draftPicks)
           .where(eq(draftPicks.registrationId, registrationId));
         if (Number(pickCount?.count ?? 0) > 0) {
-          throw new AppError(
-            ErrorCode.VALIDATION_FAILED,
-            "该选手已被选秀选中，无法撤回审批",
-          );
+          throw new AppError(ErrorCode.VALIDATION_FAILED, "该选手已被选秀选中，无法撤回审批");
         }
       }
 
@@ -114,7 +104,8 @@ export async function reviewRegistration(input: ReviewInput) {
         seasonId: reg.seasonId,
         action: `registration.${targetStatus}`,
         actorId: auditActorId(admin),
-        targetId: registrationId,meta: {
+        targetId: registrationId,
+        meta: {
           from: reg.status,
           to: targetStatus,
           reason: reason ?? null,
@@ -186,9 +177,7 @@ export async function createInviteCode(input: {
   }
   const code = randomBytes(8).toString("hex");
 
-  const expiresAt = expiresInHours
-    ? new Date(Date.now() + expiresInHours * 3600_000)
-    : null;
+  const expiresAt = expiresInHours ? new Date(Date.now() + expiresInHours * 3600_000) : null;
   const inviteSeasonId = role === "season_admin" ? seasonId! : null;
 
   const invite = await db.transaction(async (tx) => {
@@ -209,7 +198,8 @@ export async function createInviteCode(input: {
       seasonId: inviteSeasonId,
       action: "admin.create_invite",
       actorId: auditActorId(admin),
-      targetId: created.id,meta: { role, maxUses, expiresAt: expiresAt?.toISOString() ?? null },
+      targetId: created.id,
+      meta: { role, maxUses, expiresAt: expiresAt?.toISOString() ?? null },
     });
     return created;
   });
@@ -236,16 +226,14 @@ export async function deactivateInviteCode(inviteId: string) {
       .for("update");
     if (!invite) throw new AppError(ErrorCode.NOT_FOUND, "邀请码不存在");
 
-    await tx
-      .update(adminInvites)
-      .set({ isActive: false })
-      .where(eq(adminInvites.id, inviteId));
+    await tx.update(adminInvites).set({ isActive: false }).where(eq(adminInvites.id, inviteId));
 
     await writeAuditInTx(tx, {
       seasonId: invite.seasonId,
       action: "admin.deactivate_invite",
       actorId: auditActorId(admin),
-      targetId: inviteId,});
+      targetId: inviteId,
+    });
   });
 
   revalidatePath("/admin/invites");
@@ -277,9 +265,7 @@ export async function revokeUserAdminRole(userId: string) {
         .from(seasonAdminGrants)
         .where(eq(seasonAdminGrants.userId, userId));
 
-      await tx
-        .delete(seasonAdminGrants)
-        .where(eq(seasonAdminGrants.userId, userId));
+      await tx.delete(seasonAdminGrants).where(eq(seasonAdminGrants.userId, userId));
       await tx
         .update(users)
         .set({ role: "user", updatedAt: new Date() })
@@ -289,7 +275,8 @@ export async function revokeUserAdminRole(userId: string) {
         seasonId: null,
         action: "admin.revoke_role",
         actorId: auditActorId(session),
-        targetId: userId,meta: { from: target.role, seasonIds: grants.map((grant) => grant.seasonId) },
+        targetId: userId,
+        meta: { from: target.role, seasonIds: grants.map((grant) => grant.seasonId) },
       });
     });
 

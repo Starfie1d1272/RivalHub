@@ -13,7 +13,10 @@ import {
   planResultCorrectionInTx,
   recordRecoveryAdjudicationInTx,
 } from "@/lib/match-corrections/service";
-import { presentResultCorrectionPlan, type ResultCorrectionPlanPresentation } from "@/lib/match-corrections/presentation";
+import {
+  presentResultCorrectionPlan,
+  type ResultCorrectionPlanPresentation,
+} from "@/lib/match-corrections/presentation";
 
 /**
  * G2 result-correction workflow: plan → review impact → explicit confirm.
@@ -28,9 +31,7 @@ export async function planMatchResultCorrection(
   try {
     const match = await getMatchOrThrow(matchId);
     await requireSeasonAdmin(match.seasonId);
-    const plan = await db.transaction((tx) =>
-      planResultCorrectionInTx(tx, { matchId, proposal }),
-    );
+    const plan = await db.transaction((tx) => planResultCorrectionInTx(tx, { matchId, proposal }));
     return ok(presentResultCorrectionPlan(plan));
   } catch (e) {
     return actionError("planMatchResultCorrection", e);
@@ -46,12 +47,14 @@ export async function applyMatchResultCorrection(
     /** Must be true when the correction changes the winner. */
     confirmRecovery?: boolean;
   },
-): Promise<ActionResult<{
-  alreadyApplied: boolean;
-  winnerChanged: boolean;
-  invalidatedCount: number;
-  rolledBackToFinalized: number | null;
-}>> {
+): Promise<
+  ActionResult<{
+    alreadyApplied: boolean;
+    winnerChanged: boolean;
+    invalidatedCount: number;
+    rolledBackToFinalized: number | null;
+  }>
+> {
   try {
     const match = await getMatchOrThrow(matchId);
     const admin = await requireSeasonAdmin(match.seasonId);

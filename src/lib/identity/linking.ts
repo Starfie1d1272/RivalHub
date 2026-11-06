@@ -6,12 +6,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, inArray, or } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import {
-  users,
-  identityLinkRequests,
-  userIdentities,
-  userMergeAuthorizations,
-} from "@/db/schema";
+import { users, identityLinkRequests, userIdentities, userMergeAuthorizations } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { resolveCanonicalUserId, upsertActiveIdentityInTx } from "@/lib/identity/canonical";
 import { identityAppError } from "@/lib/identity/errors";
@@ -24,8 +19,7 @@ export function hashIdentityLinkState(token: string): string {
 }
 
 export type CompleteIdentityLinkOutcome =
-  | { kind: "linked" }
-  | { kind: "merge_required"; authorizationId: string };
+  { kind: "linked" } | { kind: "merge_required"; authorizationId: string };
 
 export async function completeSecondaryIdentityLinkInTx(
   tx: TxDb,
@@ -45,21 +39,36 @@ export async function completeSecondaryIdentityLinkInTx(
     eq(userIdentities.status, "active"),
     or(
       and(eq(userIdentities.kind, "email"), eq(userIdentities.normalizedValue, normalizedEmail)),
-      and(eq(userIdentities.provider, "supabase_auth"), eq(userIdentities.providerSubject, input.authId)),
+      and(
+        eq(userIdentities.provider, "supabase_auth"),
+        eq(userIdentities.providerSubject, input.authId),
+      ),
     ),
   );
   // Discovery takes no row locks. Match merge's sorted user -> request/identity
   // order; never hold a request or foreign identity while waiting for its user.
-  const candidates = await tx.select({ userId: userIdentities.userId }).from(userIdentities).where(matchingCredential);
-  const userIds = [...new Set([canonicalCurrentId, ...candidates.map(row => row.userId)])].sort();
-  const lockedUsers = await tx.select({ id: users.id, status: users.status }).from(users)
-    .where(inArray(users.id, userIds)).orderBy(users.id).for("update");
-  if (lockedUsers.length !== userIds.length || lockedUsers.some(row => row.status !== "active")) {
+  const candidates = await tx
+    .select({ userId: userIdentities.userId })
+    .from(userIdentities)
+    .where(matchingCredential);
+  const userIds = [...new Set([canonicalCurrentId, ...candidates.map((row) => row.userId)])].sort();
+  const lockedUsers = await tx
+    .select({ id: users.id, status: users.status })
+    .from(users)
+    .where(inArray(users.id, userIds))
+    .orderBy(users.id)
+    .for("update");
+  if (lockedUsers.length !== userIds.length || lockedUsers.some((row) => row.status !== "active")) {
     throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
   }
-  const [request] = await tx.select().from(identityLinkRequests)
-    .where(eq(identityLinkRequests.id, input.requestId)).for("update");
-  const stateMatches = request ? safeHashEqual(request.stateTokenHash, hashIdentityLinkState(input.stateToken)) : false;
+  const [request] = await tx
+    .select()
+    .from(identityLinkRequests)
+    .where(eq(identityLinkRequests.id, input.requestId))
+    .for("update");
+  const stateMatches = request
+    ? safeHashEqual(request.stateTokenHash, hashIdentityLinkState(input.stateToken))
+    : false;
   if (
     !request ||
     !stateMatches ||
@@ -73,7 +82,7 @@ export async function completeSecondaryIdentityLinkInTx(
   }
 
   const matchingIdentities = await tx.select().from(userIdentities).where(matchingCredential);
-  if (matchingIdentities.some(row => !userIds.includes(row.userId))) {
+  if (matchingIdentities.some((row) => !userIds.includes(row.userId))) {
     throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
   }
   const ownerIds = new Set<string>();
@@ -83,36 +92,57 @@ export async function completeSecondaryIdentityLinkInTx(
   }
 
   if (ownerIds.size > 1) {
-    await tx.update(identityLinkRequests).set({ status: "blocked", completedAt: new Date() })
+    await tx
+      .update(identityLinkRequests)
+      .set({ status: "blocked", completedAt: new Date() })
       .where(eq(identityLinkRequests.id, request.id));
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "邮箱与 Auth credential 的 canonical owner 不一致，已拒绝绑定。");
+    throw new AppError(
+      ErrorCode.INTERNAL_ERROR,
+      "邮箱与 Auth credential 的 canonical owner 不一致，已拒绝绑定。",
+    );
   }
 
   const existingOwnerId = ownerIds.values().next().value as string | undefined;
   if (existingOwnerId && existingOwnerId !== canonicalCurrentId) {
     const provenIdentity = matchingIdentities
       .filter((identity) => identity.userId === existingOwnerId)
-      .sort((left, right) => identityProofPriority(left, normalizedEmail, input.authId) - identityProofPriority(right, normalizedEmail, input.authId) || left.id.localeCompare(right.id))[0];
-    if (!provenIdentity) throw new AppError(ErrorCode.INTERNAL_ERROR, "缺少已验证的冲突 identity。");
+      .sort(
+        (left, right) =>
+          identityProofPriority(left, normalizedEmail, input.authId) -
+            identityProofPriority(right, normalizedEmail, input.authId) ||
+          left.id.localeCompare(right.id),
+      )[0];
+    if (!provenIdentity)
+      throw new AppError(ErrorCode.INTERNAL_ERROR, "缺少已验证的冲突 identity。");
     if (!provenIdentity.verifiedAt) {
-      await tx.update(userIdentities).set({
-        verifiedAt: input.verifiedAt,
-        provenance: "user_verified_link",
-      }).where(eq(userIdentities.id, provenIdentity.id));
+      await tx
+        .update(userIdentities)
+        .set({
+          verifiedAt: input.verifiedAt,
+          provenance: "user_verified_link",
+        })
+        .where(eq(userIdentities.id, provenIdentity.id));
     }
-    const [authorization] = await tx.insert(userMergeAuthorizations).values({
-      initiatingUserId: canonicalCurrentId,
-      counterpartyUserId: existingOwnerId,
-      provenIdentityId: provenIdentity.id,
-      expiresAt: new Date(Date.now() + MERGE_AUTHORIZATION_TTL_MS),
-    }).returning({ id: userMergeAuthorizations.id });
-    if (!authorization) throw new AppError(ErrorCode.INTERNAL_ERROR, "无法建立 self-service merge 授权。");
-    await tx.update(identityLinkRequests).set({ status: "merge_required", completedAt: new Date() })
+    const [authorization] = await tx
+      .insert(userMergeAuthorizations)
+      .values({
+        initiatingUserId: canonicalCurrentId,
+        counterpartyUserId: existingOwnerId,
+        provenIdentityId: provenIdentity.id,
+        expiresAt: new Date(Date.now() + MERGE_AUTHORIZATION_TTL_MS),
+      })
+      .returning({ id: userMergeAuthorizations.id });
+    if (!authorization)
+      throw new AppError(ErrorCode.INTERNAL_ERROR, "无法建立 self-service merge 授权。");
+    await tx
+      .update(identityLinkRequests)
+      .set({ status: "merge_required", completedAt: new Date() })
       .where(eq(identityLinkRequests.id, request.id));
     await writeAuditInTx(tx, {
       action: "identity.link.merge_required",
       actorId: canonicalCurrentId,
-      targetId: authorization.id,meta: { counterpartyUserId: existingOwnerId },
+      targetId: authorization.id,
+      meta: { counterpartyUserId: existingOwnerId },
     });
     return { kind: "merge_required", authorizationId: authorization.id };
   }
@@ -137,12 +167,15 @@ export async function completeSecondaryIdentityLinkInTx(
     provenance: "user_verified_link",
     isPrimary: false,
   });
-  await tx.update(identityLinkRequests).set({ status: "completed", completedAt: new Date() })
+  await tx
+    .update(identityLinkRequests)
+    .set({ status: "completed", completedAt: new Date() })
     .where(eq(identityLinkRequests.id, request.id));
   await writeAuditInTx(tx, {
     action: "identity.link.complete",
     actorId: canonicalCurrentId,
-    targetId: canonicalCurrentId,meta: { kind: "email", primary: false },
+    targetId: canonicalCurrentId,
+    meta: { kind: "email", primary: false },
   });
   return { kind: "linked" };
 }
@@ -154,43 +187,74 @@ export async function revokeSecondaryEmailIdentityInTx(
   const canonicalUserId = await resolveCanonicalUserId(tx, input.userId);
   if (!canonicalUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "账号不存在，请重新登录。");
   // Match login/merge lock order: user before identity rows.
-  const [owner] = await tx.select({ status: users.status }).from(users).where(eq(users.id, canonicalUserId)).for("update");
-  if (owner?.status !== "active") throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
-  const [identity] = await tx.select().from(userIdentities).where(and(
-    eq(userIdentities.id, input.identityId),
-    eq(userIdentities.userId, canonicalUserId),
-    eq(userIdentities.kind, "email"),
-    eq(userIdentities.status, "active"),
-  )).for("update");
+  const [owner] = await tx
+    .select({ status: users.status })
+    .from(users)
+    .where(eq(users.id, canonicalUserId))
+    .for("update");
+  if (owner?.status !== "active")
+    throw identityAppError(ErrorCode.UNAUTHORIZED, "loginMethodNotBound");
+  const [identity] = await tx
+    .select()
+    .from(userIdentities)
+    .where(
+      and(
+        eq(userIdentities.id, input.identityId),
+        eq(userIdentities.userId, canonicalUserId),
+        eq(userIdentities.kind, "email"),
+        eq(userIdentities.status, "active"),
+      ),
+    )
+    .for("update");
   if (!identity) throw identityAppError(ErrorCode.NOT_FOUND, "secondaryEmailNotFound");
   if (identity.isPrimary || !identity.normalizedValue) {
     throw identityAppError(ErrorCode.VALIDATION_FAILED, "primaryEmailCannotBeRevoked");
   }
-  const related = await tx.select().from(userIdentities).where(and(
-    eq(userIdentities.userId, canonicalUserId),
-    eq(userIdentities.status, "active"),
-    eq(userIdentities.normalizedValue, identity.normalizedValue),
-  )).for("update");
+  const related = await tx
+    .select()
+    .from(userIdentities)
+    .where(
+      and(
+        eq(userIdentities.userId, canonicalUserId),
+        eq(userIdentities.status, "active"),
+        eq(userIdentities.normalizedValue, identity.normalizedValue),
+      ),
+    )
+    .for("update");
   if (related.some((row) => row.isPrimary)) {
     throw identityAppError(ErrorCode.VALIDATION_FAILED, "emailStillPrimary");
   }
   await revokeAllApplicationSessionsInTx(tx, canonicalUserId);
   const now = new Date();
-  await tx.update(userIdentities).set({
-    status: "revoked",
-    isPrimary: false,
-    retiredAt: now,
-    retiredReason: "self_revoke",
-  }).where(inArray(userIdentities.id, related.map((row) => row.id)));
-  await tx.update(identityLinkRequests).set({ status: "cancelled", completedAt: now }).where(and(
-    eq(identityLinkRequests.userId, canonicalUserId),
-    eq(identityLinkRequests.normalizedEmail, identity.normalizedValue),
-    eq(identityLinkRequests.status, "pending"),
-  ));
+  await tx
+    .update(userIdentities)
+    .set({
+      status: "revoked",
+      isPrimary: false,
+      retiredAt: now,
+      retiredReason: "self_revoke",
+    })
+    .where(
+      inArray(
+        userIdentities.id,
+        related.map((row) => row.id),
+      ),
+    );
+  await tx
+    .update(identityLinkRequests)
+    .set({ status: "cancelled", completedAt: now })
+    .where(
+      and(
+        eq(identityLinkRequests.userId, canonicalUserId),
+        eq(identityLinkRequests.normalizedEmail, identity.normalizedValue),
+        eq(identityLinkRequests.status, "pending"),
+      ),
+    );
   await writeAuditInTx(tx, {
     action: "identity.link.revoke",
     actorId: canonicalUserId,
-    targetId: identity.id,meta: { kind: "email", relatedCredentialCount: related.length },
+    targetId: identity.id,
+    meta: { kind: "email", relatedCredentialCount: related.length },
   });
 }
 
@@ -198,17 +262,29 @@ export async function listVerifiedEmailIdentities(
   tx: Pick<TxDb, "select">,
   userId: string,
 ): Promise<Array<{ id: string; email: string; primary: boolean; verifiedAt: Date }>> {
-  return tx.select({
-    id: userIdentities.id,
-    email: userIdentities.normalizedValue,
-    primary: userIdentities.isPrimary,
-    verifiedAt: userIdentities.verifiedAt,
-  }).from(userIdentities).where(and(
-    eq(userIdentities.userId, userId),
-    eq(userIdentities.kind, "email"),
-    eq(userIdentities.status, "active"),
-    gt(userIdentities.verifiedAt, new Date(0)),
-  )).then((rows) => rows.flatMap((row) => row.email && row.verifiedAt ? [{ ...row, email: row.email, verifiedAt: row.verifiedAt }] : []));
+  return tx
+    .select({
+      id: userIdentities.id,
+      email: userIdentities.normalizedValue,
+      primary: userIdentities.isPrimary,
+      verifiedAt: userIdentities.verifiedAt,
+    })
+    .from(userIdentities)
+    .where(
+      and(
+        eq(userIdentities.userId, userId),
+        eq(userIdentities.kind, "email"),
+        eq(userIdentities.status, "active"),
+        gt(userIdentities.verifiedAt, new Date(0)),
+      ),
+    )
+    .then((rows) =>
+      rows.flatMap((row) =>
+        row.email && row.verifiedAt
+          ? [{ ...row, email: row.email, verifiedAt: row.verifiedAt }]
+          : [],
+      ),
+    );
 }
 
 function safeHashEqual(left: string, right: string): boolean {
@@ -218,7 +294,12 @@ function safeHashEqual(left: string, right: string): boolean {
 }
 
 function identityProofPriority(
-  identity: { kind: string; provider: string; providerSubject: string; normalizedValue: string | null },
+  identity: {
+    kind: string;
+    provider: string;
+    providerSubject: string;
+    normalizedValue: string | null;
+  },
   normalizedEmail: string,
   authId: string,
 ): number {

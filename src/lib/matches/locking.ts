@@ -4,14 +4,25 @@ import { eq } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { matches, type Match } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { assertSeasonAllowsTournamentMutationInTx, lockSeasonForTournamentInTx } from "@/lib/postevent/guard";
+import {
+  assertSeasonAllowsTournamentMutationInTx,
+  lockSeasonForTournamentInTx,
+} from "@/lib/postevent/guard";
 
 /** Discover scope without a row lock, then lock season before its match.
  * Recheck the association under lock so discovery cannot authorize a new scope.
  * All callers must enter before locking match children or financial programs.
  */
-async function lockScopedMatchInTx(tx: TxDb, matchId: string, inspection: boolean, strength: "update" | "share" = "update"): Promise<Match> {
-  const [scope] = await tx.select({ seasonId: matches.seasonId }).from(matches).where(eq(matches.id, matchId));
+async function lockScopedMatchInTx(
+  tx: TxDb,
+  matchId: string,
+  inspection: boolean,
+  strength: "update" | "share" = "update",
+): Promise<Match> {
+  const [scope] = await tx
+    .select({ seasonId: matches.seasonId })
+    .from(matches)
+    .where(eq(matches.id, matchId));
   if (!scope) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
   if (scope.seasonId) {
     if (inspection) await lockSeasonForTournamentInTx(tx, scope.seasonId);

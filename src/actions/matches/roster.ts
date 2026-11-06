@@ -4,12 +4,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import {
-  matchRosters,
-  matchRosterPlayers,
-  matches,
-  seasons,
-} from "@/db/schema";
+import { matchRosters, matchRosterPlayers, matches, seasons } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
@@ -23,14 +18,23 @@ import { rosterReadbackVersion, type RosterReadback } from "@/lib/matches/operat
 import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { getEntryIdForRepresentative } from "./_shared";
 
-async function revalidateAfterRosterChange(match: { seasonId: string; id: string }): Promise<boolean> {
+async function revalidateAfterRosterChange(match: {
+  seasonId: string;
+  id: string;
+}): Promise<boolean> {
   try {
-    const season = await db.query.seasons.findFirst({ where: eq(seasons.id, match.seasonId), columns: { slug: true } });
+    const season = await db.query.seasons.findFirst({
+      where: eq(seasons.id, match.seasonId),
+      columns: { slug: true },
+    });
     if (!season) throw new Error("Roster refresh season is unavailable");
     revalidateMatchPaths(season.slug, match.id);
     return false;
   } catch (error) {
-    captureException("action.roster_refresh_failure", error, { scope: "action", operation: "roster.refresh" });
+    captureException("action.roster_refresh_failure", error, {
+      scope: "action",
+      operation: "roster.refresh",
+    });
     return true;
   }
 }
@@ -40,7 +44,11 @@ async function revalidateAfterRosterChange(match: { seasonId: string; id: string
  */
 export async function submitMatchRoster(
   matchId: string,
-  input: { starterIds: string[]; substituteIds?: string[]; vetoRepresentativeEventRosterMemberId: string },
+  input: {
+    starterIds: string[];
+    substituteIds?: string[];
+    vetoRepresentativeEventRosterMemberId: string;
+  },
 ): Promise<ActionResult<{ rosterId: string; refreshPending: boolean }>> {
   const { starterIds, substituteIds = [], vetoRepresentativeEventRosterMemberId } = input;
   try {
@@ -76,7 +84,15 @@ export async function submitMatchRoster(
         seasonId: locked.seasonId,
         action: "match.roster.submit",
         actorId,
-        targetId: summary.rosterId,meta: { matchId, entryId, source: "participant", starterIds, substituteIds, vetoRepresentativeEventRosterMemberId },
+        targetId: summary.rosterId,
+        meta: {
+          matchId,
+          entryId,
+          source: "participant",
+          starterIds,
+          substituteIds,
+          vetoRepresentativeEventRosterMemberId,
+        },
       });
 
       return summary.rosterId;
@@ -97,9 +113,19 @@ export async function submitMatchRoster(
 export async function adminSelectMatchRoster(
   matchId: string,
   entryId: string,
-  input: { starterIds: string[]; substituteIds?: string[]; note?: string; vetoRepresentativeEventRosterMemberId?: string | null },
+  input: {
+    starterIds: string[];
+    substituteIds?: string[];
+    note?: string;
+    vetoRepresentativeEventRosterMemberId?: string | null;
+  },
 ): Promise<ActionResult<{ rosterId: string; refreshPending: boolean }>> {
-  const { starterIds, substituteIds = [], note, vetoRepresentativeEventRosterMemberId = null } = input;
+  const {
+    starterIds,
+    substituteIds = [],
+    note,
+    vetoRepresentativeEventRosterMemberId = null,
+  } = input;
   try {
     const match = await getMatchOrThrow(matchId);
     const admin = await requireSeasonAdmin(match.seasonId);
@@ -131,7 +157,8 @@ export async function adminSelectMatchRoster(
         seasonId: locked.seasonId,
         action: "match.roster.admin_select",
         actorId,
-        targetId: summary.rosterId,meta: {
+        targetId: summary.rosterId,
+        meta: {
           matchId,
           entryId,
           source: "admin_select",
@@ -157,9 +184,14 @@ export async function adminSelectMatchRoster(
  * 管理员确认一方名单。确认时重新按冻结名单/归属规则完整校验；
  * 通过后名单成为开赛前提事实，重复确认为幂等。
  */
-export async function confirmMatchRoster(
-  rosterId: string
-): Promise<ActionResult<{ alreadyConfirmed: boolean; matchId: string; entryId: string; refreshPending: boolean }>> {
+export async function confirmMatchRoster(rosterId: string): Promise<
+  ActionResult<{
+    alreadyConfirmed: boolean;
+    matchId: string;
+    entryId: string;
+    refreshPending: boolean;
+  }>
+> {
   try {
     const [existing] = await db
       .select({ matchId: matchRosters.matchId })
@@ -172,10 +204,18 @@ export async function confirmMatchRoster(
     const admin = await requireSeasonAdmin(match.seasonId);
 
     const outcome = await db.transaction((tx) =>
-      confirmMatchRosterInTx(tx, { rosterId, actorId: auditActorId(admin), expectedMatchId: match.id, expectedSeasonId: match.seasonId }),
+      confirmMatchRosterInTx(tx, {
+        rosterId,
+        actorId: auditActorId(admin),
+        expectedMatchId: match.id,
+        expectedSeasonId: match.seasonId,
+      }),
     );
 
-    const refreshPending = await revalidateAfterRosterChange({ seasonId: match.seasonId, id: match.id });
+    const refreshPending = await revalidateAfterRosterChange({
+      seasonId: match.seasonId,
+      id: match.id,
+    });
 
     return ok({
       refreshPending,
@@ -220,7 +260,8 @@ export async function unlockMatchRoster(
         seasonId: locked.seasonId,
         action: "match.roster.unlock",
         actorId,
-        targetId: rosterId,meta: { matchId: roster.matchId, entryId: roster.entryId },
+        targetId: rosterId,
+        meta: { matchId: roster.matchId, entryId: roster.entryId },
       });
     });
 
@@ -237,10 +278,17 @@ export async function retryMatchRosterRefresh(matchId: string): Promise<ActionRe
   try {
     const session = await requireAuth();
     const match = await getMatchOrThrow(matchId);
-    if (!await getEntryIdForRepresentative(session.userId, match)) await requireSeasonAdmin(match.seasonId);
-    if (await revalidateAfterRosterChange(match)) return fail({ code: ErrorCode.INTERNAL_ERROR, message: "名单已提交，刷新仍未完成，请稍后重试刷新。" });
+    if (!(await getEntryIdForRepresentative(session.userId, match)))
+      await requireSeasonAdmin(match.seasonId);
+    if (await revalidateAfterRosterChange(match))
+      return fail({
+        code: ErrorCode.INTERNAL_ERROR,
+        message: "名单已提交，刷新仍未完成，请稍后重试刷新。",
+      });
     return ok(undefined);
-  } catch (error) { return actionError("retryMatchRosterRefresh", error); }
+  } catch (error) {
+    return actionError("retryMatchRosterRefresh", error);
+  }
 }
 
 /**
@@ -251,24 +299,46 @@ export async function getMatchRoster(matchId: string, entryId: string) {
 }
 
 /** Recovery-only read: fresh representative/admin authorization, never a write replay. */
-export async function getMatchRosterReadback(matchId: string, requestedEntryId?: string): Promise<ActionResult<RosterReadback>> {
+export async function getMatchRosterReadback(
+  matchId: string,
+  requestedEntryId?: string,
+): Promise<ActionResult<RosterReadback>> {
   try {
     const session = await requireAuth();
     const match = await getReadbackMatchOrThrow(matchId);
     const ownEntryId = await getEntryIdForRepresentative(session.userId, match);
     const entryId = requestedEntryId ?? ownEntryId;
-    if (!entryId || (entryId !== match.entryAId && entryId !== match.entryBId)) throw new AppError(ErrorCode.FORBIDDEN, "无法读取这支队伍的本场名单。");
+    if (!entryId || (entryId !== match.entryAId && entryId !== match.entryBId))
+      throw new AppError(ErrorCode.FORBIDDEN, "无法读取这支队伍的本场名单。");
     if (entryId !== ownEntryId) await requireSeasonAdmin(match.seasonId);
-    const rows = await db.select({ id: matchRosters.id, status: matchRosters.status, memberId: matchRosterPlayers.eventRosterMemberId,
-      starter: matchRosterPlayers.isStarter, representative: matchRosterPlayers.isVetoRepresentative })
-      .from(matches).leftJoin(matchRosters, and(eq(matchRosters.matchId, matches.id), eq(matchRosters.entryId, entryId)))
+    const rows = await db
+      .select({
+        id: matchRosters.id,
+        status: matchRosters.status,
+        memberId: matchRosterPlayers.eventRosterMemberId,
+        starter: matchRosterPlayers.isStarter,
+        representative: matchRosterPlayers.isVetoRepresentative,
+      })
+      .from(matches)
+      .leftJoin(
+        matchRosters,
+        and(eq(matchRosters.matchId, matches.id), eq(matchRosters.entryId, entryId)),
+      )
       .leftJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
       .where(and(eq(matches.id, matchId), eq(matches.seasonId, match.seasonId)));
     if (!rows.length) throw new AppError(ErrorCode.NOT_FOUND, "比赛范围已变化，请重新读取。");
-    const value = { rosterId: rows[0]!.id, status: rows[0]!.status,
-      starterIds: rows.filter(row => row.memberId && row.starter).map(row => row.memberId!),
-      substituteIds: rows.filter(row => row.memberId && row.starter === false).map(row => row.memberId!),
-      vetoRepresentativeEventRosterMemberId: rows.find(row => row.representative)?.memberId ?? null };
+    const value = {
+      rosterId: rows[0]!.id,
+      status: rows[0]!.status,
+      starterIds: rows.filter((row) => row.memberId && row.starter).map((row) => row.memberId!),
+      substituteIds: rows
+        .filter((row) => row.memberId && row.starter === false)
+        .map((row) => row.memberId!),
+      vetoRepresentativeEventRosterMemberId:
+        rows.find((row) => row.representative)?.memberId ?? null,
+    };
     return ok({ matchId, entryId, value, version: await rosterReadbackVersion(matchId, value) });
-  } catch (error) { return actionError("getMatchRosterReadback", error); }
+  } catch (error) {
+    return actionError("getMatchRosterReadback", error);
+  }
 }

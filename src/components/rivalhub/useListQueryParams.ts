@@ -3,11 +3,28 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef } from "react";
 
-import { applyListQueryUpdates, type ListQueryParamsOptions, type ListQueryUpdates, type ListQueryUpdateOptions } from "@/lib/list-query";
+import {
+  applyListQueryUpdates,
+  type ListQueryParamsOptions,
+  type ListQueryUpdates,
+  type ListQueryUpdateOptions,
+} from "@/lib/list-query";
 export { applyListQueryUpdates } from "@/lib/list-query";
-export type { ListQueryValue, ListQueryUpdates, ListQueryDefaults, ListQuerySearchParams, ListQueryUpdateOptions, ListQueryUpdate, ListQueryParamsOptions } from "@/lib/list-query";
+export type {
+  ListQueryValue,
+  ListQueryUpdates,
+  ListQueryDefaults,
+  ListQuerySearchParams,
+  ListQueryUpdateOptions,
+  ListQueryUpdate,
+  ListQueryParamsOptions,
+} from "@/lib/list-query";
 
-export function useListQueryParams({ routeBase, defaults = {}, preserveScroll = false }: ListQueryParamsOptions = {}) {
+export function useListQueryParams({
+  routeBase,
+  defaults = {},
+  preserveScroll = false,
+}: ListQueryParamsOptions = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

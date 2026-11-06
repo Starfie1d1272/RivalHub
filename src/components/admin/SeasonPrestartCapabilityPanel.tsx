@@ -18,20 +18,53 @@ export function SeasonPrestartCapabilityPanel({
   stagePlan: Array<{ key: string; name: string; type: StageType }>;
 }) {
   const links = [
-    hasCaptainVoting ? { label: "队长确认", href: `/admin/${seasonSlug}/captains`, detail: "处理本届队长确认" } : null,
-    hasDraft ? { label: "选秀管理", href: `/admin/${seasonSlug}/draft`, detail: "管理本届选秀流程" } : null,
+    hasCaptainVoting
+      ? { label: "队长确认", href: `/admin/${seasonSlug}/captains`, detail: "处理本届队长确认" }
+      : null,
+    hasDraft
+      ? { label: "选秀管理", href: `/admin/${seasonSlug}/draft`, detail: "管理本届选秀流程" }
+      : null,
   ].filter((link): link is { label: string; href: string; detail: string } => link !== null);
 
   return (
     <div className="space-y-5">
       <Marker sub={`开赛筹备 · ${seasonName}`}>开赛筹备</Marker>
       <Panel label="赛前入口">
-        {links.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">本届暂无额外赛前操作。</p> : <div className="grid gap-3 sm:grid-cols-2">
-          {links.map((link) => <Link key={link.href} href={link.href as never} className="border border-[var(--color-border)] p-3 transition-colors hover:bg-[var(--color-panel-hi)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"><span className="font-medium">{link.label} →</span><span className="mt-1 block text-sm text-[var(--color-fg-mid)]">{link.detail}</span></Link>)}
-        </div>}
+        {links.length === 0 ? (
+          <p className="text-sm text-[var(--color-fg-mid)]">本届暂无额外赛前操作。</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href as never}
+                className="border border-[var(--color-border)] p-3 transition-colors hover:bg-[var(--color-panel-hi)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+              >
+                <span className="font-medium">{link.label} →</span>
+                <span className="mt-1 block text-sm text-[var(--color-fg-mid)]">{link.detail}</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </Panel>
       <Panel label="阶段计划">
-        {stagePlan.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚未配置可执行的阶段计划。</p> : <ol className="grid gap-2 text-sm sm:grid-cols-2">{stagePlan.map((stage, index) => <li key={stage.key} className="border border-[var(--color-border)] px-3 py-2"><span className="font-mono text-xs text-[var(--color-fg-mid)]">{String(index + 1).padStart(2, "0")}</span> <span className="font-medium">{stage.name}</span><span className="ml-2 text-xs text-[var(--color-fg-mid)]">{STAGE_TYPE_LABELS[stage.type] ?? "赛事阶段"}</span></li>)}</ol>}
+        {stagePlan.length === 0 ? (
+          <p className="text-sm text-[var(--color-fg-mid)]">尚未配置可执行的阶段计划。</p>
+        ) : (
+          <ol className="grid gap-2 text-sm sm:grid-cols-2">
+            {stagePlan.map((stage, index) => (
+              <li key={stage.key} className="border border-[var(--color-border)] px-3 py-2">
+                <span className="font-mono text-xs text-[var(--color-fg-mid)]">
+                  {String(index + 1).padStart(2, "0")}
+                </span>{" "}
+                <span className="font-medium">{stage.name}</span>
+                <span className="ml-2 text-xs text-[var(--color-fg-mid)]">
+                  {STAGE_TYPE_LABELS[stage.type] ?? "赛事阶段"}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
       </Panel>
     </div>
   );

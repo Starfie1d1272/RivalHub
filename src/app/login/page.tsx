@@ -9,7 +9,11 @@ import { redirect } from "next/navigation";
 // Keep the auth entrypoint blocking without opting the application shell out.
 export const instant = false;
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ mode?: string; next?: string | string[] }> }) {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mode?: string; next?: string | string[] }>;
+}) {
   const params = await searchParams;
   const next = Array.isArray(params.next) ? params.next[0] : params.next;
   const session = await getUserSession();
@@ -29,10 +33,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           >
             登录 / 我的 RivalHub
           </h1>
-          <p
-            className="text-sm"
-            style={{ color: "var(--color-fg-mid)" }}
-          >
+          <p className="text-sm" style={{ color: "var(--color-fg-mid)" }}>
             使用邮箱和密码登录
           </p>
         </div>
@@ -41,7 +42,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           redirectTo={safeLocalRedirect(next)}
         />
         <p className="text-center mt-3">
-          <Link href="/forgot-password" className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors">
+          <Link
+            href="/forgot-password"
+            className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
+          >
             忘记密码？
           </Link>
         </p>

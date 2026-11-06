@@ -3,7 +3,10 @@
 import React, { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { createInviteCode as telemetry_createInviteCode, deactivateInviteCode as telemetry_deactivateInviteCode } from "@/actions/admin";
+import {
+  createInviteCode as telemetry_createInviteCode,
+  deactivateInviteCode as telemetry_deactivateInviteCode,
+} from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +42,10 @@ import {
 import { observeAction } from "@/lib/telemetry/client";
 
 const createInviteCode = observeAction("admin.createInviteCode", telemetry_createInviteCode);
-const deactivateInviteCode = observeAction("admin.deactivateInviteCode", telemetry_deactivateInviteCode);
+const deactivateInviteCode = observeAction(
+  "admin.deactivateInviteCode",
+  telemetry_deactivateInviteCode,
+);
 
 interface PendingSuperAdminInvite {
   maxUses: number;
@@ -64,7 +70,10 @@ export function InviteManager({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { update } = useListQueryParams({ routeBase: "/admin/invites", defaults: ADMIN_INVITE_DEFAULTS });
+  const { update } = useListQueryParams({
+    routeBase: "/admin/invites",
+    defaults: ADMIN_INVITE_DEFAULTS,
+  });
   const [role, setRole] = useState<"season_admin" | "super_admin">("season_admin");
   const [seasonId, setSeasonId] = useState(seasons[0]?.id ?? "");
   const [maxUses, setMaxUses] = useState(1);
@@ -74,20 +83,22 @@ export function InviteManager({
   const [isPending, startTransition] = useTransition();
   const requestedRole = searchParams.get("role");
   const currentRole = ["all", "season_admin", "super_admin"].includes(requestedRole ?? "")
-    ? requestedRole as AdminInviteRoleFilter
+    ? (requestedRole as AdminInviteRoleFilter)
     : history.normalizedQuery.role;
   const requestedState = searchParams.get("state");
-  const currentState = ["all", "usable", "expired", "revoked", "exhausted"].includes(requestedState ?? "")
-    ? requestedState as AdminInviteState
+  const currentState = ["all", "usable", "expired", "revoked", "exhausted"].includes(
+    requestedState ?? "",
+  )
+    ? (requestedState as AdminInviteState)
     : history.normalizedQuery.state;
   const requestedSort = searchParams.get("sort");
   const currentSort = ["newest", "oldest", "expires_soon"].includes(requestedSort ?? "")
-    ? requestedSort as AdminInviteSort
+    ? (requestedSort as AdminInviteSort)
     : history.normalizedQuery.sort;
   const requestedSeason = searchParams.get("season") ?? "";
   const currentSeason = seasons.some((season) => season.id === requestedSeason)
     ? requestedSeason
-    : history.normalizedQuery.season ?? "";
+    : (history.normalizedQuery.season ?? "");
 
   function submitInvite(input: InviteCreateInput) {
     startTransition(async () => {
@@ -156,9 +167,7 @@ export function InviteManager({
               id="inv-role"
               className="h-9 rounded-sm border border-[var(--color-border)] bg-transparent px-3 text-sm"
               value={role}
-              onChange={(e) =>
-                setRole(e.target.value as "season_admin" | "super_admin")
-              }
+              onChange={(e) => setRole(e.target.value as "season_admin" | "super_admin")}
             >
               <option value="season_admin">赛季管理员</option>
               <option value="super_admin">超级管理员</option>
@@ -215,9 +224,7 @@ export function InviteManager({
             role="alert"
             className="mt-4 rounded-sm border border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)] p-3 text-sm"
           >
-            <p className="font-medium text-[var(--color-warn)]">
-              高权限提示：超级管理员邀请码
-            </p>
+            <p className="font-medium text-[var(--color-warn)]">高权限提示：超级管理员邀请码</p>
             <p className="mt-1 text-[var(--color-fg-mid)]">
               超级管理员拥有跨赛事管理、教育认证审核及全局管理能力。仅应发给确实需要全局权限的人员；日常赛务请使用“赛季管理员”。
             </p>
@@ -263,10 +270,7 @@ export function InviteManager({
             </dl>
             <AlertDialogFooter>
               <AlertDialogCancel>取消</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={isPending}
-                onClick={handleConfirmSuperAdmin}
-              >
+              <AlertDialogAction disabled={isPending} onClick={handleConfirmSuperAdmin}>
                 确认生成超级管理员邀请码
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -316,7 +320,11 @@ export function InviteManager({
             className="h-9 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)]"
           >
             <option value="">全部赛季</option>
-            {seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}
+            {seasons.map((season) => (
+              <option key={season.id} value={season.id}>
+                {season.name}
+              </option>
+            ))}
           </select>
         </label>
         <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[20%]">
@@ -346,10 +354,7 @@ export function InviteManager({
       ) : (
         <div className="space-y-2">
           {history.rows.map((inv) => (
-            <Card
-              key={inv.id || inv.code}
-              className="p-3 flex items-center justify-between gap-4"
-            >
+            <Card key={inv.id || inv.code} className="p-3 flex items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <code className="text-sm font-mono">{inv.code}</code>
                 <div className="flex items-center gap-2 mt-1 text-xs text-[var(--color-fg-mid)]">
@@ -362,12 +367,10 @@ export function InviteManager({
                   <span>
                     使用 {inv.claimCount}/{inv.maxUses}
                   </span>
-                  {inv.expiresAt && (
-                    <span>
-                      过期：{formatCSTShortDate(inv.expiresAt)}
-                    </span>
-                  )}
-                  <Badge variant="outline" className="text-xs">{INVITE_STATE_LABELS[inv.state]}</Badge>
+                  {inv.expiresAt && <span>过期：{formatCSTShortDate(inv.expiresAt)}</span>}
+                  <Badge variant="outline" className="text-xs">
+                    {INVITE_STATE_LABELS[inv.state]}
+                  </Badge>
                 </div>
               </div>
               {inv.state === "usable" && (

@@ -49,7 +49,10 @@ function rankThresholdMessage(config: RegistrationConfig): string {
   return "段位未达到报名资格";
 }
 
-function nonEmptyAllowed<T extends string>(values: readonly T[], fallback: readonly T[]): readonly T[] {
+function nonEmptyAllowed<T extends string>(
+  values: readonly T[],
+  fallback: readonly T[],
+): readonly T[] {
   return values.length > 0 ? values : fallback;
 }
 
@@ -68,14 +71,9 @@ export function buildRegistrationSchema(
       seasonId: z.guid("赛季 ID 格式不正确"),
 
       // ── 基础信息 ──
-      email: z
-        .string()
-        .min(1, "请填写电子邮件")
-        .email("请输入有效的电子邮件地址"),
+      email: z.string().min(1, "请填写电子邮件").email("请输入有效的电子邮件地址"),
 
-      studentId: z
-        .string()
-        .min(1, "请填写学号（毕业生填「毕业年份+学院」）"),
+      studentId: z.string().min(1, "请填写学号（毕业生填「毕业年份+学院」）"),
 
       playerType: z
         .string()
@@ -88,9 +86,7 @@ export function buildRegistrationSchema(
         .min(1, "请填写 QQ 号")
         .regex(/^\d{5,12}$/, "请输入有效的 QQ 号（5-12 位数字）"),
 
-      perfectName: z
-        .string()
-        .min(1, "请填写完美平台昵称"),
+      perfectName: z.string().min(1, "请填写完美平台昵称"),
 
       steam64: z
         .string()
@@ -111,29 +107,21 @@ export function buildRegistrationSchema(
         message: "请选择历史最高段位",
       }),
 
-      peakRankSeason: z
-        .string()
-        .min(1, "请填写取得最高段位的赛季（如 S1 2026）"),
+      peakRankSeason: z.string().min(1, "请填写取得最高段位的赛季（如 S1 2026）"),
 
       // Rating：完美平台 Rating，0.01–3.00，两位小数
       peakRating: z
         .number({ error: "请输入数字" })
         .min(0.01, "Rating 最小 0.01")
-        .max(3.00, "Rating 最大 3.00")
-        .refine(
-          (v) => Math.round(v * 100) / 100 === v,
-          "Rating 最多保留两位小数",
-        ),
+        .max(3.0, "Rating 最大 3.00")
+        .refine((v) => Math.round(v * 100) / 100 === v, "Rating 最多保留两位小数"),
 
       // WE：Win Effect，0.0–16.0，一位小数
       peakWe: z
         .number({ error: "请输入数字" })
         .min(0, "WE 不能为负")
         .max(16.0, "WE 最大 16.0")
-        .refine(
-          (v) => Math.round(v * 10) / 10 === v,
-          "WE 最多保留一位小数",
-        )
+        .refine((v) => Math.round(v * 10) / 10 === v, "WE 最多保留一位小数")
         .optional(),
 
       // ── 段位 · 当前赛季最高 ──
@@ -144,20 +132,14 @@ export function buildRegistrationSchema(
       currentRating: z
         .number({ error: "请输入数字" })
         .min(0.01, "Rating 最小 0.01")
-        .max(3.00, "Rating 最大 3.00")
-        .refine(
-          (v) => Math.round(v * 100) / 100 === v,
-          "Rating 最多保留两位小数",
-        ),
+        .max(3.0, "Rating 最大 3.00")
+        .refine((v) => Math.round(v * 100) / 100 === v, "Rating 最多保留两位小数"),
 
       currentWe: z
         .number({ error: "请输入数字" })
         .min(0, "WE 不能为负")
         .max(16.0, "WE 最大 16.0")
-        .refine(
-          (v) => Math.round(v * 10) / 10 === v,
-          "WE 最多保留一位小数",
-        )
+        .refine((v) => Math.round(v * 10) / 10 === v, "WE 最多保留一位小数")
         .optional(),
 
       // ── 天梯截图（NJUBox 分享链接）──
@@ -200,7 +182,10 @@ export function buildRegistrationSchema(
     })
     .refine(
       (data) => {
-        const hasCurrent = rankMeetsThreshold(data.currentSeasonPeakRank, config.rankThreshold.currentMin);
+        const hasCurrent = rankMeetsThreshold(
+          data.currentSeasonPeakRank,
+          config.rankThreshold.currentMin,
+        );
         const hasPeak = rankMeetsThreshold(data.peakRank, config.rankThreshold.peakMin);
         return hasCurrent || hasPeak;
       },

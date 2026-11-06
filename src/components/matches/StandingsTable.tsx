@@ -18,8 +18,12 @@ export function StandingsTable({ standings, seasonSlug, isFinal }: StandingsTabl
             <th className="text-left py-2 px-3 font-medium text-[var(--color-fg-mid)]">队伍</th>
             <th className="text-center py-2 px-3 font-medium text-[var(--color-fg-mid)]">胜</th>
             <th className="text-center py-2 px-3 font-medium text-[var(--color-fg-mid)]">负</th>
-            <th className="text-center py-2 px-3 font-medium text-[var(--color-fg-mid)]">净胜回合</th>
-            <th className="text-center py-2 px-3 font-medium text-[var(--color-fg-mid)]">总胜回合</th>
+            <th className="text-center py-2 px-3 font-medium text-[var(--color-fg-mid)]">
+              净胜回合
+            </th>
+            <th className="text-center py-2 px-3 font-medium text-[var(--color-fg-mid)]">
+              总胜回合
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -39,7 +43,8 @@ export function StandingsTable({ standings, seasonSlug, isFinal }: StandingsTabl
               </td>
               <td className="py-3 px-3">
                 <TeamProfileLink
-                  seasonSlug={seasonSlug} entryId={s.teamId}
+                  seasonSlug={seasonSlug}
+                  entryId={s.teamId}
                   className="font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors"
                 >
                   {s.teamName}

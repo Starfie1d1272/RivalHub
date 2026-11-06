@@ -104,9 +104,7 @@ export const AnalysisData: z.ZodType<Analysis> = z.object({
   metricSegments: z
     .array(z.object({ metric: text, device: text, release: text, ...stats }))
     .max(12000),
-  metricDevices: z
-    .array(z.object({ metric: text, device: text, ...stats }))
-    .max(60),
+  metricDevices: z.array(z.object({ metric: text, device: text, ...stats })).max(60),
   histograms: z
     .array(
       z.object({
@@ -216,9 +214,7 @@ export const AnalysisData: z.ZodType<Analysis> = z.object({
     .max(100),
   usage: z.object({
     budget: z.object({ batches: count, bytes: count }),
-    usage: z
-      .array(z.object({ day: text, batches: count, bytes: count }))
-      .max(8),
+    usage: z.array(z.object({ day: text, batches: count, bytes: count })).max(8),
     expiredBatches: count,
   }),
   options: z.object({

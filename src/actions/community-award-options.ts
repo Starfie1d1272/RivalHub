@@ -19,7 +19,9 @@ export async function loadCommunityAwardOptions(input: unknown): Promise<ActionR
     await requireAuth();
     const season = await getPublicOrAuthorizedDraftSeason(parsed.data);
     if (!season?.hasCommunityAwards) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在。");
-    return ok(await getCommunityAwardFormOptions(db, season.id, normalizeStagePlan(season.stagePlan)));
+    return ok(
+      await getCommunityAwardFormOptions(db, season.id, normalizeStagePlan(season.stagePlan)),
+    );
   } catch (error) {
     return actionError("loadCommunityAwardOptions", error);
   }

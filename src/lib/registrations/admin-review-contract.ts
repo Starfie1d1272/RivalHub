@@ -18,11 +18,22 @@ export const SOLO_REGISTRATION_REVIEW_DEFAULTS = {
   sort: "oldest",
 } as const;
 
-export type RegistrationReviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams;
-export type TeamRegistrationReviewStatus = "attention" | "self_change_draft" | "submitted" | "approved" | "waitlisted" | "changes_requested" | "rejected" | "withdrawn" | "all";
+export type RegistrationReviewSearchParams =
+  Record<string, string | string[] | undefined> | URLSearchParams;
+export type TeamRegistrationReviewStatus =
+  | "attention"
+  | "self_change_draft"
+  | "submitted"
+  | "approved"
+  | "waitlisted"
+  | "changes_requested"
+  | "rejected"
+  | "withdrawn"
+  | "all";
 export type TeamQualificationFilter = "all" | "ready" | "blocked";
 export type TeamRegistrationReviewSort = "oldest" | "newest_updated";
-export type SoloRegistrationReviewStatus = "pending" | "approved" | "rejected" | "waitlisted" | "all";
+export type SoloRegistrationReviewStatus =
+  "pending" | "approved" | "rejected" | "waitlisted" | "all";
 export type SoloRegistrationReviewSort = "oldest" | "newest";
 
 export interface TeamRegistrationReviewQuery {

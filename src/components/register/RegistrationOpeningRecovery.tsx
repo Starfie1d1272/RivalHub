@@ -23,5 +23,7 @@ export function RegistrationOpeningRecovery({ seasonId }: { seasonId: string }) 
     });
   }, [router, seasonId]);
 
-  return <p className="mt-3 text-center text-xs text-[var(--color-fg-mid)]">页面会自动确认开放状态。</p>;
+  return (
+    <p className="mt-3 text-center text-xs text-[var(--color-fg-mid)]">页面会自动确认开放状态。</p>
+  );
 }

@@ -11,12 +11,19 @@ export interface AdminPlayerContactProps {
   steamProfileUrl?: string | null;
 }
 
-export function AdminPlayerContact({ email, qq, steam64, steamProfileUrl }: AdminPlayerContactProps) {
+export function AdminPlayerContact({
+  email,
+  qq,
+  steam64,
+  steamProfileUrl,
+}: AdminPlayerContactProps) {
   const contacts = [
     { label: "邮箱", value: email },
     { label: "QQ", value: qq },
     { label: "Steam64", value: steam64 },
-  ].filter((contact): contact is { label: string; value: string } => Boolean(contact.value?.trim()));
+  ].filter((contact): contact is { label: string; value: string } =>
+    Boolean(contact.value?.trim()),
+  );
   const hasContact = contacts.length > 0 || Boolean(steamProfileUrl);
 
   async function copyValue(label: string, value: string) {

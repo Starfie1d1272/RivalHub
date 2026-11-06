@@ -24,9 +24,7 @@ export function transitionMatchExecution(
 }
 
 export type MatchConclusion =
-  | { kind: "recorded"; scoreA: number; scoreB: number }
-  | { kind: "pending" }
-  | { kind: "omitted" };
+  { kind: "recorded"; scoreA: number; scoreB: number } | { kind: "pending" } | { kind: "omitted" };
 
 /** Ending execution and choosing whether to record a result are separate facts. */
 export function concludeMatchExecution(
@@ -34,10 +32,12 @@ export function concludeMatchExecution(
   conclusion: MatchConclusion,
   now: Date,
 ) {
-  if (match.status === "cancelled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已取消的比赛不能直接提交结束结果。");
+  if (match.status === "cancelled")
+    throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已取消的比赛不能直接提交结束结果。");
   // Result corrections may replace a finished result without reopening execution.
   if (match.status !== "finished") assertMatchTransition(match.status, "finished");
-  if (conclusion.kind === "recorded") validateSeriesScore(match.format, conclusion.scoreA, conclusion.scoreB);
+  if (conclusion.kind === "recorded")
+    validateSeriesScore(match.format, conclusion.scoreA, conclusion.scoreB);
   return {
     status: "finished" as const,
     completedAt: match.status === "finished" ? match.completedAt : now,

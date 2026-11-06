@@ -25,22 +25,33 @@ export function buildTournamentResults(
   maps: readonly TournamentResultMap[],
   entries: readonly TournamentResultEntry[],
 ) {
-  const completedMaps = maps.filter((map) => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null);
+  const completedMaps = maps.filter(
+    (map) => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null,
+  );
   const matchById = new Map(matches.map((match) => [match.id, match]));
-  const completedMatches = matches.filter((match) => match.status === "finished"
-    && match.scoreA !== null && match.scoreB !== null);
-  const byEntry = new Map(entries.map((entry) => [entry.id, {
-    entryId: entry.id,
-    name: entry.name,
-    matches: 0,
-    matchWins: 0,
-    matchLosses: 0,
-    maps: 0,
-    mapWins: 0,
-    mapLosses: 0,
-  }]));
+  const completedMatches = matches.filter(
+    (match) => match.status === "finished" && match.scoreA !== null && match.scoreB !== null,
+  );
+  const byEntry = new Map(
+    entries.map((entry) => [
+      entry.id,
+      {
+        entryId: entry.id,
+        name: entry.name,
+        matches: 0,
+        matchWins: 0,
+        matchLosses: 0,
+        maps: 0,
+        mapWins: 0,
+        mapLosses: 0,
+      },
+    ]),
+  );
   const byMapName = new Map<string, { played: number; rounds: number }>();
-  const teamMapsByName = new Map<string, Map<string, { played: number; wins: number; losses: number }>>();
+  const teamMapsByName = new Map<
+    string,
+    Map<string, { played: number; wins: number; losses: number }>
+  >();
 
   for (const match of completedMatches) {
     const teamA = byEntry.get(match.entryAId);
@@ -70,7 +81,9 @@ export function buildTournamentResults(
     if (!teamA || !teamB) continue;
     teamA.maps += 1;
     teamB.maps += 1;
-    const teamMaps = teamMapsByName.get(map.mapName) ?? new Map<string, { played: number; wins: number; losses: number }>();
+    const teamMaps =
+      teamMapsByName.get(map.mapName) ??
+      new Map<string, { played: number; wins: number; losses: number }>();
     const mapTeamA = teamMaps.get(match.entryAId) ?? { played: 0, wins: 0, losses: 0 };
     const mapTeamB = teamMaps.get(match.entryBId) ?? { played: 0, wins: 0, losses: 0 };
     mapTeamA.played += 1;
@@ -100,6 +113,9 @@ export function buildTournamentResults(
     },
     teams: [...byEntry.values()].filter((team) => team.matches > 0 || team.maps > 0),
     maps: [...byMapName].map(([mapName, summary]) => ({ mapName, ...summary })),
-    teamMaps: [...teamMapsByName].map(([mapName, teams]) => ({ mapName, teams: [...teams].map(([entryId, result]) => ({ entryId, ...result })) })),
+    teamMaps: [...teamMapsByName].map(([mapName, teams]) => ({
+      mapName,
+      teams: [...teams].map(([entryId, result]) => ({ entryId, ...result })),
+    })),
   };
 }

@@ -21,8 +21,7 @@ export interface ActionError {
 }
 
 export type ActionResult<T = void> =
-  | { success: true; data: T }
-  | { success: false; error: ActionError };
+  { success: true; data: T } | { success: false; error: ActionError };
 
 // ── 工具函数 ────────────────────────────────────────────────────────────
 

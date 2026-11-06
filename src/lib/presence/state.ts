@@ -10,7 +10,8 @@ export class PresenceState {
   async touch(userId: string, now: number, persist: () => Promise<boolean>): Promise<void> {
     let entry = this.accounts.get(userId);
     if (!entry) {
-      for (const [id, value] of this.accounts) if (value.seen <= now - PERSIST_MS && !value.pending) this.accounts.delete(id);
+      for (const [id, value] of this.accounts)
+        if (value.seen <= now - PERSIST_MS && !value.pending) this.accounts.delete(id);
       if (this.accounts.size >= MAX_ACCOUNTS) throw new Error("Presence capacity reached");
       entry = { seen: now, persisted: -Infinity };
       this.accounts.set(userId, entry);
@@ -19,7 +20,13 @@ export class PresenceState {
     if (entry.pending) return entry.pending;
     if (entry.persisted > now - PERSIST_MS) return;
     const current = entry;
-    current.pending = persist().then((written) => { if (written) current.persisted = now; }).finally(() => { current.pending = undefined; });
+    current.pending = persist()
+      .then((written) => {
+        if (written) current.persisted = now;
+      })
+      .finally(() => {
+        current.pending = undefined;
+      });
     return current.pending;
   }
 

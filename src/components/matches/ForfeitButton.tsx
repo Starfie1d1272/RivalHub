@@ -53,29 +53,47 @@ export function ForfeitButton({
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <span className="text-xs text-[var(--color-fg-mid)]">确认弃赛方并记录原因：</span>
-      <Input value={reason} onChange={(event) => setReason(event.target.value)} className="h-8 min-w-48" placeholder="例如：超过宽限仍无法组成合法首发" />
-      <div className="flex items-center gap-1"><Button
-        size="sm"
-        variant="destructive"
-        disabled={isPending || !reason.trim()}
-        onClick={() => handleForfeit(entryAId)}
-      >
-        {teamAName} 弃赛
-      </Button><TeamProfileLink entryId={entryAId} variant="dense" aria-label={`查看 ${teamAName} 队伍资料`}>↗</TeamProfileLink></div>
-      <div className="flex items-center gap-1"><Button
-        size="sm"
-        variant="destructive"
-        disabled={isPending || !reason.trim()}
-        onClick={() => handleForfeit(entryBId)}
-      >
-        {teamBName} 弃赛
-      </Button><TeamProfileLink entryId={entryBId} variant="dense" aria-label={`查看 ${teamBName} 队伍资料`}>↗</TeamProfileLink></div>
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={isPending}
-        onClick={() => setExpanded(false)}
-      >
+      <Input
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        className="h-8 min-w-48"
+        placeholder="例如：超过宽限仍无法组成合法首发"
+      />
+      <div className="flex items-center gap-1">
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={isPending || !reason.trim()}
+          onClick={() => handleForfeit(entryAId)}
+        >
+          {teamAName} 弃赛
+        </Button>
+        <TeamProfileLink
+          entryId={entryAId}
+          variant="dense"
+          aria-label={`查看 ${teamAName} 队伍资料`}
+        >
+          ↗
+        </TeamProfileLink>
+      </div>
+      <div className="flex items-center gap-1">
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={isPending || !reason.trim()}
+          onClick={() => handleForfeit(entryBId)}
+        >
+          {teamBName} 弃赛
+        </Button>
+        <TeamProfileLink
+          entryId={entryBId}
+          variant="dense"
+          aria-label={`查看 ${teamBName} 队伍资料`}
+        >
+          ↗
+        </TeamProfileLink>
+      </div>
+      <Button size="sm" variant="outline" disabled={isPending} onClick={() => setExpanded(false)}>
         取消
       </Button>
     </div>

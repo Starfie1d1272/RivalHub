@@ -8,7 +8,7 @@ export interface RequestContext {
 // Share request context across Next API/RSC/instrumentation module graphs.
 const SLOT = Symbol.for("rivalhub.request-context.v1");
 const host = process as unknown as Record<symbol, AsyncLocalStorage<RequestContext> | undefined>;
-const requestContextStorage = host[SLOT] ??= new AsyncLocalStorage<RequestContext>();
+const requestContextStorage = (host[SLOT] ??= new AsyncLocalStorage<RequestContext>());
 const REQUEST_ID_HEADERS = ["x-request-id", "x-correlation-id", "x-vercel-id"];
 const ROUTE_HEADERS = ["x-matched-path", "x-nextjs-matched-path"];
 const SAFE_ID = /^[A-Za-z0-9._:-]+$/;
@@ -37,9 +37,10 @@ export function requestContextFromHeaders(
   route?: string,
   fallbackPath?: string,
 ): RequestContext {
-  const requestId = REQUEST_ID_HEADERS.map((name) => readHeader(headers, name))
-    .map(normalizeRequestId)
-    .find(Boolean) ?? createRequestId();
+  const requestId =
+    REQUEST_ID_HEADERS.map((name) => readHeader(headers, name))
+      .map(normalizeRequestId)
+      .find(Boolean) ?? createRequestId();
   const matchedRoute = ROUTE_HEADERS.map((name) => readHeader(headers, name))
     .map(normalizeRoute)
     .find(Boolean);

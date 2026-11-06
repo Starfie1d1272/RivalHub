@@ -3,7 +3,15 @@ import { mizarAuditActorId } from "@/lib/audit/people";
 import { and, eq, isNull, desc, asc } from "drizzle-orm";
 import { z } from "zod";
 import { db, type TxDb } from "@/db/client";
-import { matchLiveSessions, matchMaps, matchVetoSessions, mizarInstallations, matches, users, type Match } from "@/db/schema";
+import {
+  matchLiveSessions,
+  matchMaps,
+  matchVetoSessions,
+  mizarInstallations,
+  matches,
+  users,
+  type Match,
+} from "@/db/schema";
 import { materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
 import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
@@ -15,10 +23,17 @@ import { touchMizarInstallation } from "./heartbeat";
 import { LINEUP_REVIEW_REQUIRED } from "./lineup-display";
 
 export const sourceClaimSchema = z.strictObject({
-  matchId: z.uuid(), producerInstanceId: z.string().min(1).max(128), liveSessionId: z.string().min(1).max(128),
-  programSourceGeneration: z.number().int().nonnegative(), mapEpoch: z.number().int().nonnegative(),
-  contextRevision: z.string().min(1).max(128), takeover: z.boolean().default(false),
-  lineupSteam64: z.array(z.string().regex(/^\d{17}$/)).max(10).default([]),
+  matchId: z.uuid(),
+  producerInstanceId: z.string().min(1).max(128),
+  liveSessionId: z.string().min(1).max(128),
+  programSourceGeneration: z.number().int().nonnegative(),
+  mapEpoch: z.number().int().nonnegative(),
+  contextRevision: z.string().min(1).max(128),
+  takeover: z.boolean().default(false),
+  lineupSteam64: z
+    .array(z.string().regex(/^\d{17}$/))
+    .max(10)
+    .default([]),
   allowLineupMismatch: z.boolean().default(false),
 });
 
@@ -33,61 +48,172 @@ export const sourceStatusSchema = sourceReleaseSchema.extend({
 });
 
 /** Resolve only the caller's exact intent; repeated tuples are deliberately ambiguous. */
-export async function readMizarSourceStatus(installationId: string, competitionId: string, rawInput: z.input<typeof sourceStatusSchema>) {
+export async function readMizarSourceStatus(
+  installationId: string,
+  competitionId: string,
+  rawInput: z.input<typeof sourceStatusSchema>,
+) {
   const input = sourceStatusSchema.parse(rawInput);
-  return db.transaction(async tx => {
+  return db.transaction(async (tx) => {
     await assertInstallationInTx(tx, installationId, competitionId);
-    const rows = await tx.select({
-      sessionId: matchLiveSessions.id, installationId: matchLiveSessions.installationId,
-      matchId: matchLiveSessions.matchId, producerInstanceId: matchLiveSessions.producerInstanceId,
-      liveSessionId: matchLiveSessions.liveSessionId, authorityRevision: matchLiveSessions.authorityRevision,
-      closedAt: matchLiveSessions.closedAt, closeReason: matchLiveSessions.closeReason, matchStatus: matches.status,
-    }).from(matchLiveSessions).innerJoin(matches, eq(matches.id, matchLiveSessions.matchId)).where(and(
-      eq(matches.seasonId, competitionId), eq(matchLiveSessions.installationId, installationId),
-      eq(matchLiveSessions.matchId, input.matchId), eq(matchLiveSessions.producerInstanceId, input.producerInstanceId),
-      eq(matchLiveSessions.liveSessionId, input.liveSessionId),
-      input.authorityRevision === undefined ? undefined : eq(matchLiveSessions.authorityRevision, input.authorityRevision),
-    )).limit(2);
+    const rows = await tx
+      .select({
+        sessionId: matchLiveSessions.id,
+        installationId: matchLiveSessions.installationId,
+        matchId: matchLiveSessions.matchId,
+        producerInstanceId: matchLiveSessions.producerInstanceId,
+        liveSessionId: matchLiveSessions.liveSessionId,
+        authorityRevision: matchLiveSessions.authorityRevision,
+        closedAt: matchLiveSessions.closedAt,
+        closeReason: matchLiveSessions.closeReason,
+        matchStatus: matches.status,
+      })
+      .from(matchLiveSessions)
+      .innerJoin(matches, eq(matches.id, matchLiveSessions.matchId))
+      .where(
+        and(
+          eq(matches.seasonId, competitionId),
+          eq(matchLiveSessions.installationId, installationId),
+          eq(matchLiveSessions.matchId, input.matchId),
+          eq(matchLiveSessions.producerInstanceId, input.producerInstanceId),
+          eq(matchLiveSessions.liveSessionId, input.liveSessionId),
+          input.authorityRevision === undefined
+            ? undefined
+            : eq(matchLiveSessions.authorityRevision, input.authorityRevision),
+        ),
+      )
+      .limit(2);
     if (!rows.length) return { status: "not_found" as const };
     if (rows.length > 1) return { status: "ambiguous" as const };
     const { closedAt, ...source } = rows[0];
-    return { status: "found" as const, source: { ...source, competitionId, state: closedAt ? "closed" as const : "open" as const } };
+    return {
+      status: "found" as const,
+      source: {
+        ...source,
+        competitionId,
+        state: closedAt ? ("closed" as const) : ("open" as const),
+      },
+    };
   });
 }
 
-export async function validateObservedLineupInTx(tx: TxDb, match: Match, steam64s: readonly string[]) {
+export async function validateObservedLineupInTx(
+  tx: TxDb,
+  match: Match,
+  steam64s: readonly string[],
+) {
   const players = await loadEffectiveMatchRoster(tx, [match.id]);
-  const expected = players.filter(player => player.isStarter).map(player => player.steam64);
-  return expected.length === 10 && expected.every(id => id !== null) && new Set(steam64s).size === 10 && expected.every(id => steam64s.includes(id!));
+  const expected = players.filter((player) => player.isStarter).map((player) => player.steam64);
+  return (
+    expected.length === 10 &&
+    expected.every((id) => id !== null) &&
+    new Set(steam64s).size === 10 &&
+    expected.every((id) => steam64s.includes(id!))
+  );
 }
 
-export async function claimMizarSource(installationId: string, competitionId: string, rawInput: z.input<typeof sourceClaimSchema>) {
+export async function claimMizarSource(
+  installationId: string,
+  competitionId: string,
+  rawInput: z.input<typeof sourceClaimSchema>,
+) {
   const input = sourceClaimSchema.parse(rawInput);
-  const result = await db.transaction(async tx => {
+  const result = await db.transaction(async (tx) => {
     await assertInstallationInTx(tx, installationId, competitionId);
     const match = await lockMatchInTx(tx, input.matchId);
-    if (match.seasonId !== competitionId || !["scheduled", "in_progress"].includes(match.status)) throw new AppError(ErrorCode.FORBIDDEN, "不能连接这场比赛的数据源。");
+    if (match.seasonId !== competitionId || !["scheduled", "in_progress"].includes(match.status))
+      throw new AppError(ErrorCode.FORBIDDEN, "不能连接这场比赛的数据源。");
     if (!input.allowLineupMismatch) await materializeDefaultLineupsInTx(tx, match);
     const context = await loadMizarMatchDocumentInTx(tx, match.id, competitionId);
-    if (input.contextRevision !== context.revision) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛资料已变化，请刷新后重试。");
-    const lineupValid = input.lineupSteam64.length === 10 && await validateObservedLineupInTx(tx, match, input.lineupSteam64);
-    const observedLineup = input.allowLineupMismatch && input.lineupSteam64.length === 10 && new Set(input.lineupSteam64).size === 10;
-    if (input.lineupSteam64.length > 0 && !lineupValid && !observedLineup) throw new AppError(ErrorCode.VALIDATION_FAILED, "实际首发不匹配，请核对后重试。");
-    const [active] = await tx.select().from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt))).for("update");
-    if (active?.installationId === installationId && active.producerInstanceId === input.producerInstanceId && active.liveSessionId === input.liveSessionId) {
-      if (observedLineup && !lineupValid) await tx.update(matchLiveSessions).set({ lineupHealth: LINEUP_REVIEW_REQUIRED, autoCanonicalizationArmed: false }).where(eq(matchLiveSessions.id, active.id));
-      if (active.contextRevision !== input.contextRevision) await tx.update(matchLiveSessions).set({ contextRevision: input.contextRevision, autoCanonicalizationArmed: false, continuityHealth: "unknown" }).where(eq(matchLiveSessions.id, active.id));
+    if (input.contextRevision !== context.revision)
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛资料已变化，请刷新后重试。");
+    const lineupValid =
+      input.lineupSteam64.length === 10 &&
+      (await validateObservedLineupInTx(tx, match, input.lineupSteam64));
+    const observedLineup =
+      input.allowLineupMismatch &&
+      input.lineupSteam64.length === 10 &&
+      new Set(input.lineupSteam64).size === 10;
+    if (input.lineupSteam64.length > 0 && !lineupValid && !observedLineup)
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "实际首发不匹配，请核对后重试。");
+    const [active] = await tx
+      .select()
+      .from(matchLiveSessions)
+      .where(and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)))
+      .for("update");
+    if (
+      active?.installationId === installationId &&
+      active.producerInstanceId === input.producerInstanceId &&
+      active.liveSessionId === input.liveSessionId
+    ) {
+      if (observedLineup && !lineupValid)
+        await tx
+          .update(matchLiveSessions)
+          .set({ lineupHealth: LINEUP_REVIEW_REQUIRED, autoCanonicalizationArmed: false })
+          .where(eq(matchLiveSessions.id, active.id));
+      if (active.contextRevision !== input.contextRevision)
+        await tx
+          .update(matchLiveSessions)
+          .set({
+            contextRevision: input.contextRevision,
+            autoCanonicalizationArmed: false,
+            continuityHealth: "unknown",
+          })
+          .where(eq(matchLiveSessions.id, active.id));
       return { authorityRevision: active.authorityRevision, claimed: true };
     }
     if (active && !input.takeover) {
-      const [device] = await tx.select({ displayName: users.displayName }).from(mizarInstallations).innerJoin(users, eq(users.id, mizarInstallations.authorizedByUserId)).where(eq(mizarInstallations.id, active.installationId));
-      return { claimed: false, activeDeviceName: device?.displayName?.trim() || "另一位赛事管理员", authorityRevision: active.authorityRevision };
+      const [device] = await tx
+        .select({ displayName: users.displayName })
+        .from(mizarInstallations)
+        .innerJoin(users, eq(users.id, mizarInstallations.authorizedByUserId))
+        .where(eq(mizarInstallations.id, active.installationId));
+      return {
+        claimed: false,
+        activeDeviceName: device?.displayName?.trim() || "另一位赛事管理员",
+        authorityRevision: active.authorityRevision,
+      };
     }
-    const [latest] = await tx.select({ revision: matchLiveSessions.authorityRevision }).from(matchLiveSessions).where(eq(matchLiveSessions.matchId, match.id)).orderBy(desc(matchLiveSessions.authorityRevision)).limit(1);
+    const [latest] = await tx
+      .select({ revision: matchLiveSessions.authorityRevision })
+      .from(matchLiveSessions)
+      .where(eq(matchLiveSessions.matchId, match.id))
+      .orderBy(desc(matchLiveSessions.authorityRevision))
+      .limit(1);
     const now = new Date();
-    if (active) await tx.update(matchLiveSessions).set({ closedAt: now, closeReason: "handover", autoCanonicalizationArmed: false }).where(eq(matchLiveSessions.id, active.id));
-    const [binding] = await tx.insert(matchLiveSessions).values({ matchId: match.id, installationId, producerInstanceId: input.producerInstanceId, liveSessionId: input.liveSessionId, authorityRevision: (latest?.revision ?? 0) + 1, programSourceGeneration: input.programSourceGeneration, mapEpoch: input.mapEpoch, contextRevision: input.contextRevision, identityHealth: "unknown", lineupHealth: lineupValid ? "healthy" : observedLineup ? LINEUP_REVIEW_REQUIRED : "unknown", continuityHealth: "unknown", autoCanonicalizationArmed: false }).returning();
-    await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.source.claim", targetId: match.id, meta: { installationId, authorityRevision: binding.authorityRevision, previousInstallationId: active?.installationId ?? null } });
+    if (active)
+      await tx
+        .update(matchLiveSessions)
+        .set({ closedAt: now, closeReason: "handover", autoCanonicalizationArmed: false })
+        .where(eq(matchLiveSessions.id, active.id));
+    const [binding] = await tx
+      .insert(matchLiveSessions)
+      .values({
+        matchId: match.id,
+        installationId,
+        producerInstanceId: input.producerInstanceId,
+        liveSessionId: input.liveSessionId,
+        authorityRevision: (latest?.revision ?? 0) + 1,
+        programSourceGeneration: input.programSourceGeneration,
+        mapEpoch: input.mapEpoch,
+        contextRevision: input.contextRevision,
+        identityHealth: "unknown",
+        lineupHealth: lineupValid ? "healthy" : observedLineup ? LINEUP_REVIEW_REQUIRED : "unknown",
+        continuityHealth: "unknown",
+        autoCanonicalizationArmed: false,
+      })
+      .returning();
+    await writeAuditInTx(tx, {
+      seasonId: competitionId,
+      actorId: mizarAuditActorId(installationId),
+      action: "mizar.source.claim",
+      targetId: match.id,
+      meta: {
+        installationId,
+        authorityRevision: binding.authorityRevision,
+        previousInstallationId: active?.installationId ?? null,
+      },
+    });
     return { claimed: true, authorityRevision: binding.authorityRevision };
   });
   if (result.claimed) await touchMizarInstallation(installationId, competitionId);
@@ -100,17 +226,24 @@ export async function releaseMizarSource(
   input: z.infer<typeof sourceReleaseSchema>,
   authorityRevision: number,
 ) {
-  await db.transaction(async tx => {
+  await db.transaction(async (tx) => {
     await assertInstallationInTx(tx, installationId, competitionId);
     const match = await lockMatchInTx(tx, input.matchId);
-    if (match.seasonId !== competitionId) throw new AppError(ErrorCode.FORBIDDEN, "不能访问这场比赛。");
-    const [source] = await tx.select().from(matchLiveSessions).where(and(
-      eq(matchLiveSessions.matchId, input.matchId),
-      eq(matchLiveSessions.installationId, installationId),
-      eq(matchLiveSessions.authorityRevision, authorityRevision),
-      eq(matchLiveSessions.producerInstanceId, input.producerInstanceId),
-      eq(matchLiveSessions.liveSessionId, input.liveSessionId),
-    )).for("update");
+    if (match.seasonId !== competitionId)
+      throw new AppError(ErrorCode.FORBIDDEN, "不能访问这场比赛。");
+    const [source] = await tx
+      .select()
+      .from(matchLiveSessions)
+      .where(
+        and(
+          eq(matchLiveSessions.matchId, input.matchId),
+          eq(matchLiveSessions.installationId, installationId),
+          eq(matchLiveSessions.authorityRevision, authorityRevision),
+          eq(matchLiveSessions.producerInstanceId, input.producerInstanceId),
+          eq(matchLiveSessions.liveSessionId, input.liveSessionId),
+        ),
+      )
+      .for("update");
     if (!source) throw new AppError(ErrorCode.FORBIDDEN, "数据源权限已变化，请刷新后重试。");
     if (source.closedAt) {
       // A lost response may retry the exact release, but a source closed by
@@ -118,57 +251,144 @@ export async function releaseMizarSource(
       if (source.closeReason === "released") return;
       throw new AppError(ErrorCode.FORBIDDEN, "数据源权限已变化，请刷新后重试。");
     }
-    await tx.update(matchLiveSessions).set({ closedAt: new Date(), closeReason: "released", autoCanonicalizationArmed: false }).where(eq(matchLiveSessions.id, source.id));
+    await tx
+      .update(matchLiveSessions)
+      .set({ closedAt: new Date(), closeReason: "released", autoCanonicalizationArmed: false })
+      .where(eq(matchLiveSessions.id, source.id));
     await writeAuditInTx(tx, {
       seasonId: competitionId,
       actorId: mizarAuditActorId(installationId),
       action: "mizar.source.release",
       targetId: input.matchId,
-      meta: { authorityRevision, producerInstanceId: input.producerInstanceId, liveSessionId: input.liveSessionId },
+      meta: {
+        authorityRevision,
+        producerInstanceId: input.producerInstanceId,
+        liveSessionId: input.liveSessionId,
+      },
     });
   });
 }
 
 export const manualMapTakeoverSchema = z.strictObject({
-  sessionId: z.uuid(), mapEpoch: z.number().int().nonnegative(), mapId: z.uuid(), recoverMapBinding: z.boolean().optional(),
+  sessionId: z.uuid(),
+  mapEpoch: z.number().int().nonnegative(),
+  mapId: z.uuid(),
+  recoverMapBinding: z.boolean().optional(),
   // An authenticated administrator reports a real collection failure. Browser
   // freshness is presentation only and is never an authorization fact.
-  operatorReport: z.strictObject({
-    reason: z.string().trim().min(1, "请填写已确认的采集问题。").max(500),
-    programSourceGeneration: z.number().int().nonnegative(),
-    lastReliableSeq: z.number().int().min(-1),
-    currentMapId: z.uuid().nullable(),
-  }).optional(),
+  operatorReport: z
+    .strictObject({
+      reason: z.string().trim().min(1, "请填写已确认的采集问题。").max(500),
+      programSourceGeneration: z.number().int().nonnegative(),
+      lastReliableSeq: z.number().int().min(-1),
+      currentMapId: z.uuid().nullable(),
+    })
+    .optional(),
 });
-export async function takeOverCurrentMap(matchId: string, actorId: string, expected: z.infer<typeof manualMapTakeoverSchema>) {
+export async function takeOverCurrentMap(
+  matchId: string,
+  actorId: string,
+  expected: z.infer<typeof manualMapTakeoverSchema>,
+) {
   expected = manualMapTakeoverSchema.parse(expected);
-  await db.transaction(async tx => {
+  await db.transaction(async (tx) => {
     const match = await lockMatchInTx(tx, matchId);
-    const [source] = await tx.select().from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, matchId), isNull(matchLiveSessions.closedAt))).for("update");
-    if (!source || match.status !== "in_progress") throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有需要接管的正式对局。");
-    if (source.id !== expected.sessionId || source.mapEpoch !== expected.mapEpoch) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前地图或数据源已变化，请刷新后重试。");
+    const [source] = await tx
+      .select()
+      .from(matchLiveSessions)
+      .where(and(eq(matchLiveSessions.matchId, matchId), isNull(matchLiveSessions.closedAt)))
+      .for("update");
+    if (!source || match.status !== "in_progress")
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有需要接管的正式对局。");
+    if (source.id !== expected.sessionId || source.mapEpoch !== expected.mapEpoch)
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "当前地图或数据源已变化，请刷新后重试。");
     const report = expected.operatorReport;
-    const [map] = await tx.select().from(matchMaps).where(and(eq(matchMaps.id, expected.mapId), eq(matchMaps.matchId, matchId)));
-    if (!map || map.completedAt !== null) throw new AppError(ErrorCode.VALIDATION_FAILED, "本图已有正式赛果，请使用结果更正流程。");
-    const alreadyTakenOver = source.manualTakeoverMapEpoch === source.mapEpoch && source.currentMapId === expected.mapId && !source.autoCanonicalizationArmed;
-    if (report && (source.programSourceGeneration !== report.programSourceGeneration || source.lastReliableSeq !== report.lastReliableSeq
-      || (source.currentMapId !== report.currentMapId && !(alreadyTakenOver && report.currentMapId === null)))) {
+    const [map] = await tx
+      .select()
+      .from(matchMaps)
+      .where(and(eq(matchMaps.id, expected.mapId), eq(matchMaps.matchId, matchId)));
+    if (!map || map.completedAt !== null)
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "本图已有正式赛果，请使用结果更正流程。");
+    const alreadyTakenOver =
+      source.manualTakeoverMapEpoch === source.mapEpoch &&
+      source.currentMapId === expected.mapId &&
+      !source.autoCanonicalizationArmed;
+    if (
+      report &&
+      (source.programSourceGeneration !== report.programSourceGeneration ||
+        source.lastReliableSeq !== report.lastReliableSeq ||
+        (source.currentMapId !== report.currentMapId &&
+          !(alreadyTakenOver && report.currentMapId === null)))
+    ) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "采集状态已变化，请刷新后重新核对问题。");
     }
     if (expected.recoverMapBinding || report) {
-      const veto = await tx.query.matchVetoSessions.findFirst({ where: eq(matchVetoSessions.matchId, matchId), columns: { completedAt: true } });
-      if (!veto?.completedAt) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先完成 BP 地图计划，再恢复地图绑定。");
-      const [nextMap] = await tx.select().from(matchMaps).where(and(eq(matchMaps.matchId, matchId), isNull(matchMaps.completedAt))).orderBy(asc(matchMaps.mapOrder)).limit(1);
+      const veto = await tx.query.matchVetoSessions.findFirst({
+        where: eq(matchVetoSessions.matchId, matchId),
+        columns: { completedAt: true },
+      });
+      if (!veto?.completedAt)
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "请先完成 BP 地图计划，再恢复地图绑定。");
+      const [nextMap] = await tx
+        .select()
+        .from(matchMaps)
+        .where(and(eq(matchMaps.matchId, matchId), isNull(matchMaps.completedAt)))
+        .orderBy(asc(matchMaps.mapOrder))
+        .limit(1);
       const bindingAllowed = report
         ? source.currentMapId === null || source.currentMapId === map.id
-        : source.currentMapId === null && !source.autoCanonicalizationArmed && ["execution_conflict", "conflict"].includes(source.continuityHealth);
+        : source.currentMapId === null &&
+          !source.autoCanonicalizationArmed &&
+          ["execution_conflict", "conflict"].includes(source.continuityHealth);
       if (nextMap?.id !== expected.mapId || (!alreadyTakenOver && !bindingAllowed)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "正式待进行地图或异常已变化，请刷新后重新核对。");
+        throw new AppError(
+          ErrorCode.VALIDATION_FAILED,
+          "正式待进行地图或异常已变化，请刷新后重新核对。",
+        );
       }
-    } else if (source.currentMapId !== expected.mapId) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前地图或数据源已变化，请刷新后重试。");
+    } else if (source.currentMapId !== expected.mapId)
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "当前地图或数据源已变化，请刷新后重试。");
     if (alreadyTakenOver) return;
-    if (!report && ![source.identityHealth, source.lineupHealth, source.continuityHealth].some(health => ["conflict", "source_conflict", "result_conflict", "execution_conflict", "stale", LINEUP_REVIEW_REQUIRED].includes(health))) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有已核实的异常需要人工接管。");
-    await tx.update(matchLiveSessions).set({ autoCanonicalizationArmed: false, manualTakeoverMapEpoch: source.mapEpoch, currentMapId: map.id }).where(eq(matchLiveSessions.id, source.id));
-    await writeAuditInTx(tx, { seasonId: match.seasonId, actorId, action: "mizar.map.manual_takeover", targetId: matchId, meta: { sessionId: source.id, mapEpoch: source.mapEpoch, programSourceGeneration: source.programSourceGeneration, previousManualTakeoverMapEpoch: source.manualTakeoverMapEpoch, previousMapId: source.currentMapId, mapId: map.id, mapOrder: map.mapOrder, recoveredMapBinding: source.currentMapId === null, continuityHealth: source.continuityHealth, operatorReportedProblem: report?.reason ?? null, reviewedReliableSeq: report?.lastReliableSeq ?? null } });
+    if (
+      !report &&
+      ![source.identityHealth, source.lineupHealth, source.continuityHealth].some((health) =>
+        [
+          "conflict",
+          "source_conflict",
+          "result_conflict",
+          "execution_conflict",
+          "stale",
+          LINEUP_REVIEW_REQUIRED,
+        ].includes(health),
+      )
+    )
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有已核实的异常需要人工接管。");
+    await tx
+      .update(matchLiveSessions)
+      .set({
+        autoCanonicalizationArmed: false,
+        manualTakeoverMapEpoch: source.mapEpoch,
+        currentMapId: map.id,
+      })
+      .where(eq(matchLiveSessions.id, source.id));
+    await writeAuditInTx(tx, {
+      seasonId: match.seasonId,
+      actorId,
+      action: "mizar.map.manual_takeover",
+      targetId: matchId,
+      meta: {
+        sessionId: source.id,
+        mapEpoch: source.mapEpoch,
+        programSourceGeneration: source.programSourceGeneration,
+        previousManualTakeoverMapEpoch: source.manualTakeoverMapEpoch,
+        previousMapId: source.currentMapId,
+        mapId: map.id,
+        mapOrder: map.mapOrder,
+        recoveredMapBinding: source.currentMapId === null,
+        continuityHealth: source.continuityHealth,
+        operatorReportedProblem: report?.reason ?? null,
+        reviewedReliableSeq: report?.lastReliableSeq ?? null,
+      },
+    });
   });
 }

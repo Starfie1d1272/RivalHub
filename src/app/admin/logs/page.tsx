@@ -38,7 +38,11 @@ export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps
     return (
       <PageLayout variant="wide" className="space-y-6">
         <PageHeader title="操作日志" />
-        <ErrorState code={logsResult.error.code} title="无法加载操作日志" sub={logsResult.error.message} />
+        <ErrorState
+          code={logsResult.error.code}
+          title="无法加载操作日志"
+          sub={logsResult.error.message}
+        />
       </PageLayout>
     );
   }
@@ -46,7 +50,11 @@ export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps
     return (
       <PageLayout variant="wide" className="space-y-6">
         <PageHeader title="操作日志" />
-        <ErrorState code={seasonsResult.error.code} title="无法加载赛季筛选项" sub={seasonsResult.error.message} />
+        <ErrorState
+          code={seasonsResult.error.code}
+          title="无法加载赛季筛选项"
+          sub={seasonsResult.error.message}
+        />
       </PageLayout>
     );
   }
@@ -54,7 +62,11 @@ export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps
   return (
     <PageLayout variant="wide" className="space-y-6">
       <PageHeader title="操作日志" />
-      <AuditLogTable initialLogs={logsResult.data.logs} initialTotal={logsResult.data.total} seasons={seasonsResult.data} />
+      <AuditLogTable
+        initialLogs={logsResult.data.logs}
+        initialTotal={logsResult.data.total}
+        seasons={seasonsResult.data}
+      />
       <ContentReady module="admin" phase="primary" />
     </PageLayout>
   );

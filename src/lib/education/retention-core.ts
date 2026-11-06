@@ -6,7 +6,9 @@ interface ExpiredManualEducationEvidence {
 }
 
 export interface EducationRetentionStore {
-  findExpiredManualEvidence(reviewedBefore: Date): Promise<readonly ExpiredManualEducationEvidence[]>;
+  findExpiredManualEvidence(
+    reviewedBefore: Date,
+  ): Promise<readonly ExpiredManualEducationEvidence[]>;
   removeEvidenceObject(objectKey: string): Promise<void>;
   clearManualEvidence(id: string, objectKey: string): Promise<number>;
   clearExpiredChsiCodes(reviewedBefore: Date): Promise<number>;
@@ -30,5 +32,5 @@ export async function purgeExpiredEducationEvidence(
     manualCleared += await store.clearManualEvidence(row.id, row.evidenceObjectKey);
   }
 
-  return manualCleared + await store.clearExpiredChsiCodes(reviewedBefore);
+  return manualCleared + (await store.clearExpiredChsiCodes(reviewedBefore));
 }

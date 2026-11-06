@@ -1,4 +1,11 @@
-export const MAJOR_PRESTART_PHASES = ["报名收口", "资格方案", "资格赛", "正赛名单", "正赛种子", "开赛确认"] as const;
+export const MAJOR_PRESTART_PHASES = [
+  "报名收口",
+  "资格方案",
+  "资格赛",
+  "正赛名单",
+  "正赛种子",
+  "开赛确认",
+] as const;
 
 export function deriveMajorPrestartPhase(input: {
   registrationClosed: boolean;

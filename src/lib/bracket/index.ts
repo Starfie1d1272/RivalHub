@@ -142,10 +142,12 @@ export async function loadStageBracketEntrantIds(
   competitionId: string,
 ): Promise<Map<string, string[]>> {
   const views = await loadStageBracketViews(database, competitionId);
-  return new Map([...views.entries()].map(([stageKey, data]) => [
-    stageKey,
-    data.participant.map((participant) => participant.rivalhubEntryId),
-  ]));
+  return new Map(
+    [...views.entries()].map(([stageKey, data]) => [
+      stageKey,
+      data.participant.map((participant) => participant.rivalhubEntryId),
+    ]),
+  );
 }
 
 /** Load canonical node topology through this adapter, never from Series rows. */
@@ -154,7 +156,9 @@ export async function loadStageBracketNodeViews(
   competitionId: string,
 ): Promise<Map<string, BracketNodeProjection[]>> {
   const views = await loadStageBracketViews(database, competitionId);
-  return new Map([...views.entries()].map(([stageKey, data]) => [stageKey, projectStageBracketNodes(data)]));
+  return new Map(
+    [...views.entries()].map(([stageKey, data]) => [stageKey, projectStageBracketNodes(data)]),
+  );
 }
 
 /** Persist one provider state without exposing its storage table to callers. */
@@ -183,16 +187,19 @@ export async function ensureResolvedBracketMatch(
   input: ResolvedBracketMatchInput,
 ): Promise<void> {
   const nodeId = input.resolved.bracketMatchId.toString();
-  await database.insert(matches).values({
-    seasonId: input.seasonId,
-    entryAId: input.resolved.entryAId,
-    entryBId: input.resolved.entryBId,
-    stage: input.stageKey,
-    format: input.format,
-    status: "scheduled",
-    bracketNodeId: nodeId,
-    ...(input.entryRound === undefined ? {} : { entryRound: input.entryRound }),
-  }).onConflictDoNothing();
+  await database
+    .insert(matches)
+    .values({
+      seasonId: input.seasonId,
+      entryAId: input.resolved.entryAId,
+      entryBId: input.resolved.entryBId,
+      stage: input.stageKey,
+      format: input.format,
+      status: "scheduled",
+      bracketNodeId: nodeId,
+      ...(input.entryRound === undefined ? {} : { entryRound: input.entryRound }),
+    })
+    .onConflictDoNothing();
 
   const existing = await database.query.matches.findFirst({
     where: and(
@@ -208,11 +215,15 @@ export async function ensureResolvedBracketMatch(
 }
 
 export function assertResolvedBracketMatchCompatible(
-  existing: Pick<Match, "seasonId" | "entryAId" | "entryBId" | "stage" | "format" | "bracketNodeId" | "entryRound">,
+  existing: Pick<
+    Match,
+    "seasonId" | "entryAId" | "entryBId" | "stage" | "format" | "bracketNodeId" | "entryRound"
+  >,
   input: ResolvedBracketMatchInput,
 ): void {
   const expectedNodeId = input.resolved.bracketMatchId.toString();
-  const compatible = existing.seasonId === input.seasonId &&
+  const compatible =
+    existing.seasonId === input.seasonId &&
     existing.entryAId === input.resolved.entryAId &&
     existing.entryBId === input.resolved.entryBId &&
     existing.stage === input.stageKey &&
@@ -230,7 +241,9 @@ function buildManager(data: Database): { manager: BracketsManager; db: InMemoryD
   return { manager: new BracketsManager(memoryDb), db: memoryDb };
 }
 
-function providerType(type: StageConfig["type"]): "double_elimination" | "single_elimination" | "round_robin" {
+function providerType(
+  type: StageConfig["type"],
+): "double_elimination" | "single_elimination" | "round_robin" {
   if (type === "double_elim") return "double_elimination";
   if (type === "single_elim") return "single_elimination";
   if (type === "round_robin") return "round_robin";
@@ -248,11 +261,13 @@ export async function createStageBracket(
   // Register each entry first and seed using the provider's participant IDs.
   const seedingIds: number[] = [];
   for (const entry of entries) {
-    seedingIds.push(await memoryDb.insert("participant", {
-      tournament_id: 0,
-      name: entry.name,
-      rivalhubEntryId: entry.id,
-    }));
+    seedingIds.push(
+      await memoryDb.insert("participant", {
+        tournament_id: 0,
+        name: entry.name,
+        rivalhubEntryId: entry.id,
+      }),
+    );
   }
   await manager.create.stage({
     tournamentId: 0,
@@ -260,9 +275,10 @@ export async function createStageBracket(
     name: config.name,
     type: providerType(config.type),
     seedingIds,
-    settings: config.type === "round_robin"
-      ? { groupCount: 1, roundRobinMode: "simple" }
-      : { grandFinal: "simple", seedOrdering: ["inner_outer"] },
+    settings:
+      config.type === "round_robin"
+        ? { groupCount: 1, roundRobinMode: "simple" }
+        : { grandFinal: "simple", seedOrdering: ["inner_outer"] },
   });
 
   const data = await manager.export();
@@ -278,7 +294,9 @@ export async function advanceStageBracket(
 ): Promise<{ updatedData: Database; newResolvedMatches: ResolvedBracketMatch[] }> {
   if (!stageKey.trim()) throw new Error("stageKey 不能为空");
   const { manager } = buildManager(currentData);
-  const previousResolved = new Set(collectResolvedMatches(currentData).map((match) => match.bracketMatchId));
+  const previousResolved = new Set(
+    collectResolvedMatches(currentData).map((match) => match.bracketMatchId),
+  );
   const matchId = Number.parseInt(bracketNodeId, 10);
   if (!Number.isInteger(matchId)) throw new Error(`无效的 bracket node id: ${bracketNodeId}`);
   if (result.scoreA === result.scoreB) throw new Error("bracket 比赛不能以平局结束");
@@ -291,8 +309,9 @@ export async function advanceStageBracket(
   });
 
   const updatedData = await manager.export();
-  const newResolvedMatches = collectResolvedMatches(updatedData)
-    .filter((match) => !previousResolved.has(match.bracketMatchId));
+  const newResolvedMatches = collectResolvedMatches(updatedData).filter(
+    (match) => !previousResolved.has(match.bracketMatchId),
+  );
   return { updatedData, newResolvedMatches };
 }
 
@@ -313,17 +332,19 @@ export function serializeStageBracket(data: Database | null): BracketData {
     type: item.type as BracketStage["type"],
     settings: item.settings ?? {},
   }));
-  const match = (data.match as Array<{
-    id: number;
-    stage_id: number;
-    group_id: number;
-    round_id: number;
-    number: number;
-    status: number;
-    child_count?: number;
-    opponent1: { id: number | null; score: number | null; result?: string } | null;
-    opponent2: { id: number | null; score: number | null; result?: string } | null;
-  }>).map((item) => ({
+  const match = (
+    data.match as Array<{
+      id: number;
+      stage_id: number;
+      group_id: number;
+      round_id: number;
+      number: number;
+      status: number;
+      child_count?: number;
+      opponent1: { id: number | null; score: number | null; result?: string } | null;
+      opponent2: { id: number | null; score: number | null; result?: string } | null;
+    }>
+  ).map((item) => ({
     id: item.id,
     stage_id: item.stage_id,
     group_id: item.group_id,
@@ -340,7 +361,11 @@ export function serializeStageBracket(data: Database | null): BracketData {
     match,
     match_game: (data.match_game as BracketMatchGame[] | undefined) ?? [],
     participant,
-    group: (data.group as BracketGroupRef[]).map((item) => ({ id: item.id, stage_id: item.stage_id, number: item.number })),
+    group: (data.group as BracketGroupRef[]).map((item) => ({
+      id: item.id,
+      stage_id: item.stage_id,
+      number: item.number,
+    })),
     round: (data.round as BracketRoundRef[]).map((item) => ({
       id: item.id,
       stage_id: item.stage_id,
@@ -361,7 +386,8 @@ export function serializeStageBracket(data: Database | null): BracketData {
 export function projectStageBracketNodes(data: BracketData): BracketNodeProjection[] {
   if (data.stage.length !== 1) return [];
   const stage = data.stage[0];
-  if (!stage || (stage.type !== "single_elimination" && stage.type !== "double_elimination")) return [];
+  if (!stage || (stage.type !== "single_elimination" && stage.type !== "double_elimination"))
+    return [];
 
   const stageGroups = data.group.filter((group) => group.stage_id === stage.id);
   const stageRounds = data.round.filter((round) => round.stage_id === stage.id);
@@ -369,9 +395,12 @@ export function projectStageBracketNodes(data: BracketData): BracketNodeProjecti
   const groupNumberById = new Map(stageGroups.map((group) => [group.id, group.number]));
   const roundById = new Map(stageRounds.map((round) => [round.id, round]));
   if (
-    stageMatches.length === 0
-    || stageMatches.some((match) => !groupNumberById.has(match.group_id) || !roundById.has(match.round_id))
-  ) return [];
+    stageMatches.length === 0 ||
+    stageMatches.some(
+      (match) => !groupNumberById.has(match.group_id) || !roundById.has(match.round_id),
+    )
+  )
+    return [];
 
   const matchesByPosition = new Map<string, BracketMatch>();
   for (const match of stageMatches) {
@@ -399,9 +428,7 @@ export function projectStageBracketNodes(data: BracketData): BracketNodeProjecti
     const nodes: BracketNodeProjection[] = [];
     for (const match of [...stageMatches].sort((a, b) => a.id - b.id)) {
       const round = roundNumberOf(match);
-      const nextWin = round === maxRound
-        ? null
-        : nodeAt(1, round + 1, Math.ceil(match.number / 2));
+      const nextWin = round === maxRound ? null : nodeAt(1, round + 1, Math.ceil(match.number / 2));
       if (nextWin === undefined) return [];
       nodes.push({
         id: nodeIdOf(match),
@@ -416,16 +443,23 @@ export function projectStageBracketNodes(data: BracketData): BracketNodeProjecti
   }
 
   if (
-    stageGroups.length !== 3
-    || ![1, 2, 3].every((number) => stageGroups.some((group) => group.number === number))
-  ) return [];
+    stageGroups.length !== 3 ||
+    ![1, 2, 3].every((number) => stageGroups.some((group) => group.number === number))
+  )
+    return [];
   const winnerMatches = stageMatches.filter((match) => groupNumberById.get(match.group_id) === 1);
   const loserMatches = stageMatches.filter((match) => groupNumberById.get(match.group_id) === 2);
   const grandMatches = stageMatches.filter((match) => groupNumberById.get(match.group_id) === 3);
-  if (winnerMatches.length === 0 || loserMatches.length === 0 || grandMatches.length !== 1) return [];
+  if (winnerMatches.length === 0 || loserMatches.length === 0 || grandMatches.length !== 1)
+    return [];
   const maxWinnerRound = Math.max(...winnerMatches.map(roundNumberOf));
   const maxLoserRound = Math.max(...loserMatches.map(roundNumberOf));
-  if (maxWinnerRound < 2 || maxLoserRound !== 2 * (maxWinnerRound - 1) || nodeAt(3, 1, 1) === undefined) return [];
+  if (
+    maxWinnerRound < 2 ||
+    maxLoserRound !== 2 * (maxWinnerRound - 1) ||
+    nodeAt(3, 1, 1) === undefined
+  )
+    return [];
 
   const requiredNodeId = (group: number, round: number, number: number): string | undefined => {
     const match = nodeAt(group, round, number);
@@ -438,16 +472,24 @@ export function projectStageBracketNodes(data: BracketData): BracketNodeProjecti
     const group = groupNumberById.get(match.group_id)!;
     const localRound = roundNumberOf(match);
     if (group === 1) {
-      const nextWin = localRound === maxWinnerRound
-        ? grandFinalId
-        : requiredNodeId(1, localRound + 1, Math.ceil(match.number / 2));
-      const nextLoss = localRound === 1
-        ? requiredNodeId(2, 1, Math.ceil(match.number / 2))
-        : requiredNodeId(2, 2 * (localRound - 1), matchCount(1, localRound) + 1 - match.number);
+      const nextWin =
+        localRound === maxWinnerRound
+          ? grandFinalId
+          : requiredNodeId(1, localRound + 1, Math.ceil(match.number / 2));
+      const nextLoss =
+        localRound === 1
+          ? requiredNodeId(2, 1, Math.ceil(match.number / 2))
+          : requiredNodeId(2, 2 * (localRound - 1), matchCount(1, localRound) + 1 - match.number);
       if (!nextWin || !nextLoss) return [];
       nodes.push({
         id: nodeIdOf(match),
-        label: doubleBracketLabel("winner", localRound, match.number, matchCount(1, localRound), maxWinnerRound),
+        label: doubleBracketLabel(
+          "winner",
+          localRound,
+          match.number,
+          matchCount(1, localRound),
+          maxWinnerRound,
+        ),
         round: localRound,
         lane: "winner",
         nextWinNodeId: nextWin,
@@ -456,13 +498,24 @@ export function projectStageBracketNodes(data: BracketData): BracketNodeProjecti
       continue;
     }
     if (group === 2) {
-      const nextWin = localRound === maxLoserRound
-        ? grandFinalId
-        : requiredNodeId(2, localRound + 1, localRound % 2 === 1 ? match.number : Math.ceil(match.number / 2));
+      const nextWin =
+        localRound === maxLoserRound
+          ? grandFinalId
+          : requiredNodeId(
+              2,
+              localRound + 1,
+              localRound % 2 === 1 ? match.number : Math.ceil(match.number / 2),
+            );
       if (!nextWin) return [];
       nodes.push({
         id: nodeIdOf(match),
-        label: doubleBracketLabel("loser", localRound, match.number, matchCount(2, localRound), maxLoserRound),
+        label: doubleBracketLabel(
+          "loser",
+          localRound,
+          match.number,
+          matchCount(2, localRound),
+          maxLoserRound,
+        ),
         round: localRound + 1,
         lane: "loser",
         nextWinNodeId: nextWin,
@@ -520,7 +573,10 @@ function projectOpponent(
 /** Resolve provider participants using stable metadata, never array position or name. */
 export function collectResolvedMatches(data: Database): ResolvedBracketMatch[] {
   const participantById = new Map<number, BracketParticipantRef>(
-    (data.participant as unknown as BracketParticipantRef[]).map((participant) => [participant.id, participant]),
+    (data.participant as unknown as BracketParticipantRef[]).map((participant) => [
+      participant.id,
+      participant,
+    ]),
   );
   const groupNumberById = new Map<number, number>(
     (data.group as BracketGroupRef[]).map((group) => [group.id, group.number]),
@@ -537,8 +593,10 @@ export function collectResolvedMatches(data: Database): ResolvedBracketMatch[] {
     opponent1: { id: number | null } | null;
     opponent2: { id: number | null } | null;
   }>) {
-    const participantA = match.opponent1?.id == null ? undefined : participantById.get(match.opponent1.id);
-    const participantB = match.opponent2?.id == null ? undefined : participantById.get(match.opponent2.id);
+    const participantA =
+      match.opponent1?.id == null ? undefined : participantById.get(match.opponent1.id);
+    const participantB =
+      match.opponent2?.id == null ? undefined : participantById.get(match.opponent2.id);
     if (!participantA?.rivalhubEntryId || !participantB?.rivalhubEntryId) continue;
     const round = roundById.get(match.round_id);
     resolved.push({
@@ -558,7 +616,10 @@ export function resolveFinalBracketNodeId(data: BracketData): number | null {
   if (data.stage.length !== 1) return null;
   const stage = data.stage[0];
   if (stage.type !== "single_elimination" && stage.type !== "double_elimination") return null;
-  const groups = data.group.filter((group) => group.stage_id === stage.id && group.number === (stage.type === "double_elimination" ? 3 : 1));
+  const groups = data.group.filter(
+    (group) =>
+      group.stage_id === stage.id && group.number === (stage.type === "double_elimination" ? 3 : 1),
+  );
   if (groups.length !== 1) return null;
   const rounds = data.round.filter((round) => round.group_id === groups[0].id);
   const lastNumber = Math.max(...rounds.map((round) => round.number));

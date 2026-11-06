@@ -11,11 +11,18 @@ import { TeamDirectoryControls } from "@/components/teams/TeamDirectoryControls"
 import { TeamSectionNav } from "@/components/teams/TeamSectionNav";
 import { getUserSession } from "@/lib/auth/session";
 import { getTeamDirectory } from "@/lib/teams/directory";
-import { normalizeTeamDirectoryQuery, type TeamDirectorySearchParams } from "@/lib/teams/directory-contract";
+import {
+  normalizeTeamDirectoryQuery,
+  type TeamDirectorySearchParams,
+} from "@/lib/teams/directory-contract";
 import { countPendingDirectTeamInvitations } from "@/lib/teams/invitations";
 import { getTeamDirectoryCta } from "@/lib/teams/presentation";
 
-export default function TeamDirectoryPage({ searchParams }: { searchParams: Promise<TeamDirectorySearchParams> }) {
+export default function TeamDirectoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<TeamDirectorySearchParams>;
+}) {
   return (
     <Suspense fallback={<TeamDirectoryFallback />}>
       <TeamDirectoryContent searchParams={searchParams} />
@@ -24,10 +31,18 @@ export default function TeamDirectoryPage({ searchParams }: { searchParams: Prom
 }
 
 function TeamDirectoryFallback() {
-  return <PageLayout variant="wide" className="min-h-[60vh]" aria-busy="true"><span className="sr-only">正在加载队伍目录…</span></PageLayout>;
+  return (
+    <PageLayout variant="wide" className="min-h-[60vh]" aria-busy="true">
+      <span className="sr-only">正在加载队伍目录…</span>
+    </PageLayout>
+  );
 }
 
-async function TeamDirectoryContent({ searchParams }: { searchParams: Promise<TeamDirectorySearchParams> }) {
+async function TeamDirectoryContent({
+  searchParams,
+}: {
+  searchParams: Promise<TeamDirectorySearchParams>;
+}) {
   // The directory reads the current time before its asynchronous database query.
   await io();
   const directory = await getTeamDirectory(normalizeTeamDirectoryQuery(await searchParams));
@@ -37,20 +52,48 @@ async function TeamDirectoryContent({ searchParams }: { searchParams: Promise<Te
       <PageHeader
         title="队伍"
         description="查看队伍、成员和赛事履历"
-        actions={<Suspense fallback={<span className="inline-block h-8 w-28" aria-hidden="true" />}><TeamDirectoryActions /></Suspense>}
+        actions={
+          <Suspense fallback={<span className="inline-block h-8 w-28" aria-hidden="true" />}>
+            <TeamDirectoryActions />
+          </Suspense>
+        }
       />
       <div className="space-y-4">
         <TeamSectionNav active="directory" />
         <TeamDirectoryControls normalizedQuery={directory.normalizedQuery} />
       </div>
       <div className="flex items-center justify-between gap-3">
-        <ResultSummary total={directory.total} page={1} pageSize={Math.max(directory.total, 1)} totalPages={1} />
+        <ResultSummary
+          total={directory.total}
+          page={1}
+          pageSize={Math.max(directory.total, 1)}
+          totalPages={1}
+        />
       </div>
-      {directory.rows.length === 0
-        ? directory.hasAnyTeams
-          ? <EmptyState title="没有找到符合条件的队伍" sub="请调整搜索或筛选条件后重试。" />
-          : <EmptyState title="还没有公开队伍" sub="创建队伍后，它会出现在这里。" />
-        : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{directory.rows.map((team) => <TeamDirectoryCard key={team.id} slug={team.slug} name={team.name} logoUrl={team.logoUrl} description={team.description} hasOpenRecruitment={team.hasOpenRecruitment} status={team.status} captainUserId={team.captainUserId} captainName={team.captainName} memberCount={team.memberCount} />)}</div>}
+      {directory.rows.length === 0 ? (
+        directory.hasAnyTeams ? (
+          <EmptyState title="没有找到符合条件的队伍" sub="请调整搜索或筛选条件后重试。" />
+        ) : (
+          <EmptyState title="还没有公开队伍" sub="创建队伍后，它会出现在这里。" />
+        )
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {directory.rows.map((team) => (
+            <TeamDirectoryCard
+              key={team.id}
+              slug={team.slug}
+              name={team.name}
+              logoUrl={team.logoUrl}
+              description={team.description}
+              hasOpenRecruitment={team.hasOpenRecruitment}
+              status={team.status}
+              captainUserId={team.captainUserId}
+              captainName={team.captainName}
+              memberCount={team.memberCount}
+            />
+          ))}
+        </div>
+      )}
     </PageLayout>
   );
 }
@@ -59,13 +102,32 @@ async function TeamDirectoryActions() {
   const session = await getUserSession();
   const [currentTeamRows, pendingDirectInvitationCount] = await Promise.all([
     session
-      ? db.select({ slug: teams.slug, captainUserId: teams.captainUserId }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, session.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1)
+      ? db
+          .select({ slug: teams.slug, captainUserId: teams.captainUserId })
+          .from(teamMemberships)
+          .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
+          .where(
+            and(
+              eq(teamMemberships.userId, session.userId),
+              isNull(teamMemberships.endedAt),
+              eq(teams.status, "active"),
+            ),
+          )
+          .limit(1)
       : Promise.resolve([]),
     session ? countPendingDirectTeamInvitations(session.userId) : Promise.resolve(0),
   ]);
   const currentTeam = currentTeamRows[0] ?? null;
-  const role = currentTeam ? (currentTeam.captainUserId === session?.userId ? "captain" : "member") : null;
+  const role = currentTeam
+    ? currentTeam.captainUserId === session?.userId
+      ? "captain"
+      : "member"
+    : null;
   const cta = getTeamDirectoryCta(role, pendingDirectInvitationCount);
 
-  return session ? <Button size="sm" asChild><Link href={cta.href as never}>{cta.label}</Link></Button> : null;
+  return session ? (
+    <Button size="sm" asChild>
+      <Link href={cta.href as never}>{cta.label}</Link>
+    </Button>
+  ) : null;
 }

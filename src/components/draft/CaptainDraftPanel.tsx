@@ -41,8 +41,15 @@ interface CaptainDraftPanelProps {
   players: CaptainDraftPlayer[];
   seasonPositions: string[];
   /** Already picked members for roster summary */
-  rosterMembers: { userId: string; personaName: string | null; avatarUrl: string | null;
-  hasActivePublicSanction?: boolean; perfectName: string | null; displayName: string | null; primaryPosition: string }[];
+  rosterMembers: {
+    userId: string;
+    personaName: string | null;
+    avatarUrl: string | null;
+    hasActivePublicSanction?: boolean;
+    perfectName: string | null;
+    displayName: string | null;
+    primaryPosition: string;
+  }[];
   captainPosition: string;
   readonly?: boolean;
 }
@@ -51,7 +58,8 @@ export function CaptainDraftPanel({
   seasonId,
   entryId,
   teamName,
-  currentTeamName, currentEntryId,
+  currentTeamName,
+  currentEntryId,
   currentRound,
   roundDeadline,
   isDraftActive,
@@ -71,7 +79,7 @@ export function CaptainDraftPanel({
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [rosterOpen, setRosterOpen] = useState(true);
   const [inspectedId, setInspectedId] = useState<string | null>(null);
-  const inspected = players.find(player => player.registrationId === inspectedId) ?? null;
+  const inspected = players.find((player) => player.registrationId === inspectedId) ?? null;
   useRoutePolling(isReadonly ? null : 10_000, pendingRegistrationId !== null);
 
   const grouped = useMemo(() => {
@@ -115,7 +123,8 @@ export function CaptainDraftPanel({
     return players.find((p) => p.registrationId === candidate.registrationId) ?? null;
   }, [players, positionCounts, isDraftActive, isCurrentCaptainTurn]);
 
-  const canSubmit = interactive && isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
+  const canSubmit =
+    interactive && isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
 
   async function handlePick(player: CaptainDraftPlayer) {
     if (!canSubmit || !canPickPosition(positionCounts[player.primaryPosition] ?? 0)) return;
@@ -138,9 +147,7 @@ export function CaptainDraftPanel({
 
     setMessage({
       type: "success",
-      text: result.data.completed
-        ? "选秀已完成"
-        : `${getPublicDisplayName(player)} 已加入队伍`,
+      text: result.data.completed ? "选秀已完成" : `${getPublicDisplayName(player)} 已加入队伍`,
     });
     router.refresh();
   }
@@ -152,13 +159,21 @@ export function CaptainDraftPanel({
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4 md:col-span-2 xl:col-span-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-[var(--color-fg)]"><TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink></h2>
+              <h2 className="text-lg font-semibold text-[var(--color-fg)]">
+                <TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink>
+              </h2>
               <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-                {isCurrentCaptainTurn
-                  ? `第 ${currentRound ?? "-"} 轮，轮到你选择`
-                  : currentTeamName
-                    ? <>等待 <TeamProfileLink entryId={currentEntryId}>{currentTeamName}</TeamProfileLink> 选择</>
-                    : "等待选秀状态更新"}
+                {isCurrentCaptainTurn ? (
+                  `第 ${currentRound ?? "-"} 轮，轮到你选择`
+                ) : currentTeamName ? (
+                  <>
+                    等待{" "}
+                    <TeamProfileLink entryId={currentEntryId}>{currentTeamName}</TeamProfileLink>{" "}
+                    选择
+                  </>
+                ) : (
+                  "等待选秀状态更新"
+                )}
               </p>
             </div>
             <div className="flex items-center gap-2 text-sm">
@@ -198,18 +213,17 @@ export function CaptainDraftPanel({
             )}
             我的阵容（{rosterMembers.length + 1} 人）
           </button>
-          {(
-            <div className={`border-t border-[var(--color-border)] px-4 py-3 space-y-3 ${rosterOpen ? "" : "hidden md:block"}`}>
+          {
+            <div
+              className={`border-t border-[var(--color-border)] px-4 py-3 space-y-3 ${rosterOpen ? "" : "hidden md:block"}`}
+            >
               {/* Position occupation */}
               <div className="flex flex-wrap gap-2 text-xs text-[var(--color-fg-mid)]">
                 {seasonPositions.map((pos) => {
                   const count = positionCounts[pos] ?? 0;
                   const full = !canPickPosition(count);
                   return (
-                    <span
-                      key={pos}
-                      className={full ? "text-[var(--color-danger)]" : ""}
-                    >
+                    <span key={pos} className={full ? "text-[var(--color-danger)]" : ""}>
                       {positionLabel(pos)} {count}/2
                     </span>
                   );
@@ -223,27 +237,52 @@ export function CaptainDraftPanel({
                 </div>
                 {rosterMembers.map((member, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs text-[var(--color-fg)]">
-                    <PlayerAvatar name={getPublicDisplayName(member)} avatarUrl={member.avatarUrl} hasActivePublicSanction={member.hasActivePublicSanction} size="sm" />
+                    <PlayerAvatar
+                      name={getPublicDisplayName(member)}
+                      avatarUrl={member.avatarUrl}
+                      hasActivePublicSanction={member.hasActivePublicSanction}
+                      size="sm"
+                    />
                     <PosChip pos={positionLabel(member.primaryPosition)} small />
-                    <PlayerProfileLink userId={member.userId}>{getPublicDisplayName(member)}</PlayerProfileLink>
+                    <PlayerProfileLink userId={member.userId}>
+                      {getPublicDisplayName(member)}
+                    </PlayerProfileLink>
                   </div>
                 ))}
               </div>
             </div>
-          )}
+          }
         </div>
       )}
 
       <div className="min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
         {/* Auto-pick candidate hint */}
         {!isReadonly && autoPickCandidate && isCurrentCaptainTurn && (
-          <div className="mb-4 rounded-sm border px-3 py-2 text-xs" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)", color: "var(--color-warn)" }}>
+          <div
+            className="mb-4 rounded-sm border px-3 py-2 text-xs"
+            style={{
+              borderColor: "var(--color-warn-edge)",
+              background: "var(--color-warn-soft)",
+              color: "var(--color-warn)",
+            }}
+          >
             <div className="flex items-center gap-2">
-              <Zap className="size-3.5 shrink-0" aria-hidden="true" style={{ color: "var(--color-warn)" }} />
+              <Zap
+                className="size-3.5 shrink-0"
+                aria-hidden="true"
+                style={{ color: "var(--color-warn)" }}
+              />
               <span>
-                超时自动选人：<PlayerProfileLink userId={autoPickCandidate.userId}>{getPublicDisplayName(autoPickCandidate)}</PlayerProfileLink>（{positionLabel(autoPickCandidate.primaryPosition)}，{autoPickCandidate.peakRank}）
+                超时自动选人：
+                <PlayerProfileLink userId={autoPickCandidate.userId}>
+                  {getPublicDisplayName(autoPickCandidate)}
+                </PlayerProfileLink>
+                （{positionLabel(autoPickCandidate.primaryPosition)}，{autoPickCandidate.peakRank}）
               </span>
-              <HelpTooltip label="自动选人规则" content="依次比较历史最高段位、Peak Rating、当前段位和当前 Rating，优先补齐空位，每位置最多 2 人。" />
+              <HelpTooltip
+                label="自动选人规则"
+                content="依次比较历史最高段位、Peak Rating、当前段位和当前 Rating，优先补齐空位，每位置最多 2 人。"
+              />
             </div>
           </div>
         )}
@@ -251,7 +290,10 @@ export function CaptainDraftPanel({
         {/* Search + filters */}
         <div className="mb-4 space-y-3">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-fg-dim)]" aria-hidden="true" />
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-fg-dim)]"
+              aria-hidden="true"
+            />
             <input
               type="text"
               disabled={!interactive}
@@ -268,7 +310,10 @@ export function CaptainDraftPanel({
               size="sm"
               variant={filter === FILTER_ALL ? "default" : "secondary"}
               disabled={!interactive}
-              onClick={() => { recordFilter("position", FILTER_ALL); setFilter(FILTER_ALL); }}
+              onClick={() => {
+                recordFilter("position", FILTER_ALL);
+                setFilter(FILTER_ALL);
+              }}
             >
               全部 {players.length}
             </Button>
@@ -282,7 +327,11 @@ export function CaptainDraftPanel({
                   size="sm"
                   variant={filter === position ? "default" : "secondary"}
                   disabled={!interactive || count === 0}
-                  onClick={() => { const value = filter === position ? FILTER_ALL : position; recordFilter("position", value); setFilter(value); }}
+                  onClick={() => {
+                    const value = filter === position ? FILTER_ALL : position;
+                    recordFilter("position", value);
+                    setFilter(value);
+                  }}
                 >
                   {positionLabel(position)} {teamCount}/2 · {count}
                 </Button>
@@ -312,7 +361,12 @@ export function CaptainDraftPanel({
                   }`}
                 >
                   <div className="hidden md:flex items-center gap-3">
-                    <PlayerAvatar name={displayedName} avatarUrl={player.avatarUrl} hasActivePublicSanction={player.hasActivePublicSanction} size="sm" />
+                    <PlayerAvatar
+                      name={displayedName}
+                      avatarUrl={player.avatarUrl}
+                      hasActivePublicSanction={player.hasActivePublicSanction}
+                      size="sm"
+                    />
                     {/* Rank badges: peak + current */}
                     <div className="flex shrink-0 items-center gap-1">
                       <span
@@ -365,17 +419,35 @@ export function CaptainDraftPanel({
                       style={{ fontFamily: "var(--font-mono)" }}
                       title={`巅峰 ${player.peakRating.toFixed(0)} / 当前 ${player.currentRating.toFixed(0)}`}
                     >
-                      {player.peakRating.toFixed(0)}{player.currentRating !== player.peakRating && (
+                      {player.peakRating.toFixed(0)}
+                      {player.currentRating !== player.peakRating && (
                         <span className="opacity-60"> / {player.currentRating.toFixed(0)}</span>
                       )}
                     </span>
 
                     {/* Map preferences */}
                     <div className="min-w-0 flex-1">
-                      <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
+                      <MapPreferenceChips
+                        preferences={player.mapPreferences}
+                        compact
+                        minLevel="playable"
+                      />
                     </div>
 
-                    <Button size="sm" variant="ghost" disabled={!interactive} onClick={() => setInspectedId(current => current === player.registrationId ? null : player.registrationId)} aria-expanded={inspectedId === player.registrationId} aria-controls={`draft-detail-${player.registrationId} draft-inspector`}>{interactive ? "详情" : "准备中…"}</Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={!interactive}
+                      onClick={() =>
+                        setInspectedId((current) =>
+                          current === player.registrationId ? null : player.registrationId,
+                        )
+                      }
+                      aria-expanded={inspectedId === player.registrationId}
+                      aria-controls={`draft-detail-${player.registrationId} draft-inspector`}
+                    >
+                      {interactive ? "详情" : "准备中…"}
+                    </Button>
 
                     {/* Pick button */}
                     {!isReadonly && (
@@ -383,7 +455,9 @@ export function CaptainDraftPanel({
                         type="button"
                         size="sm"
                         disabled={disabled}
-                        aria-label={positionOpen ? `选入 ${displayedName}` : `${displayedName} 已满`}
+                        aria-label={
+                          positionOpen ? `选入 ${displayedName}` : `${displayedName} 已满`
+                        }
                         onClick={() => void handlePick(player)}
                         className="shrink-0"
                       >
@@ -399,7 +473,12 @@ export function CaptainDraftPanel({
 
                   <div className="md:hidden space-y-1.5">
                     <div className="flex items-center gap-2">
-                      <PlayerAvatar name={displayedName} avatarUrl={player.avatarUrl} hasActivePublicSanction={player.hasActivePublicSanction} size="sm" />
+                      <PlayerAvatar
+                        name={displayedName}
+                        avatarUrl={player.avatarUrl}
+                        hasActivePublicSanction={player.hasActivePublicSanction}
+                        size="sm"
+                      />
                       <div className="flex shrink-0 items-center gap-1">
                         <span
                           className="inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-bold"
@@ -444,21 +523,41 @@ export function CaptainDraftPanel({
                           style={{ fontFamily: "var(--font-mono)" }}
                           title={`巅峰 ${player.peakRating.toFixed(0)} / 当前 ${player.currentRating.toFixed(0)}`}
                         >
-                          {player.peakRating.toFixed(0)}{player.currentRating !== player.peakRating && (
+                          {player.peakRating.toFixed(0)}
+                          {player.currentRating !== player.peakRating && (
                             <span className="opacity-60"> / {player.currentRating.toFixed(0)}</span>
                           )}
                         </span>
                         <div className="min-w-0">
-                          <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
+                          <MapPreferenceChips
+                            preferences={player.mapPreferences}
+                            compact
+                            minLevel="playable"
+                          />
                         </div>
-                        <Button size="sm" variant="ghost" disabled={!interactive} onClick={() => setInspectedId(current => current === player.registrationId ? null : player.registrationId)} aria-expanded={inspectedId === player.registrationId} aria-controls={`draft-detail-${player.registrationId} draft-inspector`}>{interactive ? "详情" : "准备中…"}</Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={!interactive}
+                          onClick={() =>
+                            setInspectedId((current) =>
+                              current === player.registrationId ? null : player.registrationId,
+                            )
+                          }
+                          aria-expanded={inspectedId === player.registrationId}
+                          aria-controls={`draft-detail-${player.registrationId} draft-inspector`}
+                        >
+                          {interactive ? "详情" : "准备中…"}
+                        </Button>
                       </div>
                       {!isReadonly && (
                         <Button
                           type="button"
                           size="sm"
                           disabled={disabled}
-                          aria-label={positionOpen ? `选入 ${displayedName}` : `${displayedName} 已满`}
+                          aria-label={
+                            positionOpen ? `选入 ${displayedName}` : `${displayedName} 已满`
+                          }
                           onClick={() => void handlePick(player)}
                           className="shrink-0"
                         >
@@ -472,20 +571,92 @@ export function CaptainDraftPanel({
                       )}
                     </div>
                   </div>
-                  {inspectedId === player.registrationId && <div id={`draft-detail-${player.registrationId}`} role="region" aria-label={`选手详情 · ${displayedName}`} className="mt-4 border-t border-[var(--color-border)] pt-4 xl:hidden"><DraftPlayerDetails player={player} canSelect={canSubmit && canPickPosition(positionCounts[player.primaryPosition] ?? 0)} onPick={isReadonly ? undefined : () => void handlePick(player)} /></div>}
+                  {inspectedId === player.registrationId && (
+                    <div
+                      id={`draft-detail-${player.registrationId}`}
+                      role="region"
+                      aria-label={`选手详情 · ${displayedName}`}
+                      className="mt-4 border-t border-[var(--color-border)] pt-4 xl:hidden"
+                    >
+                      <DraftPlayerDetails
+                        player={player}
+                        canSelect={
+                          canSubmit && canPickPosition(positionCounts[player.primaryPosition] ?? 0)
+                        }
+                        onPick={isReadonly ? undefined : () => void handlePick(player)}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
       </div>
-      <aside id="draft-inspector" className="hidden min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-5 md:col-start-2 xl:col-start-3 xl:row-start-2 xl:block xl:sticky xl:top-20" aria-label="选手详情">
-        {inspected ? <DraftPlayerDetails player={inspected} canSelect={canSubmit && canPickPosition(positionCounts[inspected.primaryPosition] ?? 0)} onPick={isReadonly ? undefined : () => void handlePick(inspected)} /> : <><h2 className="font-semibold">选手详情</h2><p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择选手查看。</p></>}
+      <aside
+        id="draft-inspector"
+        className="hidden min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-5 md:col-start-2 xl:col-start-3 xl:row-start-2 xl:block xl:sticky xl:top-20"
+        aria-label="选手详情"
+      >
+        {inspected ? (
+          <DraftPlayerDetails
+            player={inspected}
+            canSelect={canSubmit && canPickPosition(positionCounts[inspected.primaryPosition] ?? 0)}
+            onPick={isReadonly ? undefined : () => void handlePick(inspected)}
+          />
+        ) : (
+          <>
+            <h2 className="font-semibold">选手详情</h2>
+            <p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择选手查看。</p>
+          </>
+        )}
       </aside>
     </div>
   );
 }
 
-function DraftPlayerDetails({ player, canSelect, onPick }: { player: CaptainDraftPlayer; canSelect: boolean; onPick?: () => void }) {
-  return <><p className="text-xs text-[var(--color-fg-mid)]">选手详情</p><h2 className="mt-3 text-xl font-semibold"><PlayerProfileLink userId={player.userId}>{getPublicDisplayName(player)}</PlayerProfileLink></h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">{positionLabel(player.primaryPosition)} · 副选 {positionLabel(player.secondaryPosition)}</p><dl className="my-5 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-[var(--color-fg-mid)]">最高段位</dt><dd className="mt-1 font-mono">{player.peakRank}</dd></div><div><dt className="text-[var(--color-fg-mid)]">Peak Rating</dt><dd className="mt-1 font-mono">{player.peakRating}</dd></div></dl><p className="text-sm leading-6">{player.gameplayStyle || "暂无打法说明"}</p>{player.competitionHistory && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{player.competitionHistory}</p>}{player.notes && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{player.notes}</p>}{onPick && <Button className="mt-5" disabled={!canSelect} onClick={onPick}>选入本队</Button>}</>;
+function DraftPlayerDetails({
+  player,
+  canSelect,
+  onPick,
+}: {
+  player: CaptainDraftPlayer;
+  canSelect: boolean;
+  onPick?: () => void;
+}) {
+  return (
+    <>
+      <p className="text-xs text-[var(--color-fg-mid)]">选手详情</p>
+      <h2 className="mt-3 text-xl font-semibold">
+        <PlayerProfileLink userId={player.userId}>{getPublicDisplayName(player)}</PlayerProfileLink>
+      </h2>
+      <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
+        {positionLabel(player.primaryPosition)} · 副选 {positionLabel(player.secondaryPosition)}
+      </p>
+      <dl className="my-5 grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <dt className="text-[var(--color-fg-mid)]">最高段位</dt>
+          <dd className="mt-1 font-mono">{player.peakRank}</dd>
+        </div>
+        <div>
+          <dt className="text-[var(--color-fg-mid)]">Peak Rating</dt>
+          <dd className="mt-1 font-mono">{player.peakRating}</dd>
+        </div>
+      </dl>
+      <p className="text-sm leading-6">{player.gameplayStyle || "暂无打法说明"}</p>
+      {player.competitionHistory && (
+        <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">
+          {player.competitionHistory}
+        </p>
+      )}
+      {player.notes && (
+        <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{player.notes}</p>
+      )}
+      {onPick && (
+        <Button className="mt-5" disabled={!canSelect} onClick={onPick}>
+          选入本队
+        </Button>
+      )}
+    </>
+  );
 }

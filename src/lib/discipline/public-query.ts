@@ -24,24 +24,42 @@ export function hasActivePublicSanction(userId: AnyPgColumn) {
 }
 
 /** Only serializer-approved columns are read. Internal evidence/actors never enter the projection. */
-export async function getPublicPlayerSanctions(userId: string, database: Pick<DB, "select"> = db, now = new Date()) {
-  const rows = await database.select({
-    id: disciplinaryCases.id,
-    seasonId: disciplinaryCases.seasonId,
-    subjectUserId: disciplinaryCases.subjectUserId,
-    status: disciplinaryCases.status,
-    effects: disciplinaryCases.effects,
-    publicExplanation: disciplinaryCases.publicExplanation,
-    effectiveFrom: disciplinaryCases.effectiveFrom,
-    effectiveUntil: disciplinaryCases.effectiveUntil,
-    createdAt: disciplinaryCases.createdAt,
-    seasonName: seasons.name,
-    seasonSlug: seasons.slug,
-  }).from(disciplinaryCases)
+export async function getPublicPlayerSanctions(
+  userId: string,
+  database: Pick<DB, "select"> = db,
+  now = new Date(),
+) {
+  const rows = await database
+    .select({
+      id: disciplinaryCases.id,
+      seasonId: disciplinaryCases.seasonId,
+      subjectUserId: disciplinaryCases.subjectUserId,
+      status: disciplinaryCases.status,
+      effects: disciplinaryCases.effects,
+      publicExplanation: disciplinaryCases.publicExplanation,
+      effectiveFrom: disciplinaryCases.effectiveFrom,
+      effectiveUntil: disciplinaryCases.effectiveUntil,
+      createdAt: disciplinaryCases.createdAt,
+      seasonName: seasons.name,
+      seasonSlug: seasons.slug,
+    })
+    .from(disciplinaryCases)
     .innerJoin(seasons, eq(seasons.id, disciplinaryCases.seasonId))
-    .where(and(eq(disciplinaryCases.subjectUserId, userId), ne(disciplinaryCases.status, "draft"), lte(disciplinaryCases.effectiveFrom, now), ne(seasons.status, "draft")))
+    .where(
+      and(
+        eq(disciplinaryCases.subjectUserId, userId),
+        ne(disciplinaryCases.status, "draft"),
+        lte(disciplinaryCases.effectiveFrom, now),
+        ne(seasons.status, "draft"),
+      ),
+    )
     .orderBy(desc(disciplinaryCases.effectiveFrom), desc(disciplinaryCases.id));
-  return rows.map((row) => ({ ...serializeSanctionPublic(row, now), seasonName: row.seasonName, seasonSlug: row.seasonSlug }))
+  return rows
+    .map((row) => ({
+      ...serializeSanctionPublic(row, now),
+      seasonName: row.seasonName,
+      seasonSlug: row.seasonSlug,
+    }))
     .filter((row) => row.status !== "draft");
 }
 

@@ -15,156 +15,205 @@ export const rivalHubDemoSyncStatusSchema = z.enum([
 ]);
 export type RivalHubDemoSyncStatus = z.infer<typeof rivalHubDemoSyncStatusSchema>;
 
-const integrationIssueSchema = z.object({
-  code: z.string().min(1),
-  path: z.string().min(1).optional(),
-  message: z.string().min(1),
-}).strict();
+const integrationIssueSchema = z
+  .object({
+    code: z.string().min(1),
+    path: z.string().min(1).optional(),
+    message: z.string().min(1),
+  })
+  .strict();
 
-const remotePlayerSchema = z.object({
-  entryId: z.guid(),
-  userId: z.guid(),
-  eventRosterMemberId: z.guid(),
-  steamId64: z.string().regex(/^\d{17}$/),
-  name: z.string().min(1),
-  isStarter: z.boolean(),
-}).strict();
+const remotePlayerSchema = z
+  .object({
+    entryId: z.guid(),
+    userId: z.guid(),
+    eventRosterMemberId: z.guid(),
+    steamId64: z.string().regex(/^\d{17}$/),
+    name: z.string().min(1),
+    isStarter: z.boolean(),
+  })
+  .strict();
 
-const remoteTeamSchema = z.object({
-  key: z.guid(),
-  name: z.string().min(1),
-  players: z.array(remotePlayerSchema),
-}).strict();
+const remoteTeamSchema = z
+  .object({
+    key: z.guid(),
+    name: z.string().min(1),
+    players: z.array(remotePlayerSchema),
+  })
+  .strict();
 
 /** Official stage standings facts supplied by RivalHub; DAK never derives rank. */
-const remoteStandingSchema = z.object({
-  entryId: z.string().min(1),
-  teamName: z.string().min(1).optional(),
-  rank: z.number().int().positive(),
-  wins: z.number().int().nonnegative(),
-  losses: z.number().int().nonnegative(),
-  roundWins: z.number().int().nonnegative().optional(),
-  roundLosses: z.number().int().nonnegative().optional(),
-  roundDiff: z.number().int().optional(),
-  tiebreakFacts: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
-  status: z.string().min(1).optional(),
-  outcome: z.string().min(1).optional(),
-}).strict();
+const remoteStandingSchema = z
+  .object({
+    entryId: z.string().min(1),
+    teamName: z.string().min(1).optional(),
+    rank: z.number().int().positive(),
+    wins: z.number().int().nonnegative(),
+    losses: z.number().int().nonnegative(),
+    roundWins: z.number().int().nonnegative().optional(),
+    roundLosses: z.number().int().nonnegative().optional(),
+    roundDiff: z.number().int().optional(),
+    tiebreakFacts: z
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+      .optional(),
+    status: z.string().min(1).optional(),
+    outcome: z.string().min(1).optional(),
+  })
+  .strict();
 
-const remoteStageSchema = z.object({
-  key: z.string().min(1),
-  name: z.string().min(1),
-  type: z.enum(["round_robin", "swiss", "single_elim", "double_elim", "gsl_group"]),
-  teamCount: z.number().int().positive(),
-  advanceCount: z.number().int().nonnegative(),
-  matchFormat: z.enum(["bo1", "bo3", "bo5"]).nullable(),
-  finalFormat: z.enum(["bo3", "bo5"]).nullable(),
-  bracketNodes: z.array(z.object({
-    id: z.string().min(1),
-    label: z.string().min(1),
-    round: z.number().int().positive(),
-    lane: z.enum(["single", "winner", "loser", "grand"]),
-    nextWinNodeId: z.string().nullable(),
-    nextLossNodeId: z.string().nullable(),
-  }).strict()).optional(),
-  standings: z.array(remoteStandingSchema).optional(),
-}).strict();
+const remoteStageSchema = z
+  .object({
+    key: z.string().min(1),
+    name: z.string().min(1),
+    type: z.enum(["round_robin", "swiss", "single_elim", "double_elim", "gsl_group"]),
+    teamCount: z.number().int().positive(),
+    advanceCount: z.number().int().nonnegative(),
+    matchFormat: z.enum(["bo1", "bo3", "bo5"]).nullable(),
+    finalFormat: z.enum(["bo3", "bo5"]).nullable(),
+    bracketNodes: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1),
+            label: z.string().min(1),
+            round: z.number().int().positive(),
+            lane: z.enum(["single", "winner", "loser", "grand"]),
+            nextWinNodeId: z.string().nullable(),
+            nextLossNodeId: z.string().nullable(),
+          })
+          .strict(),
+      )
+      .optional(),
+    standings: z.array(remoteStandingSchema).optional(),
+  })
+  .strict();
 
-const remoteMapSchema = z.object({
-  id: z.guid(),
-  order: z.number().int().positive().max(5),
-  mapName: z.string().min(1),
-  scoreA: z.number().int().nonnegative().nullable(),
-  scoreB: z.number().int().nonnegative().nullable(),
-  completedAt: z.string().datetime().nullable(),
-  evidenceRevision: z.string().min(1),
-  target: z.object({
-    seasonId: z.guid(),
+const remoteMapSchema = z
+  .object({
+    id: z.guid(),
+    order: z.number().int().positive().max(5),
+    mapName: z.string().min(1),
+    scoreA: z.number().int().nonnegative().nullable(),
+    scoreB: z.number().int().nonnegative().nullable(),
+    completedAt: z.string().datetime().nullable(),
+    evidenceRevision: z.string().min(1),
+    target: z
+      .object({
+        seasonId: z.guid(),
+        stageKey: z.string().min(1),
+        stageRunId: z.guid().nullable(),
+        matchId: z.guid(),
+        matchMapId: z.guid(),
+        mapOrder: z.number().int().positive().max(5),
+        entryAId: z.guid(),
+        entryBId: z.guid(),
+        expectedMapName: z.string().min(1),
+        evidenceRevision: z.string().min(1),
+      })
+      .strict(),
+    lineup: z.array(remotePlayerSchema),
+    demoStatus: rivalHubDemoSyncStatusSchema,
+    demoIssues: z.array(integrationIssueSchema),
+    importId: z.guid().nullable(),
+    demoSha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .nullable(),
+  })
+  .strict();
+
+const remoteVetoStepSchema = z
+  .object({
+    stepOrder: z.number().int().positive(),
+    actionType: z.string().min(1),
+    mapName: z.string().min(1),
+    teamKey: z.enum(["teamA", "teamB"]).nullable(),
+    side: z.enum(["t", "ct"]).nullable(),
+  })
+  .strict();
+
+const remoteVetoSchema = z
+  .object({
+    version: z.literal("cs2-demo-analysis-kit/series-veto-0.1"),
+    seriesId: z.string().min(1),
+    format: z.enum(["bo1", "bo3", "bo5"]),
+    teamAName: z.string().min(1),
+    teamBName: z.string().min(1),
+    mapPool: z.array(z.string().min(1)),
+    steps: z.array(remoteVetoStepSchema),
+    maps: z
+      .object({
+        picked: z.array(
+          z.object({ mapName: z.string().min(1), teamKey: z.enum(["teamA", "teamB"]) }).strict(),
+        ),
+        banned: z.array(
+          z.object({ mapName: z.string().min(1), teamKey: z.enum(["teamA", "teamB"]) }).strict(),
+        ),
+        decider: z.string().nullable(),
+      })
+      .strict(),
+    sideChoices: z.array(
+      z
+        .object({
+          mapName: z.string().min(1),
+          teamKey: z.enum(["teamA", "teamB"]).nullable(),
+          side: z.enum(["t", "ct"]),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+const remoteSeriesSchema = z
+  .object({
+    id: z.guid(),
+    key: z.string().min(1),
     stageKey: z.string().min(1),
-    stageRunId: z.guid().nullable(),
-    matchId: z.guid(),
-    matchMapId: z.guid(),
-    mapOrder: z.number().int().positive().max(5),
+    round: z.number().int().nonnegative().nullable(),
+    entryRound: z.string().nullable(),
+    bracketNodeId: z.string().nullable(),
+    status: z.enum(["scheduled", "in_progress", "finished", "cancelled"]),
+    /** Present only when the client opts in with seriesDisposition=1. */
+    isForfeit: z.boolean().optional(),
+    format: z.enum(["bo1", "bo3", "bo5"]),
     entryAId: z.guid(),
     entryBId: z.guid(),
-    expectedMapName: z.string().min(1),
-    evidenceRevision: z.string().min(1),
-  }).strict(),
-  lineup: z.array(remotePlayerSchema),
-  demoStatus: rivalHubDemoSyncStatusSchema,
-  demoIssues: z.array(integrationIssueSchema),
-  importId: z.guid().nullable(),
-  demoSha256: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
-}).strict();
+    teamAKey: z.guid(),
+    teamBKey: z.guid(),
+    teamAName: z.string().min(1),
+    teamBName: z.string().min(1),
+    scoreA: z.number().int().nonnegative().nullable(),
+    scoreB: z.number().int().nonnegative().nullable(),
+    scheduledAt: z.string().datetime().nullable(),
+    completedAt: z.string().datetime().nullable(),
+    teamARecordBefore: z.string().nullable(),
+    teamBRecordBefore: z.string().nullable(),
+    maps: z.array(remoteMapSchema),
+    veto: remoteVetoSchema.nullable(),
+  })
+  .strict();
 
-const remoteVetoStepSchema = z.object({
-  stepOrder: z.number().int().positive(),
-  actionType: z.string().min(1),
-  mapName: z.string().min(1),
-  teamKey: z.enum(["teamA", "teamB"]).nullable(),
-  side: z.enum(["t", "ct"]).nullable(),
-}).strict();
+const remoteEventSchema = z
+  .object({
+    id: z.guid(),
+    seasonId: z.guid(),
+    slug: z.string().min(1),
+    name: z.string().min(1),
+    kind: z.string().min(1),
+    revision: z.string().min(1),
+    stages: z.array(remoteStageSchema),
+    teams: z.array(remoteTeamSchema),
+    series: z.array(remoteSeriesSchema),
+  })
+  .strict();
 
-const remoteVetoSchema = z.object({
-  version: z.literal("cs2-demo-analysis-kit/series-veto-0.1"),
-  seriesId: z.string().min(1),
-  format: z.enum(["bo1", "bo3", "bo5"]),
-  teamAName: z.string().min(1),
-  teamBName: z.string().min(1),
-  mapPool: z.array(z.string().min(1)),
-  steps: z.array(remoteVetoStepSchema),
-  maps: z.object({
-    picked: z.array(z.object({ mapName: z.string().min(1), teamKey: z.enum(["teamA", "teamB"]) }).strict()),
-    banned: z.array(z.object({ mapName: z.string().min(1), teamKey: z.enum(["teamA", "teamB"]) }).strict()),
-    decider: z.string().nullable(),
-  }).strict(),
-  sideChoices: z.array(z.object({ mapName: z.string().min(1), teamKey: z.enum(["teamA", "teamB"]).nullable(), side: z.enum(["t", "ct"]) }).strict()),
-}).strict();
-
-const remoteSeriesSchema = z.object({
-  id: z.guid(),
-  key: z.string().min(1),
-  stageKey: z.string().min(1),
-  round: z.number().int().nonnegative().nullable(),
-  entryRound: z.string().nullable(),
-  bracketNodeId: z.string().nullable(),
-  status: z.enum(["scheduled", "in_progress", "finished", "cancelled"]),
-  /** Present only when the client opts in with seriesDisposition=1. */
-  isForfeit: z.boolean().optional(),
-  format: z.enum(["bo1", "bo3", "bo5"]),
-  entryAId: z.guid(),
-  entryBId: z.guid(),
-  teamAKey: z.guid(),
-  teamBKey: z.guid(),
-  teamAName: z.string().min(1),
-  teamBName: z.string().min(1),
-  scoreA: z.number().int().nonnegative().nullable(),
-  scoreB: z.number().int().nonnegative().nullable(),
-  scheduledAt: z.string().datetime().nullable(),
-  completedAt: z.string().datetime().nullable(),
-  teamARecordBefore: z.string().nullable(),
-  teamBRecordBefore: z.string().nullable(),
-  maps: z.array(remoteMapSchema),
-  veto: remoteVetoSchema.nullable(),
-}).strict();
-
-const remoteEventSchema = z.object({
-  id: z.guid(),
-  seasonId: z.guid(),
-  slug: z.string().min(1),
-  name: z.string().min(1),
-  kind: z.string().min(1),
-  revision: z.string().min(1),
-  stages: z.array(remoteStageSchema),
-  teams: z.array(remoteTeamSchema),
-  series: z.array(remoteSeriesSchema),
-}).strict();
-
-export const rivalHubEventsResponseSchema = z.object({
-  contractVersion: z.literal(DAK_INTEGRATION_VERSION),
-  generatedAt: z.string().datetime(),
-  events: z.array(remoteEventSchema),
-}).strict();
+export const rivalHubEventsResponseSchema = z
+  .object({
+    contractVersion: z.literal(DAK_INTEGRATION_VERSION),
+    generatedAt: z.string().datetime(),
+    events: z.array(remoteEventSchema),
+  })
+  .strict();
 
 export type RivalHubRemotePlayer = z.infer<typeof remotePlayerSchema>;
 export type RivalHubRemoteTeam = z.infer<typeof remoteTeamSchema>;

@@ -10,15 +10,37 @@ export interface AdminExceptionSummaryData {
   activeAdjudications: number;
 }
 
-export function AdminExceptionSummary({ seasonSlug, data }: { seasonSlug: string; data: AdminExceptionSummaryData }) {
+export function AdminExceptionSummary({
+  seasonSlug,
+  data,
+}: {
+  seasonSlug: string;
+  data: AdminExceptionSummaryData;
+}) {
   const items = [
-    ...(data.competitionTemplate === "major" ? [
-      { label: "未确认参赛名单", value: data.unconfirmedEntrants, href: `/admin/${seasonSlug}/prestart` },
-    ] : []),
-    { label: "已排期但名单未确认", value: data.scheduledMatchesWithoutConfirmedLineups, href: `/admin/${seasonSlug}/matches` },
-    ...(data.competitionTemplate === "major" ? [
-      { label: "最终结果待确认", value: data.finalResultPendingConfirmation ? 1 : 0, href: `/admin/${seasonSlug}/post-event` },
-    ] : []),
+    ...(data.competitionTemplate === "major"
+      ? [
+          {
+            label: "未确认参赛名单",
+            value: data.unconfirmedEntrants,
+            href: `/admin/${seasonSlug}/prestart`,
+          },
+        ]
+      : []),
+    {
+      label: "已排期但名单未确认",
+      value: data.scheduledMatchesWithoutConfirmedLineups,
+      href: `/admin/${seasonSlug}/matches`,
+    },
+    ...(data.competitionTemplate === "major"
+      ? [
+          {
+            label: "最终结果待确认",
+            value: data.finalResultPendingConfirmation ? 1 : 0,
+            href: `/admin/${seasonSlug}/post-event`,
+          },
+        ]
+      : []),
   ].filter((item) => item.value > 0);
 
   return (
@@ -27,14 +49,22 @@ export function AdminExceptionSummary({ seasonSlug, data }: { seasonSlug: string
         <h2 className="font-semibold">当前待处理事项</h2>
         <span className="text-xs text-muted-foreground">仅显示需要运营者处理的事项</span>
       </div>
-      {items.length === 0 ? <p className="text-sm text-muted-foreground">当前无待处理事项。</p> : <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
-        {items.map((item) => (
-          <Link key={item.label} href={item.href as never} className="rounded-md border border-border px-3 py-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">
-            <span className="block text-lg font-semibold tabular-nums">{item.value}</span>
-            <span className="block text-xs text-muted-foreground">{item.label}</span>
-          </Link>
-        ))}
-      </div>}
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">当前无待处理事项。</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
+          {items.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href as never}
+              className="rounded-md border border-border px-3 py-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+            >
+              <span className="block text-lg font-semibold tabular-nums">{item.value}</span>
+              <span className="block text-xs text-muted-foreground">{item.label}</span>
+            </Link>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

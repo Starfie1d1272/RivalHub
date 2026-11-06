@@ -64,10 +64,7 @@ export function TeamDraftGrid({
                 aria-controls={`team-roster-${team.entryId}`}
                 disabled={isCurrent}
                 className="w-full flex items-center justify-between px-3 py-2 text-left"
-                onClick={() =>
-                  !isCurrent &&
-                  setExpandedId(isExpanded ? null : team.entryId)
-                }
+                onClick={() => !isCurrent && setExpandedId(isExpanded ? null : team.entryId)}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   {isCurrent && (
@@ -75,9 +72,7 @@ export function TeamDraftGrid({
                   )}
                   <span
                     className={`text-sm font-bold truncate ${
-                      isCurrent
-                        ? "text-[var(--color-accent)]"
-                        : "text-[var(--color-fg)]"
+                      isCurrent ? "text-[var(--color-accent)]" : "text-[var(--color-fg)]"
                     }`}
                   >
                     {team.teamName}
@@ -85,18 +80,58 @@ export function TeamDraftGrid({
                 </div>
                 <span className="ml-2 flex shrink-0 items-center gap-2 font-mono text-xs text-[var(--color-fg-dim)]">
                   {team.members.length}/{totalRounds}
-                  {!isCurrent && <ChevronDown className={`size-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} aria-hidden="true" />}
+                  {!isCurrent && (
+                    <ChevronDown
+                      className={`size-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                      aria-hidden="true"
+                    />
+                  )}
                 </span>
-              </button><TeamProfileLink entryId={team.entryId} variant="dense" className="px-3" aria-label={`查看 ${team.teamName} 队伍资料`}>查看队伍 ↗</TeamProfileLink>
+              </button>
+              <TeamProfileLink
+                entryId={team.entryId}
+                variant="dense"
+                className="px-3"
+                aria-label={`查看 ${team.teamName} 队伍资料`}
+              >
+                查看队伍 ↗
+              </TeamProfileLink>
 
               {/* 展开内容 */}
               {isExpanded && (
-                <div id={`team-roster-${team.entryId}`} className="px-3 pb-3 space-y-1 border-t border-[var(--color-border)]">
+                <div
+                  id={`team-roster-${team.entryId}`}
+                  className="px-3 pb-3 space-y-1 border-t border-[var(--color-border)]"
+                >
                   {/* 队长行 */}
                   <div className="flex items-center justify-between py-1">
                     <span className="flex min-w-0 items-center gap-2 text-xs text-[var(--color-fg-mid)]">
                       <span className="text-[var(--color-fg-dim)]">队长 </span>
-                      {team.captain.userId ? <PlayerProfileLink userId={team.captain.userId} aria-label={getPublicDisplayName(team.captain)} className="inline-flex min-w-0 items-center gap-2"><PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} hasActivePublicSanction={team.captain.hasActivePublicSanction} size="sm" /><span>{getPublicDisplayName(team.captain)}</span></PlayerProfileLink> : <><PlayerAvatar name={getPublicDisplayName(team.captain)} avatarUrl={team.captain.avatarUrl} hasActivePublicSanction={team.captain.hasActivePublicSanction} size="sm" />{getPublicDisplayName(team.captain)}</>}
+                      {team.captain.userId ? (
+                        <PlayerProfileLink
+                          userId={team.captain.userId}
+                          aria-label={getPublicDisplayName(team.captain)}
+                          className="inline-flex min-w-0 items-center gap-2"
+                        >
+                          <PlayerAvatar
+                            name={getPublicDisplayName(team.captain)}
+                            avatarUrl={team.captain.avatarUrl}
+                            hasActivePublicSanction={team.captain.hasActivePublicSanction}
+                            size="sm"
+                          />
+                          <span>{getPublicDisplayName(team.captain)}</span>
+                        </PlayerProfileLink>
+                      ) : (
+                        <>
+                          <PlayerAvatar
+                            name={getPublicDisplayName(team.captain)}
+                            avatarUrl={team.captain.avatarUrl}
+                            hasActivePublicSanction={team.captain.hasActivePublicSanction}
+                            size="sm"
+                          />
+                          {getPublicDisplayName(team.captain)}
+                        </>
+                      )}
                     </span>
                     <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase">
                       {positionLabel(team.captain.primaryPosition)}
@@ -109,7 +144,19 @@ export function TeamDraftGrid({
                       className="flex items-center justify-between py-1"
                     >
                       <span className="flex min-w-0 items-center gap-2 text-xs text-[var(--color-fg)]">
-                        <PlayerProfileLink userId={m.userId} aria-label={getPublicDisplayName(m)} className="inline-flex min-w-0 items-center gap-2"><PlayerAvatar name={getPublicDisplayName(m)} avatarUrl={m.avatarUrl} hasActivePublicSanction={m.hasActivePublicSanction} size="sm" /><span>{getPublicDisplayName(m)}</span></PlayerProfileLink>
+                        <PlayerProfileLink
+                          userId={m.userId}
+                          aria-label={getPublicDisplayName(m)}
+                          className="inline-flex min-w-0 items-center gap-2"
+                        >
+                          <PlayerAvatar
+                            name={getPublicDisplayName(m)}
+                            avatarUrl={m.avatarUrl}
+                            hasActivePublicSanction={m.hasActivePublicSanction}
+                            size="sm"
+                          />
+                          <span>{getPublicDisplayName(m)}</span>
+                        </PlayerProfileLink>
                         {m.autoPicked && (
                           <span className="text-[var(--color-warn)] ml-0.5">⚡</span>
                         )}
@@ -128,9 +175,7 @@ export function TeamDraftGrid({
                     </div>
                   ))}
                   {emptySlots === 0 && (
-                    <div className="py-1 text-xs text-[var(--color-ok)]">
-                      阵容已满
-                    </div>
+                    <div className="py-1 text-xs text-[var(--color-ok)]">阵容已满</div>
                   )}
                   {isCurrent && (
                     <div className="pt-1 text-xs font-medium text-[var(--color-accent)]">
@@ -145,14 +190,73 @@ export function TeamDraftGrid({
       </div>
 
       <div className="hidden gap-3 md:grid md:grid-cols-2 lg:grid-cols-4 min-[112.5rem]:grid-cols-8">
-        {sorted.map(team => <section key={team.entryId} className={`min-w-0 overflow-hidden rounded-[var(--radius-md)] border ${team.entryId === currentEntryId ? "border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)]" : "border-[var(--color-border)] bg-[var(--color-panel)]"}`}>
-          <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-3"><h3 className="min-w-0 truncate font-semibold"><TeamProfileLink entryId={team.entryId}>{team.teamName}</TeamProfileLink></h3><span className="font-mono text-xs text-[var(--color-fg-mid)]">{String(team.draftOrder).padStart(2, "0")}</span></header>
-          <div className="space-y-1 px-3 py-3 min-[112.5rem]:space-y-2">
-            <div className="border-b border-[var(--color-border)] pb-3"><p className="mb-1 text-xs text-[var(--color-accent)]">队长 · {positionLabel(team.captain.primaryPosition)}</p><p className="truncate text-sm font-medium">{team.captain.userId ? <PlayerProfileLink userId={team.captain.userId}>{getPublicDisplayName(team.captain)}</PlayerProfileLink> : getPublicDisplayName(team.captain)}</p></div>
-            {team.members.map(member => <div key={member.userId} className="flex min-h-8 min-[112.5rem]:min-h-9 min-w-0 items-center gap-2 text-sm"><span className="w-5 shrink-0 font-mono text-xs text-[var(--color-fg-mid)]">R{member.pickRound}</span><PlayerProfileLink userId={member.userId} className="min-w-0 flex-1 truncate">{getPublicDisplayName(member)}</PlayerProfileLink><span className="shrink-0 text-xs text-[var(--color-fg-mid)]" title={positionLabel(member.primaryPosition)}>{positionLabel(member.primaryPosition)}</span>{member.autoPicked && <span title="自动选人" className="text-[var(--color-warn)]">⚡</span>}</div>)}
-            {!archive && Array.from({ length: Math.max(0, totalRounds - team.members.length) }, (_, index) => <div key={index} className="flex min-h-8 min-[112.5rem]:min-h-9 items-center gap-2 border-t border-dashed border-[var(--color-border)] text-xs text-[var(--color-fg-mid)]"><span className="w-5 font-mono">R{team.members.length + index + 1}</span>待选</div>)}
-          </div>
-        </section>)}
+        {sorted.map((team) => (
+          <section
+            key={team.entryId}
+            className={`min-w-0 overflow-hidden rounded-[var(--radius-md)] border ${team.entryId === currentEntryId ? "border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)]" : "border-[var(--color-border)] bg-[var(--color-panel)]"}`}
+          >
+            <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-3">
+              <h3 className="min-w-0 truncate font-semibold">
+                <TeamProfileLink entryId={team.entryId}>{team.teamName}</TeamProfileLink>
+              </h3>
+              <span className="font-mono text-xs text-[var(--color-fg-mid)]">
+                {String(team.draftOrder).padStart(2, "0")}
+              </span>
+            </header>
+            <div className="space-y-1 px-3 py-3 min-[112.5rem]:space-y-2">
+              <div className="border-b border-[var(--color-border)] pb-3">
+                <p className="mb-1 text-xs text-[var(--color-accent)]">
+                  队长 · {positionLabel(team.captain.primaryPosition)}
+                </p>
+                <p className="truncate text-sm font-medium">
+                  {team.captain.userId ? (
+                    <PlayerProfileLink userId={team.captain.userId}>
+                      {getPublicDisplayName(team.captain)}
+                    </PlayerProfileLink>
+                  ) : (
+                    getPublicDisplayName(team.captain)
+                  )}
+                </p>
+              </div>
+              {team.members.map((member) => (
+                <div
+                  key={member.userId}
+                  className="flex min-h-8 min-[112.5rem]:min-h-9 min-w-0 items-center gap-2 text-sm"
+                >
+                  <span className="w-5 shrink-0 font-mono text-xs text-[var(--color-fg-mid)]">
+                    R{member.pickRound}
+                  </span>
+                  <PlayerProfileLink userId={member.userId} className="min-w-0 flex-1 truncate">
+                    {getPublicDisplayName(member)}
+                  </PlayerProfileLink>
+                  <span
+                    className="shrink-0 text-xs text-[var(--color-fg-mid)]"
+                    title={positionLabel(member.primaryPosition)}
+                  >
+                    {positionLabel(member.primaryPosition)}
+                  </span>
+                  {member.autoPicked && (
+                    <span title="自动选人" className="text-[var(--color-warn)]">
+                      ⚡
+                    </span>
+                  )}
+                </div>
+              ))}
+              {!archive &&
+                Array.from(
+                  { length: Math.max(0, totalRounds - team.members.length) },
+                  (_, index) => (
+                    <div
+                      key={index}
+                      className="flex min-h-8 min-[112.5rem]:min-h-9 items-center gap-2 border-t border-dashed border-[var(--color-border)] text-xs text-[var(--color-fg-mid)]"
+                    >
+                      <span className="w-5 font-mono">R{team.members.length + index + 1}</span>待选
+                    </div>
+                  ),
+                )}
+            </div>
+          </section>
+        ))}
       </div>
     </>
   );

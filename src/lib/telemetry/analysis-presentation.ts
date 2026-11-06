@@ -122,40 +122,31 @@ export const operationLabels = {
   "community-awards.submitCommunityAward": "提交奖项申请",
   "community-awards.withdrawCommunityAward": "撤回奖项申请",
   "competition-entries.addCompetitionEntryRosterMember": "添加赛事成员",
-  "competition-entries.transferCompetitionEntryParticipation":
-    "转移赛事参与资格",
+  "competition-entries.transferCompetitionEntryParticipation": "转移赛事参与资格",
   "competition-entries.confirmCompetitionEntryParticipation": "确认赛事参与",
   "competition-entries.createCompetitionEntry": "创建参赛队伍",
-  "competition-entries.declineCompetitionEntryParticipation":
-    "拒绝赛事参与邀请",
-  "competition-entries.grantCompetitionEntryRestrictionOverride":
-    "批准参赛限制例外",
+  "competition-entries.declineCompetitionEntryParticipation": "拒绝赛事参与邀请",
+  "competition-entries.grantCompetitionEntryRestrictionOverride": "批准参赛限制例外",
   "competition-entries.requestCompetitionEntryRosterChange": "申请更换赛事成员",
   "competition-entries.reviewCompetitionEntry": "审核参赛队伍",
-  "competition-entries.revokeCompetitionEntryRestrictionOverride":
-    "撤销参赛限制例外",
+  "competition-entries.revokeCompetitionEntryRestrictionOverride": "撤销参赛限制例外",
   "competition-entries.saveCompetitionEntryRoster": "保存赛事名单",
   "competition-entries.submitCompetitionEntry": "提交队伍报名",
-  "competition-entries.transferCompetitionEntryRepresentative":
-    "转交参赛负责人",
+  "competition-entries.transferCompetitionEntryRepresentative": "转交参赛负责人",
   "competition-entries.withdrawCompetitionEntryFromReview": "撤回队伍报名",
   "competition-entries.withdrawCompetitionEntryParticipation": "退出赛事",
   "competition-qualification.configureCompetitionQualification": "配置资格方案",
-  "competition-qualification.generateCompetitionQualificationRound":
-    "生成资格赛轮次",
+  "competition-qualification.generateCompetitionQualificationRound": "生成资格赛轮次",
   "competition-qualification.resetCompetitionQualification": "重置资格赛",
-  "competition-qualification.saveCompetitionQualificationDraft":
-    "保存资格方案草稿",
+  "competition-qualification.saveCompetitionQualificationDraft": "保存资格方案草稿",
   "competitive-platform.createCompetitivePlatformRank": "创建竞技段位",
   "competitive-platform.createCompetitivePlatformSeason": "创建竞技平台赛季",
   "competitive-platform.deleteCompetitivePlatformRank": "删除竞技段位",
   "competitive-platform.deleteCompetitivePlatformSeason": "删除竞技平台赛季",
   "competitive-platform.moveCompetitivePlatformRank": "调整竞技段位顺序",
   "competitive-platform.moveCompetitivePlatformSeason": "调整竞技赛季顺序",
-  "competitive-platform.setCompetitivePlatformSeasonActive":
-    "调整竞技赛季可用状态",
-  "competitive-platform.setCurrentCompetitivePlatformSeason":
-    "设置当前竞技赛季",
+  "competitive-platform.setCompetitivePlatformSeasonActive": "调整竞技赛季可用状态",
+  "competitive-platform.setCurrentCompetitivePlatformSeason": "设置当前竞技赛季",
   "competitive-platform.updateCompetitivePlatform": "更新竞技平台",
   "competitive-platform.updateCompetitivePlatformRankLabel": "更新竞技段位名称",
   "competitive-platform.updateCompetitivePlatformSeason": "更新竞技平台赛季",
@@ -180,11 +171,9 @@ export const operationLabels = {
   "draft.resumeDraft": "继续选秀",
   "draft.startDraft": "开始选秀",
   "education-verifications.createManualInstitution": "创建教育机构",
-  "education-verifications.declareInstitutionalEmailEducation":
-    "声明学校邮箱认证",
+  "education-verifications.declareInstitutionalEmailEducation": "声明学校邮箱认证",
   "education-verifications.reviewEducationVerification": "审核教育认证",
-  "education-verifications.submitAdmissionNoticeEducation":
-    "提交录取通知书认证",
+  "education-verifications.submitAdmissionNoticeEducation": "提交录取通知书认证",
   "education-verifications.submitEducationVerification": "提交教育认证",
   "feedback.setFeedbackStatus": "调整反馈处理状态",
   "feedback.submitFeedback": "提交反馈",
@@ -495,9 +484,22 @@ export const routeName = (key: string) =>
 export const opName = (key: string) =>
   (operationLabels as Partial<Record<string, string>>)[key] ?? "其他操作";
 export const cat = (key: string) =>
-  categoryLabels[key] ??
-  (errorLabels as Partial<Record<string, string>>)[key] ??
-  "其他分类";
+  categoryLabels[key] ?? (errorLabels as Partial<Record<string, string>>)[key] ?? "其他分类";
 
-export const readyModules: Record<string, string> = { match: "比赛", schedule: "赛程", statistics: "统计", player: "选手", team: "队伍", bet: "竞猜", prediction: "预测", admin: "后台", account: "账号与参赛", public: "公开内容" };
-export const readyPhases: Record<string, string> = { primary: "主体内容可用", advanced: "详细内容可用", form: "表单可操作" };
+export const readyModules: Record<string, string> = {
+  match: "比赛",
+  schedule: "赛程",
+  statistics: "统计",
+  player: "选手",
+  team: "队伍",
+  bet: "竞猜",
+  prediction: "预测",
+  admin: "后台",
+  account: "账号与参赛",
+  public: "公开内容",
+};
+export const readyPhases: Record<string, string> = {
+  primary: "主体内容可用",
+  advanced: "详细内容可用",
+  form: "表单可操作",
+};

@@ -58,9 +58,24 @@ export const SCHEDULER_JOB_DEFINITIONS = [
     primaryCron: "* * * * *",
     staleAfterMs: 3 * 60 * 1000,
   },
-  { key: SCHEDULER_JOB_KEYS[6], label: "观赛预测结算", primaryCron: "* * * * *", staleAfterMs: 3 * 60 * 1000 },
-  { key: SCHEDULER_JOB_KEYS[7], label: "比赛 MVP 结算", primaryCron: "*/5 * * * *", staleAfterMs: 15 * 60 * 1000 },
-  { key: SCHEDULER_JOB_KEYS[8], label: "统计投影补建", primaryCron: "*/5 * * * *", staleAfterMs: 15 * 60 * 1000 },
+  {
+    key: SCHEDULER_JOB_KEYS[6],
+    label: "观赛预测结算",
+    primaryCron: "* * * * *",
+    staleAfterMs: 3 * 60 * 1000,
+  },
+  {
+    key: SCHEDULER_JOB_KEYS[7],
+    label: "比赛 MVP 结算",
+    primaryCron: "*/5 * * * *",
+    staleAfterMs: 15 * 60 * 1000,
+  },
+  {
+    key: SCHEDULER_JOB_KEYS[8],
+    label: "统计投影补建",
+    primaryCron: "*/5 * * * *",
+    staleAfterMs: 15 * 60 * 1000,
+  },
 ] as const;
 
 export type SchedulerJobKey = (typeof SCHEDULER_JOB_DEFINITIONS)[number]["key"];

@@ -1,4 +1,14 @@
-import { pgTable, uuid, integer, text, timestamp, pgEnum, unique, check, jsonb } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  uuid,
+  integer,
+  text,
+  timestamp,
+  pgEnum,
+  unique,
+  check,
+  jsonb,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { matches } from "./matches";
 import { competitionEntries } from "./competition-entries";
@@ -19,7 +29,9 @@ export const matchMaps = pgTable(
   "match_maps",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    matchId: uuid("match_id").notNull().references(() => matches.id),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => matches.id),
 
     /** 第几张图（1-based，最大 5）*/
     mapOrder: integer("map_order").notNull(),
@@ -38,7 +50,15 @@ export const matchMaps = pgTable(
     scoreB: integer("score_b"),
 
     /** Unverified, bounded Mizar post-map display only; never a statistics source. */
-    provisionalPlayers: jsonb("provisional_players").$type<Array<{ userId: string; name: string; kills: number | null; deaths: number | null; assists: number | null }>>(),
+    provisionalPlayers: jsonb("provisional_players").$type<
+      Array<{
+        userId: string;
+        name: string;
+        kills: number | null;
+        deaths: number | null;
+        assists: number | null;
+      }>
+    >(),
 
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -56,7 +76,7 @@ export const matchMaps = pgTable(
       "match_maps_score_pair_complete",
       sql`(${t.scoreA} IS NULL AND ${t.scoreB} IS NULL) OR (${t.scoreA} IS NOT NULL AND ${t.scoreB} IS NOT NULL)`,
     ),
-  })
+  }),
 );
 
 export type MatchMap = typeof matchMaps.$inferSelect;

@@ -1,5 +1,10 @@
 import { compositeDisplayRank } from "@/lib/major/composite-rank";
-import type { MajorStrengthFact, MajorStrengthStarter, MajorStrengthTeam, MajorStrengthTieState } from "./types";
+import type {
+  MajorStrengthFact,
+  MajorStrengthStarter,
+  MajorStrengthTeam,
+  MajorStrengthTieState,
+} from "./types";
 
 export type ProjectableStrengthFact = {
   rating?: number | null;
@@ -49,28 +54,32 @@ type StrengthTeamProjection = {
   starters: readonly StrengthStarterProjection[];
 };
 
-export function projectStrengthFact(fact: ProjectableStrengthFact | null): MajorStrengthFact | null {
-  return fact ? {
-    rating: fact.rating ?? null,
-    rank: fact.rank,
-    stars: fact.stars ?? null,
-    sourcePlatform: fact.sourcePlatform ?? null,
-    sourceSeasonKey: fact.sourceSeasonKey ?? null,
-    sourceRank: fact.sourceRank ?? null,
-    sourceStars: fact.sourceStars ?? null,
-    conversionVersion: fact.conversionVersion ?? null,
-    estimatedFromUnranked: fact.estimatedFromUnranked ?? false,
-    estimatedFromSeasonKey: fact.estimatedFromSeasonKey ?? null,
-    estimatedFromHistorical: fact.estimatedFromHistorical ?? false,
-  } : null;
+export function projectStrengthFact(
+  fact: ProjectableStrengthFact | null,
+): MajorStrengthFact | null {
+  return fact
+    ? {
+        rating: fact.rating ?? null,
+        rank: fact.rank,
+        stars: fact.stars ?? null,
+        sourcePlatform: fact.sourcePlatform ?? null,
+        sourceSeasonKey: fact.sourceSeasonKey ?? null,
+        sourceRank: fact.sourceRank ?? null,
+        sourceStars: fact.sourceStars ?? null,
+        conversionVersion: fact.conversionVersion ?? null,
+        estimatedFromUnranked: fact.estimatedFromUnranked ?? false,
+        estimatedFromSeasonKey: fact.estimatedFromSeasonKey ?? null,
+        estimatedFromHistorical: fact.estimatedFromHistorical ?? false,
+      }
+    : null;
 }
 
 export function projectStrengthStarter(starter: StrengthStarterProjection): MajorStrengthStarter {
   const historicalPeak = projectStrengthFact(starter.input.historicalPeak);
   const referenceSeasonPeak = projectStrengthFact(starter.input.previousSeasonPeak);
   const currentSeasonPeak = projectStrengthFact(starter.input.currentSeasonPeak);
-  const recentPeak = projectStrengthFact(starter.breakdown.effectiveRecentPeak)
-    ?? currentSeasonPeak;
+  const recentPeak =
+    projectStrengthFact(starter.breakdown.effectiveRecentPeak) ?? currentSeasonPeak;
   return {
     userId: starter.userId,
     label: starter.label,
@@ -87,15 +96,22 @@ export function projectStrengthStarter(starter: StrengthStarterProjection): Majo
   };
 }
 
-function projectTieState(team: StrengthTeamProjection, tieGroupSize: number): MajorStrengthTieState {
+function projectTieState(
+  team: StrengthTeamProjection,
+  tieGroupSize: number,
+): MajorStrengthTieState {
   if (team.recommendationRank === null || team.tieGroup === null) return "not_ranked";
   return tieGroupSize > 1 ? "tied" : "not_tied";
 }
 
-export function projectStrengthTeams(teams: readonly StrengthTeamProjection[], compositeAxis = true): MajorStrengthTeam[] {
+export function projectStrengthTeams(
+  teams: readonly StrengthTeamProjection[],
+  compositeAxis = true,
+): MajorStrengthTeam[] {
   const tieGroupSizes = new Map<number, number>();
   for (const team of teams) {
-    if (team.tieGroup !== null) tieGroupSizes.set(team.tieGroup, (tieGroupSizes.get(team.tieGroup) ?? 0) + 1);
+    if (team.tieGroup !== null)
+      tieGroupSizes.set(team.tieGroup, (tieGroupSizes.get(team.tieGroup) ?? 0) + 1);
   }
 
   return teams.map((team) => ({
@@ -105,8 +121,11 @@ export function projectStrengthTeams(teams: readonly StrengthTeamProjection[], c
     blockers: [...team.blockers],
     recommendationRank: team.recommendationRank,
     displayOrder: team.displayOrder,
-    tieState: projectTieState(team, team.tieGroup === null ? 0 : tieGroupSizes.get(team.tieGroup) ?? 0),
-    starters: team.starters.map(starter => {
+    tieState: projectTieState(
+      team,
+      team.tieGroup === null ? 0 : (tieGroupSizes.get(team.tieGroup) ?? 0),
+    ),
+    starters: team.starters.map((starter) => {
       const projected = projectStrengthStarter(starter);
       if (!compositeAxis) projected.presentation.compositeRank = null;
       return projected;

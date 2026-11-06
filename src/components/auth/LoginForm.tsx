@@ -5,23 +5,47 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
-import { loginWithPassword as telemetry_loginWithPassword, resendSignupConfirmation as telemetry_resendSignupConfirmation, signUp as telemetry_signUp } from "@/actions/auth";
+import {
+  loginWithPassword as telemetry_loginWithPassword,
+  resendSignupConfirmation as telemetry_resendSignupConfirmation,
+  signUp as telemetry_signUp,
+} from "@/actions/auth";
 import { TurnstileWidget, type TurnstileFailure } from "@/components/auth/TurnstileWidget";
-import { EMAIL_RESEND_COOLDOWN_SECONDS, isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
+import {
+  EMAIL_RESEND_COOLDOWN_SECONDS,
+  isPasswordPolicySatisfied,
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_POLICY_MESSAGE,
+} from "@/lib/config/auth-config";
 import { preserveLoginUpdateEmail, takeLoginUpdateEmail } from "@/lib/auth/login-update-draft";
 import { reportDeploymentUpdate, useDeploymentUpdate } from "@/lib/deployment-update";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { clearPreviousLiveViews } from "@/lib/mizar/live-viewer-cache-reset";
 import { TaskBoundary } from "@/components/telemetry/TaskBoundary";
-import { beginTelemetryTask, completeTelemetryTask, recordTaskValidation, stepTelemetryTask, observeAction } from "@/lib/telemetry/client";
+import {
+  beginTelemetryTask,
+  completeTelemetryTask,
+  recordTaskValidation,
+  stepTelemetryTask,
+  observeAction,
+} from "@/lib/telemetry/client";
 
 const loginWithPassword = observeAction("auth.loginWithPassword", telemetry_loginWithPassword);
-const resendSignupConfirmation = observeAction("auth.resendSignupConfirmation", telemetry_resendSignupConfirmation);
+const resendSignupConfirmation = observeAction(
+  "auth.resendSignupConfirmation",
+  telemetry_resendSignupConfirmation,
+);
 const signUp = observeAction("auth.signUp", telemetry_signUp);
 
 type Mode = "login" | "register";
 
-export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initialMode?: Mode; redirectTo?: string }) {
+export function LoginForm({
+  initialMode = "login",
+  redirectTo = "/",
+}: {
+  initialMode?: Mode;
+  redirectTo?: string;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -40,7 +64,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
     const restored = takeLoginUpdateEmail();
     // One-time browser restoration follows the identical SSR/first client render.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (restored) setEmail(current => current || restored);
+    if (restored) setEmail((current) => current || restored);
   }, []);
 
   useEffect(() => {
@@ -50,7 +74,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
     setPassword("");
     setConfirmPassword("");
     setTurnstileToken("");
-    setTurnstileResetKey(key => key + 1);
+    setTurnstileResetKey((key) => key + 1);
   }, [needsUpdate]);
 
   const requirePageUpdate = useCallback((error: unknown) => reportDeploymentUpdate(error), []);
@@ -78,65 +102,86 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
     return () => window.clearTimeout(timeout);
   }, [resendAvailableAt]);
 
-  const handleSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    if (needsUpdate) return;
-    const taskToken = beginTelemetryTask(mode === "login" ? "login" : "account", "", "submit");
-    if (mode === "register") {
-      if (!isPasswordPolicySatisfied(password)) {
-        recordTaskValidation("account", "password_policy", taskToken);
-        toast.error(PASSWORD_POLICY_MESSAGE);
-        return;
-      }
-      if (password !== confirmPassword) {
-        recordTaskValidation("account", "password_mismatch", taskToken);
-        toast.error("两次输入的密码不一致");
-        return;
-      }
-    }
-    startTransition(async () => {
-      try {
-      const result = mode === "login"
-        ? await loginWithPassword(email, password)
-        : await signUp(email, password, confirmPassword, turnstileToken, redirectRef.current);
-      if (result.success) {
-        if (mode === "register") {
-          completeTelemetryTask("account", taskToken);
-          receiptToken.current = taskToken;
-          setAwaitingEmail(email.trim());
-          setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
-        } else {
-          clearPreviousLiveViews();
-          window.location.href = redirectRef.current;
-        }
-      } else {
-        if (mode === "login" && result.error.code === "EMAIL_NOT_CONFIRMED") {
-          setAwaitingEmail(email.trim());
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (needsUpdate) return;
+      const taskToken = beginTelemetryTask(mode === "login" ? "login" : "account", "", "submit");
+      if (mode === "register") {
+        if (!isPasswordPolicySatisfied(password)) {
+          recordTaskValidation("account", "password_policy", taskToken);
+          toast.error(PASSWORD_POLICY_MESSAGE);
           return;
         }
-        if (mode === "register") {
-          setTurnstileToken("");
-          setTurnstileResetKey((key) => key + 1);
+        if (password !== confirmPassword) {
+          recordTaskValidation("account", "password_mismatch", taskToken);
+          toast.error("两次输入的密码不一致");
+          return;
         }
-        toast.error(result.error.message);
       }
-      } catch (error) {
-        if (!requirePageUpdate(error)) toast.error(mode === "login" ? "登录请求未完成，请检查网络连接后重试。" : "注册请求结果尚未确认，请先检查邮件，不要立即重复注册。");
-      }
-    });
-  }, [email, password, confirmPassword, mode, turnstileToken, needsUpdate, requirePageUpdate]);
+      startTransition(async () => {
+        try {
+          const result =
+            mode === "login"
+              ? await loginWithPassword(email, password)
+              : await signUp(email, password, confirmPassword, turnstileToken, redirectRef.current);
+          if (result.success) {
+            if (mode === "register") {
+              completeTelemetryTask("account", taskToken);
+              receiptToken.current = taskToken;
+              setAwaitingEmail(email.trim());
+              setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
+            } else {
+              clearPreviousLiveViews();
+              window.location.href = redirectRef.current;
+            }
+          } else {
+            if (mode === "login" && result.error.code === "EMAIL_NOT_CONFIRMED") {
+              setAwaitingEmail(email.trim());
+              return;
+            }
+            if (mode === "register") {
+              setTurnstileToken("");
+              setTurnstileResetKey((key) => key + 1);
+            }
+            toast.error(result.error.message);
+          }
+        } catch (error) {
+          if (!requirePageUpdate(error))
+            toast.error(
+              mode === "login"
+                ? "登录请求未完成，请检查网络连接后重试。"
+                : "注册请求结果尚未确认，请先检查邮件，不要立即重复注册。",
+            );
+        }
+      });
+    },
+    [email, password, confirmPassword, mode, turnstileToken, needsUpdate, requirePageUpdate],
+  );
 
   useEffect(() => {
-    if (awaitingEmail && receiptToken.current) stepTelemetryTask("account", "result", receiptToken.current);
+    if (awaitingEmail && receiptToken.current)
+      stepTelemetryTask("account", "result", receiptToken.current);
   }, [awaitingEmail]);
 
-  const updatePrompt = needsUpdate && <div role="status" className="space-y-2 rounded-sm border border-[var(--color-border)] p-4 text-sm">
-    <p>页面版本已更新。更新后将恢复邮箱，请重新输入密码并确认操作。</p>
-    <Button type="button" variant="outline" onClick={() => {
-      if (preserveLoginUpdateEmail(awaitingEmail ?? email)) window.location.reload();
-      else toast.error("无法保留邮箱草稿，请复制邮箱后刷新页面。");
-    }}>保留邮箱并更新页面</Button>
-  </div>;
+  const updatePrompt = needsUpdate && (
+    <div
+      role="status"
+      className="space-y-2 rounded-sm border border-[var(--color-border)] p-4 text-sm"
+    >
+      <p>页面版本已更新。更新后将恢复邮箱，请重新输入密码并确认操作。</p>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => {
+          if (preserveLoginUpdateEmail(awaitingEmail ?? email)) window.location.reload();
+          else toast.error("无法保留邮箱草稿，请复制邮箱后刷新页面。");
+        }}
+      >
+        保留邮箱并更新页面
+      </Button>
+    </div>
+  );
 
   if (awaitingEmail) {
     const isResendCoolingDown = resendAvailableAt !== null;
@@ -145,38 +190,85 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
         {updatePrompt}
         <div className="rounded-sm border border-[var(--color-border)] p-4">
           <h2 className="font-semibold">继续完成账号设置</h2>
-          <p className="mt-2 break-all text-sm text-[var(--color-fg-mid)]">请检查邮箱：{awaitingEmail}</p>
-          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">如果这是你首次使用该邮箱注册，请前往邮箱完成验证。</p>
-          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">如果你此前已经使用这个邮箱注册过 RivalHub，请直接登录；忘记密码可以重新设置。</p>
-          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">为保护账号隐私，我们不会在这里确认该邮箱是否已注册。</p>
-          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">如果收件箱中没有看到邮件，请检查垃圾邮件、广告邮件或其它分类。</p>
+          <p className="mt-2 break-all text-sm text-[var(--color-fg-mid)]">
+            请检查邮箱：{awaitingEmail}
+          </p>
+          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
+            如果这是你首次使用该邮箱注册，请前往邮箱完成验证。
+          </p>
+          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
+            如果你此前已经使用这个邮箱注册过 RivalHub，请直接登录；忘记密码可以重新设置。
+          </p>
+          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
+            为保护账号隐私，我们不会在这里确认该邮箱是否已注册。
+          </p>
+          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
+            如果收件箱中没有看到邮件，请检查垃圾邮件、广告邮件或其它分类。
+          </p>
         </div>
         <div className="space-y-2">
-          <Button type="button" variant="outline" className="w-full" onClick={() => { setAwaitingEmail(null); setResendAvailableAt(null); setMode("login"); }}>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              setAwaitingEmail(null);
+              setResendAvailableAt(null);
+              setMode("login");
+            }}
+          >
             去登录
           </Button>
-          <Link href="/forgot-password" className="block w-full text-center text-sm underline hover:text-[var(--color-fg)]">
+          <Link
+            href="/forgot-password"
+            className="block w-full text-center text-sm underline hover:text-[var(--color-fg)]"
+          >
             找回密码
           </Link>
-          <Button type="button" variant="outline" className="w-full" disabled={needsUpdate || isResendPending || isResendCoolingDown} onClick={() => startResendTransition(async () => {
-            try {
-            const result = await resendSignupConfirmation(awaitingEmail, redirectRef.current);
-            if (result.success) {
-              setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
-              toast.success("已提交验证邮件重发请求；如果该邮箱仍待验证，请检查收件箱及垃圾邮件等分类。");
-            } else {
-              toast.error(result.error.message);
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={needsUpdate || isResendPending || isResendCoolingDown}
+            onClick={() =>
+              startResendTransition(async () => {
+                try {
+                  const result = await resendSignupConfirmation(awaitingEmail, redirectRef.current);
+                  if (result.success) {
+                    setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
+                    toast.success(
+                      "已提交验证邮件重发请求；如果该邮箱仍待验证，请检查收件箱及垃圾邮件等分类。",
+                    );
+                  } else {
+                    toast.error(result.error.message);
+                  }
+                } catch (error) {
+                  if (requirePageUpdate(error)) return;
+                  setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
+                  toast.error("发送结果尚未确认，请先检查邮箱，稍后再显式重试。");
+                }
+              })
             }
-            } catch (error) {
-              if (requirePageUpdate(error)) return;
-              setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
-              toast.error("发送结果尚未确认，请先检查邮箱，稍后再显式重试。");
-            }
-          })}>
-            {isResendCoolingDown ? `请等待 ${EMAIL_RESEND_COOLDOWN_SECONDS} 秒后重试` : "重新发送验证邮件"}
+          >
+            {isResendCoolingDown
+              ? `请等待 ${EMAIL_RESEND_COOLDOWN_SECONDS} 秒后重试`
+              : "重新发送验证邮件"}
           </Button>
         </div>
-        <button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setResendAvailableAt(null); setMode("register"); setEmail(""); setPassword(""); setConfirmPassword(""); setTurnstileToken(""); setTurnstileResetKey((key) => key + 1); }}>
+        <button
+          type="button"
+          className="w-full text-sm underline"
+          onClick={() => {
+            setAwaitingEmail(null);
+            setResendAvailableAt(null);
+            setMode("register");
+            setEmail("");
+            setPassword("");
+            setConfirmPassword("");
+            setTurnstileToken("");
+            setTurnstileResetKey((key) => key + 1);
+          }}
+        >
           使用其他邮箱
         </button>
       </div>
@@ -184,99 +276,110 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
   }
 
   return (
-    <TaskBoundary task={mode === "login" ? "login" : "account"}><form onSubmit={handleSubmit} className="space-y-4">
-      {updatePrompt}
-      <div className="flex rounded-sm bg-[var(--color-panel-low)] p-0.5">
-        <button
-          type="button"
-          onClick={() => switchMode("login")}
-          className={`flex-1 rounded-sm py-1.5 text-sm font-medium transition-colors ${
-            mode === "login"
-              ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
-              : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
-          }`}
-        >
-          登录
-        </button>
-        <button
-          type="button"
-          onClick={() => switchMode("register")}
-          className={`flex-1 rounded-sm py-1.5 text-sm font-medium transition-colors ${
-            mode === "register"
-              ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
-              : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
-          }`}
-        >
-          注册
-        </button>
-      </div>
-
-      <Field
-        id="email"
-        label="邮箱地址"
-        type="email"
-        placeholder="you@example.com"
-        value={email}
-        onChange={setEmail}
-        required
-        autoFocus
-      />
-
-      <Field
-        id="password"
-        label="密码"
-        type="password"
-        placeholder={mode === "register" ? "至少 6 位，含大小写/数字/特殊字符" : "输入密码"}
-        value={password}
-        onChange={setPassword}
-        required
-        minLength={MIN_PASSWORD_LENGTH}
-        autoComplete={mode === "register" ? "new-password" : "current-password"}
-      />
-
-      {mode === "register" && (
-        <>
-          <Field
-            id="confirm-password"
-            label="确认密码"
-            type="password"
-            placeholder="再次输入密码"
-            value={confirmPassword}
-            onChange={setConfirmPassword}
-            required
-            minLength={MIN_PASSWORD_LENGTH}
-            autoComplete="new-password"
-          />
-          <p className="text-xs text-[var(--color-fg-mid)]">{PASSWORD_POLICY_MESSAGE}。</p>
-        </>
-      )}
-
-      {mode === "register" && (
-        <div className="flex justify-center">
-          <TurnstileWidget
-            resetSignal={turnstileResetKey}
-            onVerify={(token) => setTurnstileToken(token)}
-            onError={handleTurnstileError}
-          />
+    <TaskBoundary task={mode === "login" ? "login" : "account"}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {updatePrompt}
+        <div className="flex rounded-sm bg-[var(--color-panel-low)] p-0.5">
+          <button
+            type="button"
+            onClick={() => switchMode("login")}
+            className={`flex-1 rounded-sm py-1.5 text-sm font-medium transition-colors ${
+              mode === "login"
+                ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
+                : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
+            }`}
+          >
+            登录
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode("register")}
+            className={`flex-1 rounded-sm py-1.5 text-sm font-medium transition-colors ${
+              mode === "register"
+                ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
+                : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
+            }`}
+          >
+            注册
+          </button>
         </div>
-      )}
 
-      {mode === "register" && <p className="text-xs text-[var(--color-fg-mid)]">注册后需要验证邮箱才能完成注册和登录。</p>}
+        <Field
+          id="email"
+          label="邮箱地址"
+          type="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={setEmail}
+          required
+          autoFocus
+        />
 
-      <Button type="submit" variant="outline" className="w-full" disabled={isPending || needsUpdate || (mode === "register" && !turnstileToken)}>
-        {isPending ? "处理中…" : mode === "login" ? "登录" : "注册"}
-      </Button>
+        <Field
+          id="password"
+          label="密码"
+          type="password"
+          placeholder={mode === "register" ? "至少 6 位，含大小写/数字/特殊字符" : "输入密码"}
+          value={password}
+          onChange={setPassword}
+          required
+          minLength={MIN_PASSWORD_LENGTH}
+          autoComplete={mode === "register" ? "new-password" : "current-password"}
+        />
 
-      <p className="text-xs text-center text-[var(--color-fg-mid)]">
-        {mode === "register" ? "已有账号？" : "首次参赛？"}
-        <button
-          type="button"
-          onClick={() => switchMode(mode === "login" ? "register" : "login")}
-          className="ml-0.5 underline hover:text-[var(--color-fg)]"
+        {mode === "register" && (
+          <>
+            <Field
+              id="confirm-password"
+              label="确认密码"
+              type="password"
+              placeholder="再次输入密码"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              required
+              minLength={MIN_PASSWORD_LENGTH}
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-[var(--color-fg-mid)]">{PASSWORD_POLICY_MESSAGE}。</p>
+          </>
+        )}
+
+        {mode === "register" && (
+          <div className="flex justify-center">
+            <TurnstileWidget
+              resetSignal={turnstileResetKey}
+              onVerify={(token) => setTurnstileToken(token)}
+              onError={handleTurnstileError}
+            />
+          </div>
+        )}
+
+        {mode === "register" && (
+          <p className="text-xs text-[var(--color-fg-mid)]">
+            注册后需要验证邮箱才能完成注册和登录。
+          </p>
+        )}
+
+        <Button
+          type="submit"
+          variant="outline"
+          className="w-full"
+          disabled={isPending || needsUpdate || (mode === "register" && !turnstileToken)}
         >
-          {mode === "register" ? "切换到登录" : "切换到注册"}
-        </button>
-      </p>
-    </form></TaskBoundary>
+          {isPending ? "处理中…" : mode === "login" ? "登录" : "注册"}
+        </Button>
+
+        <p className="text-xs text-center text-[var(--color-fg-mid)]">
+          {mode === "register" ? "已有账号？" : "首次参赛？"}
+          <button
+            type="button"
+            onClick={() => switchMode(mode === "login" ? "register" : "login")}
+            className="ml-0.5 underline hover:text-[var(--color-fg)]"
+          >
+            {mode === "register" ? "切换到登录" : "切换到注册"}
+          </button>
+        </p>
+      </form>
+    </TaskBoundary>
   );
 }

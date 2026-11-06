@@ -1,5 +1,9 @@
 import { io } from "next/cache";
-import { getLatestSiteAnnouncement, getRelevantAttentionAnnouncement, getRelevantAnnouncement } from "@/lib/announcements/read-model";
+import {
+  getLatestSiteAnnouncement,
+  getRelevantAttentionAnnouncement,
+  getRelevantAnnouncement,
+} from "@/lib/announcements/read-model";
 import { getPublicSeasonInfo } from "@/lib/season-public-info/read-model";
 import { InformationFeedbackLauncherHost } from "./InformationFeedbackLauncherHost";
 import { SeasonOperationsScope } from "./SeasonOperationsScope";
@@ -18,7 +22,11 @@ export async function GlobalInformationFeedbackLauncher() {
   );
 }
 
-export async function SeasonInformationFeedbackLauncher({ season }: { season: { id: string; slug: string } }) {
+export async function SeasonInformationFeedbackLauncher({
+  season,
+}: {
+  season: { id: string; slug: string };
+}) {
   await io();
   const [latestAnnouncement, attentionAnnouncement, seasonInfo] = await Promise.all([
     getRelevantAnnouncement(season.id),
