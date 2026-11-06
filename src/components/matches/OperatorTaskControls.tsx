@@ -6,10 +6,10 @@ import { useRoutePolling } from "@/components/use-visible-polling";
 import { Button } from "@/components/ui/button";
 import { formatOperatorElapsed } from "@/lib/admin/matches/operator-workflow";
 
-export function OperatorTaskControls({ elapsed }: { elapsed: { since: string; label: string } | null }) {
+export function OperatorTaskControls({ elapsed, autoRefresh }: { elapsed: { since: string; label: string } | null; autoRefresh: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  useRoutePolling(30000, pending);
+  useRoutePolling(autoRefresh ? 30000 : null, pending);
   const [refreshed, setRefreshed] = useState<string | null>(null);
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
@@ -20,7 +20,7 @@ export function OperatorTaskControls({ elapsed }: { elapsed: { since: string; la
   return <div className="flex flex-wrap items-center gap-3">
     {elapsed && <p className="text-sm text-[var(--color-fg-mid)]">{elapsed.label} <span className="font-mono tabular-nums">{now === null ? "—" : formatOperatorElapsed(elapsed.since, now)}</span></p>}
     {elapsed && now !== null && now - new Date(elapsed.since).getTime() >= 600000 && <p role="status" className="text-sm text-[var(--color-warn)]">图间已达 10 分钟，请提醒双方进房。</p>}
-    <Button title="每 30 秒自动更新" size="sm" variant="outline" disabled={pending} onClick={() => { setRefreshed(new Date().toLocaleTimeString("zh-CN", { hour12: false })); startTransition(() => router.refresh()); }}>{pending ? "刷新中…" : "刷新"}</Button>
+    <Button title={autoRefresh ? "每 30 秒自动更新" : "手动刷新"} size="sm" variant="outline" disabled={pending} onClick={() => { setRefreshed(new Date().toLocaleTimeString("zh-CN", { hour12: false })); startTransition(() => router.refresh()); }}>{pending ? "刷新中…" : "刷新"}</Button>
     {refreshed && !pending && <span role="status" className="text-xs text-[var(--color-fg-mid)]">已更新 {refreshed}</span>}
   </div>;
 }
