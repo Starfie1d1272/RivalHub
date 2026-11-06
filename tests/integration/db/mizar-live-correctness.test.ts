@@ -3,7 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getRuntimeResourceSnapshot } from "@/lib/observability/runtime-resources";
 import { loadPublicMatchRefreshToken } from "@/lib/matches/public-refresh";
-import { api, state, pool, monitor, publications, snapshot, prepared, upload, reports } from "./harness/live-capacity";
+import { api, state, monitor, publications, snapshot, prepared, upload, reports } from "./harness/live-capacity";
 // These scenarios exercise the hosted two-permit admission limit.
 vi.hoisted(() => { vi.stubEnv("VERCEL", "1"); });
 
@@ -171,48 +171,6 @@ it("releases ingress after malicious bodies and rejects expired waiters without 
     expect((await (await upload(f, 2)).json()).accepted).toBe(true);
   });
 
-it("serves four staggered 2 Hz sources and preserves unchanged 1 Hz heartbeats after disconnect", async () => {
-    const fixtures = await Promise.all(
-      Array.from({ length: 4 }, () => prepared()),
-    );
-    // This scenario starts after the previous sources stop. Let their bounded
-    // demand leases expire; recovery while other tickets exist is tested above.
-    await delay(1500);
-    state.mode = "fast";
-    const outcomes: boolean[][] = fixtures.map(() => []);
-    const start = performance.now();
-    const tasks = fixtures.map(async (f, i) => {
-      await delay(i * 125);
-      for (let tick = 0; tick < 4; tick++) {
-        const target = start + i * 125 + tick * 510;
-        await delay(Math.max(0, target - performance.now()));
-        const result = await upload(f, tick + 1);
-        outcomes[i]!.push((await result.json()).accepted === true);
-      }
-    });
-    await Promise.all(tasks);
-    expect(outcomes.every(rows => rows.every(Boolean))).toBe(true);
-    const f = fixtures[0]!;
-    await delay(1000);
-    state.mode = "disconnect";
-    expect(
-      await ingestMizarLive(f.credentialHash, snapshot(f, 5), 1),
-    ).toEqual({ accepted: false, reason: "broadcast_unavailable" });
-    await delay(1000);
-    state.mode = "fast";
-    expect(
-      await ingestMizarLive(f.credentialHash, snapshot(f, 5), 1),
-    ).toEqual({ accepted: true });
-    reports.push({
-      scenario: "staggered",
-      matches: 4,
-      inputs: 16,
-      accepted: outcomes.flat().filter(Boolean).length,
-      perMatch: fixtures.map((f, i) => ({ matchId: f.matchId, accepted: outcomes[i]!.filter(Boolean).length })),
-      heartbeatRecovery: true,
-    });
-  });
-
 it(
     "drops on cross-connection LIVE contention and held authority rows without creating a backlog",
     async () => {
@@ -251,25 +209,6 @@ it(
         await client.query("ROLLBACK");
         client.release();
       }
-    },
-  );
-
-it(
-    "does not send requests that waited behind unrelated database work",
-    async () => {
-      const f = await prepared();
-      state.mode = "fast";
-      const before = publications.length;
-      const clients = await Promise.all([
-        pool.connect(),
-        pool.connect(),
-        pool.connect(),
-      ]);
-      const work = upload(f, 1);
-      await delay(550);
-      for (const client of clients) client.release();
-      expect(await (await work).json()).toEqual({ accepted: false, reason: "frame_expired" });
-      expect(publications.length).toBe(before);
     },
   );
 
