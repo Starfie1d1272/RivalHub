@@ -4,3 +4,6 @@ coverage/
 **/*.test.*
 **/*.spec.*
 **/*.generated.*
+
+# Frozen upstream protocol must remain byte-identical to Mizar.
+src/lib/mizar/protocol.ts
