@@ -109,7 +109,7 @@ export async function loadAdminMatchWorkbench({
   });
   if (entries.length !== 2) return null;
 
-  const [memberRows, rosterRows, mapRecords, commentatorRows, submission, seasonAdminRows, effectiveRosterRows, reopenedIds, vetoSession] = await Promise.all([
+  const [memberRows, rosterRows, mapRecords, commentatorRows, submission, seasonAdminRows, effectiveRosterRows, reopenedIds, vetoSession, commentary] = await Promise.all([
     db
       .select({
         id: eventRosterMembers.id,
@@ -185,6 +185,7 @@ export async function loadAdminMatchWorkbench({
       where: eq(matchVetoSessions.matchId, match.id),
       columns: { completedAt: true },
     }),
+    readAdminMatchCommentary(db, { seasonId: season.id, currentUserId: admin.userId, excludeMatchId: match.id, historicalMatchIds: [match.id] }),
   ]);
 
   const demoImportRows = mapRecords.length > 0
@@ -264,12 +265,9 @@ export async function loadAdminMatchWorkbench({
   const stage = stagePlan.find((stage) => stage.key === match.stage);
   const teamAName = entryName.get(match.entryAId) ?? "未知队伍";
   const teamBName = entryName.get(match.entryBId) ?? "未知队伍";
-  const [operator, commentary] = await Promise.all([
-    loadOperatorContext({ match, maps: mapRecords, imports: demoImportRows, roster: effectiveRosterRows,
-      seasonName: season.name, stageName: match.testConfig ? "测试赛" : stage?.name ?? null, isSwiss: stage?.type === "swiss",
-      teamAName, teamBName, vetoComplete: Boolean(vetoSession?.completedAt) }),
-    readAdminMatchCommentary(db, { seasonId: season.id, currentUserId: admin.userId, excludeMatchId: match.id, historicalMatchIds: [match.id] }),
-  ]);
+  const operator = await loadOperatorContext({ match, maps: mapRecords, imports: demoImportRows, roster: effectiveRosterRows,
+    seasonName: season.name, stageName: match.testConfig ? "测试赛" : stage?.name ?? null, isSwiss: stage?.type === "swiss",
+    teamAName, teamBName, vetoComplete: Boolean(vetoSession?.completedAt) });
 
   return {
     completion: projectOperatorCompletion({ status: match.status, isForfeit: match.isForfeit, maps: operator.workflow.completedMaps, commentatorCount: commentatorRows.length, submitted: Boolean(submittedAt), reopened: rosterReopened, hasVideo: hasMatchRecording(match) }),
