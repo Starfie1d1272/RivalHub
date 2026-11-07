@@ -1,9 +1,9 @@
+import { statsProjectionContractChanged } from "./stats-projection-contract";
 import { assertReleaseCapabilities } from "./capability-contract";
 import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createRequire } from "node:module";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { classifyMigrationRisk, type MigrationRiskLevel } from "../db/migration-risk";
 
 export type ReleasePlanMigrationRisk = MigrationRiskLevel;
@@ -100,16 +100,19 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
     const text = migrationText(cwd, releaseSha, path, options.migrationContents);
     return text !== undefined && /CREATE TABLE\s+"steam_profiles"/i.test(text);
   });
-  const operationChanged = (path: string) => changedPaths.includes(path)
-    && !isFormattingOnlyOperationChange(cwd, previousReleaseCommit, releaseSha, path, entries);
-  const requiresStatsProjectionBackfill = operationChanged("src/lib/stats/projection-version.ts")
+  const requiresStatsProjectionBackfill = (
+    changedPaths.some((path) => path === "src/lib/stats/projection-version.ts"
+      || path === "src/lib/stats/projection-contract.json"
+      || path === "src/lib/stats/projection-contract.ts")
+    && statsProjectionContractChanged(cwd, previousReleaseCommit, releaseSha)
+  )
     || migrationPaths.some((path) => {
       const text = migrationText(cwd, releaseSha, path, options.migrationContents);
       return text !== undefined && /CREATE TABLE\s+"match_demo_stat_projections"/i.test(text);
     });
-  const requiresCompetitiveProfileRepair = operationChanged("src/lib/competitive/profile-repair.ts");
+  const requiresCompetitiveProfileRepair = changedPaths.includes("src/lib/competitive/profile-repair.ts");
   const storageMutationChanged = readReleaseTimeStorageMutationCapability(cwd, releaseSha);
-  const schedulerChanged = changedPaths.some((path) => isReleaseSchedulerPath(path) && operationChanged(path))
+  const schedulerChanged = changedPaths.some(isReleaseSchedulerPath)
     || migrationPaths.some((path) => {
       const text = migrationText(cwd, releaseSha, path, options.migrationContents);
       return text === undefined || isSchedulerMigration(text);
@@ -154,54 +157,6 @@ export function isReleaseSchedulerPath(path: string): boolean {
   return AMBIGUOUS_SCHEDULER_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
-
-// Only recognized operation owners may omit a gate after formatting comparison.
-// Unknown scheduler namespace files retain their unconditional fail-closed gate.
-const FORMATTABLE_OPERATION_PATHS = new Set([
-  ...RELEASE_SCHEDULER_PATHS,
-  "src/lib/scheduler/health-contract.ts",
-  "src/lib/stats/projection-version.ts",
-  "src/lib/competitive/profile-repair.ts",
-]);
-
-function isFormattingOnlyOperationChange(
-  cwd: string,
-  previousReleaseCommit: string,
-  releaseSha: string,
-  path: string,
-  entries: readonly ReleaseChangeEntry[],
-): boolean {
-  if (!FORMATTABLE_OPERATION_PATHS.has(path)
-    || entries.some((entry) => entry.paths.includes(path) && entry.status !== "M")) return false;
-  const parser = path.endsWith(".ts") ? "typescript"
-    : path.endsWith(".mjs") ? "babel"
-      : path.endsWith(".json") ? "json" : undefined;
-  if (!parser) return false;
-  try {
-    const before = readGitFile(cwd, previousReleaseCommit, path);
-    const after = readGitFile(cwd, releaseSha, path);
-    // Prettier's parser/printer preserves ASI, literals and expression structure.
-    // Do not strip whitespace or compare emitted JS (which would erase TS contracts).
-    // Use fixed options, not candidate-controlled config/plugins.
-    const result = execFileSync(process.execPath, ["--input-type=module", "--eval", `
-      import { readFileSync } from "node:fs";
-      import prettier from ${JSON.stringify(pathToFileURL(createRequire(import.meta.url).resolve("prettier")).href)};
-      const { before, after, parser } = JSON.parse(readFileSync(0, "utf8"));
-      const { format } = prettier;
-      const options = { parser, endOfLine: "lf", embeddedLanguageFormatting: "off" };
-      process.stdout.write(String(await format(before, options) === await format(after, options)));
-    `], {
-      input: JSON.stringify({ before, after, parser }),
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "pipe"],
-      timeout: 10_000,
-    });
-    return result === "true";
-  } catch {
-    // Missing files/dependencies, malformed input and formatter failure retain the gate.
-    return false;
-  }
-}
 
 function readReleaseTimeStorageMutationCapability(
   cwd: string,

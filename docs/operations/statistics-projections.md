@@ -3,7 +3,16 @@
 Public statistics read versioned per-map sufficient statistics, never immutable
 Evidence. Confirmation and recheck materialize projections in the same transaction
 as the import and scoreboard. The current projection version is owned by
-`src/lib/stats/projection-version.ts`; bump it when the reducer, adapter or canonical serialized facts change. The optional
+`src/lib/stats/projection-contract.json`; `projection-version.ts` reads the same
+current/previous values for runtime readers and dual-version writers. Bump the
+current version when the reducer, adapter or canonical serialized facts change.
+This is a domain review obligation, not automatic semantic change detection:
+review materialization, adapter, record-fact and tournament dependency changes
+against that contract. Running backfill with an unchanged version does not rebuild
+otherwise current rows, and must not be used to overwrite old-reader semantics.
+Release compares the frozen declarations when the contract or its reader changes;
+a missing or unrecognized declaration conservatively requires backfill/coverage,
+without parsing historical TypeScript or inferring semantics from formatting. The optional
 versioned gzip transport sidecar is an additional lossless representation of the
 complete performance accumulator; it does not change those facts or formulas and
 does not require a reducer-version bump. The complete legacy performance remains
@@ -64,14 +73,23 @@ pnpm db:stats-projections:backfill --apply
 pnpm db:stats-projections:coverage
 ```
 
-Backfill defaults to dry-run, examines bounded batches of map identities and reads
-only a single current artifact when that projection requires rebuilding. Each map
-commits independently; retries skip already-current projections. `--limit N`
-bounds eligible maps for a controlled run. Raw source integrity or canonical
+Backfill defaults to dry-run. Each bounded page is screened in a repeatable-read,
+read-only snapshot using batched latest-import metadata, target/roster and current
+projection/identity checks. It uses the same canonical roster, revision and identity
+owners as single-map validation and never reads raw Evidence for current rows.
+Only missing candidates enter individual write transactions. Those transactions
+reacquire the existing identity → lineage → season locks and re-read/revalidate
+all facts before reading one current artifact and rebuilding it. A screened result
+never authorizes a write. Each rebuilt map commits independently; retries skip
+already-current projections. `--limit N` bounds missing/rebuilt maps, not unchanged
+map scans. Concurrent changes after screening can require another pass; the final
+independent coverage gate, not these per-page observations, determines readiness. Raw source integrity or canonical
 validation failure stops the run for investigation instead of publishing a
-partial replacement silently. Coverage scans keyset pages in one repeatable-read,
-read-only snapshot. Defaults are 50 IDs per page, 10,000 scanned maps and a 60-second
-between-map time budget, with PostgreSQL statement timeouts. Reserved platform/season slug conflicts are reported by the same protected read-only coverage gate and block release; operators resolve them explicitly, never through automatic production renaming. Missing projections,
+partial replacement silently. Coverage uses the same batched checks across all
+keyset pages in one repeatable-read, read-only snapshot. Defaults are 50 IDs per page,
+10,000 scanned maps and a 60-second time budget, with PostgreSQL statement timeouts.
+Elapsed-time checks after batch reads and before completion prevent a late batch
+from producing a successful ready result. Reserved platform/season slug conflicts are reported by the same protected read-only coverage gate and block release; operators resolve them explicitly, never through automatic production renaming. Missing projections,
 query timeouts or `complete=false` all block release; zero observed missing maps
 in a truncated scan never means ready. Operators may explicitly increase
 `coverage --scan-limit N --batch-size N --max-duration-ms N` after reviewing the

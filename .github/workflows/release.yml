@@ -416,6 +416,8 @@ jobs:
             scripts/db/production-competitive-profile-repair.ts \
             src/lib/stats/projection-backfill.ts \
             src/lib/stats/projection-version.ts \
+            src/lib/stats/projection-contract.json \
+            src/lib/stats/projection-contract.ts \
             src/lib/stats/projection.ts \
             src/lib/stats/evidence-adapter.ts \
             src/lib/demo-integration \

@@ -25,47 +25,81 @@ import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { PLATFORM_ROUTE_SEGMENTS } from "@/lib/seasons/slug";
 import { materializeStatisticsProjectionInTx, STATISTICS_PROJECTION_VERSION } from "./projection";
 
-/** Read only the latest eligible lineage metadata, bounded even with many historical artifacts. */
-async function currentProjectionCandidate(tx: TxDb, matchMapId: string) {
+/** Metadata-only candidate selection shared by single-map writes and batch inspection. */
+async function currentProjectionCandidates(
+  tx: TxDb,
+  matchMapIds: readonly string[],
+  checkBudget: () => void = () => {},
+) {
+  checkBudget();
   const rows = await tx
-    .select(demoImportMetadataSelection)
+    .selectDistinctOn([matchDemoImports.matchMapId], demoImportMetadataSelection)
     .from(matchDemoImports)
     .where(
       and(
-        eq(matchDemoImports.matchMapId, matchMapId),
+        inArray(matchDemoImports.matchMapId, [...matchMapIds]),
         eq(matchDemoImports.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE),
         ne(matchDemoImports.status, "superseded"),
       ),
     )
-    .orderBy(desc(matchDemoImports.createdAt), desc(matchDemoImports.id))
-    .limit(1);
-  const current = selectCurrentDemoImport(rows);
-  if (!current || current.status !== "confirmed") return null;
-  const [mapMatch] = await tx
+    .orderBy(
+      asc(matchDemoImports.matchMapId),
+      desc(matchDemoImports.createdAt),
+      desc(matchDemoImports.id),
+    );
+  checkBudget();
+  // Select latest BEFORE checking confirmed: a newer pending/stale import must
+  // never expose an older confirmed artifact.
+  const currentByMap = new Map(
+    rows.flatMap((row) => {
+      const current = selectCurrentDemoImport([row]);
+      return current?.status === "confirmed" ? [[current.matchMapId, current] as const] : [];
+    }),
+  );
+  if (!currentByMap.size) return [];
+  const targets = await tx
     .select({ map: matchMaps, match: matches })
     .from(matchMaps)
     .innerJoin(matches, eq(matches.id, matchMaps.matchId))
-    .where(eq(matchMaps.id, matchMapId));
-  if (
-    !mapMatch ||
-    !mapMatch.map.completedAt ||
-    mapMatch.map.scoreA === null ||
-    mapMatch.map.scoreB === null
-  )
-    return null;
-  const roster = await loadEffectiveMatchRoster(tx, [mapMatch.match.id]);
-  const target = { ...mapMatch, roster };
-  if (buildEvidenceRevisionForTarget(target) !== current.evidenceRevision) return null;
-  return { current, target };
+    .where(inArray(matchMaps.id, [...currentByMap.keys()]));
+  checkBudget();
+  const roster = await loadEffectiveMatchRoster(tx, [
+    ...new Set(targets.map(({ match }) => match.id)),
+  ]);
+  checkBudget();
+  const rosterByMatch = new Map<string, typeof roster>();
+  for (const member of roster) {
+    const members = rosterByMatch.get(member.matchId) ?? [];
+    members.push(member);
+    rosterByMatch.set(member.matchId, members);
+  }
+  return targets.flatMap((mapMatch) => {
+    const current = currentByMap.get(mapMatch.map.id)!;
+    if (!mapMatch.map.completedAt || mapMatch.map.scoreA === null || mapMatch.map.scoreB === null)
+      return [];
+    const target = { ...mapMatch, roster: rosterByMatch.get(mapMatch.match.id) ?? [] };
+    return buildEvidenceRevisionForTarget(target) === current.evidenceRevision
+      ? [{ current, target }]
+      : [];
+  });
 }
 
-async function hasCurrentProjection(
+async function currentProjectionCandidate(tx: TxDb, matchMapId: string) {
+  return (await currentProjectionCandidates(tx, [matchMapId]))[0] ?? null;
+}
+
+type ProjectionCandidate = NonNullable<Awaited<ReturnType<typeof currentProjectionCandidate>>>;
+
+async function currentProjectionMapIds(
   tx: TxDb,
-  candidate: NonNullable<Awaited<ReturnType<typeof currentProjectionCandidate>>>,
+  candidates: readonly ProjectionCandidate[],
+  checkBudget: () => void = () => {},
 ) {
-  const { current, target } = candidate;
-  const [projection] = await tx
+  checkBudget();
+  if (!candidates.length) return new Set<string>();
+  const projections = await tx
     .select({
+      importId: matchDemoStatProjections.importId,
       payloadSha256: matchDemoStatProjections.payloadSha256,
       demoSha256: matchDemoStatProjections.demoSha256,
       evidenceRevision: matchDemoStatProjections.evidenceRevision,
@@ -76,32 +110,70 @@ async function hasCurrentProjection(
     .from(matchDemoStatProjections)
     .where(
       and(
-        eq(matchDemoStatProjections.importId, current.id),
+        inArray(
+          matchDemoStatProjections.importId,
+          candidates.map(({ current }) => current.id),
+        ),
         eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
       ),
     );
-  if (
-    !projection ||
-    projection.payloadSha256 !== current.payloadSha256 ||
-    projection.demoSha256 !== current.demoSha256 ||
-    projection.evidenceRevision !== current.evidenceRevision ||
-    projection.semanticProfile !== current.semanticProfile ||
-    projection.analysisVersion !== current.analysisVersion
-  )
-    return false;
+  checkBudget();
+  const candidatesByImport = new Map(
+    candidates.map((candidate) => [candidate.current.id, candidate]),
+  );
+  const matching = projections.filter((projection) => {
+    const { current } = candidatesByImport.get(projection.importId)!;
+    return (
+      projection.payloadSha256 === current.payloadSha256 &&
+      projection.demoSha256 === current.demoSha256 &&
+      projection.evidenceRevision === current.evidenceRevision &&
+      projection.semanticProfile === current.semanticProfile &&
+      projection.analysisVersion === current.analysisVersion
+    );
+  });
   const resolutions = await resolveGameplayUsersBySteam64InTx(
     tx,
-    projection.identityBindings.map((binding) => binding.steam64),
+    matching.flatMap((projection) => projection.identityBindings.map((binding) => binding.steam64)),
   );
-  return (
-    projection.identityBindings.length === target.roster.length &&
-    projection.identityBindings.every(
-      (binding) =>
-        resolutions.get(binding.steam64)?.userId === binding.userId &&
-        target.roster.some(
-          (member) => member.userId === binding.userId && member.entryId === binding.entryId,
-        ),
-    )
+  checkBudget();
+  return new Set(
+    matching.flatMap((projection) => {
+      const { target } = candidatesByImport.get(projection.importId)!;
+      return projection.identityBindings.length === target.roster.length &&
+        projection.identityBindings.every(
+          (binding) =>
+            resolutions.get(binding.steam64)?.userId === binding.userId &&
+            target.roster.some(
+              (member) => member.userId === binding.userId && member.entryId === binding.entryId,
+            ),
+        )
+        ? [target.map.id]
+        : [];
+    }),
+  );
+}
+
+async function hasCurrentProjection(tx: TxDb, candidate: ProjectionCandidate) {
+  return (await currentProjectionMapIds(tx, [candidate])).has(candidate.target.map.id);
+}
+
+/** This observation is not a write authorization or whole-database coverage proof. */
+async function inspectProjectionBatch(
+  tx: TxDb,
+  mapIds: readonly string[],
+  checkBudget?: () => void,
+) {
+  const candidates = await currentProjectionCandidates(tx, mapIds, checkBudget);
+  const current = await currentProjectionMapIds(tx, candidates, checkBudget);
+  const eligible = new Set(candidates.map((candidate) => candidate.target.map.id));
+  return new Map(
+    mapIds.map(
+      (id) =>
+        [
+          id,
+          !eligible.has(id) ? "not_current" : current.has(id) ? "unchanged" : "missing",
+        ] as const,
+    ),
   );
 }
 
@@ -197,15 +269,28 @@ export async function backfillStatisticsProjections(
       .orderBy(asc(matchDemoImports.matchMapId))
       .limit(batchSize);
     if (!batch.length) break;
+    const observations = await database.transaction(
+      (tx) =>
+        inspectProjectionBatch(
+          tx,
+          batch.map(({ matchMapId }) => matchMapId),
+        ),
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    );
     for (const { matchMapId } of batch) {
       if (options.limit !== undefined && report.rebuilt + report.missing >= options.limit) {
         report.complete = false;
         return report;
       }
-      const outcome = await database.transaction(
-        (tx) => backfillStatisticsProjectionForMapInTx(tx, matchMapId, options.apply),
-        options.apply ? undefined : { isolationLevel: "repeatable read", accessMode: "read only" },
-      );
+      const observed = observations.get(matchMapId)!;
+      // Reacquire the normal identity -> lineage -> season locks and re-read all
+      // facts. Nothing from the read-only snapshot is trusted for a write.
+      const outcome =
+        options.apply && observed === "missing"
+          ? await database.transaction((tx) =>
+              backfillStatisticsProjectionForMapInTx(tx, matchMapId, true),
+            )
+          : observed;
       report.scannedMaps++;
       if (outcome !== "not_current") {
         report.eligibleMaps++;
@@ -248,8 +333,25 @@ export async function inspectStatisticsProjectionCoverage(
       .orderBy(asc(matchDemoImports.matchMapId))
       .limit(Math.min(batchSize, scanLimit - scanned + 1));
     if (!maps.length) {
-      complete = true;
+      complete = Date.now() < deadline;
       break;
+    }
+    if (Date.now() >= deadline) break;
+    let observations: Awaited<ReturnType<typeof inspectProjectionBatch>>;
+    const budgetExceeded = new Error("Coverage inspection budget exhausted");
+    const checkBudget = () => {
+      if (Date.now() >= deadline) throw budgetExceeded;
+    };
+    try {
+      observations = await inspectProjectionBatch(
+        tx,
+        maps.map(({ matchMapId }) => matchMapId),
+        checkBudget,
+      );
+      checkBudget();
+    } catch (error) {
+      if (error === budgetExceeded) break;
+      throw error;
     }
     for (const { matchMapId } of maps) {
       if (scanned >= scanLimit || Date.now() >= deadline) {
@@ -263,12 +365,12 @@ export async function inspectStatisticsProjectionCoverage(
           durationMs: Date.now() - startedAt,
         };
       }
-      const candidate = await currentProjectionCandidate(tx, matchMapId);
+      const observation = observations.get(matchMapId)!;
       scanned++;
       after = matchMapId;
-      if (!candidate) continue;
+      if (observation === "not_current") continue;
       eligibleMaps++;
-      if (!(await hasCurrentProjection(tx, candidate))) missing++;
+      if (observation === "missing") missing++;
     }
   }
   return {
