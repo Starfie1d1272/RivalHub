@@ -1,5 +1,7 @@
+import declaration from "./projection-contract.json";
+import { readStatisticsProjectionContract } from "./projection-contract";
+
 /** Versioned projections coexist during cutover; old readers use their exact version. */
-export const PREVIOUS_STATISTICS_PROJECTION_VERSION =
-  "dak-tournament/1.1.1:performance/1:adapter/2:records/1";
-export const STATISTICS_PROJECTION_VERSION =
-  "dak-tournament/1.1.1:performance/1:adapter/2:records/2";
+const contract = readStatisticsProjectionContract(declaration);
+export const PREVIOUS_STATISTICS_PROJECTION_VERSION = contract.previous;
+export const STATISTICS_PROJECTION_VERSION = contract.current;
