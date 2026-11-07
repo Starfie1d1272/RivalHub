@@ -1,9 +1,70 @@
 // Fixed read-only probe executed over the existing protected release SSH channel.
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync, readdirSync, readlinkSync, statSync, statfsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, readFileSync, readdirSync, readlinkSync, statSync, statfsSync } from "node:fs";
 
 const root = "/opt/rivalhub-production";
 const lockPath = `${root}/deploy.lock`;
+
+// Incident 42372090000, artifact 13573719495: verified manifest and archive bytes.
+// The filename contains the content-tree digest, not this archive SHA256.
+async function releaseUploadReadback() {
+  const directory = "rivalhub-release-c13efc5854fd2d815992e104a855e547b5b7b04e-84a7a3b3-727a-4827-adfb-90b029359bcc";
+  const filename = "app-173f9e4a8cb508ed5a4a363d238e51f0186b6d217e1629bd06070b5ad62362b1.tar.gz";
+  const expectedBytes = 31638797;
+  const expectedSha256 = "9201bea76a3b1ac393bc7914ad2d512abd6a0dce5946e463de3cccb25172f453";
+  const result = { status: "unavailable", expectedBytes, first: null, second: null, stable: null, sha256Matches: null };
+  const descriptors = [];
+  function opened(path, flags) { const fd = openSync(path, flags); descriptors.push(fd); return fd; }
+  function openUpload() {
+    // Anchor each component to its open parent; never traverse a replaceable symlink.
+    const directoryFlags = constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW;
+    let parent = opened("/", directoryFlags);
+    for (const name of ["root", directory]) parent = opened(`/proc/self/fd/${parent}/${name}`, directoryFlags);
+    const path = `/proc/self/fd/${parent}/${filename}`;
+    if (!lstatSync(path).isFile()) throw new Error("unsafe_path");
+    const fd = opened(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK | constants.O_NOATIME);
+    if (!fstatSync(fd).isFile()) throw new Error("unsafe_path");
+    return fd;
+  }
+  const same = (a, b) => ["dev", "ino", "size", "mtimeNs", "ctimeNs"].every(key => a[key] === b[key]);
+  const summary = value => ({ bytes: Number(value.size), mtimeNs: value.mtimeNs.toString() });
+  try {
+    const first = fstatSync(openUpload(), { bigint: true });
+    result.first = summary(first);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const fd = openUpload();
+    const second = fstatSync(fd, { bigint: true });
+    result.second = summary(second);
+    result.stable = same(first, second);
+    if (!result.stable) { result.status = "changing"; return result; }
+    if (second.size !== BigInt(expectedBytes)) {
+      result.status = second.size < BigInt(expectedBytes) ? "partial" : "oversize";
+      return result;
+    }
+    // Read at most the verified archive size; partial/oversized/non-regular files are never hashed.
+    const hash = createHash("sha256"), buffer = Buffer.allocUnsafe(64 * 1024);
+    let offset = 0;
+    while (offset < expectedBytes) {
+      const bytes = readSync(fd, buffer, 0, Math.min(buffer.length, expectedBytes - offset), offset);
+      if (!bytes) break;
+      hash.update(buffer.subarray(0, bytes));
+      offset += bytes;
+    }
+    // Detect writes during hashing and path replacement, not just growth between the two samples.
+    result.stable = offset === expectedBytes && same(second, fstatSync(fd, { bigint: true }))
+      && same(second, fstatSync(openUpload(), { bigint: true }));
+    if (!result.stable) { result.status = "changing"; return result; }
+    result.sha256Matches = hash.digest("hex") === expectedSha256;
+    result.status = result.sha256Matches ? "complete" : "checksum_mismatch";
+  } catch (error) {
+    result.status = error.code === "ENOENT" ? "missing"
+      : ["ELOOP", "ENOTDIR"].includes(error.code) || error.message === "unsafe_path" ? "unsafe_path" : "unavailable";
+    result.stable = null;
+    result.sha256Matches = null;
+  } finally { for (const fd of descriptors.reverse()) closeSync(fd); }
+  return result;
+}
 
 export function lockHolders(locks, stat) {
   const dev = stat.dev;
@@ -202,11 +263,13 @@ async function main() {
   } catch { /* Service may be stopped during a release. */ }
   try { const value = execFileSync("systemctl", ["show", "rivalhub-production", "--property=ActiveState", "--value"], { encoding: "utf8", timeout: 5000 }).trim(); if (["active", "inactive", "failed", "activating", "deactivating", "reloading"].includes(value)) service = value; } catch { /* Unknown remains null. */ }
   try { const fs = statfsSync(root, { bigint: true }); const bytes = Number(fs.bavail * fs.bsize); if (Number.isSafeInteger(bytes)) diskAvailableBytes = bytes; } catch { /* Unknown remains null. */ }
+  const uploadReadback = releaseUploadReadback();
   const first = sample(); await new Promise(resolve => setTimeout(resolve, 1000)); const second = sample();
+  const upload = await uploadReadback;
   const journalBudget = { deadline: Date.now() + 30000, bytes: 16 * 1024 * 1024 };
   const journal = journalSummary(journalBudget);
   const statsJournal = statsJournalSummary(journalBudget);
-  console.log(JSON.stringify({ event: "linux.release_host_readback", manifest, local, service, diskAvailableBytes, first, second, journal, statsJournal }));
+  console.log(JSON.stringify({ event: "linux.release_host_readback", manifest, local, service, diskAvailableBytes, first, second, upload, journal, statsJournal }));
 }
 
 if (process.argv[1] === "-") main().catch(() => { console.error("Host readback unavailable"); process.exitCode = 1; });
