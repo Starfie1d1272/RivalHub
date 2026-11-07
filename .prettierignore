@@ -7,3 +7,11 @@ coverage/
 
 # Frozen upstream protocol must remain byte-identical to Mizar.
 src/lib/mizar/protocol.ts
+
+# These release-operation owners are path-triggered. Preserve their released
+# bytes so formatting alone does not request production data or scheduler writes.
+# Reassess formatting when intentionally changing and releasing these contracts.
+src/lib/competitive/profile-repair.ts
+src/lib/stats/projection-version.ts
+src/lib/scheduler/definitions.ts
+src/lib/scheduler/health-contract.ts
