@@ -16,6 +16,7 @@ export const demoImportMetadataSelection = {
   semanticProfile: matchDemoImports.semanticProfile,
   analysisVersion: matchDemoImports.analysisVersion,
   evidenceRevision: matchDemoImports.evidenceRevision,
+  validatedRevision: matchDemoImports.validatedRevision,
   status: matchDemoImports.status,
   submittedByPairingId: matchDemoImports.submittedByPairingId,
   idempotencyKey: matchDemoImports.idempotencyKey,

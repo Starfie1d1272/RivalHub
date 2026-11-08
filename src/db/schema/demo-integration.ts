@@ -118,7 +118,10 @@ export const matchDemoImports = pgTable(
     contractVersion: text("contract_version").notNull(),
     semanticProfile: text("semantic_profile").notNull(),
     analysisVersion: text("analysis_version").notNull(),
+    /** Original submitted snapshot; must remain identical to the immutable artifact. */
     evidenceRevision: text("evidence_revision").notNull(),
+    /** Latest snapshot accepted by full server validation; legacy confirmed imports may be null. */
+    validatedRevision: text("validated_revision"),
     status: matchDemoImportStatusEnum("status").notNull().default("pending"),
     /** Stored as submitted; no later code path is allowed to rewrite the artifact. */
     payload: jsonb("payload").notNull(),

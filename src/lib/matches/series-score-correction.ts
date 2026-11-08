@@ -116,6 +116,7 @@ export async function planSeriesAfterMapScoreChangeInTx(
       matchMapId: matchDemoImports.matchMapId,
       status: matchDemoImports.status,
       evidenceRevision: matchDemoImports.evidenceRevision,
+      validatedRevision: matchDemoImports.validatedRevision,
     })
     .from(matchDemoImports)
     .where(eq(matchDemoImports.matchId, match.id))

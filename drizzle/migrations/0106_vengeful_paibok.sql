@@ -1,0 +1,1 @@
+ALTER TABLE "match_demo_imports" ADD COLUMN "validated_revision" text;

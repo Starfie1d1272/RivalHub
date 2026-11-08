@@ -9,7 +9,7 @@ vi.mock("@/lib/observability/server", () => ({ captureException: boundary.report
 afterEach(() => { vi.resetAllMocks(); });
 
 const review = (): AdminDemoReviewMap => ({ importId: "import", matchMapId: "map", mapOrder: 1, mapName: "de_nuke",
-  invalidPayload: false, message: "需要处理", resolvedCount: 9, blockingIssues: ["比分待核对"],
+  invalidPayload: false, requiresRecheck: false, message: "需要处理", resolvedCount: 9, blockingIssues: ["比分待核对"],
   participants: [{ entryId: "a", observedSteam64: "76561198000000000", demoName: "Observed", teamName: "Alpha",
     state: "confirmable", currentPlayer: null, retirableIdentityId: null, observedSteamProfile: null, note: null,
     candidates: [{ eventRosterMemberId: "member", entryId: "a", name: "Canonical", steam64: "76561198000000001" }] }],

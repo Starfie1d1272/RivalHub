@@ -19,6 +19,8 @@ import type { RivalHubEvidenceSubmission } from "./contracts";
 import { dakStableScoreboardValues } from "./scoreboard";
 import type { CanonicalTarget } from "./validation";
 import { demoImportMetadataSelection, type DemoImportMetadata } from "./metadata";
+import { selectCurrentDemoImport } from "./read";
+import { buildEvidenceRevisionForTarget } from "./revision";
 
 export interface PromoteDemoImportInput {
   tx: TxDb;
@@ -63,6 +65,7 @@ const LINEAGE_ACTIVE_STATUSES = ["confirmed", "needs_attention", "stale"] as con
 type LineageActiveStatus = (typeof LINEAGE_ACTIVE_STATUSES)[number];
 
 export interface DemoImportLineage {
+  current?: DemoImportMetadata;
   sameContent?: DemoImportMetadata;
   sameDemoPriors: Array<DemoImportMetadata & { status: LineageActiveStatus }>;
   sameDemoPredecessor?: DemoImportMetadata & { status: LineageActiveStatus };
@@ -100,6 +103,7 @@ export async function resolveDemoImportLineageInTx(
       LINEAGE_ACTIVE_STATUSES.includes(row.status as LineageActiveStatus),
   );
   return {
+    current: selectCurrentDemoImport(rows),
     sameContent: priorRows.find((row) => isSameDemoImportContent(row, input)),
     sameDemoPriors,
     sameDemoPredecessor:
@@ -269,6 +273,7 @@ export async function promoteDemoImportInTx(
 
   const supersedesImportId =
     lineage.sameDemoPredecessor?.id ?? input.row.supersedesImportId ?? null;
+  const validatedRevision = buildEvidenceRevisionForTarget(input.target);
 
   await input.tx
     .update(matchDemoImports)
@@ -277,9 +282,13 @@ export async function promoteDemoImportInTx(
       issues: [],
       confirmedAt: input.row.confirmedAt ?? new Date(),
       supersedesImportId,
+      validatedRevision,
     })
     .where(eq(matchDemoImports.id, input.row.id));
-  await materializeStatisticsProjectionInTx(input);
+  await materializeStatisticsProjectionInTx({
+    ...input,
+    row: { ...input.row, status: "confirmed", validatedRevision },
+  });
   await materializeRoundFacts(input.tx, input.row.id, input.evidence);
   const playerCount = await materializePlayerStats(input.tx, input);
   await writeAuditInTx(input.tx, {
@@ -289,6 +298,8 @@ export async function promoteDemoImportInTx(
     targetId: input.row.id,
     meta: {
       mapOrder: input.target.map.mapOrder,
+      evidenceRevision: input.row.evidenceRevision,
+      validatedRevision,
       playerCount,
       rounds: input.evidence.sourceFacts.rounds.length,
       ...(input.retryPromotion ? { retryPromotion: true } : {}),

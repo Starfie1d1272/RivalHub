@@ -16,7 +16,8 @@ import { requireSeasonAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
-import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
+import { needsDemoImportReview, selectCurrentDemoImport } from "@/lib/demo-integration/read";
+import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { loadAdminDemoReview } from "./demo-review";
 import { projectAdminDemoQuality } from "./demo-quality";
@@ -52,7 +53,11 @@ export async function readAdminDemoReview(input: {
         )
         .orderBy(desc(matchDemoImports.createdAt));
       const current = selectCurrentDemoImport(metadata);
-      if (current?.id !== input.importId || current.status !== "needs_attention")
+      if (current?.id !== input.importId)
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "本图 Demo 状态已变化，请刷新工作台。");
+      const roster = await loadEffectiveMatchRoster(tx, [match.id]);
+      const revision = buildEvidenceRevisionForTarget({ match, map, roster });
+      if (!needsDemoImportReview(current, revision))
         throw new AppError(ErrorCode.VALIDATION_FAILED, "本图 Demo 状态已变化，请刷新工作台。");
       const [artifact] = await tx
         .select()
@@ -69,7 +74,6 @@ export async function readAdminDemoReview(input: {
             inArray(competitionEntries.id, entryIds),
           ),
         );
-      const roster = await loadEffectiveMatchRoster(tx, [match.id]);
       const members = await tx
         .select({ entryId: eventRosters.entryId, userId: eventRosterMembers.userId })
         .from(eventRosterMembers)

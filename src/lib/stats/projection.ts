@@ -8,6 +8,7 @@ import type { TxDb } from "@/db/client";
 import { matchDemoStatProjections, type StatisticsProjectionBinding } from "@/db/schema";
 import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
 import type { RivalHubEvidenceSubmission } from "@/lib/demo-integration/contracts";
+import { getValidatedDemoRevision } from "@/lib/demo-integration/revision";
 import type { CanonicalTarget } from "@/lib/demo-integration/validation";
 import type { GameplayUserResolution } from "@/lib/identity/gameplay-steam";
 import { encodePerformanceTransport, encodeTournamentTransport } from "./projection-transport";
@@ -32,6 +33,9 @@ export interface MaterializeStatisticsProjectionInput {
 export async function materializeStatisticsProjectionInTx(
   input: MaterializeStatisticsProjectionInput,
 ): Promise<void> {
+  const validatedRevision = getValidatedDemoRevision(input.row);
+  if (input.row.status !== "confirmed" || !validatedRevision)
+    throw new Error("Statistics projection validation unavailable");
   const rosterByUser = new Map(input.target.roster.map((member) => [member.userId, member]));
   const identityBindings: StatisticsProjectionBinding[] = input.evidence.participants
     .map((participant) => {
@@ -73,7 +77,7 @@ export async function materializeStatisticsProjectionInTx(
     demoSha256: input.row.demoSha256,
     semanticProfile: input.row.semanticProfile,
     analysisVersion: input.row.analysisVersion,
-    evidenceRevision: input.row.evidenceRevision,
+    evidenceRevision: validatedRevision,
     identityBindings,
     facts: {
       tournament: adapted.tournament,

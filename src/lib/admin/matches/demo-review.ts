@@ -35,7 +35,7 @@ const ISSUE_TEXT: Record<string, string> = {
   ROSTER_STEAM64_MISSING: "本场首发成员缺少可核对的 Steam64，请核对选手资料。",
   ROSTER_ENTRY_INVALID: "本场首发所属队伍无效，请核对出场名单。",
   ROSTER_PARTICIPANT_MISSING: "部分本场首发尚未在 Demo 中匹配；请先核对身份与实际出场名单。",
-  STALE_EVIDENCE: "Demo 所依据的赛事、阵容或比分已变化，请核对数据来源。",
+  STALE_EVIDENCE: "赛事、阵容或比分已变化，请按当前资料重新检查这份 Demo。",
   CONTENT_CONFLICT: "本图已有另一份已确认的 Demo，请核对数据来源。",
   UNSUPPORTED_SEMANTIC_PROFILE: "这份 Demo 数据版本不支持当前确认流程。",
 };
@@ -88,6 +88,7 @@ export async function loadAdminDemoReview(
     matchMapId: target.map.id,
     mapOrder: target.map.mapOrder,
     mapName: target.map.mapName,
+    requiresRecheck: row.status === "confirmed",
   };
   let evidence;
   try {
@@ -97,7 +98,7 @@ export async function loadAdminDemoReview(
     return {
       ...base,
       invalidPayload: true,
-      message: `这份 Demo 数据无法重新读取，请核对或拒绝。排查编号：${requestId}`,
+      message: `这份 Demo 数据无法重新读取，请按当前资料重新检查。排查编号：${requestId}`,
       resolvedCount: 0,
       blockingIssues: [],
       participants: [],
@@ -178,12 +179,11 @@ export async function loadAdminDemoReview(
             : [],
       });
     }
-    // Lineage/revision checks are owned by revalidation; retain their stored blockers.
+    // Revalidation resolves lineage conflicts. An old submitted revision is
+    // historical context, not a blocker after the current facts match.
     const issues = [
       ...validation.issues,
-      ...row.issues.filter(
-        (issue) => issue.code === "CONTENT_CONFLICT" || issue.code === "STALE_EVIDENCE",
-      ),
+      ...row.issues.filter((issue) => issue.code === "CONTENT_CONFLICT"),
     ];
     const blockingIssues = [
       ...new Set(
@@ -202,8 +202,9 @@ export async function loadAdminDemoReview(
       (participant) => participant.state === "roster-mismatch",
     ).length;
     const unresolved = participants.length - conflicts - rosterMismatches;
-    const message =
-      participants.length > 0
+    const message = base.requiresRecheck
+      ? "赛事资料已变化，请按当前资料重新检查这份 Demo。"
+      : participants.length > 0
         ? `需要处理：${[
             unresolved > 0 ? `${unresolved} 名选手 Steam 身份未确认` : "",
             conflicts > 0 ? `${conflicts} 名选手 Steam64 已关联其他选手` : "",
@@ -211,18 +212,15 @@ export async function loadAdminDemoReview(
           ]
             .filter(Boolean)
             .join("；")}`
-        : "请按下方检查结果处理这份 Demo。";
+        : blockingIssues.length > 0
+          ? "请按下方检查结果处理这份 Demo。"
+          : "当前选手与比分已匹配，可按当前资料重新检查并同步统计。";
     return {
       ...base,
       invalidPayload: false,
       message,
       resolvedCount,
-      blockingIssues:
-        blockingIssues.length > 0
-          ? blockingIssues
-          : participants.length === 0
-            ? ["选手已匹配，请核对其余待处理项，再确认同步统计。"]
-            : [],
+      blockingIssues,
       participants,
       diagnostics: [
         ...projectDiagnostics(validation.issues, "current"),
