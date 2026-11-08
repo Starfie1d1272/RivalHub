@@ -16,7 +16,7 @@ import {
   promoteDemoImportInTx,
   resolveDemoImportLineageInTx,
 } from "./promotion";
-import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
+import { buildEvidenceRevisionForTarget, getValidatedDemoRevision, sha256Json } from "./revision";
 import { selectCurrentDemoImport } from "./read";
 import { isCurrentDakSemanticProfile } from "./semantic-profile";
 import {
@@ -140,9 +140,20 @@ async function revalidateStoredDemoImportRowInTx(
 ): Promise<StoredDemoRevalidationResult> {
   if (!isCurrentDakSemanticProfile(row.semanticProfile))
     throw new AppError(ErrorCode.VALIDATION_FAILED, "只有当前 Demo 数据版本可以重新检查。");
-  if (row.status === "confirmed") return { status: "confirmed", importId: row.id, issues: [] };
-  if (row.status !== "needs_attention")
+  if (row.status !== "needs_attention" && row.status !== "confirmed")
     throw new AppError(ErrorCode.VALIDATION_FAILED, "这份 Demo 数据当前不在待处理状态。");
+
+  const lineage = await resolveDemoImportLineageInTx(tx, {
+    matchMapId: row.matchMapId,
+    demoSha256: row.demoSha256,
+    payloadSha256: row.payloadSha256,
+    currentImportId: row.id,
+  });
+  if (lineage.current?.id !== row.id)
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "这份 Demo 数据已不是当前提交，请刷新后检查最新的 Demo 数据。",
+    );
 
   const stored = parsedEvidence ?? parseStoredEvidence(row);
   if (!stored.evidence || stored.issues.length > 0)
@@ -173,29 +184,17 @@ async function revalidateStoredDemoImportRowInTx(
   const validation = await validateCanonicalTarget(tx, stored.evidence, target);
   const issues = [...validation.issues];
   const currentRevision = buildEvidenceRevisionForTarget(target);
-  if (stored.evidence.target.evidenceRevision !== currentRevision) {
-    issues.push(
-      integrationIssue(
-        "STALE_EVIDENCE",
-        "Demo Evidence 基于旧的赛事/阵容/比分快照，请刷新后重新生成。",
-        "target.evidenceRevision",
-      ),
-    );
-  }
-
-  const lineage = await resolveDemoImportLineageInTx(tx, {
-    matchMapId: target.map.id,
-    demoSha256: row.demoSha256,
-    payloadSha256: row.payloadSha256,
-    currentImportId: row.id,
-  });
   if (lineage.differentDemoConfirmed) {
     issues.push(
       integrationIssue("CONTENT_CONFLICT", DEMO_CONTENT_CONFLICT_MESSAGE, "source.demoSha256"),
     );
   }
   if (issues.length > 0) return writeRecheckIssue(tx, row, issues, target, input.actorId);
+  if (row.status === "confirmed" && getValidatedDemoRevision(row) === currentRevision)
+    return { status: "confirmed", importId: row.id, issues: [] };
 
+  // The artifact still records its original snapshot. Full validation above
+  // binds those same stored facts to the current website context on promotion.
   await promoteDemoImportInTx({
     tx,
     row,

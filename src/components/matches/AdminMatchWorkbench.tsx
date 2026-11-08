@@ -430,7 +430,7 @@ export function AdminMatchWorkbench({
             >
               {map.demoNeedsAttention && (
                 <p className="mt-2 text-sm text-[var(--color-warn)]">
-                  请检查下方 Demo 待处理项；若阵容或比分已更正，请在上传器中重新生成并同步。
+                  请展开下方 Demo 核对详情；阵容或比分更正后，可按当前资料重新检查已保存的数据。
                 </p>
               )}
             </ActivatedStatsOCRPanel>

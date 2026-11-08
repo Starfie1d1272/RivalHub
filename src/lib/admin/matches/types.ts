@@ -119,6 +119,7 @@ export interface AdminDemoReviewMap {
   matchMapId: string;
   mapOrder: number;
   mapName: string;
+  requiresRecheck: boolean;
   invalidPayload: boolean;
   message: string;
   resolvedCount: number;

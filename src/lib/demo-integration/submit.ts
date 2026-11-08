@@ -22,7 +22,7 @@ import {
   promoteDemoImportInTx,
   resolveDemoImportLineageInTx,
 } from "./promotion";
-import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
+import { buildEvidenceRevisionForTarget, getValidatedDemoRevision, sha256Json } from "./revision";
 import { integrationIssue, loadCanonicalTarget, validateCanonicalTarget } from "./validation";
 
 export { dakStableScoreboardValues } from "./scoreboard";
@@ -83,7 +83,7 @@ async function validateEvidenceForTarget(tx: TxDb, evidence: RivalHubEvidenceSub
     issues.push(
       integrationIssue(
         "STALE_EVIDENCE",
-        "Demo Evidence 基于旧的赛事/阵容/比分快照，请刷新后重新生成。",
+        "Demo 依据的赛事、阵容或比分已变化，请在网站按当前资料重新检查已提交的数据。",
         "target.evidenceRevision",
       ),
     );
@@ -134,17 +134,38 @@ export async function submitRivalHubEvidence(
       payloadSha256,
     });
     const same = idempotent ?? lineage.sameContent;
+    const lineageIssues: IntegrationIssue[] = [];
+    if (lineage.differentDemoConfirmed) {
+      lineageIssues.push(
+        integrationIssue("CONTENT_CONFLICT", DEMO_CONTENT_CONFLICT_MESSAGE, "source.demoSha256"),
+      );
+    }
+    if (same && lineage.current && lineage.current.id !== same.id) {
+      lineageIssues.push(
+        integrationIssue(
+          "IMPORT_NOT_CURRENT",
+          "该地图已有更新的 Demo 提交，请在网站检查当前数据。",
+        ),
+      );
+    }
+    issues.push(...lineageIssues);
 
     if (same) {
       if (same.status === "confirmed") {
-        if (same.evidenceRevision === currentRevision && issues.length === 0)
-          return responseFor(same, []);
-        return { ...responseFor(same, issues), status: "needs_attention" };
-      }
-      if (lineage.differentDemoConfirmed) {
-        issues.push(
-          integrationIssue("CONTENT_CONFLICT", DEMO_CONTENT_CONFLICT_MESSAGE, "source.demoSha256"),
-        );
+        // An exact retry retains the website's acceptance of the immutable
+        // artifact, but still checks today's target facts and current lineage.
+        const confirmedIssues = [...validation.issues, ...lineageIssues];
+        if (getValidatedDemoRevision(same) !== currentRevision) {
+          confirmedIssues.push(
+            integrationIssue(
+              "STALE_EVIDENCE",
+              "Demo 依据的赛事、阵容或比分已变化，请在网站按当前资料重新检查已提交的数据。",
+              "target.evidenceRevision",
+            ),
+          );
+        }
+        if (confirmedIssues.length === 0) return responseFor(same, []);
+        return { ...responseFor(same, confirmedIssues), status: "needs_attention" };
       }
       if (same.status === "needs_attention" && issues.length === 0) {
         await promoteDemoImportInTx({
@@ -166,12 +187,6 @@ export async function submitRivalHubEvidence(
       }
       await tx.update(matchDemoImports).set({ issues }).where(eq(matchDemoImports.id, same.id));
       return responseFor({ ...same, issues }, issues);
-    }
-
-    if (lineage.differentDemoConfirmed) {
-      issues.push(
-        integrationIssue("CONTENT_CONFLICT", DEMO_CONTENT_CONFLICT_MESSAGE, "source.demoSha256"),
-      );
     }
 
     const now = new Date();

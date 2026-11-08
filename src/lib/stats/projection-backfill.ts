@@ -18,7 +18,10 @@ import { lockDemoImportLineageInTx } from "@/lib/demo-integration/promotion";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import { parseStoredEvidence, writeRecheckIssue } from "@/lib/demo-integration/revalidation";
 import { CURRENT_DAK_SEMANTIC_PROFILE } from "@/lib/demo-integration/semantic-profile";
-import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
+import {
+  buildEvidenceRevisionForTarget,
+  getValidatedDemoRevision,
+} from "@/lib/demo-integration/revision";
 import { loadCanonicalTarget, validateCanonicalTarget } from "@/lib/demo-integration/validation";
 import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
@@ -78,7 +81,7 @@ async function currentProjectionCandidates(
     if (!mapMatch.map.completedAt || mapMatch.map.scoreA === null || mapMatch.map.scoreB === null)
       return [];
     const target = { ...mapMatch, roster: rosterByMatch.get(mapMatch.match.id) ?? [] };
-    return buildEvidenceRevisionForTarget(target) === current.evidenceRevision
+    return buildEvidenceRevisionForTarget(target) === getValidatedDemoRevision(current)
       ? [{ current, target }]
       : [];
   });
@@ -126,7 +129,7 @@ async function currentProjectionMapIds(
     return (
       projection.payloadSha256 === current.payloadSha256 &&
       projection.demoSha256 === current.demoSha256 &&
-      projection.evidenceRevision === current.evidenceRevision &&
+      projection.evidenceRevision === getValidatedDemoRevision(current) &&
       projection.semanticProfile === current.semanticProfile &&
       projection.analysisVersion === current.analysisVersion
     );
@@ -200,7 +203,8 @@ export async function backfillStatisticsProjectionForMapInTx(
     matchId: current.matchId,
     matchMapId,
   });
-  if (buildEvidenceRevisionForTarget(target) !== current.evidenceRevision) return "not_current";
+  if (buildEvidenceRevisionForTarget(target) !== getValidatedDemoRevision(current))
+    return "not_current";
   const [row] = await tx
     .select()
     .from(matchDemoImports)
@@ -654,7 +658,9 @@ export async function backfillStatisticsTransport(
             matchId: candidate.current.matchId,
             matchMapId: item.mapId,
           });
-          if (buildEvidenceRevisionForTarget(target) !== candidate.current.evidenceRevision)
+          if (
+            buildEvidenceRevisionForTarget(target) !== getValidatedDemoRevision(candidate.current)
+          )
             return null;
           const rows = await tx
             .select({
@@ -706,7 +712,7 @@ export async function backfillStatisticsTransport(
             if (
               row.payloadSha256 !== candidate.current.payloadSha256 ||
               row.demoSha256 !== candidate.current.demoSha256 ||
-              row.evidenceRevision !== candidate.current.evidenceRevision ||
+              row.evidenceRevision !== getValidatedDemoRevision(candidate.current) ||
               row.semanticProfile !== candidate.current.semanticProfile ||
               row.analysisVersion !== candidate.current.analysisVersion ||
               row.identityBindings.length !== target.roster.length

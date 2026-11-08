@@ -743,6 +743,13 @@
       "when": 1793815251614,
       "tag": "0105_harden_database_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1794114348674,
+      "tag": "0106_vengeful_paibok",
+      "breakpoints": true
     }
   ]
 }

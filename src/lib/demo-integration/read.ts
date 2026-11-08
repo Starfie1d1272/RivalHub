@@ -29,7 +29,7 @@ import { getPublicDisplayName } from "@/lib/identity/display-name";
 import type { MatchRoundScore } from "@/lib/standings";
 import { pairingCanReadSeason } from "./pairing";
 import type { DemoImportMetadata } from "./metadata";
-import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
+import { buildEvidenceRevisionForTarget, getValidatedDemoRevision, sha256Json } from "./revision";
 import { projectStage, projectOfficialStage } from "./stage-projection";
 import {
   CURRENT_DAK_SEMANTIC_PROFILE,
@@ -83,7 +83,14 @@ function projectIssues(value: unknown): IntegrationIssue[] {
 
 type DemoImportEventMetadata = Pick<
   DemoImportMetadata,
-  "id" | "matchMapId" | "demoSha256" | "semanticProfile" | "evidenceRevision" | "status" | "issues"
+  | "id"
+  | "matchMapId"
+  | "demoSha256"
+  | "semanticProfile"
+  | "evidenceRevision"
+  | "validatedRevision"
+  | "status"
+  | "issues"
 >;
 type CurrentDemoImportCandidate = Pick<DemoImportMetadata, "semanticProfile" | "status">;
 
@@ -98,6 +105,31 @@ export function selectCurrentDemoImport(
 ): CurrentDemoImportCandidate | undefined {
   return rows.find(
     (row) => isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded",
+  );
+}
+
+export function isConfirmedDemoImportStale(
+  row: Pick<DemoImportMetadata, "status" | "evidenceRevision" | "validatedRevision"> | undefined,
+  currentEvidenceRevision: string,
+): boolean {
+  return row?.status === "confirmed" && getValidatedDemoRevision(row) !== currentEvidenceRevision;
+}
+
+/** Call after selecting the current lineage; mutations recheck under its lock. */
+export function needsDemoImportReview(
+  current:
+    | Pick<
+        DemoImportMetadata,
+        "status" | "semanticProfile" | "evidenceRevision" | "validatedRevision"
+      >
+    | undefined,
+  currentEvidenceRevision: string,
+): boolean {
+  return (
+    current != null &&
+    isCurrentDakSemanticProfile(current.semanticProfile) &&
+    (current.status === "needs_attention" ||
+      isConfirmedDemoImportStale(current, currentEvidenceRevision))
   );
 }
 
@@ -142,7 +174,8 @@ export function projectDemoStatus(
     if (latest.semanticProfile != null && !isCurrentDakSemanticProfile(latest.semanticProfile))
       return "needs_attention";
     if (latest.status === "confirmed") {
-      return currentEvidenceRevision != null && latest.evidenceRevision !== currentEvidenceRevision
+      return currentEvidenceRevision != null &&
+        isConfirmedDemoImportStale(latest, currentEvidenceRevision)
         ? "needs_attention"
         : "synced";
     }
@@ -158,7 +191,7 @@ export function projectDemoStatus(
 const staleEvidenceIssue: IntegrationIssue = {
   code: "STALE_EVIDENCE",
   path: "target.evidenceRevision",
-  message: "赛事阵容/比分上下文已变化，请重新生成并同步 Demo Evidence。",
+  message: "赛事阵容或比分已变化，请在比赛工作台按当前资料重新检查 Demo。",
 };
 
 export function projectDemoIssues(
@@ -179,8 +212,7 @@ export function projectDemoIssues(
     });
   }
   if (
-    latestConfirmed != null &&
-    latestConfirmed.evidenceRevision !== currentEvidenceRevision &&
+    isConfirmedDemoImportStale(latestConfirmed, currentEvidenceRevision) &&
     !issues.some((row) => row.code === staleEvidenceIssue.code)
   )
     issues.push(staleEvidenceIssue);
@@ -348,6 +380,7 @@ export async function readRivalHubEvents(
       demoSha256: matchDemoImports.demoSha256,
       semanticProfile: matchDemoImports.semanticProfile,
       evidenceRevision: matchDemoImports.evidenceRevision,
+      validatedRevision: matchDemoImports.validatedRevision,
       status: matchDemoImports.status,
       issues: matchDemoImports.issues,
       createdAt: matchDemoImports.createdAt,
@@ -381,6 +414,7 @@ export async function readRivalHubEvents(
             demoSha256: importHistory.demoSha256,
             semanticProfile: importHistory.semanticProfile,
             evidenceRevision: importHistory.evidenceRevision,
+            validatedRevision: importHistory.validatedRevision,
             status: importHistory.status,
             issues: importHistory.issues,
           })
@@ -593,8 +627,10 @@ export async function readRivalHubEvents(
               const latest =
                 latestCurrentImportByMap.get(map.id) ?? latestNonCanonicalImportByMap.get(map.id);
               const latestConfirmed = latestConfirmedImportByMap.get(map.id);
-              const confirmedIsStale =
-                latestConfirmed != null && latestConfirmed.evidenceRevision !== evidenceRevision;
+              const confirmedIsStale = isConfirmedDemoImportStale(
+                latestConfirmed,
+                evidenceRevision,
+              );
               const demoIssues = projectDemoIssues(latest, latestConfirmed, evidenceRevision);
               return {
                 id: map.id,

@@ -35,7 +35,8 @@ import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/c
 import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
-import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
+import { needsDemoImportReview, selectCurrentDemoImport } from "@/lib/demo-integration/read";
+import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
 import type {
   AdminMatchWorkbenchData,
   RosterData,
@@ -287,7 +288,8 @@ export async function loadAdminMatchWorkbench({
     const summary = current
       ? { importId: current.id, matchMapId: map.id, mapOrder: map.mapOrder, mapName: map.mapName }
       : null;
-    if (current?.status === "needs_attention" && summary) demoReviewSummaries.push(summary);
+    const revision = buildEvidenceRevisionForTarget({ match, map, roster: effectiveRosterRows });
+    if (summary && needsDemoImportReview(current, revision)) demoReviewSummaries.push(summary);
     else if (current?.status === "confirmed" && summary) demoQualitySummaries.push(summary);
   }
   const submittedAt = submission?.submittedAt ?? null;

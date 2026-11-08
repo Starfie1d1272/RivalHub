@@ -42,7 +42,8 @@ import { readAdminDemoQuality } from "@/lib/admin/matches/demo-quality-read";
 import { readRivalHubEvents } from "@/lib/demo-integration/read";
 import { resolveDemoImportLineageInTx } from "@/lib/demo-integration/promotion";
 import { revalidateNeedsAttentionImportsForSteam64, revalidateSeasonNeedsAttentionImports } from "@/lib/demo-integration/revalidation";
-import { sha256Json } from "@/lib/demo-integration/revision";
+import { buildEvidenceRevisionForTarget, sha256Json } from "@/lib/demo-integration/revision";
+import { loadCanonicalTarget } from "@/lib/demo-integration/validation";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 
 function importReads() {
@@ -112,6 +113,11 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
       // for a status-only read, even if the displayed current row is rejected.
       await addImport(0, "needs_attention", { ignored: "x".repeat(1024 * 1024) }, 1);
       const confirmed = await addImport(0, "confirmed", { ignored: "y".repeat(1024 * 1024) }, 2);
+      const confirmedTarget = await db.transaction(tx => loadCanonicalTarget(tx, {
+        seasonId: ids.season, matchId: ids.match, matchMapId: ids.maps[0]!,
+      }));
+      await pool.query("UPDATE match_demo_imports SET validated_revision = $1 WHERE id = $2",
+        [buildEvidenceRevisionForTarget(confirmedTarget), confirmed]);
       await addImport(1, "needs_attention", { ignored: "z".repeat(1024 * 1024) }, 1);
       const rejected = await addImport(1, "rejected", { rejected: true }, 2);
       const related = await addImport(2, "needs_attention", fixture, 1);
@@ -169,7 +175,7 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
       // not evidence of an actual PostgreSQL upsert timeout/concurrency race.
       vi.mocked(loadAdminDemoReview).mockResolvedValueOnce({
         importId: related, matchMapId: ids.maps[2]!, mapOrder: 3, mapName: "de_nuke",
-        invalidPayload: false, message: "需要处理", resolvedCount: 0,
+        invalidPayload: false, requiresRecheck: false, message: "需要处理", resolvedCount: 0,
         blockingIssues: ["保留权威检查结果"], participants: [{
           entryId: ids.entries[0]!, observedSteam64: steam64, demoName: "fixture", teamName: "Alpha",
           state: "confirmable", currentPlayer: null, retirableIdentityId: null,
@@ -191,6 +197,19 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
       expect(payloadReads()).toHaveLength(0);
       await expect(readAdminDemoQuality({ seasonId: ids.season, matchId: ids.match, mapId: ids.maps[0]!, importId: related })).rejects.toThrow();
       expect(payloadReads()).toHaveLength(0);
+
+      // Changed official context exposes a confirmed artifact's review entry
+      // without downloading it until that entry is explicitly opened.
+      await pool.query("UPDATE match_maps SET score_a = 13, score_b = 9, completed_at = now() WHERE id = $1", [ids.maps[0]]);
+      observation.queries.length = 0;
+      const staleWorkbench = await loadAdminMatchWorkbench({ seasonSlug: slug, matchId: ids.match });
+      expect(staleWorkbench?.demoReviewSummaries?.map(row => row.importId)).toContain(confirmed);
+      expect(staleWorkbench?.demoQualitySummaries?.map(row => row.importId)).not.toContain(confirmed);
+      expect(payloadReads()).toHaveLength(0);
+      expect((await readAdminDemoReview({ seasonId: ids.season, matchId: ids.match, mapId: ids.maps[0]!, importId: confirmed })).review.importId).toBe(confirmed);
+      expect(payloadReads()).toHaveLength(1);
+      expect(payloadReads()[0]?.params).toEqual([confirmed]);
+      await pool.query("UPDATE match_maps SET score_a = NULL, score_b = NULL, completed_at = NULL WHERE id = $1", [ids.maps[0]]);
 
       observation.queries.length = 0;
       const targets = await resolveAuditTargets([

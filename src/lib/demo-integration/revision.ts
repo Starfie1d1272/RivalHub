@@ -31,6 +31,18 @@ export interface EvidenceRevisionInput {
   roster: readonly EvidenceRevisionRosterMember[];
 }
 
+/**
+ * Accepted website context, distinct from the immutable submitted snapshot.
+ * Legacy writers only confirmed Evidence whose original snapshot was current.
+ */
+export function getValidatedDemoRevision(row: {
+  status: string;
+  evidenceRevision: string;
+  validatedRevision: string | null;
+}): string | null {
+  return row.validatedRevision ?? (row.status === "confirmed" ? row.evidenceRevision : null);
+}
+
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue);
   if (value && typeof value === "object") {

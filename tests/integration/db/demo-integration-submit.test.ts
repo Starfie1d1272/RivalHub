@@ -1017,12 +1017,12 @@ describe("DAK evidence submit persistence", () => {
         inArray(schema.matchDemoStatProjections.importId, orderedCandidates.map((row) => row.importId)),
         eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
       ));
-      await database.update(schema.matchDemoImports).set({ evidenceRevision: "stale-revision" }).where(eq(schema.matchDemoImports.id, orderedCandidates[0]!.importId));
+      await database.update(schema.matchDemoImports).set({ validatedRevision: "stale-revision" }).where(eq(schema.matchDemoImports.id, orderedCandidates[0]!.importId));
       await database.delete(schema.statisticsProjectionRepairCursors);
       expect(await reconcileMissingStatisticsProjections(database, { limit: 1, scanLimit: 1 })).toMatchObject({ candidates: 1, scanned: 1, rebuilt: 0, skipped: 1, invalid: 0, failed: 0 });
       // A new invocation resumes after the stale prefix, even with a one-ID budget.
       expect(await reconcileMissingStatisticsProjections(database, { limit: 1, scanLimit: 1 })).toMatchObject({ candidates: 1, scanned: 1, rebuilt: 1, invalid: 0, failed: 0 });
-      await database.update(schema.matchDemoImports).set({ evidenceRevision: orderedCandidates[0]!.revision }).where(eq(schema.matchDemoImports.id, orderedCandidates[0]!.importId));
+      await database.update(schema.matchDemoImports).set({ validatedRevision: orderedCandidates[0]!.revision }).where(eq(schema.matchDemoImports.id, orderedCandidates[0]!.importId));
       expect(await reconcileMissingStatisticsProjections(database, { limit: 1, scanLimit: 1 })).toMatchObject({ wrapped: true, scanned: 0 });
       expect(await reconcileMissingStatisticsProjections(database, { limit: 1, scanLimit: 1 })).toMatchObject({ rebuilt: 1, invalid: 0, failed: 0 });
       // Simulate a worker lost after claiming a range: the persisted cursor is
@@ -1223,6 +1223,24 @@ describe("DAK evidence submit persistence", () => {
         ...evidence,
         target: { ...evidence.target, evidenceRevision: evidenceRevisionNPlusOne },
       };
+      // The website can validate its stored artifact against changed official
+      // context without rewriting the upload or asking the producer to resend.
+      const [beforeWebsiteRecheck] = await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, importId));
+      expect((await submitRivalHubEvidence({ input: evidence, pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] } })).status).toBe("needs_attention");
+      expect(await database.transaction(tx => revalidateStoredDemoImportInTx(tx, {
+        importId, actorId: userIds[0]!,
+      }))).toMatchObject({ status: "confirmed", importId, issues: [] });
+      const [afterWebsiteRecheck] = await database.select().from(schema.matchDemoImports).where(eq(schema.matchDemoImports.id, importId));
+      expect(afterWebsiteRecheck).toMatchObject({ status: "confirmed", validatedRevision: evidenceRevisionNPlusOne,
+        evidenceRevision: evidence.target.evidenceRevision, payload: beforeWebsiteRecheck!.payload,
+        payloadSha256: beforeWebsiteRecheck!.payloadSha256, submittedAt: beforeWebsiteRecheck!.submittedAt,
+        submittedByPairingId: beforeWebsiteRecheck!.submittedByPairingId, confirmedAt: beforeWebsiteRecheck!.confirmedAt });
+      expect((await database.select().from(schema.matchDemoStatProjections).where(eq(schema.matchDemoStatProjections.importId, importId)))
+        .every(row => row.evidenceRevision === evidenceRevisionNPlusOne)).toBe(true);
+      expect((await getTournamentStats({ seasonId: ids.season }, database)).coverage.detailedMaps).toBe(1);
+      expect(await submitRivalHubEvidence({ input: evidence, pairingId: ids.pairing,
+        pairingScope: { seasonIds: [ids.season] } })).toMatchObject({ status: "synced", importId, issues: [] });
       const revised = await submitRivalHubEvidence({
         input: evidenceNPlusOne,
         pairingId: ids.pairing,
@@ -1427,7 +1445,8 @@ describe("DAK evidence submit persistence", () => {
       }));
       const mixedEvidence = structuredClone(evidenceNPlusOne);
       mixedEvidence.target = { ...mixedEvidence.target, matchId: ids.mixedMatch, matchMapId: ids.mixedMap,
-        evidenceRevision: buildEvidenceRevisionForTarget(mixedTarget) };
+        evidenceRevision: buildEvidenceRevisionForTarget({ ...mixedTarget,
+          map: { ...mixedTarget.map, scoreA: null, scoreB: null, completedAt: null } }) };
       await database.insert(schema.matchDemoImports).values({
         id: ids.mixedImport, seasonId: ids.season, matchId: ids.mixedMatch, matchMapId: ids.mixedMap,
         stageKey: mixedEvidence.target.stageKey, stageRunId: mixedEvidence.target.stageRunId ?? null,
@@ -1482,12 +1501,15 @@ describe("DAK evidence submit persistence", () => {
       const confirmedMixed = await mixedSuccessSnapshot();
       expect(confirmedMixed.imports).toHaveLength(1);
       expect(confirmedMixed.imports[0]).toMatchObject({ status: "confirmed", payload: mixedEvidence,
-        payloadSha256: sha256Json(mixedEvidence), issues: [] });
+        payloadSha256: sha256Json(mixedEvidence), evidenceRevision: mixedEvidence.target.evidenceRevision,
+        validatedRevision: buildEvidenceRevisionForTarget(mixedTarget), issues: [] });
+      expect(confirmedMixed.imports[0]?.validatedRevision).not.toBe(mixedEvidence.target.evidenceRevision);
       expect(confirmedMixed.rounds).toHaveLength(mixedEvidence.sourceFacts.rounds.length);
       expect(confirmedMixed.stats).toHaveLength(10);
       expect(confirmedMixed.stats.every(row => row.dakImportId === ids.mixedImport)).toBe(true);
       expect(confirmedMixed.projections.map(row => row.projectionVersion).sort()).toEqual([PREVIOUS_STATISTICS_PROJECTION_VERSION, STATISTICS_PROJECTION_VERSION].sort());
       expect(confirmedMixed.projections.every(row => row.identityBindings.length === 10)).toBe(true);
+      expect(confirmedMixed.projections.every(row => row.evidenceRevision === buildEvidenceRevisionForTarget(mixedTarget))).toBe(true);
       expect(confirmedMixed.audits).toHaveLength(1);
       expect(confirmedMixed.audits[0]?.action).toBe("match.demo.recheck");
       const recoveredBatch = await revalidateSeasonNeedsAttentionImports({ seasonId: ids.season, actorId: userIds[0]! });
@@ -1562,6 +1584,7 @@ describe("DAK evidence submit persistence", () => {
           ? { ...participant, nameSnapshot: `${participant.nameSnapshot}（重复确认）` }
           : participant),
       });
+      const aliasSubmittedAt = new Date();
       await database.insert(schema.matchDemoImports).values({
         id: idempotentAliasImportId,
         seasonId: ids.season,
@@ -1585,9 +1608,9 @@ describe("DAK evidence submit persistence", () => {
           path: `participants.${alternateSteam64}`,
           message: "选手身份未能以 Steam64 唯一匹配，不能自动接收。",
         }],
-        submittedAt: new Date(now.getTime() + 2_000),
+        submittedAt: aliasSubmittedAt,
         confirmedAt: null,
-        createdAt: new Date(now.getTime() + 2_000),
+        createdAt: aliasSubmittedAt,
       });
       const activeAliasBeforeIdempotency = await database.select().from(schema.userGameplaySteamIds)
         .where(eq(schema.userGameplaySteamIds.userId, userIds[0]!));
@@ -1716,6 +1739,7 @@ describe("DAK evidence submit persistence", () => {
           ? { ...participant, nameSnapshot: `${participant.nameSnapshot}（主身份已恢复）`, resolution: { status: "unresolved" } }
           : participant),
       });
+      const primarySubmittedAt = new Date();
       await database.insert(schema.matchDemoImports).values({
         id: primaryIdempotentImportId,
         seasonId: ids.season,
@@ -1739,9 +1763,9 @@ describe("DAK evidence submit persistence", () => {
           path: `participants.${primarySteam64}`,
           message: "选手身份未能以 Steam64 唯一匹配，不能自动接收。",
         }],
-        submittedAt: new Date(now.getTime() + 3_000),
+        submittedAt: primarySubmittedAt,
         confirmedAt: null,
-        createdAt: new Date(now.getTime() + 3_000),
+        createdAt: primarySubmittedAt,
       });
       const primaryIdentityBeforeIdempotency = await database.select().from(schema.userGameplaySteamIds)
         .where(eq(schema.userGameplaySteamIds.userId, userIds[0]!));

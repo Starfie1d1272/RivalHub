@@ -252,7 +252,7 @@ function SeasonRecheckControl({ importId }: { importId: string }) {
       if (result.success) {
         const { attempted, confirmed, remaining, failed, requestId } = result.data;
         toast.success(
-          `本赛事待处理 Demo 已重新检查：共 ${attempted} 张，确认 ${confirmed} 张，仍需处理 ${remaining} 张${failed > 0 ? `，失败 ${failed} 张。请刷新核对后重检剩余待处理 Demo，已确认的数据不会重复处理；无需重新上传或重复确认身份${requestId ? `。排查编号：${requestId}` : ""}` : ""}。`,
+          `本赛事待审核 Demo 已重新检查：共 ${attempted} 张，确认 ${confirmed} 张，仍需处理 ${remaining} 张${failed > 0 ? `，失败 ${failed} 张。请刷新核对后重检剩余待审核 Demo${requestId ? `。排查编号：${requestId}` : ""}` : ""}。`,
         );
         router.refresh();
       } else toast.error(result.error.message);
@@ -262,7 +262,7 @@ function SeasonRecheckControl({ importId }: { importId: string }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3">
       <p className="text-xs leading-5 text-[var(--color-fg-mid)]">
-        选手对应关系或赛事资料修正后，重新核验本赛事的当前 Demo 数据。
+        选手对应关系或赛事资料修正后，可批量重新核验本赛事待审核的 Demo。
       </p>
       <Button
         type="button"
@@ -271,7 +271,7 @@ function SeasonRecheckControl({ importId }: { importId: string }) {
         disabled={isPending}
         onClick={recheckSeason}
       >
-        {isPending ? "重新检查中..." : "重新检查本赛事全部待处理 Demo"}
+        {isPending ? "重新检查中..." : "重新检查本赛事待审核 Demo"}
       </Button>
     </div>
   );
@@ -298,7 +298,7 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
   }
 
   function reject() {
-    if (isPending) return;
+    if (isPending || review.requiresRecheck) return;
     startTransition(async () => {
       const result = await rejectStoredDemoImport({ importId: review.importId });
       if (result.success) {
@@ -317,6 +317,7 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
         <p className="mt-2 text-sm leading-6 text-[var(--color-warn)]">{review.message}</p>
       </header>
       {!review.invalidPayload &&
+        !review.requiresRecheck &&
         review.participants.map((participant) => (
           <ParticipantReview
             key={`${participant.observedSteam64}:${participant.state}`}
@@ -366,17 +367,19 @@ function MapReview({ review }: { review: AdminDemoReviewMap }) {
           >
             按当前资料重新检查
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={isPending}
-            onClick={() => setRejecting(true)}
-          >
-            拒绝这份 Demo 数据
-          </Button>
+          {!review.requiresRecheck && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isPending}
+              onClick={() => setRejecting(true)}
+            >
+              拒绝这份 Demo 数据
+            </Button>
+          )}
         </div>
-        {rejecting && (
+        {rejecting && !review.requiresRecheck && (
           <InlineConfirm
             danger
             title="确认拒绝这份 Demo 数据？"
@@ -399,11 +402,12 @@ export function DemoDataReviewPanel({
   quality?: AdminDemoQuality[];
 }) {
   if (reviews.length === 0 && quality.length === 0) return null;
+  const pendingReview = reviews.find((review) => !review.requiresRecheck);
   return (
     <>
       {reviews.length > 0 && (
         <Panel label="Demo 数据需要处理" contentClassName="space-y-5 p-4">
-          <SeasonRecheckControl importId={reviews[0]!.importId} />
+          {pendingReview && <SeasonRecheckControl importId={pendingReview.importId} />}
           {reviews.map((review) => (
             <MapReview key={review.importId} review={review} />
           ))}

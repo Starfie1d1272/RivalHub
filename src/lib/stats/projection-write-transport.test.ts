@@ -12,7 +12,7 @@ it("writes both complete legacy versions if transport is unavailable", async () 
   mocks.collect.mockReturnValue(performance);
   const rows: Array<{ facts: { performance: unknown; performanceTransport?: unknown } }> = [];
   const tx = { insert: () => ({ values: (row: typeof rows[number]) => ({ onConflictDoUpdate: async () => { rows.push(row); } }) }) };
-  const input = { tx, row: { id: "import" }, evidence: { participants: [{ steamId64: "steam" }] },
+  const input = { tx, row: { id: "import", status: "confirmed", evidenceRevision: "revision", validatedRevision: null }, evidence: { participants: [{ steamId64: "steam" }] },
     target: { roster: [{ userId: "user", entryId: "entry" }] }, resolutions: new Map([["steam", { userId: "user" }]]) };
   await materializeStatisticsProjectionInTx(input as never);
   expect(mocks.collect).toHaveBeenCalledTimes(1);

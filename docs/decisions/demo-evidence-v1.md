@@ -57,13 +57,17 @@ Quality 保持轻量：继续区分 `null != 0`、missing 与 empty，并保留 
 
 接收端必须先兼容，再启用 producer 发送。Base V1 / semantic profile 不变；producerVersion 用 `cs2dak-rivalhub-evidence/0.2.0` 标识新输出。完整 payload 仍参与现有稳定序列化的 idempotency key / payloadSha256，诊断不从 hash 中剔除。相同输入重试得到相同身份；带诊断的新 payload 与旧 payload 是同 Demo 的不同 artifact，经既有同 Demo lineage promotion 保留 predecessor，不能复用旧 idempotency key，不能改写历史 payload/hash。attempt、requestId、runtime cause、当前时间不得进入此扩展，canonical gameplay facts 的身份与内容不受它影响。
 
-管理员工作台只为每图当前 confirmed / needs-attention artifact 读取证据并投影有界质量详情；确认后的警告仍可查看，确认/拒绝动作继续只用于待处理记录。敏感片段被替换后保留其余说明；运行日志/堆栈需要整条抑制时明确说明，保留安全 code/path。旧版摘要明确显示“详情未提供”，不能依据数量补造历史 warning 或把 richKills 降级当成 warning 原因。读取/完整性校验失败由既有服务端 observability 记录原异常的安全投影、importId、读取阶段与关联编号，界面只显示安全提示和关联编号；这些运行诊断不进入 Evidence 或其 hash。诊断原文不进入公开统计 DTO；公开页沿用必要的能力/数据可用性说明。此兼容变更不重算或回填任何历史数据。
+管理员工作台只为每图当前 confirmed / needs-attention artifact 读取证据并投影有界质量详情；确认后的警告仍可查看。待处理记录与已确认但当前比赛资料已变化的记录均可由网站重新检查；身份处理与拒绝动作只用于待处理记录。敏感片段被替换后保留其余说明；运行日志/堆栈需要整条抑制时明确说明，保留安全 code/path。旧版摘要明确显示“详情未提供”，不能依据数量补造历史 warning 或把 richKills 降级当成 warning 原因。读取/完整性校验失败由既有服务端 observability 记录原异常的安全投影、importId、读取阶段与关联编号，界面只显示安全提示和关联编号；这些运行诊断不进入 Evidence 或其 hash。诊断原文不进入公开统计 DTO；公开页沿用必要的能力/数据可用性说明。
 
 OCR 与 DAK 不进入通用 per-metric provenance framework，而按 source group 明确 ownership：DAK/Demo 拥有 rounds、KDA、damage、HS、KAST、opening、trade、clutch、utility、weapon、team conversions 等；Scoreboard/OCR 拥有 Rating Pro、RWS、WE 等外部 scoreboard 字段。官方单图结果完成后即可接收该图的 operator-confirmed scoreboard 与 DAK Evidence，即使系列赛仍在进行中；地图结果变化会使对应 Evidence revision 失效，而系列赛完成、弃权或取消不会单独使已确认单图失效。两条写入路径不得清空对方拥有的数据。
 
 管理员计分板写入携带客户端生成的 operationId 与所见内容版本。版本覆盖同一读取快照中的完整计分板事实及 DAK/审核来源，只向编辑器返回不透明摘要和安全字段。写入沿用 match/map 锁顺序，在锁后比较版本；事实、审计和 actor/operation 唯一回执在同一事务提交。同编号仅允许复核同一 map、操作和规范输入摘要，不得以旧版本覆盖后续事实。回执不保存截图、原输入或凭据，只能由重新授权的原 actor 查询；浏览器仅按 actor/map/operation 保存非敏感操作 locator，重开页面后先重新授权再核对回执，不持久化草稿或认证信息。未查到回执不能证明回滚，未知提交不得自动重放。已找到回执但当前版本不同，应明确原提交成功且已有后续修改。回执按既有业务审计类别保留与备份，map 删除时级联移除；不存在的目标不能被解释为未提交。
 
 Evidence artifact 本身 immutable；pending / confirmed / rejected / stale / superseded 属于 RivalHub import/review decision。`dak-stable/3` 是当前唯一可 promotion 的 profile；同一 Demo 从 `/2` 迁移到 `/3` 时保持 `evidenceRevision` 不变，使用新的 payload/idempotency identity。Promotion owner 在同一事务内锁定整张 map 的 import lineage，选择 canonical predecessor、把同一 Demo 的其它 active source 一并置为 `superseded`，并由新 import 的 `supersedesImportId` 保留历史 parent；不同 Demo 的 confirmed content 必须保持显式冲突，不能被 lineage cleanup 静默替换。`/1` 与 `/2` 的既有 Evidence 只读保留，read model 只选择当前 profile 的 active import，不因迟到的历史 profile row 回退。Schema V1 允许 additive optional field/capability/extension；删除字段、改变类型/单位/既有语义属于 breaking change。跨仓兼容以 machine-readable contract 与 golden JSON fixtures 验证，不重新通过共享裸 TypeScript runtime package 耦合两个仓库。
+
+`evidenceRevision` 保留提交时的原始快照，并始终与 immutable payload 一致；`validatedRevision` 是 RivalHub 最近一次完整校验通过的比赛上下文，属于可变的 import/review metadata。新上传的自动确认仍要求使用当前快照；网站重检则复用已存 Evidence，在锁内重新检查当前地图、队伍、实际阵容、身份、官方比分、QA 与同图内容冲突，不因原快照不同而单独拒绝。只有全部检查通过，才在同一事务写入 `validatedRevision`、重建对应统计投影并记录原快照与校验快照的审计；失败保留历史校验上下文并进入 needs-attention。重检不能修改原 payload、摘要或提交归属，也不能从旧 lineage 恢复已被替代的来源。
+
+管理员状态、远程目录与公开统计统一以最近通过校验的上下文判断是否仍适用于当前比赛；统计投影的 revision 绑定同一上下文。旧 confirmed 记录的空 `validatedRevision` 兼容解释为原 `evidenceRevision`，因为旧确认流程要求原快照与当时比赛资料一致；该兼容不允许待处理记录绕过校验。此元数据沿用既有 Demo import 的可见性、保留与备份边界。旧应用回滚后仍可读取原始 Evidence，新重检结果可能重新显示过期，不能因此把原始 artifact 判为损坏。
 
 SQL projection 按真实 consumer 物化，不与 artifact 一比一建表。Confirmed artifact 可以比首轮 SQL projection 更宽，以便后续在不重新解析 Demo 的情况下 backfill 新的 read model。
 

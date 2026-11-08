@@ -13,7 +13,10 @@ import {
 import { isCompetitionMatch } from "@/lib/matches/competition-context";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
 import { CURRENT_DAK_SEMANTIC_PROFILE } from "@/lib/demo-integration/semantic-profile";
-import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
+import {
+  buildEvidenceRevisionForTarget,
+  getValidatedDemoRevision,
+} from "@/lib/demo-integration/revision";
 import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam";
 import {
   loadEffectiveMatchRosterIdentities,
@@ -215,6 +218,7 @@ export async function loadStatsContext(
     | "semanticProfile"
     | "status"
     | "evidenceRevision"
+    | "validatedRevision"
     | "createdAt"
     | "payloadSha256"
     | "demoSha256"
@@ -228,6 +232,7 @@ export async function loadStatsContext(
           semanticProfile: matchDemoImports.semanticProfile,
           status: matchDemoImports.status,
           evidenceRevision: matchDemoImports.evidenceRevision,
+          validatedRevision: matchDemoImports.validatedRevision,
           payloadSha256: matchDemoImports.payloadSha256,
           demoSha256: matchDemoImports.demoSha256,
           analysisVersion: matchDemoImports.analysisVersion,
@@ -270,7 +275,7 @@ export async function loadStatsContext(
     )
       return [];
     if (
-      current.evidenceRevision !==
+      getValidatedDemoRevision(current) !==
       buildEvidenceRevisionForTarget({ match, map, roster: rosterByMatchId.get(match.id) ?? [] })
     )
       return [];
@@ -317,7 +322,8 @@ export async function loadCurrentProjectionRefs(
           metadataMatches: sql<boolean>`
       ${matchDemoStatProjections.payloadSha256} COLLATE "C" = ${matchDemoImports.payloadSha256} COLLATE "C"
       AND ${matchDemoStatProjections.demoSha256} COLLATE "C" = ${matchDemoImports.demoSha256} COLLATE "C"
-      AND ${matchDemoStatProjections.evidenceRevision} COLLATE "C" = ${matchDemoImports.evidenceRevision} COLLATE "C"
+      AND ${matchDemoImports.status} = 'confirmed'
+      AND ${matchDemoStatProjections.evidenceRevision} COLLATE "C" = coalesce(${matchDemoImports.validatedRevision}, ${matchDemoImports.evidenceRevision}) COLLATE "C"
       AND ${matchDemoStatProjections.semanticProfile} COLLATE "C" = ${matchDemoImports.semanticProfile} COLLATE "C"
       AND ${matchDemoStatProjections.analysisVersion} COLLATE "C" = ${matchDemoImports.analysisVersion} COLLATE "C"`,
         })
