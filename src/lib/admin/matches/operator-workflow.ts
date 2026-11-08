@@ -153,26 +153,32 @@ export function projectOperatorWorkflow(input: {
       nextStep: "回到比赛总览查看其它场次。",
     };
   const nextMap = maps.find((map) => map.completedAt === null);
+  const gameplayTitle =
+    phase === "gameplay" && nextMap
+      ? `Map ${nextMap.order} · ${mapLabel(nextMap.name)} 进行中`
+      : null;
   if (source.reviewReasons.length) {
     const prepareNext = input.vetoComplete && phase === "inter_map" && nextMap;
     return {
       ...base,
       primaryTask: "review",
-      title: prepareNext
-        ? `Map ${completedPrevious!.order} 已记录 · 准备 Map ${nextMap.order}`
-        : input.status === "finished"
-          ? "赛果已记录 · 核对采集差异"
-          : source.sourceMode === "manual_map"
-            ? "本图手动录分 · 采集问题待处理"
-            : "比赛数据需要核对",
+      title:
+        gameplayTitle ??
+        (prepareNext
+          ? `Map ${completedPrevious!.order} 已记录 · 准备 Map ${nextMap.order}`
+          : input.status === "finished"
+            ? "赛果已记录 · 核对采集差异"
+            : manualResultAllowed
+              ? "本图手动录分 · 采集问题待处理"
+              : "比赛数据需要核对"),
       description: "请根据下方差异检查比赛与采集来源。",
       nextStep: prepareNext
         ? "按正式地图计划准备下一图房间，上一图计分板可同时补充。"
         : input.status === "finished"
           ? "继续整理赛后资料，并核对采集差异。"
-          : source.sourceMode === "manual_map"
+          : manualResultAllowed
             ? "核对当前地图，在本图结束后提交比分。"
-            : "",
+            : "核对采集状态，或登记问题并手动录分。",
       roomMapId: prepareNext ? nextMap.id : null,
       focusMapId: prepareNext ? (outstanding[0]?.id ?? null) : null,
     };
@@ -218,16 +224,18 @@ export function projectOperatorWorkflow(input: {
     return {
       ...base,
       primaryTask: "source_check",
-      title: source.sourceHealth === "stale" ? "比赛数据暂未更新" : "等待 Mizar 核验本场数据",
+      title:
+        gameplayTitle ??
+        (source.sourceHealth === "stale" ? "比赛数据暂未更新" : "等待 Mizar 核验本场数据"),
       description: "请检查 Mizar 与游戏采集状态。",
       nextStep: "收到本场有效数据后，系统会更新核验状态。",
       roomMapId: phase === "gameplay" ? null : nextMap.id,
     };
-  if (input.observedGameplayMapId === nextMap.id && source.sourceMode === "mizar_auto")
+  if (gameplayTitle && source.sourceMode === "mizar_auto")
     return {
       ...base,
       primaryTask: "observe",
-      title: `Map ${nextMap.order} · ${mapLabel(nextMap.name)} 进行中`,
+      title: gameplayTitle,
       description: "本图采用 Mizar 自动赛果。",
       nextStep: "",
     };
@@ -238,6 +246,14 @@ export function projectOperatorWorkflow(input: {
       title: `人工记录 Map ${nextMap.order} 结果`,
       description: "本图已开始，继续比赛并在结束后记录正式比分。",
       nextStep: "核对本图比分；上一图平台计分板可赛后补齐。",
+    };
+  if (gameplayTitle)
+    return {
+      ...base,
+      primaryTask: "source_check",
+      title: gameplayTitle,
+      description: "本图已开局，可在下方登记采集问题并手动录分。",
+      nextStep: "核对本图与最终比分，再提交结果。",
     };
   const previous = completedMaps.at(-1);
   const previousNeedsScoreboard = previous && !previous.scoreboardComplete;

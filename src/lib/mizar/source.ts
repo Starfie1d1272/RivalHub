@@ -21,6 +21,7 @@ import { assertInstallationInTx } from "./installation";
 import { loadMizarMatchDocumentInTx } from "./context";
 import { touchMizarInstallation } from "./heartbeat";
 import { LINEUP_REVIEW_REQUIRED } from "./lineup-display";
+import { canTakeOverReportedMap } from "./manual-takeover";
 
 export const sourceClaimSchema = z.strictObject({
   matchId: z.uuid(),
@@ -303,10 +304,16 @@ export async function takeOverCurrentMap(
     if (source.id !== expected.sessionId || source.mapEpoch !== expected.mapEpoch)
       throw new AppError(ErrorCode.VALIDATION_FAILED, "当前地图或数据源已变化，请刷新后重试。");
     const report = expected.operatorReport;
-    const [map] = await tx
-      .select()
+    const maps = await tx
+      .select({
+        id: matchMaps.id,
+        mapOrder: matchMaps.mapOrder,
+        completedAt: matchMaps.completedAt,
+      })
       .from(matchMaps)
-      .where(and(eq(matchMaps.id, expected.mapId), eq(matchMaps.matchId, matchId)));
+      .where(eq(matchMaps.matchId, matchId))
+      .orderBy(asc(matchMaps.mapOrder));
+    const map = maps.find((map) => map.id === expected.mapId);
     if (!map || map.completedAt !== null)
       throw new AppError(ErrorCode.VALIDATION_FAILED, "本图已有正式赛果，请使用结果更正流程。");
     const alreadyTakenOver =
@@ -318,7 +325,7 @@ export async function takeOverCurrentMap(
       (source.programSourceGeneration !== report.programSourceGeneration ||
         source.lastReliableSeq !== report.lastReliableSeq ||
         (source.currentMapId !== report.currentMapId &&
-          !(alreadyTakenOver && report.currentMapId === null)))
+          !(alreadyTakenOver && canTakeOverReportedMap(maps, map.id, report.currentMapId))))
     ) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "采集状态已变化，请刷新后重新核对问题。");
     }
@@ -329,14 +336,9 @@ export async function takeOverCurrentMap(
       });
       if (!veto?.completedAt)
         throw new AppError(ErrorCode.VALIDATION_FAILED, "请先完成 BP 地图计划，再恢复地图绑定。");
-      const [nextMap] = await tx
-        .select()
-        .from(matchMaps)
-        .where(and(eq(matchMaps.matchId, matchId), isNull(matchMaps.completedAt)))
-        .orderBy(asc(matchMaps.mapOrder))
-        .limit(1);
+      const nextMap = maps.find((map) => map.completedAt === null);
       const bindingAllowed = report
-        ? source.currentMapId === null || source.currentMapId === map.id
+        ? canTakeOverReportedMap(maps, map.id, source.currentMapId)
         : source.currentMapId === null &&
           !source.autoCanonicalizationArmed &&
           ["execution_conflict", "conflict"].includes(source.continuityHealth);
@@ -369,6 +371,7 @@ export async function takeOverCurrentMap(
         autoCanonicalizationArmed: false,
         manualTakeoverMapEpoch: source.mapEpoch,
         currentMapId: map.id,
+        ...(source.currentMapId !== map.id ? { mapExecutionPhase: "waiting" } : {}),
       })
       .where(eq(matchLiveSessions.id, source.id));
     await writeAuditInTx(tx, {
@@ -384,7 +387,7 @@ export async function takeOverCurrentMap(
         previousMapId: source.currentMapId,
         mapId: map.id,
         mapOrder: map.mapOrder,
-        recoveredMapBinding: source.currentMapId === null,
+        recoveredMapBinding: source.currentMapId !== map.id,
         continuityHealth: source.continuityHealth,
         operatorReportedProblem: report?.reason ?? null,
         reviewedReliableSeq: report?.lastReliableSeq ?? null,
