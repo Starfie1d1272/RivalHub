@@ -5,6 +5,13 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.41]
+
+### Fixed
+
+- 修复 Mizar 采集持续不可用时，上一图手动录分后下一图无法继续录分的问题。管理员登记采集问题并核对本图后，可继续提交手动比分，已完成地图的正式结果保持原记录。
+- 修正已开局地图被显示为准备房间的问题，并按当前地图展示录分方式与恢复入口。
+
 ## [2.25.40]
 
 ### Changed
@@ -3584,6 +3591,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.41]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.40...v2.25.41
 [2.25.40]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.39...v2.25.40
 [2.25.39]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.38...v2.25.39
 [2.25.38]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.37...v2.25.38
