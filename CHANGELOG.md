@@ -5,7 +5,13 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.25.41]
+## [2.25.42]
+
+### Fixed
+
+- 修复补录或更正比赛资料后，已上传 Demo 因旧快照一直待处理的问题。管理员可直接在网站按当前资料重新检查并恢复统计，无需重新解析或上传 Demo；已确认后资料变化的 Demo 也会提供重检入口。
+
+## [2.25.41]（未单独发布）
 
 ### Fixed
 
@@ -571,6 +577,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 支持每位解说添加、编辑和排序多条分图或完整回放，比赛页按解说分组展示，保留原有回放及统一赛后待办口径。
 
 ### Changed
+
 - 统计中心按当前视图加载交互代码，并隔离视图加载与赛事选择等导航控件的等待边界。
 - 复用赛事阶段事实，缩短赛事首页、我的赛事和系统状态中独立资料的串行加载等待。
 - 自托管服务延长闲置数据库连接的复用时间，减少连续浏览时重复建立连接的等待，并增加查询返回行数和连接池排队诊断。
@@ -1241,6 +1248,7 @@ Mizar 实机 producer 接入与完整赛务验收仍需独立完成；本条不�
 #### 公开比赛赛前与赛后
 
 收敛公开比赛详情页的赛前（PRE）与赛后（POST）展示体验：
+
 - 赛前提供双方阵容、地图胜选禁率分析（MatchMapProfile）、近期赛果（MatchRecentResults）、积分预测（MatchPrediction）、历史交锋（MatchHeadToHead）及 Veto 入口，移除旧重型对阵与六维雷达图；
 - 赛后提供单图比分与记分板（PlayerStatsTable）、整场数据汇总（MatchSummaryStats）、详细指标深链（PlayerWorkspace）、MVP 投票（MatchMvpVote）与录像解说；
 - 剥离公共页面上直接挂载的计分板 OCR 编辑器，保持公开浏览与后台管理严格分离。
@@ -2711,6 +2719,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 - **Stats 页面 500 错误**：修复 `season-demo-stats.ts` 中 4 个函数对 `db.execute()` 返回结果未解构 `rows`，直接调用 `.map()` 报 `(intermediate value).map is not a function`
 - **Demo 导入页面 BO1 不显示**：移除 `isNotNull(matchMaps.scoreA)` 过滤，使排位赛阶段 BP 产出的无比分地图记录也能展示
+
 ### Changed
 
 - OCR 与 Demo 导入从公开比赛详情移至后台比赛管理。
@@ -3194,6 +3203,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 ### Fixed
 
 - **OCR 校验彻底放宽**：顶层仅校验数组结构（不再因单行缺字段整批丢弃），行级仅要求玩家名称非空，数值字段自动转换（`"15"` → `15`、`"N/A"` → `null`），移除所有范围上限
+
 ### Added
 
 - 赛程总览展示比赛日期和未排期状态；队伍详情新增历史战绩与比赛链接。
@@ -3591,7 +3601,8 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
-[2.25.41]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.40...v2.25.41
+[2.25.42]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.40...v2.25.42
+[2.25.41]: https://github.com/Starfie1d1272/RivalHub/commit/672bf9ade05b1550e64011f35533d4f2cbe36275
 [2.25.40]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.39...v2.25.40
 [2.25.39]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.38...v2.25.39
 [2.25.38]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.37...v2.25.38
@@ -3849,4 +3860,3 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 [1.1.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/Starfie1d1272/RivalHub/compare/v0.3.0...v1.0.0
-
