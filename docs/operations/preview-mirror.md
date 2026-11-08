@@ -16,6 +16,8 @@ RivalHub 的服务器预览站固定连接 `rivalhub-dev`，不连接 production
 - `preview_mirror_state` 只记录 source tag/commit、refresh 时间和计数，供 Preview banner 诊断；它不是 availability 状态机。
 - refresh 先完成 dev Storage preflight，再 reset 并应用 snapshot source migrations。reset 同时移除本应用在 `realtime.messages` 上的 `rivalhub_match_live_receive` policy，由 active migration chain 重建，保留 provider 管理的表和其它 policies；随后，导入脱敏 production snapshot 和验证外键；manual dispatch 可通过 `apply_current_migrations` 选择是否把 `migration_ref` 的当前 migration 应用到这份 production-derived 数据并再次验证，最后才 provision persona、公共 assets 与 mirror state。命令只输出固定的 phase 名称和完成/失败状态，不输出 row value、asset path、credential 或 provider 原始错误。旧 Preview 因共享 schema/data 失效是可接受的 trade-off；daily/post-release refresh 始终用 `main`。
 
+从 `0106_vengeful_paibok` 起，`match_demo_imports.validated_revision` 随统计镜像保留。它是网站最近一次完整校验通过的比赛上下文 SHA-256，不是 credential 或原始身份材料；它与同次 snapshot 的统计投影 revision 一起保留，避免重检后的 Demo 在 Preview 中被错误回退到原始 `evidence_revision`。空值保持空值，继续由既有旧记录兼容逻辑解释；尚未应用该 migration 的 source 不查询或接受这个未来列。其余未知列、Auth identity、私有证据与生产运行状态仍按现有策略拒绝或排除。
+
 ## 离线消费者安全计量
 
 计量输出为 best-effort：输出或 Step Summary 写入失败只尝试记录固定 `offline_consumer_accounting_unavailable` warning，不输出原始错误/路径，不把已完成的 artifact/read-back 或 snapshot 改判为失败。真实 dump、备份、read-back、export 或落盘错误仍遵循原失败门禁。
