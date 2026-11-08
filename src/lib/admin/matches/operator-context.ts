@@ -15,6 +15,7 @@ import { loadMajorSwissMatchRecord } from "@/lib/matches/stage-read-model";
 import { loadQualificationSwissMatchRecord } from "@/lib/matches/qualification-stage-read-model";
 import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
 import { resolveGameplayMapId } from "@/lib/matches/presentation-phase";
+import { canTakeOverReportedMap } from "@/lib/mizar/manual-takeover";
 import { mapLabel } from "@/lib/maps";
 import { projectOperatorMaps } from "./operator-maps";
 import { loadOperatorEvidence } from "./operator-evidence";
@@ -163,13 +164,13 @@ export async function loadOperatorContext(input: {
     match.status === "in_progress" &&
     liveSession &&
     nextMap &&
-    (liveSession.currentMapId === null || liveSession.currentMapId === nextMap.id) &&
+    canTakeOverReportedMap(maps, nextMap.id, liveSession.currentMapId) &&
     !(workflow.sourceMode === "manual_map" && liveSession.currentMapId === nextMap.id)
       ? {
           sessionId: liveSession.id,
           mapEpoch: liveSession.mapEpoch,
           mapId: nextMap.id,
-          recoverMapBinding: liveSession.currentMapId === null,
+          recoverMapBinding: liveSession.currentMapId !== nextMap.id,
           reportContext: {
             programSourceGeneration: liveSession.programSourceGeneration,
             lastReliableSeq: liveSession.lastReliableSeq,

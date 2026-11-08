@@ -365,7 +365,13 @@ export function AdminMatchWorkbench({
         aria-label="比赛与数据源"
         className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-fg-mid)]"
       >
-        <span>{SOURCE_MODE_LABEL[operator.workflow.sourceMode]}</span>
+        <span>
+          {operator.workflow.sourceMode === "manual_map" &&
+          !operator.workflow.manualResultAllowed &&
+          match.status === "in_progress"
+            ? "本图录分方式待确认"
+            : SOURCE_MODE_LABEL[operator.workflow.sourceMode]}
+        </span>
         {operator.liveScope &&
         operator.workflow.sourceMode === "mizar_auto" &&
         !operator.workflow.reviewReasons.length ? (

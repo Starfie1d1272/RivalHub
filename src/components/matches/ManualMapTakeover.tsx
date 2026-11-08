@@ -52,14 +52,12 @@ export function ManualMapTakeover({
         </div>
       )}
       {scope.recoverMapBinding && (
-        <p className="text-sm">
-          未能确认当前地图。请核对正式地图计划：{mapLabel}。确认后将此图作为当前图，并人工记录赛果。
-        </p>
+        <p className="text-sm">请核对本图：{mapLabel}。确认后可手动录入本图比分。</p>
       )}
       {confirming && (
         <p className="text-sm">
-          本图将由你核对并提交最终比分，正式结果受到保护。下一图通过核验后恢复自动记录。Mizar 采集与
-          HUD 继续按各自状态运行，采集问题请继续在 Mizar 处理。
+          本图将由你核对并提交最终比分，正式结果受到保护。采集恢复后会重新核验自动记录条件。Mizar
+          采集与 HUD 继续按各自状态运行，采集问题请继续在 Mizar 处理。
         </p>
       )}
       {error && <p role="alert">{error}</p>}
