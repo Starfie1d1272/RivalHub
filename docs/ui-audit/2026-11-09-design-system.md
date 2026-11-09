@@ -4,7 +4,7 @@
 
 ## 现有系统与 Extract 范围
 
-`src/app/globals.css` 拥有运行时色、字、圆角、动效和层级。Tailwind/shadcn 名称在这里映射到语义 token。`src/components/ui/` 拥有按钮、字段、Tabs、浮层、表格等基础控件，`src/components/rivalhub/` 拥有 PageLayout、页头、Panel、状态、列表和任务提示。业务目录拥有数据、权限和动作。`docs/ui-system.md` 记录交互约定，Impeccable 的 DESIGN.md 和 sidecar 提供提取快照。
+`src/app/globals.css` 拥有运行时色、字、圆角、动效和层级。Tailwind/shadcn 名称在这里映射到语义 token。`src/components/ui/` 拥有按钮、字段、Tabs、浮层、表格等基础控件，`src/components/rivalhub/` 拥有 PageLayout、页头、Panel、状态、列表和任务提示。业务目录拥有数据、权限和动作。`docs/ui-system.md` 记录交互约定。[PRODUCT.md](../../PRODUCT.md) 记录产品上下文，[DESIGN.md](../../DESIGN.md) 与 [设计 token 快照](../../.impeccable/design.json) 保存本轮分析所用的 Impeccable 输入。
 
 按 Extract 的发现、识别和规划三步取证。用同意图的至少三个实例判断新抽象是否值得建立。现有组件可以修正后直接复用。共享实现优先从三处可核对消费者试迁移，再扩大到同类调用。
 

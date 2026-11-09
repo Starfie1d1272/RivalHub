@@ -33,7 +33,7 @@
 
 ## Impeccable 检测结果
 
-使用已安装的 Impeccable 4.3.1 执行 `impeccable detect --json src/app src/components`。两个目录共枚举 521 个文件，其中 466 个 TSX、3 个 CSS，另有 TS 与说明文档。命中按文件、行号和规则去重。退出码 2，stderr 为空。35 个文件有 **89 条**，均可回到固定源码。完整定位见[检测命中明细](2026-11-09-detector.tsv)。
+使用已安装的 Impeccable 4.3.1 执行 `impeccable detect --json src/app src/components`，读取仓库根的 [DESIGN.md](../../../DESIGN.md) 和 [设计 token 快照](../../../.impeccable/design.json)。两个目录共枚举 521 个文件，其中 466 个 TSX、3 个 CSS，另有 TS 与说明文档。命中按文件、行号和规则去重。退出码 2，stderr 为空。35 个文件有 **89 条**，均可回到固定源码。完整定位见[检测命中明细](2026-11-09-detector.tsv)。
 
 | 分类 | 数量 | 处置 |
 | --- | ---: | --- |
