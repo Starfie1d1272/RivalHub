@@ -116,7 +116,7 @@ export async function executeDraftPick(
     );
   }
   if (season.status !== "drafting") {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 drafting 状态的赛季可以进行选秀");
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事阶段无法选人。");
   }
 
   const ds =

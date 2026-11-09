@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 it("keeps public candidates available while checking viewer rights and stops polling when voting ends", async () => {
   vi.useFakeTimers();
-  const props = { seasonSlug: "event", seasonName: "Fixture", seasonStatus: "voting", candidates: [], currentVoter: null, votes: [] };
+  const props = { seasonSlug: "event", seasonName: "Fixture", seasonStatus: "voting" as const, candidates: [], currentVoter: null, votes: [] };
   const view = render(<CaptainVotingPanel {...props} viewerPending />);
   await act(() => vi.advanceTimersByTimeAsync(10_000));
   expect(read).not.toHaveBeenCalled();
