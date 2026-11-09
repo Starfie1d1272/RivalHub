@@ -95,6 +95,7 @@ export function HelpTooltip({
           id={id}
           style={portalStyle}
           role="tooltip"
+          side="top"
           sideOffset={2}
           collisionPadding={12}
           hideWhenDetached
