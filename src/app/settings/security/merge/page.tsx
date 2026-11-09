@@ -7,7 +7,10 @@ import { UserMergeConfirmation } from "@/components/settings/UserMergeConfirmati
 import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
 import { getUserSession } from "@/lib/auth/session";
 import { ErrorCode, isAppErrorCode } from "@/lib/errors";
-import { safeRegistrationReturnPath, withRegistrationReturnPath } from "@/lib/registrations/return-path";
+import {
+  safeRegistrationReturnPath,
+  withRegistrationReturnPath,
+} from "@/lib/registrations/return-path";
 import { buildUserMergePreflight, type UserMergeCategory } from "@/lib/identity/merge";
 import {
   loadSelfServiceMergeAuthorization,
@@ -24,7 +27,11 @@ const CATEGORY_HELP: Record<UserMergeCategory, string> = {
 export default async function UserMergePage({
   searchParams,
 }: {
-  searchParams: Promise<{ authorization?: string; canonical?: string; returnTo?: string | string[] }>;
+  searchParams: Promise<{
+    authorization?: string;
+    canonical?: string;
+    returnTo?: string | string[];
+  }>;
 }) {
   const session = await getUserSession();
   const params = await searchParams;
@@ -40,17 +47,16 @@ export default async function UserMergePage({
       actorUserId: session.userId,
     });
   } catch (error) {
-    if (!isAppErrorCode(error, ErrorCode.FORBIDDEN) && !isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) {
+    if (
+      !isAppErrorCode(error, ErrorCode.FORBIDDEN) &&
+      !isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)
+    ) {
       throw error;
     }
     return (
       <div className="max-w-3xl space-y-5">
         <PageHeader title="账号归并" />
-        <StatusBanner
-          tone="warn"
-          title="无法继续归并"
-          sub={error.message}
-        />
+        <StatusBanner tone="warn" title="无法继续归并" sub={error.message} />
         <Button asChild variant="outline">
           <Link href={securityHref as never}>返回账号与安全</Link>
         </Button>
@@ -85,7 +91,11 @@ export default async function UserMergePage({
                 key={account.id}
                 href={{
                   pathname: "/settings/security/merge",
-                  query: { authorization: authorization.id, canonical: account.id, ...(returnTo ? { returnTo } : {}) },
+                  query: {
+                    authorization: authorization.id,
+                    canonical: account.id,
+                    ...(returnTo ? { returnTo } : {}),
+                  },
                 }}
                 aria-current={selected ? "true" : undefined}
                 className={`rounded-sm border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] ${selected ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)]" : "border-[var(--color-border)] hover:bg-[var(--color-panel-hi)]"}`}

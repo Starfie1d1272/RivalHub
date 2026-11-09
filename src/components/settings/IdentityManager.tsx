@@ -37,8 +37,12 @@ const revokeSecondaryEmailIdentity = observeAction(
 type Identity = { id: string; email: string; primary: boolean; verifiedAt: string };
 
 export function IdentityManager({
-  identities, returnTo,
-}: { identities: Identity[]; returnTo?: string | null }) {
+  identities,
+  returnTo,
+}: {
+  identities: Identity[];
+  returnTo?: string | null;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [sendGuidance, setSendGuidance] = useState<string | null>(null);
@@ -126,7 +130,11 @@ export function IdentityManager({
                   }}
                 >
                   <AlertDialogTrigger asChild>
-                    <Button type="button" variant="outline" disabled={sending || revoking || revokeGuidance !== null}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={sending || revoking || revokeGuidance !== null}
+                    >
                       撤销绑定
                     </Button>
                   </AlertDialogTrigger>
@@ -135,14 +143,27 @@ export function IdentityManager({
                       <AlertDialogTitle>撤销备用邮箱绑定？</AlertDialogTitle>
                       <AlertDialogDescription>
                         撤销 <strong className="break-all">{identity.email}</strong> 的登录方式后，
-                        这个 RivalHub 账号在所有设备上的旧登录都会失效，包括当前设备和用主要邮箱登录的设备。
+                        这个 RivalHub
+                        账号在所有设备上的旧登录都会失效，包括当前设备和用主要邮箱登录的设备。
                         你可以用保留的邮箱重新登录。
                       </AlertDialogDescription>
                     </AlertDialogHeader>
-                    {revokeError && <p role="alert" className="text-sm text-[var(--color-danger)]">{revokeError}</p>}
+                    {revokeError && (
+                      <p role="alert" className="text-sm text-[var(--color-danger)]">
+                        {revokeError}
+                      </p>
+                    )}
                     <AlertDialogFooter>
-                      <AlertDialogCancel className="min-h-11" disabled={revoking}>取消</AlertDialogCancel>
-                      <Button type="button" size="lg" variant="destructive" disabled={revoking} onClick={() => revoke(identity)}>
+                      <AlertDialogCancel className="min-h-11" disabled={revoking}>
+                        取消
+                      </AlertDialogCancel>
+                      <Button
+                        type="button"
+                        size="lg"
+                        variant="destructive"
+                        disabled={revoking}
+                        onClick={() => revoke(identity)}
+                      >
                         {revoking ? "正在撤销…" : "撤销并退出所有设备"}
                       </Button>
                     </AlertDialogFooter>
@@ -161,9 +182,13 @@ export function IdentityManager({
               : "撤销结果尚未确认。请刷新账号与安全，重新登录后核对邮箱状态，再决定是否继续。"}
           </p>
           {revokeGuidance === "login" ? (
-            <Button asChild variant="outline"><Link href="/login">重新登录</Link></Button>
+            <Button asChild variant="outline">
+              <Link href="/login">重新登录</Link>
+            </Button>
           ) : (
-            <Button type="button" variant="outline" onClick={() => window.location.reload()}>核对绑定状态</Button>
+            <Button type="button" variant="outline" onClick={() => window.location.reload()}>
+              核对绑定状态
+            </Button>
           )}
         </div>
       )}
@@ -193,7 +218,13 @@ export function IdentityManager({
             )}
             <Button
               type="button"
-              disabled={sending || revoking || revokeGuidance !== null || sendGuidance !== null || !email.trim()}
+              disabled={
+                sending ||
+                revoking ||
+                revokeGuidance !== null ||
+                sendGuidance !== null ||
+                !email.trim()
+              }
               onClick={requestLink}
             >
               {sending ? "发送中…" : "发送验证邮件"}

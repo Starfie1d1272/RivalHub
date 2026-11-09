@@ -8,7 +8,10 @@ import { PageHeader, Panel } from "@/components/rivalhub";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 import { IdentityManager } from "@/components/settings/IdentityManager";
 import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
-import { safeRegistrationReturnPath, withRegistrationReturnPath } from "@/lib/registrations/return-path";
+import {
+  safeRegistrationReturnPath,
+  withRegistrationReturnPath,
+} from "@/lib/registrations/return-path";
 
 type Props = { searchParams?: Promise<{ returnTo?: string | string[] }> };
 
@@ -58,7 +61,13 @@ async function AccountSecurityContent({ searchParams }: Props) {
   );
 }
 
-async function VerifiedIdentities({ userId, returnTo }: { userId: string; returnTo: string | null }) {
+async function VerifiedIdentities({
+  userId,
+  returnTo,
+}: {
+  userId: string;
+  returnTo: string | null;
+}) {
   const identities = await listVerifiedEmailIdentities(db, userId);
   return (
     <IdentityManager

@@ -1,7 +1,10 @@
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import { Suspense } from "react";
 import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
-import { safeRegistrationReturnPath, withRegistrationReturnPath } from "@/lib/registrations/return-path";
+import {
+  safeRegistrationReturnPath,
+  withRegistrationReturnPath,
+} from "@/lib/registrations/return-path";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";

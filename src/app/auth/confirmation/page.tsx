@@ -8,7 +8,10 @@ import { secondaryEmailLinkProofSchema } from "@/lib/auth/secondary-email-otp";
 import { getUserSession } from "@/lib/auth/session";
 import { ErrorCode, isAppErrorCode } from "@/lib/errors";
 import { assertSecondaryEmailLinkReady } from "@/lib/identity/linking";
-import { safeRegistrationReturnPath, withRegistrationReturnPath } from "@/lib/registrations/return-path";
+import {
+  safeRegistrationReturnPath,
+  withRegistrationReturnPath,
+} from "@/lib/registrations/return-path";
 
 export const instant = false;
 
@@ -66,18 +69,31 @@ export default async function ConfirmationPage({
   );
 }
 
-async function SecondaryEmailLink({ proof, returnTo }: { proof: unknown; returnTo: string | null }) {
+async function SecondaryEmailLink({
+  proof,
+  returnTo,
+}: {
+  proof: unknown;
+  returnTo: string | null;
+}) {
   const session = await getUserSession();
   if (!session) {
     return (
-      <SecondaryEmailLinkMessage returnTo={returnTo} message="请登录发起绑定的 RivalHub 账号，再从邮件重新打开此链接。" />
+      <SecondaryEmailLinkMessage
+        returnTo={returnTo}
+        message="请登录发起绑定的 RivalHub 账号，再从邮件重新打开此链接。"
+      />
     );
   }
 
   const parsed = secondaryEmailLinkProofSchema.safeParse(proof);
   if (!parsed.success) {
     return (
-      <SecondaryEmailLinkMessage signedIn returnTo={returnTo} message="邮箱绑定链接无效，请在账号与安全中重新发起。" />
+      <SecondaryEmailLinkMessage
+        signedIn
+        returnTo={returnTo}
+        message="邮箱绑定链接无效，请在账号与安全中重新发起。"
+      />
     );
   }
 

@@ -224,7 +224,11 @@ export function EducationVerificationPanel({
         <Button
           disabled={pending}
           onClick={() =>
-            run(() => resendCurrentEmailVerification(returnTo), "验证邮件已发送，请打开邮件完成验证", false)
+            run(
+              () => resendCurrentEmailVerification(returnTo),
+              "验证邮件已发送，请打开邮件完成验证",
+              false,
+            )
           }
         >
           验证当前邮箱
@@ -238,7 +242,14 @@ export function EducationVerificationPanel({
           sub="如果学校提供已被平台支持的学生专属邮箱，可以先绑定并完成邮箱验证；未支持的邮箱不会自动完成教育认证。"
           action={
             <Button size="sm" asChild>
-              <Link href={withRegistrationReturnPath("/settings/security#secondary-email", returnTo) as never}>
+              <Link
+                href={
+                  withRegistrationReturnPath(
+                    "/settings/security#secondary-email",
+                    returnTo,
+                  ) as never
+                }
+              >
                 绑定学校邮箱
               </Link>
             </Button>

@@ -206,7 +206,9 @@ export async function resendSignupConfirmation(
 }
 
 /** Existing accounts prove control of their already-bound email without account creation. */
-export async function resendCurrentEmailVerification(returnTo?: string | null): Promise<ActionResult<void>> {
+export async function resendCurrentEmailVerification(
+  returnTo?: string | null,
+): Promise<ActionResult<void>> {
   try {
     const session = await requireAuth();
     const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
@@ -216,7 +218,10 @@ export async function resendCurrentEmailVerification(returnTo?: string | null): 
       email: user.email,
       options: {
         shouldCreateUser: false,
-        emailRedirectTo: confirmationUrl("reverify", returnTo ? withRegistrationReturnPath("/settings/education", returnTo) : undefined),
+        emailRedirectTo: confirmationUrl(
+          "reverify",
+          returnTo ? withRegistrationReturnPath("/settings/education", returnTo) : undefined,
+        ),
       },
     });
     if (error) return emailSendFailure(error, "验证邮件");

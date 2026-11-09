@@ -9,7 +9,10 @@ import { educationVerifications, institutionEmailDomains, institutions, users } 
 import { getUserSession } from "@/lib/auth/session";
 import { emailDomain } from "@/lib/education/validation";
 import { listVerifiedEmailIdentities } from "@/lib/identity/linking";
-import { safeRegistrationReturnPath, withRegistrationReturnPath } from "@/lib/registrations/return-path";
+import {
+  safeRegistrationReturnPath,
+  withRegistrationReturnPath,
+} from "@/lib/registrations/return-path";
 
 export default function EducationSettingsPage(props: {
   searchParams?: Promise<{ returnTo?: string | string[] }>;

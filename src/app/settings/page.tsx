@@ -10,7 +10,10 @@ import { Checklist, PageHeader, Panel, StatusBanner } from "@/components/rivalhu
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { loadSettingsProfileReadiness } from "@/lib/my/readiness";
 import type { ParticipantQualificationUserRow } from "@/lib/qualification/service";
-import { safeRegistrationReturnPath, withRegistrationReturnPath } from "@/lib/registrations/return-path";
+import {
+  safeRegistrationReturnPath,
+  withRegistrationReturnPath,
+} from "@/lib/registrations/return-path";
 
 export default async function SettingsPage({
   searchParams,
