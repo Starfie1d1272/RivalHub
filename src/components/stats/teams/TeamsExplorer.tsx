@@ -6,7 +6,7 @@ import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 
 import { useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
 import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
@@ -19,6 +19,7 @@ type ViewData = Pick<TournamentStats, "coverage" | "options" | "teamLinks" | "te
 };
 import { type StatsQuery } from "@/lib/stats/view-state";
 import { navigateStatsScope } from "@/lib/stats/view-state";
+import { replaceStatsReadingState, useStatsReadingState } from "../reading-state";
 
 type Family = "results" | "rounds" | "conversion" | "teamplay";
 const families = [
@@ -456,21 +457,8 @@ export function TeamsExplorer({
   seasonSlug: string;
 }) {
   const router = useRouter();
-  function setReadingState(key: string, value: string) {
-    const next = new URLSearchParams(params.toString());
-    if (value) next.set(key, value);
-    else next.delete(key);
-    next.delete("page");
-    if (key === "family") {
-      next.delete("sort");
-      next.delete("direction");
-    }
-    window.history.replaceState(null, "", `?${next}`);
-  }
-  const params = useSearchParams();
-  const family = (families.find((row) => row.key === params.get("family"))?.key ??
-    "results") as Family;
-  const setFamily = (value: Family) => setReadingState("family", value);
+  const { family: requestedFamily } = useStatsReadingState();
+  const family = families.find((row) => row.key === requestedFamily)?.key ?? "results";
   const rows = useMemo(() => rowsFor(data), [data]);
   const partialCoverage =
     family !== "results" &&
@@ -484,7 +472,7 @@ export function TeamsExplorer({
           label="Team metrics"
           value={family}
           options={families}
-          onChange={setFamily}
+          onChange={(family) => replaceStatsReadingState({ family })}
           panelClassName="mt-4 space-y-4"
         >
           <div className="flex min-w-0 flex-wrap items-end gap-3">

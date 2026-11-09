@@ -1,3 +1,5 @@
+import { STATS_QUERY_VALUE_LIMIT } from "./view-state";
+
 /** Only the canonical local data center can supply a profile return destination. */
 export function safeStatsReturn(value: string | null | undefined): string | null {
   if (
@@ -30,6 +32,6 @@ export function safeStatsReturn(value: string | null | undefined): string | null
     "q",
   ]);
   for (const [key, item] of url.searchParams)
-    if (!allowed.has(key) || item.length > 128) return null;
+    if (!allowed.has(key) || item.length > STATS_QUERY_VALUE_LIMIT) return null;
   return `/stats?${url.searchParams}`;
 }

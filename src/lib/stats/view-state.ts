@@ -36,12 +36,42 @@ export interface StatsQuery {
 }
 
 export type StatsQueryUpdates = Partial<StatsQuery>;
+export const STATS_QUERY_VALUE_LIMIT = 128;
 const mapKeyPattern = /^de_[a-z0-9_]+$/;
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export function parseStatsReadingState(get: (key: string) => string | null) {
+  const sort = get("sort") ?? "";
+  const requestedDirection = get("direction");
+  const direction: StatsQuery["direction"] =
+    requestedDirection === "asc" || requestedDirection === "desc" ? requestedDirection : undefined;
+  const page = get("page") ?? "";
+  const family = get("family") ?? "";
+  return {
+    sort: /^[a-zA-Z0-9_:-]{1,64}$/.test(sort) ? sort : "",
+    direction,
+    page: /^[1-9][0-9]{0,3}$/.test(page) ? Number(page) : 1,
+    family: [
+      "overall",
+      "opening",
+      "teamplay",
+      "utility",
+      "clutch",
+      "results",
+      "rounds",
+      "conversion",
+    ].includes(family)
+      ? family
+      : "",
+    q: (get("q") ?? "").slice(0, STATS_QUERY_VALUE_LIMIT),
+  };
+}
+
 export function parseStatsQuery(raw: StatsSearch, stages: readonly string[]): StatsQuery {
   const value = (key: string) =>
-    typeof raw[key] === "string" && raw[key].length <= 128 ? (raw[key] as string) : "";
+    typeof raw[key] === "string" && raw[key].length <= STATS_QUERY_VALUE_LIMIT
+      ? (raw[key] as string)
+      : "";
   const requestedTab = value("tab");
   const requestedFormat = value("format");
   const tab = Object.hasOwn(STATS_TABS, requestedTab)
@@ -61,22 +91,7 @@ export function parseStatsQuery(raw: StatsSearch, stages: readonly string[]): St
       ? (value("eventType") as RecordEventKind)
       : "",
     eventWeapon: /^[a-z0-9_]{1,64}$/.test(value("eventWeapon")) ? value("eventWeapon") : "",
-    sort: /^[a-zA-Z0-9_:-]{1,64}$/.test(value("sort")) ? value("sort") : "",
-    direction: value("direction") === "asc" ? "asc" : "desc",
-    page: /^[1-9][0-9]{0,3}$/.test(value("page")) ? Number(value("page")) : 1,
-    family: [
-      "overall",
-      "opening",
-      "teamplay",
-      "utility",
-      "clutch",
-      "results",
-      "rounds",
-      "conversion",
-    ].includes(value("family"))
-      ? value("family")
-      : "",
-    q: value("q"),
+    ...parseStatsReadingState(value),
     stage: value("stage") ? (stages.includes(value("stage")) ? value("stage") : "__invalid__") : "",
     format,
     mapFilter: value("mapFilter")
@@ -98,7 +113,7 @@ export function parseStatsQuery(raw: StatsSearch, stages: readonly string[]): St
 function serializeStatsQuery(query: StatsQuery): URLSearchParams {
   const params = new URLSearchParams();
   if (query.sort) params.set("sort", query.sort);
-  if (query.sort && query.direction === "asc") params.set("direction", "asc");
+  if (query.sort && query.direction) params.set("direction", query.direction);
   if (query.page && query.page > 1) params.set("page", String(query.page));
   if (query.family) params.set("family", query.family);
   if (query.q) params.set("q", query.q);
@@ -215,6 +230,7 @@ export function statsHref(
   if (updates.family !== undefined) {
     next.family = updates.family;
     next.sort = "";
+    next.direction = undefined;
     next.page = 1;
   }
   if (updates.q !== undefined) {

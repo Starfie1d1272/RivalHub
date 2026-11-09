@@ -12,6 +12,7 @@ import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import type { PublicStatsData } from "@/lib/stats/public-view";
 import { StatsShell } from "./StatsShell";
+import { useStatsReadingState } from "./reading-state";
 
 const Records = dynamic(() => import("./Records").then((module) => module.Records));
 const OverviewStats = dynamic(() =>
@@ -36,7 +37,7 @@ const WeaponsExplorer = dynamic(() =>
 export function TournamentStatsView({
   data,
   mapDetail,
-  query,
+  query: scopeQuery,
   seasonSlug,
   stages,
 }: {
@@ -46,6 +47,7 @@ export function TournamentStatsView({
   seasonSlug: string;
   stages: { key: string; name: string }[];
 }) {
+  const query = { ...scopeQuery, ...useStatsReadingState() };
   const coverage = mapDetail?.coverage ?? data?.coverage ?? { detailedMaps: 0, completedMaps: 0 };
   let selectedTitle: string | undefined;
   let directoryHref: Route | undefined;

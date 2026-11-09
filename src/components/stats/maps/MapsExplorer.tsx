@@ -7,7 +7,7 @@ import React from "react";
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
 import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
@@ -19,12 +19,18 @@ type ViewData = Pick<
   analytics: Pick<TournamentStats["analytics"], "maps">;
   results: Pick<TournamentStats["results"], "maps">;
 };
-import { navigateStatsScope, statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import {
-  compareStatsValues,
-  type StatsSortDirection,
-  type StatsSortValue,
-} from "@/lib/stats/sorting";
+  navigateStatsScope,
+  statsHref,
+  STATS_QUERY_VALUE_LIMIT,
+  type StatsQuery,
+} from "@/lib/stats/view-state";
+import {
+  replaceStatsReadingState,
+  useStatsReadingState,
+  useStatsSearchField,
+} from "../reading-state";
+import { compareStatsValues, type StatsSortValue } from "@/lib/stats/sorting";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
 interface MapDirectoryRow {
@@ -143,8 +149,7 @@ function VetoMatrix({
   query: StatsQuery;
 }) {
   const columnCount = 2 + maps.length * 2;
-  const params = useSearchParams();
-  const requested = params.get("sort") ?? "team";
+  const { sort: requested, direction: requestedDirection } = useStatsReadingState();
   const validKeys: VetoSortKey[] = [
     "team",
     "vetoes",
@@ -153,7 +158,7 @@ function VetoMatrix({
   const sortKey = validKeys.includes(requested as VetoSortKey)
     ? (requested as VetoSortKey)
     : "team";
-  const direction: StatsSortDirection = params.get("direction") === "desc" ? "desc" : "asc";
+  const direction = requestedDirection ?? "asc";
   const sortedRows = useMemo(
     () =>
       [...rows].sort((left, right) =>
@@ -163,13 +168,11 @@ function VetoMatrix({
   );
 
   function sortBy(key: VetoSortKey) {
-    const next = new URLSearchParams(params.toString());
-    next.set("sort", key);
-    next.set(
-      "direction",
-      sortKey === key ? (direction === "desc" ? "asc" : "desc") : key === "team" ? "asc" : "desc",
-    );
-    window.history.replaceState(null, "", `?${next}`);
+    replaceStatsReadingState({
+      sort: key,
+      direction:
+        sortKey === key ? (direction === "desc" ? "asc" : "desc") : key === "team" ? "asc" : "desc",
+    });
   }
 
   function sortButton(
@@ -342,14 +345,7 @@ export function MapsExplorer({
   seasonSlug: string;
 }) {
   const router = useRouter();
-  const params = useSearchParams();
-  const search = String(params.get("q") ?? "").slice(0, 128);
-  function setSearch(value: string) {
-    const next = new URLSearchParams(params.toString());
-    if (value) next.set("q", value);
-    else next.delete("q");
-    window.history.replaceState(null, "", `?${next}`);
-  }
+  const { q: search, searchRef } = useStatsSearchField();
   const rows = rowsFor(data);
   const mapNames = useMemo(() => orderedMaps(data.options.maps), [data.options.maps]);
   const normalizedSearch = search.trim().toLocaleLowerCase();
@@ -480,9 +476,11 @@ export function MapsExplorer({
                     Search team
                   </span>
                   <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    ref={searchRef}
+                    defaultValue={search}
+                    onChange={(event) => replaceStatsReadingState({ q: event.target.value })}
                     type="search"
+                    maxLength={STATS_QUERY_VALUE_LIMIT}
                     className="min-h-8 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm"
                     placeholder="Team"
                   />
