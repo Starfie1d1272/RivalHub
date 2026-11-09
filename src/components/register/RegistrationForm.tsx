@@ -1,9 +1,16 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import type { Route } from "next";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { useClientReady } from "@/components/rivalhub/useClientReady";
+import { ContentReady } from "@/components/telemetry/ContentReady";
+import { ErrorCode } from "@/lib/errors";
+import type { ActionError } from "@/types/action";
 import {
   buildRegistrationSchema,
   positionValues,
@@ -48,6 +55,7 @@ import {
   buildPositionLabel,
   countMapPreferenceLevels,
   isPositionFull,
+  type RegistrationFieldFeedback,
 } from "./registration-form-utils";
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
@@ -63,18 +71,23 @@ const submitRegistration = observeAction(
 
 interface RegistrationFormProps {
   seasonId: string;
+  seasonSlug: string;
   seasonName: string;
   positionCounts: Record<string, number>;
   positions: string[];
   registrationConfig: RegistrationConfig;
   windowState: RegistrationWindowState;
-  currentUserEmail?: string | null;
+  currentUserEmail: string;
   initialValues?: Partial<RegistrationInput>;
   submitLabel?: string;
 }
 
+type DraftRead =
+  { key: string; state: "empty" | "restored" } | { key: string; state: "error"; message: string };
+
 export function RegistrationForm({
   seasonId,
+  seasonSlug,
   seasonName,
   positionCounts,
   positions,
@@ -84,15 +97,28 @@ export function RegistrationForm({
   initialValues,
   submitLabel,
 }: RegistrationFormProps) {
-  const { canSaveDraft, canSubmit, message: windowMessage } = windowState;
+  const { canSaveDraft, canSubmit } = windowState;
   const task = useTelemetryTask("registration", seasonId, canSubmit);
+  const interactive = useClientReady();
   const receiptToken = useRef<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const feedbackRef = useRef<HTMLParagraphElement>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [submittedEmail, setSubmittedEmail] = useState("");
   const [savingDraft, setSavingDraft] = useState(false);
-  const [loadingDraftEmail, setLoadingDraftEmail] = useState<string | null>(null);
-  const lastBlurredEmailRef = useRef<string | null>(null);
-  const [loadedDraftEmail, setLoadedDraftEmail] = useState<string | null>(null);
+  const [closedWindow, setClosedWindow] = useState<RegistrationWindowState | null>(null);
+  const [feedback, setFeedback] = useState<{ message: string; checkProgress?: boolean } | null>(
+    null,
+  );
+  const [draftAttempt, setDraftAttempt] = useState(0);
+  const [draftRead, setDraftRead] = useState<DraftRead | null>(null);
+  const email = normalizeEmail(currentUserEmail);
+  const draftKey = `${seasonId}:${email}:${draftAttempt}`;
+  const draft = draftRead?.key === draftKey ? draftRead : null;
+  const statusHref = `/${seasonSlug}/register#registration-status` as Route;
+  const canEdit = canSubmit && closedWindow !== windowState;
+  const draftLoading = canEdit && canSaveDraft && draft === null;
+  const draftError = canEdit && canSaveDraft && draft?.state === "error" ? draft.message : null;
+  const ready = interactive && canEdit && !draftLoading && !draftError;
   const registrationConfig = useMemo(
     () => normalizeRegistrationConfig(inputRegistrationConfig),
     [inputRegistrationConfig],
@@ -107,16 +133,19 @@ export function RegistrationForm({
     register,
     handleSubmit,
     getValues,
+    getFieldState,
     reset,
+    setError,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState,
   } = useForm<RegistrationInput, unknown, RegistrationFormData>({
     resolver: zodResolver(schema),
+    shouldFocusError: false,
     defaultValues: {
       ...initialValues,
       seasonId,
-      email: initialValues?.email ?? currentUserEmail ?? "",
+      email,
       willingToBeCaptain: initialValues?.willingToBeCaptain ?? false,
       playerType: initialValues?.playerType ?? registrationConfig.allowedPlayerTypes[0],
       screenshotUrls:
@@ -128,132 +157,129 @@ export function RegistrationForm({
       ),
     },
   });
+  const { isSubmitting } = formState;
+
+  const acceptDraft = useEffectEvent(
+    (key: string, result: Awaited<ReturnType<typeof loadRegistrationDraft>>) => {
+      if (key !== draftKey || !canEdit || !canSaveDraft) return;
+      if (!result.success) {
+        if (result.error.code === ErrorCode.REGISTRATION_CLOSED) showFailure(result.error);
+        else setDraftRead({ key, state: "error", message: result.error.message });
+        return;
+      }
+      if (result.data.payload) {
+        const draftValues = result.data.payload as Partial<RegistrationInput>;
+        const values = { ...getValues(), ...draftValues };
+        reset({
+          ...values,
+          seasonId,
+          email,
+          antiCheatPledge: values.antiCheatPledge === true ? true : undefined,
+          mapPreferences: projectMapPreferences(values.mapPreferences, registrationConfig.mapPool),
+        });
+      }
+      setDraftRead({ key, state: result.data.payload ? "restored" : "empty" });
+    },
+  );
+
+  useEffect(() => {
+    if (!interactive || !canEdit || !canSaveDraft || draftRead?.key === draftKey) return;
+    let active = true;
+    async function readDraft() {
+      try {
+        const result = await loadRegistrationDraft(seasonId, email);
+        if (active) acceptDraft(draftKey, result);
+      } catch {
+        if (active)
+          setDraftRead({ key: draftKey, state: "error", message: "暂时无法读取报名草稿。" });
+      }
+    }
+    void readDraft();
+    return () => {
+      active = false;
+    };
+  }, [canEdit, canSaveDraft, draftKey, draftRead?.key, email, interactive, seasonId]);
+
+  useEffect(() => {
+    // React Hook Form publishes field errors when the submit attempt settles.
+    if (!feedback || isSubmitting) return;
+    const firstInvalid = formRef.current?.querySelector<HTMLElement>(
+      '[aria-invalid="true"]:not([type="hidden"]):not(:disabled)',
+    );
+    (firstInvalid ?? feedbackRef.current)?.focus();
+  }, [feedback, isSubmitting]);
+
+  function showFailure(error: ActionError) {
+    if (error.code === ErrorCode.REGISTRATION_CLOSED) setClosedWindow(windowState);
+    setFeedback({ message: error.message });
+  }
 
   const onSubmit = async (data: RegistrationFormData) => {
-    if (!canSubmit) {
-      toast.error(windowMessage ?? "报名提交暂未开放");
-      return;
-    }
-
     const taskToken = task.begin("submit");
     task.step("submit", taskToken);
-    const result = await submitRegistration(data);
-    if (result.success) {
-      task.complete(taskToken);
-      receiptToken.current = taskToken;
-      setSubmittedEmail(data.email);
-      setSubmitted(true);
-    } else {
+    setFeedback(null);
+    try {
+      const result = await submitRegistration(data);
+      if (result.success) {
+        task.complete(taskToken);
+        receiptToken.current = taskToken;
+        setSubmitted(true);
+        return;
+      }
       if (result.error.fieldErrors) {
         task.validation("server_validation", taskToken);
-        toast.error("请检查表单填写");
-      } else {
-        toast.error(result.error.message);
+        for (const [name, message] of Object.entries(result.error.fieldErrors)) {
+          setError(name as keyof RegistrationInput, { type: "server", message });
+        }
       }
+      showFailure(result.error);
+    } catch {
+      setFeedback({
+        message: "提交结果暂未确认。请先查看本届报名进度，再决定是否重试。",
+        checkProgress: true,
+      });
     }
   };
 
   const handleSaveDraft = async () => {
-    const values = getValues();
-    const email = typeof values.email === "string" ? normalizeEmail(values.email) : "";
-    if (!email) {
-      toast.error("请先填写邮箱，再保存草稿");
-      return;
-    }
-    if (!canSaveDraft) {
-      toast.error(windowMessage ?? "草稿保存已关闭");
-      return;
-    }
-
+    if (!ready || !canSaveDraft || isSubmitting || savingDraft) return;
     setSavingDraft(true);
+    setFeedback(null);
     try {
       const result = await saveRegistrationDraft({
         seasonId,
         email,
-        payload: compactUndefined({ ...values, seasonId, email }) as Record<string, unknown>,
+        payload: compactUndefined({ ...getValues(), seasonId, email }) as Record<string, unknown>,
       });
-      if (result.success) {
-        toast.success("草稿已保存", {
-          description: "下次输入邮箱即可自动恢复",
-        });
-      } else {
-        toast.error(result.error.message);
-      }
+      if (result.success) toast.success("草稿已保存");
+      else showFailure(result.error);
+    } catch {
+      setFeedback({ message: "草稿保存结果暂未确认。当前填写内容仍在此页，可以再保存一次。" });
     } finally {
       setSavingDraft(false);
     }
   };
-
-  const loadDraftForEmail = useCallback(
-    async (email: string, options: { silent?: boolean } = {}) => {
-      const normalized = normalizeEmail(email);
-      if (!normalized) return;
-
-      setLoadingDraftEmail(normalized);
-      try {
-        const result = await loadRegistrationDraft(seasonId, normalized);
-        if (result.success && result.data.payload) {
-          const draftValues = result.data.payload as Partial<RegistrationInput>;
-          reset({
-            ...getValues(),
-            ...draftValues,
-            seasonId,
-            email: normalized,
-            mapPreferences: projectMapPreferences(
-              draftValues.mapPreferences,
-              registrationConfig.mapPool,
-            ),
-          } as RegistrationInput);
-          setLoadedDraftEmail(normalized);
-          if (!options.silent) {
-            toast.success("已加载保存的报名草稿");
-          }
-        }
-      } finally {
-        setLoadingDraftEmail(null);
-      }
-    },
-    [getValues, registrationConfig.mapPool, reset, seasonId],
-  );
-
-  useEffect(() => {
-    if (!currentUserEmail || loadedDraftEmail === currentUserEmail) return;
-    lastBlurredEmailRef.current = currentUserEmail;
-    void loadDraftForEmail(currentUserEmail);
-  }, [currentUserEmail, loadedDraftEmail, loadDraftForEmail]);
-
-  const emailField = register("email", {
-    onBlur: async (event) => {
-      if (currentUserEmail) return;
-      const email = normalizeEmail(event.target.value);
-      if (!email || email === lastBlurredEmailRef.current) return;
-      lastBlurredEmailRef.current = email;
-      await loadDraftForEmail(email);
-    },
-  });
 
   const presentResult = task.step;
   useEffect(() => {
     if (submitted) presentResult("result", receiptToken.current);
   }, [submitted, presentResult]);
 
-  // ── 提交成功页 ──
-  if (submitted) {
-    return <RegistrationSuccess seasonName={seasonName} submittedEmail={submittedEmail} />;
-  }
+  if (submitted) return <RegistrationSuccess seasonName={seasonName} statusHref={statusHref} />;
 
   // ── 工具函数 ──
-  const FieldError = ({ name }: { name: string }) => {
-    const err = name.split(".").reduce<unknown>((acc, key) => {
-      if (acc && typeof acc === "object") return (acc as Record<string, unknown>)[key];
-      return undefined;
-    }, errors);
-    const message =
-      err && typeof err === "object" && "message" in err
-        ? String((err as { message?: unknown }).message)
-        : "";
-    return message ? <p className="text-xs text-[var(--color-danger)] mt-1">{message}</p> : null;
+  const renderError: RegistrationFieldFeedback["renderError"] = (name) => {
+    const message = getFieldState(name, formState).error?.message;
+    return message ? (
+      <p id={`${name}-error`} className="mt-1 text-sm text-[var(--color-danger)]">
+        {message}
+      </p>
+    ) : null;
   };
+  const errorAttributes: RegistrationFieldFeedback["errorAttributes"] = (name) =>
+    getFieldState(name, formState).error?.message
+      ? { "aria-invalid": true, "aria-describedby": `${name}-error` }
+      : {};
 
   const positionFull = (pos: string) =>
     isPositionFull(pos, positionCounts, registrationConfig.maxPerPosition);
@@ -291,217 +317,388 @@ export function RegistrationForm({
 
   return (
     <form
+      ref={formRef}
+      noValidate
       onInputCapture={() => task.begin()}
       onPointerDownCapture={task.activity}
       onKeyDownCapture={task.activity}
-      onSubmit={handleSubmit(onSubmit, () => {
-        task.begin();
-        task.validation("form_invalid");
-      })}
+      onSubmit={(event) => {
+        if (!ready || savingDraft || isSubmitting) {
+          event.preventDefault();
+          return;
+        }
+        void handleSubmit(onSubmit, () => {
+          task.begin();
+          task.validation("form_invalid");
+          setFeedback({ message: "请修正标出的报名资料。" });
+        })(event);
+      }}
       className="space-y-8"
     >
       <input type="hidden" {...register("seasonId")} />
-
-      {/* ═══════════════════════════════════════ 基础信息 ═══ */}
-      <section>
-        <RegistrationSectionTitle>基础信息</RegistrationSectionTitle>
-        <div className="space-y-4">
-          {/* 邮箱 */}
-          <div>
-            <Label htmlFor="email" className="text-[var(--color-fg-mid)] mb-1.5 block">
-              电子邮件 <Required />
-            </Label>
-            <div className="relative">
+      {feedback && (
+        <div className="space-y-2">
+          <p
+            ref={feedbackRef}
+            role="alert"
+            tabIndex={-1}
+            className="text-sm text-[var(--color-danger)]"
+          >
+            {feedback.message}
+          </p>
+          {feedback.checkProgress && (
+            <Button asChild variant="outline">
+              <Link href={statusHref} target="_blank" rel="noopener" prefetch={false}>
+                在新标签页查看报名进度
+              </Link>
+            </Button>
+          )}
+        </div>
+      )}
+      {canEdit && (!interactive || draftLoading || draft?.state === "restored") && (
+        <p role="status" className="text-sm text-[var(--color-fg-secondary)]">
+          {!interactive || draftLoading
+            ? "正在读取报名草稿…"
+            : "草稿已恢复。提交前请核对资料和反作弊承诺。"}
+        </p>
+      )}
+      {draftError && (
+        <div className="space-y-2">
+          <p role="alert" className="text-sm text-[var(--color-danger)]">
+            {draftError}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDraftAttempt((attempt) => attempt + 1)}
+            >
+              重新读取草稿
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDraftRead({ key: draftKey, state: "empty" })}
+            >
+              使用当前资料
+            </Button>
+          </div>
+        </div>
+      )}
+      {ready && <ContentReady module="account" phase="form" />}
+      <fieldset disabled={!ready} className="min-w-0 space-y-8">
+        <legend className="sr-only">{canEdit ? "报名资料" : "报名资料（只读）"}</legend>
+        {/* ═══════════════════════════════════════ 基础信息 ═══ */}
+        <section>
+          <RegistrationSectionTitle>基础信息</RegistrationSectionTitle>
+          <div className="space-y-4">
+            {/* 邮箱 */}
+            <div>
+              <Label htmlFor="email" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                电子邮件 <Required />
+              </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="your@email.com"
                 className={inputCls}
-                readOnly={!!currentUserEmail}
-                {...emailField}
+                readOnly
+                {...register("email")}
+                {...errorAttributes("email")}
               />
-              {loadedDraftEmail && (
-                <span
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded"
-                  style={{ background: "var(--color-ok)22", color: "var(--color-ok)" }}
-                >
-                  草稿已恢复
-                </span>
-              )}
+              {renderError("email")}
             </div>
-            <FieldError name="email" />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-              {currentUserEmail
-                ? `已登录为 ${currentUserEmail}，已自动检查草稿。`
-                : "已自动检查草稿，提交后可直接用该账号查看审核进度。"}
-              {loadingDraftEmail && " · 正在查询草稿…"}
-            </p>
-          </div>
 
-          {/* 学号 + QQ */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* 学号 + QQ */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="studentId" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                  学号 <Required />
+                </Label>
+                <Input
+                  id="studentId"
+                  placeholder="毕业生填「毕业年份+学院」"
+                  className={inputCls}
+                  {...register("studentId")}
+                  {...errorAttributes("studentId")}
+                />
+                {renderError("studentId")}
+              </div>
+              <div>
+                <Label htmlFor="playerType" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                  身份类型 <Required />
+                </Label>
+                <Select
+                  disabled={!ready}
+                  value={watch("playerType") ?? registrationConfig.allowedPlayerTypes[0]}
+                  onValueChange={(v) =>
+                    setValue("playerType", v as PlayerType, {
+                      shouldValidate: true,
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    id="playerType"
+                    className={inputCls}
+                    {...errorAttributes("playerType")}
+                  >
+                    <SelectValue placeholder="选择身份类型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {registrationConfig.allowedPlayerTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {PLAYER_TYPE_LABELS[type]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {renderError("playerType")}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="qq" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                  QQ 号 <Required />
+                </Label>
+                <Input
+                  id="qq"
+                  placeholder="123456789"
+                  className={inputCls}
+                  {...register("qq")}
+                  {...errorAttributes("qq")}
+                />
+                {renderError("qq")}
+              </div>
+            </div>
+
+            {/* 完美昵称 */}
             <div>
-              <Label htmlFor="studentId" className="text-[var(--color-fg-mid)] mb-1.5 block">
-                学号 <Required />
+              <Label htmlFor="perfectName" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                完美平台昵称 <Required />
               </Label>
               <Input
-                id="studentId"
-                placeholder="毕业生填「毕业年份+学院」"
+                id="perfectName"
+                placeholder="完美对战平台昵称"
                 className={inputCls}
-                {...register("studentId")}
+                {...register("perfectName")}
+                {...errorAttributes("perfectName")}
               />
-              <FieldError name="studentId" />
+              {renderError("perfectName")}
             </div>
+
+            {/* Steam 官方资料只接受 Steam64 */}
             <div>
-              <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
-                身份类型 <Required />
+              <Label htmlFor="steam64" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                Steam 64 位 ID <Required />
+              </Label>
+              <Input
+                id="steam64"
+                placeholder="76561198XXXXXXXXX"
+                className={`${inputCls} font-mono text-sm`}
+                {...register("steam64")}
+                {...errorAttributes("steam64")}
+              />
+              {renderError("steam64")}
+              <p className="text-xs text-[var(--color-fg-dim)] mt-1">
+                昵称、头像和个人资料链接将在 Steam 官方资料可用时自动展示。
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════ 位置选择 ═══ */}
+        <section>
+          <RegistrationSectionTitle>位置选择</RegistrationSectionTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="primaryPosition" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                主选位置 <Required />
               </Label>
               <Select
-                value={watch("playerType") ?? registrationConfig.allowedPlayerTypes[0]}
+                disabled={!ready}
+                value={watch("primaryPosition") ?? ""}
                 onValueChange={(v) =>
-                  setValue("playerType", v as PlayerType, {
+                  setValue("primaryPosition", v as RegistrationFormData["primaryPosition"], {
                     shouldValidate: true,
                   })
                 }
               >
-                <SelectTrigger className={inputCls}>
-                  <SelectValue placeholder="选择身份类型" />
+                <SelectTrigger
+                  id="primaryPosition"
+                  className={inputCls}
+                  {...errorAttributes("primaryPosition")}
+                >
+                  <SelectValue placeholder="选择主选位置" />
                 </SelectTrigger>
                 <SelectContent>
-                  {registrationConfig.allowedPlayerTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {PLAYER_TYPE_LABELS[type]}
+                  {activePositions.map((pos) => (
+                    <SelectItem key={pos} value={pos} disabled={positionFull(pos)}>
+                      {positionLabel(pos)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <FieldError name="playerType" />
+              {renderError("primaryPosition")}
+              <p className="text-xs text-[var(--color-fg-dim)] mt-1">
+                每个位置最多 {registrationConfig.maxPerPosition} 人，满员后自动关闭
+              </p>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="qq" className="text-[var(--color-fg-mid)] mb-1.5 block">
-                QQ 号 <Required />
-              </Label>
-              <Input id="qq" placeholder="123456789" className={inputCls} {...register("qq")} />
-              <FieldError name="qq" />
-            </div>
-          </div>
-
-          {/* 完美昵称 */}
-          <div>
-            <Label htmlFor="perfectName" className="text-[var(--color-fg-mid)] mb-1.5 block">
-              完美平台昵称 <Required />
-            </Label>
-            <Input
-              id="perfectName"
-              placeholder="完美对战平台昵称"
-              className={inputCls}
-              {...register("perfectName")}
-            />
-            <FieldError name="perfectName" />
-          </div>
-
-          {/* Steam 官方资料只接受 Steam64 */}
-          <div>
-            <Label htmlFor="steam64" className="text-[var(--color-fg-mid)] mb-1.5 block">
-              Steam 64 位 ID <Required />
-            </Label>
-            <Input
-              id="steam64"
-              placeholder="76561198XXXXXXXXX"
-              className={`${inputCls} font-mono text-sm`}
-              {...register("steam64")}
-            />
-            <FieldError name="steam64" />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-              昵称、头像和个人资料链接将在 Steam 官方资料可用时自动展示。
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════ 位置选择 ═══ */}
-      <section>
-        <RegistrationSectionTitle>位置选择</RegistrationSectionTitle>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
-              主选位置 <Required />
-            </Label>
-            <Select
-              value={watch("primaryPosition") ?? ""}
-              onValueChange={(v) =>
-                setValue("primaryPosition", v as RegistrationFormData["primaryPosition"], {
-                  shouldValidate: true,
-                })
-              }
-            >
-              <SelectTrigger className={inputCls}>
-                <SelectValue placeholder="选择主选位置" />
-              </SelectTrigger>
-              <SelectContent>
-                {activePositions.map((pos) => (
-                  <SelectItem key={pos} value={pos} disabled={positionFull(pos)}>
-                    {positionLabel(pos)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError name="primaryPosition" />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-              每个位置最多 {registrationConfig.maxPerPosition} 人，满员后自动关闭
-            </p>
-          </div>
-
-          <div>
-            <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
-              次选位置 <Required />
-            </Label>
-            <Select
-              value={watch("secondaryPosition") ?? ""}
-              onValueChange={(v) =>
-                setValue("secondaryPosition", v as RegistrationFormData["primaryPosition"], {
-                  shouldValidate: true,
-                })
-              }
-            >
-              <SelectTrigger className={inputCls}>
-                <SelectValue placeholder="选择次选位置" />
-              </SelectTrigger>
-              <SelectContent>
-                {activePositions.map((pos) => (
-                  <SelectItem key={pos} value={pos}>
-                    {POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.full ?? pos}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError name="secondaryPosition" />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">不能与主选位置相同</p>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════ 段位 · 历史最高 ═══ */}
-      <section>
-        <RegistrationSectionTitle>段位信息 · 历史最高</RegistrationSectionTitle>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
-                历史最高段位 <Required />
+              <Label
+                htmlFor="secondaryPosition"
+                className="text-[var(--color-fg-mid)] mb-1.5 block"
+              >
+                次选位置 <Required />
               </Label>
               <Select
-                value={watch("peakRank") ?? ""}
+                disabled={!ready}
+                value={watch("secondaryPosition") ?? ""}
                 onValueChange={(v) =>
-                  setValue("peakRank", v as RegistrationFormData["peakRank"], {
+                  setValue("secondaryPosition", v as RegistrationFormData["primaryPosition"], {
                     shouldValidate: true,
                   })
                 }
               >
-                <SelectTrigger className={inputCls}>
+                <SelectTrigger
+                  id="secondaryPosition"
+                  className={inputCls}
+                  {...errorAttributes("secondaryPosition")}
+                >
+                  <SelectValue placeholder="选择次选位置" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activePositions.map((pos) => (
+                    <SelectItem key={pos} value={pos}>
+                      {POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.full ?? pos}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {renderError("secondaryPosition")}
+              <p className="text-xs text-[var(--color-fg-dim)] mt-1">不能与主选位置相同</p>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════ 段位 · 历史最高 ═══ */}
+        <section>
+          <RegistrationSectionTitle>段位信息 · 历史最高</RegistrationSectionTitle>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="peakRank" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                  历史最高段位 <Required />
+                </Label>
+                <Select
+                  disabled={!ready}
+                  value={watch("peakRank") ?? ""}
+                  onValueChange={(v) =>
+                    setValue("peakRank", v as RegistrationFormData["peakRank"], {
+                      shouldValidate: true,
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    id="peakRank"
+                    className={inputCls}
+                    {...errorAttributes("peakRank")}
+                  >
+                    <SelectValue placeholder="选择段位" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rankValues.map((rank) => (
+                      <SelectItem key={rank} value={rank}>
+                        {RANK_LABELS[rank]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {renderError("peakRank")}
+              </div>
+              <div>
+                <Label htmlFor="peakRankSeason" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                  对应赛季 <Required />
+                </Label>
+                <Input
+                  id="peakRankSeason"
+                  placeholder="如 S1 2026"
+                  className={inputCls}
+                  {...register("peakRankSeason")}
+                  {...errorAttributes("peakRankSeason")}
+                />
+                {renderError("peakRankSeason")}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="peakRating" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                  Rating <Required />
+                </Label>
+                <Input
+                  id="peakRating"
+                  type="number"
+                  placeholder="如 1.48"
+                  min={0.01}
+                  max={3.0}
+                  step={0.01}
+                  className={inputCls}
+                  {...numRegister("peakRating")}
+                  {...errorAttributes("peakRating")}
+                />
+                {renderError("peakRating")}
+              </div>
+              <div>
+                <Label htmlFor="peakWe" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                  WE（选填）
+                </Label>
+                <Input
+                  id="peakWe"
+                  type="number"
+                  placeholder="如 8.5"
+                  min={0}
+                  max={16.0}
+                  step={0.1}
+                  className={inputCls}
+                  {...numRegister("peakWe")}
+                  {...errorAttributes("peakWe")}
+                />
+                {renderError("peakWe")}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════ 段位 · 当前赛季最高 ═══ */}
+        <section>
+          <RegistrationSectionTitle>段位信息 · 当前赛季最高</RegistrationSectionTitle>
+          <div className="space-y-4">
+            <div>
+              <Label
+                htmlFor="currentSeasonPeakRank"
+                className="text-[var(--color-fg-mid)] mb-1.5 block"
+              >
+                当前赛季最高段位 <Required />
+              </Label>
+              <Select
+                disabled={!ready}
+                value={watch("currentSeasonPeakRank") ?? ""}
+                onValueChange={(v) =>
+                  setValue(
+                    "currentSeasonPeakRank",
+                    v as RegistrationFormData["currentSeasonPeakRank"],
+                    {
+                      shouldValidate: true,
+                    },
+                  )
+                }
+              >
+                <SelectTrigger
+                  id="currentSeasonPeakRank"
+                  className={inputCls}
+                  {...errorAttributes("currentSeasonPeakRank")}
+                >
                   <SelectValue placeholder="选择段位" />
                 </SelectTrigger>
                 <SelectContent>
@@ -512,180 +709,110 @@ export function RegistrationForm({
                   ))}
                 </SelectContent>
               </Select>
-              <FieldError name="peakRank" />
+              {renderError("currentSeasonPeakRank")}
             </div>
-            <div>
-              <Label htmlFor="peakRankSeason" className="text-[var(--color-fg-mid)] mb-1.5 block">
-                对应赛季 <Required />
-              </Label>
-              <Input
-                id="peakRankSeason"
-                placeholder="如 S1 2026"
-                className={inputCls}
-                {...register("peakRankSeason")}
-              />
-              <FieldError name="peakRankSeason" />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="peakRating" className="text-[var(--color-fg-mid)] mb-1.5 block">
-                Rating <Required />
-              </Label>
-              <Input
-                id="peakRating"
-                type="number"
-                placeholder="如 1.48"
-                min={0.01}
-                max={3.0}
-                step={0.01}
-                className={inputCls}
-                {...numRegister("peakRating")}
-              />
-              <FieldError name="peakRating" />
-            </div>
-            <div>
-              <Label htmlFor="peakWe" className="text-[var(--color-fg-mid)] mb-1.5 block">
-                WE（选填）
-              </Label>
-              <Input
-                id="peakWe"
-                type="number"
-                placeholder="如 8.5"
-                min={0}
-                max={16.0}
-                step={0.1}
-                className={inputCls}
-                {...numRegister("peakWe")}
-              />
-              <FieldError name="peakWe" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="currentRating" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                  Rating <Required />
+                </Label>
+                <Input
+                  id="currentRating"
+                  type="number"
+                  placeholder="如 1.35"
+                  min={0.01}
+                  max={3.0}
+                  step={0.01}
+                  className={inputCls}
+                  {...numRegister("currentRating")}
+                  {...errorAttributes("currentRating")}
+                />
+                {renderError("currentRating")}
+              </div>
+              <div>
+                <Label htmlFor="currentWe" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                  WE（选填）
+                </Label>
+                <Input
+                  id="currentWe"
+                  type="number"
+                  placeholder="如 7.5"
+                  min={0}
+                  max={16.0}
+                  step={0.1}
+                  className={inputCls}
+                  {...numRegister("currentWe")}
+                  {...errorAttributes("currentWe")}
+                />
+                {renderError("currentWe")}
+              </div>
             </div>
           </div>
+        </section>
+
+        {/* ═══════════════════════════════════════ 地图熟练度 ═══ */}
+        <div
+          role="group"
+          aria-label="地图熟练度"
+          tabIndex={-1}
+          {...errorAttributes("mapPreferences")}
+        >
+          <MapPreferenceSection
+            mapPool={registrationConfig.mapPool}
+            mapPreferences={mapPreferences}
+            playableCount={playableCount}
+            strongCount={strongCount}
+            error={renderError("mapPreferences")}
+            onSetMapLevel={setMapLevel}
+          />
         </div>
-      </section>
 
-      {/* ═══════════════════════════════════════ 段位 · 当前赛季最高 ═══ */}
-      <section>
-        <RegistrationSectionTitle>段位信息 · 当前赛季最高</RegistrationSectionTitle>
-        <div className="space-y-4">
-          <div>
-            <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
-              当前赛季最高段位 <Required />
-            </Label>
-            <Select
-              value={watch("currentSeasonPeakRank") ?? ""}
-              onValueChange={(v) =>
-                setValue(
-                  "currentSeasonPeakRank",
-                  v as RegistrationFormData["currentSeasonPeakRank"],
-                  {
-                    shouldValidate: true,
-                  },
-                )
-              }
-            >
-              <SelectTrigger className={inputCls}>
-                <SelectValue placeholder="选择段位" />
-              </SelectTrigger>
-              <SelectContent>
-                {rankValues.map((rank) => (
-                  <SelectItem key={rank} value={rank}>
-                    {RANK_LABELS[rank]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError name="currentSeasonPeakRank" />
-          </div>
+        {/* ═══════════════════════════════════════ 天梯截图 ═══ */}
+        <ScreenshotLinksSection
+          screenshotCount={registrationConfig.screenshotCount}
+          inputClassName={inputCls}
+          register={register}
+          renderError={renderError}
+          errorAttributes={errorAttributes}
+        />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="currentRating" className="text-[var(--color-fg-mid)] mb-1.5 block">
-                Rating <Required />
-              </Label>
-              <Input
-                id="currentRating"
-                type="number"
-                placeholder="如 1.35"
-                min={0.01}
-                max={3.0}
-                step={0.01}
-                className={inputCls}
-                {...numRegister("currentRating")}
-              />
-              <FieldError name="currentRating" />
-            </div>
-            <div>
-              <Label htmlFor="currentWe" className="text-[var(--color-fg-mid)] mb-1.5 block">
-                WE（选填）
-              </Label>
-              <Input
-                id="currentWe"
-                type="number"
-                placeholder="如 7.5"
-                min={0}
-                max={16.0}
-                step={0.1}
-                className={inputCls}
-                {...numRegister("currentWe")}
-              />
-              <FieldError name="currentWe" />
-            </div>
-          </div>
+        <RegistrationExperienceSection
+          inputClassName={inputCls}
+          register={register}
+          watch={watch}
+          renderError={renderError}
+          errorAttributes={errorAttributes}
+        />
+
+        <RegistrationOtherSection
+          inputClassName={inputCls}
+          register={register}
+          watch={watch}
+          renderError={renderError}
+          errorAttributes={errorAttributes}
+        />
+
+        <AntiCheatPledgeSection
+          registration={register("antiCheatPledge")}
+          renderError={renderError}
+          errorAttributes={errorAttributes}
+        />
+      </fieldset>
+
+      {canEdit && (
+        <div className="space-y-3">
+          <p className="text-sm text-[var(--color-fg-secondary)]">提交即视为同意参赛规则。</p>
+          <RegistrationSubmitBar
+            canSaveDraft={ready && canSaveDraft && !isSubmitting}
+            canSubmit={ready && !savingDraft}
+            isSubmitting={isSubmitting}
+            savingDraft={savingDraft}
+            submitText={submitLabel ?? "提交报名"}
+            onSaveDraft={handleSaveDraft}
+          />
         </div>
-      </section>
-
-      {/* ═══════════════════════════════════════ 地图熟练度 ═══ */}
-      <MapPreferenceSection
-        mapPool={registrationConfig.mapPool}
-        mapPreferences={mapPreferences}
-        playableCount={playableCount}
-        strongCount={strongCount}
-        error={<FieldError name="mapPreferences" />}
-        onSetMapLevel={setMapLevel}
-      />
-
-      {/* ═══════════════════════════════════════ 天梯截图 ═══ */}
-      <ScreenshotLinksSection
-        screenshotCount={registrationConfig.screenshotCount}
-        inputClassName={inputCls}
-        register={register}
-        renderError={(name) => <FieldError name={name} />}
-      />
-
-      <RegistrationExperienceSection
-        inputClassName={inputCls}
-        register={register}
-        watch={watch}
-        renderError={(name) => <FieldError name={name} />}
-      />
-
-      <RegistrationOtherSection
-        inputClassName={inputCls}
-        register={register}
-        watch={watch}
-        renderError={(name) => <FieldError name={name} />}
-      />
-
-      <AntiCheatPledgeSection
-        defaultChecked={!!initialValues?.antiCheatPledge}
-        error={<FieldError name="antiCheatPledge" />}
-        onCheckedChange={(checked) =>
-          setValue("antiCheatPledge", checked as true, {
-            shouldValidate: true,
-          })
-        }
-      />
-
-      <RegistrationSubmitBar
-        canSaveDraft={canSaveDraft}
-        canSubmit={canSubmit}
-        isSubmitting={isSubmitting}
-        savingDraft={savingDraft}
-        submitText={canSubmit ? (submitLabel ?? "提交报名") : (windowMessage ?? "报名提交暂未开放")}
-        onSaveDraft={handleSaveDraft}
-      />
+      )}
     </form>
   );
 }
