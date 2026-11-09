@@ -147,6 +147,7 @@ function systemSpecsForPath(path) {
 
 const CODE_EXTENSIONS = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
 const LINT_EXTENSIONS = /\.[cm]?[jt]sx?$/;
+const FORMAT_SOURCE = /^src\/.+\.(?:ts|tsx|js|jsx|css)$/;
 const E2E_SPEC_FILE = /^tests\/e2e\/.+\.spec\.(?:[cm]?[jt]sx?)$/;
 const INTEGRATION_SPEC_FILE = /^tests\/integration\/db\/(?!harness\/).+\.(?:test|spec)\.(?:[cm]?[jt]sx?)$/;
 export function classifyChangedFiles(entries, options = {}) {
@@ -187,6 +188,7 @@ export function classifyChangedFiles(entries, options = {}) {
     typeScripts: false,
     architecture: false,
     lintPaths: new Set(),
+    formatPaths: new Set(),
     unitRelatedSources: new Set(),
     unitExplicitTests: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
     integrationSpecs: new Set(),
@@ -459,7 +461,8 @@ function collectEvidence(path, classification, evidence) {
   evidence.typeTests ||= isTest || isTestSupport;
   evidence.typeScripts ||= isScript;
   evidence.architecture ||= path.startsWith("src/") || path.startsWith("scripts/architecture/");
-  if (isCode || LINT_EXTENSIONS.test(path)) evidence.lintPaths.add(path);
+  if (LINT_EXTENSIONS.test(path)) evidence.lintPaths.add(path);
+  if (FORMAT_SOURCE.test(path)) evidence.formatPaths.add(path);
 
   if (classification.integrationSpecs) {
     for (const spec of classification.integrationSpecs) evidence.integrationSpecs.add(spec);
@@ -494,12 +497,13 @@ function unitProjectFor(path) {
 
 function buildStaticMatrix(evidence) {
   const matrix = [];
-  if (evidence.typeApp) matrix.push({ task: "format" }, { task: "type-app" });
+  if (evidence.formatPaths.size) matrix.push({ task: "format-changed", changedPaths: [...evidence.formatPaths].sort() });
+  if (evidence.typeApp) matrix.push({ task: "type-app" });
   if (evidence.typeTests) matrix.push({ task: "type-tests", changedPaths: [] });
   if (evidence.typeScripts) matrix.push({ task: "type-scripts", changedPaths: [] });
   if (evidence.architecture) matrix.push({ task: "architecture", changedPaths: [] });
 
-  const lintPaths = [...evidence.lintPaths].filter((path) => LINT_EXTENSIONS.test(path)).sort();
+  const lintPaths = [...evidence.lintPaths].sort();
   if (lintPaths.length > 0) matrix.push({ task: "lint-changed", changedPaths: lintPaths });
 
   if (evidence.unitRelatedSources.size) {
