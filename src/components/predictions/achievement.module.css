@@ -1,5 +1,6 @@
 .widget {
-  min-width: min(218px, 100%);
+  width: 218px;
+  min-width: 0;
   max-width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);

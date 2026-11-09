@@ -68,7 +68,11 @@ export function StatusBanner({ tone = "info", title, sub, action, onDismiss }: S
           )}
         </div>
       </div>
-      {action && <div className="ml-9 min-w-0 max-w-full">{action}</div>}
+      {action && (
+        <div className="ml-9 min-w-0 max-w-[calc(100%-2.25rem)] [&>*]:h-auto [&>*]:min-h-9 [&>*]:max-w-full [&>*]:whitespace-normal">
+          {action}
+        </div>
+      )}
       {onDismiss && (
         <button
           type="button"
