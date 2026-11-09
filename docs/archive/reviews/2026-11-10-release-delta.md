@@ -42,7 +42,7 @@
 
 统一日期解析原先只检查 `Invalid Date`，如 `2026-02-31T20:30` 会变成 3 月 3 日。比赛完赛时间 action 的非空检查无法拒绝这种输入。
 
-在 canonical `parseCSTInput` 中校验 datetime-local 形状及 CST 回读一致性。保留有效分钟、秒、毫秒和清除语义；全部调用者复用同一解析。既有比赛时间 PostgreSQL 场景补非法日期拒绝与原值保持断言。
+在 canonical `parseCSTInput` 中校验 datetime-local 形状及 CST 回读一致性。保留有效分钟、秒、毫秒和清除语义；全部调用者复用同一解析。复审调用者时发现赛季日期转换会将解析失败当成清空，因此在 season edit/create owner 拒绝可编辑字段的非法非空值；生命周期锁定字段仍消费已保存事实。纪律签发、Major 筹备与其他比赛时间调用者已有非空非法值拒绝。既有比赛时间及赛季 PostgreSQL 场景补非法日期拒绝与原值保持断言。
 
 ## 查询与触发成本
 

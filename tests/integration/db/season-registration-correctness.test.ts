@@ -6,7 +6,7 @@ import * as schema from "../../../src/db/schema";
 import { createCustomTournamentTemplate } from "../../../src/lib/competition/templates";
 import { openSeasonRegistrationInTx } from "../../../src/lib/seasons/lifecycle";
 import { getSeasonConfirmationVersion } from "../../../src/lib/seasons/confirmation";
-import { openSeasonRegistration, publishSeason } from "@/actions/seasons";
+import { openSeasonRegistration, publishSeason, updateSeason } from "@/actions/seasons";
 import { planSeasonUpdate, seasonUpdatePayloadSchema } from "../../../src/lib/seasons/edit";
 import { toCSTDateTimeInput } from "../../../src/lib/utils/date";
 import { createLocalPool } from "./harness/database";
@@ -234,11 +234,20 @@ describe("season registration correctness PostgreSQL", () => {
       });
       expect(parsed.registrationOpensAt).toBe("2026-09-08T16:00");
 
+      await expect(updateSeason({ ...parsed, registrationClosesAt: "2026-02-31T20:30" })).resolves.toMatchObject({
+        success: false, error: { code: "VALIDATION_FAILED" },
+      });
+      expect(await database.query.seasons.findFirst({ where: eq(schema.seasons.id, seasonId) })).toMatchObject({
+        registrationOpensAt: opened, registrationClosesAt: currentClose, rosterChangeClosesAt: currentRoster,
+      });
+
       const plan = planSeasonUpdate(persisted, parsed);
       expect(plan.set).not.toHaveProperty("registrationOpensAt");
       expect(plan.set.registrationClosesAt).toEqual(nextClose);
       expect(plan.set.rosterChangeClosesAt).toEqual(currentRoster);
       expect(plan.set).not.toHaveProperty("teamRegistrationConfig");
+      expect(planSeasonUpdate(persisted, { ...parsed, registrationOpensAt: "invalid" }).set)
+        .not.toHaveProperty("registrationOpensAt");
 
       await database.update(schema.seasons).set(plan.set).where(eq(schema.seasons.id, seasonId));
       const reloaded = await database.query.seasons.findFirst({ where: eq(schema.seasons.id, seasonId) });
