@@ -41,9 +41,16 @@ export function UserSessionControl({ userId }: { userId: string }) {
   const generation = useRef(0);
   const evidenceHelpId = useId();
   const validReference = /^[a-zA-Z0-9_.:-]{3,120}$/.test(evidenceReference.trim());
-  const reconciliation = settled && mutationId && outcome && evidenceSource && validReference
-    ? { mutationId, outcome, evidenceSource, evidenceReference: evidenceReference.trim(), verified: true }
-    : undefined;
+  const reconciliation =
+    settled && mutationId && outcome && evidenceSource && validReference
+      ? {
+          mutationId,
+          outcome,
+          evidenceSource,
+          evidenceReference: evidenceReference.trim(),
+          verified: true,
+        }
+      : undefined;
   const canSubmit = loaded && !pending && (!settled || Boolean(reconciliation));
   function changeOpen(next: boolean) {
     const request = ++generation.current;
@@ -104,7 +111,9 @@ export function UserSessionControl({ userId }: { userId: string }) {
                     value={outcome}
                     onChange={(event) => setOutcome(event.target.value as typeof outcome)}
                   >
-                    <option value="" disabled>请选择结果</option>
+                    <option value="" disabled>
+                      请选择结果
+                    </option>
                     <option value="succeeded">密码更新成功</option>
                     <option value="rejected">密码更新被明确拒绝</option>
                   </select>
@@ -119,7 +128,9 @@ export function UserSessionControl({ userId }: { userId: string }) {
                       setEvidenceSource(event.target.value as typeof evidenceSource)
                     }
                   >
-                    <option value="" disabled>请选择来源</option>
+                    <option value="" disabled>
+                      请选择来源
+                    </option>
                     <option value="supabase_auth_audit">Supabase Auth 审计</option>
                     <option value="provider_response_log">服务端 provider 结果日志</option>
                   </select>
@@ -137,7 +148,8 @@ export function UserSessionControl({ userId }: { userId: string }) {
                   />
                 </label>
                 <p id={evidenceHelpId} className="text-xs leading-5 text-[var(--color-fg-mid)]">
-                  核对记录中的用户、请求时间和结果。只填记录编号，3 至 120 位，可用字母、数字、下划线、点、冒号和连字符。密码、链接和日志正文留在原系统。
+                  核对记录中的用户、请求时间和结果。只填记录编号，3 至 120
+                  位，可用字母、数字、下划线、点、冒号和连字符。密码、链接和日志正文留在原系统。
                 </p>
               </>
             )}
@@ -150,7 +162,9 @@ export function UserSessionControl({ userId }: { userId: string }) {
             if (!canSubmit) return;
             const request = generation.current;
             startTransition(async () => {
-              const result = await revokeUserSessions(reconciliation ? { userId, reconciliation } : { userId });
+              const result = await revokeUserSessions(
+                reconciliation ? { userId, reconciliation } : { userId },
+              );
               if (request !== generation.current) return;
               if (!result.success) {
                 toast.error(result.error.message);
