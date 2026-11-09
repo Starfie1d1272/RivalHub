@@ -51,6 +51,9 @@ export function MatchHeroHeader({
 }: MatchHeroHeaderProps) {
   return (
     <>
+      <h1 className="sr-only">
+        {teamA?.name ?? "未知队伍"} 对阵 {teamB?.name ?? "未知队伍"}
+      </h1>
       <div className="flex min-w-0 items-center gap-4">
         <Link
           href={`/${seasonSlug}/matches`}

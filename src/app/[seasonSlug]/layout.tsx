@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSeasonPersonalNextStep } from "@/lib/seasons/public-next-step";
 import { getRegistrationWindowState } from "@/lib/registration/window";
 import { Button } from "@/components/ui/button";
+import { PageLayout, Spinner } from "@/components/rivalhub";
 import type { PublicSeason } from "@/lib/data/public-seasons";
 import { io } from "next/cache";
 import { TelemetryScene } from "@/components/telemetry/ProductTelemetry";
@@ -87,7 +88,11 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
 }
 
 function SeasonLayoutFallback() {
-  return <div aria-busy="true" aria-label="正在读取赛事" />;
+  return (
+    <PageLayout variant="wide" role="status">
+      <Spinner label="正在读取赛事…" />
+    </PageLayout>
+  );
 }
 
 export async function SeasonParticipationEntry({ season }: { season: PublicSeason }) {
