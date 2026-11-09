@@ -7,8 +7,6 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
-  schedule:
-    - cron: '0 2 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -22,6 +20,7 @@ env:
   NEXT_TELEMETRY_DISABLED: 1
   CI: true
   RIVALHUB_TIMING: 1
+  RIVALHUB_CI_COMMAND_TIMEOUT_MS: 180000
   PNPM_CONFIG_STORE_DIR: ${{ github.workspace }}/.agent-tmp/pnpm-store
 
 jobs:
@@ -29,7 +28,6 @@ jobs:
     name: plan
     runs-on: ubuntu-24.04
     outputs:
-      full: ${{ steps.plan.outputs.full }}
       run_static: ${{ steps.plan.outputs.run_static }}
       run_postgres: ${{ steps.plan.outputs.run_postgres }}
       run_system: ${{ steps.plan.outputs.run_system }}
@@ -37,16 +35,8 @@ jobs:
       static_matrix: ${{ steps.plan.outputs.static_matrix }}
       system_matrix: ${{ steps.plan.outputs.system_matrix }}
       postgres_matrix: ${{ steps.plan.outputs.postgres_matrix }}
-      unit_mode: ${{ steps.plan.outputs.unit_mode }}
-      related_sources: ${{ steps.plan.outputs.related_sources }}
-      explicit_tests: ${{ steps.plan.outputs.explicit_tests }}
-      postgres_mode: ${{ steps.plan.outputs.postgres_mode }}
       integration_specs: ${{ steps.plan.outputs.integration_specs }}
-      system_mode: ${{ steps.plan.outputs.system_mode }}
-      e2e_specs: ${{ steps.plan.outputs.e2e_specs }}
-      live_evidence: ${{ steps.plan.outputs.live_evidence }}
       gate_name: ${{ steps.plan.outputs.gate_name }}
-      release_metadata_only: ${{ steps.plan.outputs.release_metadata_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -64,7 +54,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.sha }}
-          FORCE_FULL: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event_name == 'merge_group' || (github.event_name == 'push' && (github.event.before == '0000000000000000000000000000000000000000' || github.event.before == '')) }}
+          FORCE_FULL: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group' || (github.event_name == 'push' && (github.event.before == '0000000000000000000000000000000000000000' || github.event.before == '')) }}
           PR_DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft || 'false' }}
 
   static:
@@ -86,8 +76,14 @@ jobs:
       - name: Start bootstrap/install timing
         run: echo "RIVALHUB_BOOTSTRAP_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
-      # Stable keys avoid pnpm/setup uploading the same store after every job.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.task == 'checks' || matrix.task == 'affected'
+        with:
+          path: ${{ env.PNPM_CONFIG_STORE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.task != 'checks' && matrix.task != 'affected'
         with:
           path: ${{ env.PNPM_CONFIG_STORE_DIR }}
           key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
@@ -101,24 +97,11 @@ jobs:
         if: always()
         run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RIVALHUB_BOOTSTRAP_STARTED_MS"
 
-      - name: Check source formatting
-        if: ${{ matrix.task == 'checks' || matrix.task == 'type-app' }}
-        run: pnpm format:check
-
       - name: Run static task
         env:
-          RIVALHUB_TIMING_TEST_KIND: ${{ startsWith(matrix.task, 'unit-') && 'unit' || '' }}
           STATIC_TASK: ${{ matrix.task }}
-          STATIC_PROJECT: ${{ matrix.project || '' }}
-          STATIC_CHANGED_PATHS: ${{ toJSON(matrix.changedPaths) }}
-          STATIC_RELATED_SOURCES: ${{ toJSON(matrix.relatedSources) }}
-          STATIC_EXPLICIT_TESTS: ${{ toJSON(matrix.explicitTests) }}
-          RIVALHUB_VITEST_PROJECT: ${{ matrix.project || '' }}
+          STATIC_CHECKS: ${{ toJSON(matrix.checks) }}
         run: node scripts/ci/timing.mjs "static/${{ matrix.task }}" -- node scripts/ci/run-static-task.mjs
-
-      - name: Assert no flaky Vitest tests
-        if: ${{ always() && (matrix.project == 'unit-react-jsdom' || matrix.task == 'unit-all') }}
-        run: node scripts/ci/assert-no-flaky.mjs --project unit-react-jsdom
 
       - name: Preserve machine-readable evidence
         if: always()
@@ -180,8 +163,7 @@ jobs:
       - name: Start bootstrap/install timing
         run: echo "RIVALHUB_BOOTSTRAP_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
-      # Stable keys avoid pnpm/setup uploading the same store after every job.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.PNPM_CONFIG_STORE_DIR }}
           key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
@@ -193,23 +175,8 @@ jobs:
       - name: Record bootstrap/install timing
         if: always()
         run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RIVALHUB_BOOTSTRAP_STARTED_MS"
-      - name: Fetch production stable lineage
-        run: git fetch origin main --tags
-      - name: Measure PostgreSQL readiness
-        run: |
-          node scripts/ci/timing.mjs "postgres/service ready" -- bash -c '
-            started_ms=$(date +%s%3N)
-            for attempt in {1..120}; do
-              if PGPASSWORD=postgres pg_isready -h 127.0.0.1 -p 5432 -U postgres -d postgres >/dev/null 2>&1; then
-                echo "timing pg-ready: $(( $(date +%s%3N) - started_ms ))ms"
-                exit 0
-              fi
-              sleep 1
-            done
-            echo "PostgreSQL service did not become ready within 120 seconds" >&2
-            exit 1
-          '
       - name: PostgreSQL migration checks
+        if: matrix.shard != '2/2'
         run: node scripts/ci/timing.mjs "postgres/migration" -- bash -c 'pnpm db:check && pnpm db:release-compat'
       - name: PostgreSQL integration
         env:
@@ -227,32 +194,6 @@ jobs:
       - name: Write timing summary
         if: always()
         run: node scripts/ci/timing.mjs summary
-
-  dependency-graph-build:
-    name: dependency-graph-build
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
-        with:
-          cache: false
-          require-lockfile: true
-      - name: Generate complete locked dependency snapshot
-        run: pnpm exec tsx scripts/dependencies/snapshot.ts generate dependency-snapshot.json
-        env:
-          RIVALHUB_DEPENDENCY_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          RIVALHUB_DEPENDENCY_REF: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: dependency-snapshot
-          path: dependency-snapshot.json
-          if-no-files-found: error
-          retention-days: 14
 
   dependency-review:
     name: dependency-review
@@ -283,15 +224,14 @@ jobs:
       SUPABASE_USE_SLIM_IMAGES: "1"
       # Slim references remain digest-pinned GHCR images; Kong uses Docker Hub.
       SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
-      RIVALHUB_LOCAL_SERVICE_PROFILE: ${{ (startsWith(matrix.task, 'production-') || matrix.task == 'browser-session') && 'auth' || 'full' }}
+      RIVALHUB_LOCAL_SERVICE_PROFILE: ${{ matrix.profile }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Start bootstrap/install timing
         run: echo "RIVALHUB_BOOTSTRAP_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
-      # Stable keys avoid pnpm/setup uploading the same store after every job.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.PNPM_CONFIG_STORE_DIR }}
           key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
@@ -333,19 +273,19 @@ jobs:
           PLAYWRIGHT_CHANNEL: chrome
           PLAYWRIGHT_WORKERS: 2
           RIVALHUB_E2E_SPECS: ${{ toJSON(matrix.specs) }}
-        run: node scripts/ci/timing.mjs "system/E2E body" -- pnpm test:e2e ${{ matrix.project && format('--project={0}', matrix.project) || '' }}
+        run: node scripts/ci/timing.mjs "system/E2E body" -- pnpm test:e2e
 
       - name: Production browser smoke
-        if: startsWith(matrix.task, 'production-')
+        if: matrix.task == 'production'
         env:
           RIVALHUB_TIMING_TEST_KIND: e2e
           PLAYWRIGHT_CHANNEL: chrome
           PLAYWRIGHT_WORKERS: 2
           RIVALHUB_E2E_SPECS: '[]'
-        run: node scripts/ci/timing.mjs "system/production browser smoke" -- pnpm test:e2e -- --config=playwright.production.config.ts --project=${{ matrix.project }}
+        run: node scripts/ci/timing.mjs "system/production browser smoke" -- pnpm test:e2e -- --config=playwright.production.config.ts
 
       - name: Clean interrupted E2E fixtures
-        if: ${{ always() && (startsWith(matrix.task, 'browser-') || startsWith(matrix.task, 'production-')) }}
+        if: ${{ always() && (startsWith(matrix.task, 'browser-') || matrix.task == 'production') }}
         run: node scripts/ci/timing.mjs "system/fixture cleanup" --cleanup -- pnpm exec tsx scripts/db/local.ts cleanup-e2e
 
       - name: Prepare safe system artifacts
@@ -375,7 +315,7 @@ jobs:
   gate:
     name: ${{ needs.plan.outputs.gate_name }}
     if: ${{ always() }}
-    needs: [plan, static, postgres, system, dependency-graph-build, dependency-review]
+    needs: [plan, static, postgres, system, dependency-review]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -420,7 +360,6 @@ jobs:
           STATIC_RESULT: ${{ needs.static.result }}
           POSTGRES_RESULT: ${{ needs.postgres.result }}
           SYSTEM_RESULT: ${{ needs.system.result }}
-          DEPENDENCY_GRAPH_BUILD_RESULT: ${{ needs.dependency-graph-build.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           EVENT_NAME: ${{ github.event_name }}
           REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}
@@ -434,7 +373,7 @@ jobs:
           # Freeze execution before GitHub timing API waits.
           gate_finished_ms=$(date +%s%3N)
           echo "RIVALHUB_GATE_FINISHED_MS=$gate_finished_ms" >> "$GITHUB_ENV"
-          started=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at)
+          started=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)
           node scripts/ci/timing.mjs record --label "required gate wall time" --start-iso "$started" --end-ms "$gate_finished_ms"
       - name: Enforce required gate execution budget
         env:

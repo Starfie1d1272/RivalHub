@@ -190,14 +190,14 @@ describe("bounded failure evidence", () => {
     writeFileSync(join(root, ".agent-tmp", "e2e-attempts", "safe.attempt.json"), JSON.stringify({ scenarioId: "e2e-fixed", retry: 1, status: "passed" }));
     sparseFile(join(root, ".agent-tmp", "next-server.log"), 64 * 1024 * 1024,
       "old-partial-fragment\nKEEP_CURRENT alice@example.com password=private-value Bearer opaque-auth https://example.test/path?signature=private-signature evidence_object_key=education-evidence/private-object\n");
-    symlinkSync(join(root, "playwright-report", "index.html"), join(root, ".agent-tmp", "e2e-exit-boundary.jsonl"));
+    symlinkSync(join(root, "playwright-report", "index.html"), join(root, "playwright-report", "linked.html"));
     const script = fileURLToPath(new URL("../../../scripts/ci/prepare-system-artifacts.mjs", import.meta.url));
     execFileSync(process.execPath, [script], { cwd: root });
     const output = join(root, ".agent-tmp", "system-artifacts");
     const log = readFileSync(join(output, "next-server.safe.log"), "utf8");
     expect(log).toContain("KEEP_CURRENT");
     expect(log).not.toMatch(/old-partial-fragment|alice@example.com|private-value|opaque-auth|private-signature|private-object/);
-    expect(existsSync(join(output, "e2e-exit-boundary.safe.jsonl"))).toBe(false);
+    expect(existsSync(join(output, "playwright-report", "linked.html"))).toBe(false);
     expect(existsSync(join(output, "playwright-report", "large.html"))).toBe(false);
     expect(readFileSync(join(output, "playwright-report", "index.html"), "utf8")).toContain("normal small report");
     expect(JSON.parse(readFileSync(join(output, "e2e-attempts.json"), "utf8"))).toMatchObject({ retryCount: 1, flakyCount: 1 });

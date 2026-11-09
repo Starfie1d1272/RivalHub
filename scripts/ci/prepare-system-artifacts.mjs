@@ -13,10 +13,8 @@ mkdirSync(destination, { recursive: true });
 const budget = createArtifactBudget();
 
 // Prioritize bounded recent diagnostics before optional report assets.
-for (const [source, target] of [["next-server.log", "next-server.safe.log"], ["e2e-exit-boundary.jsonl", "e2e-exit-boundary.safe.jsonl"]]) {
-  const content = readArtifactText(resolve(temporary, source), budget, { tail: true });
-  if (content !== undefined) writeArtifactText(resolve(destination, target), content, budget);
-}
+const serverLog = readArtifactText(resolve(temporary, "next-server.log"), budget, { tail: true });
+if (serverLog !== undefined) writeArtifactText(resolve(destination, "next-server.safe.log"), serverLog, budget);
 
 const attempts = readAttemptRecords(attemptsDirectory);
 writeArtifactText(resolve(destination, "e2e-attempts.json"), `${JSON.stringify({

@@ -12,7 +12,7 @@ plan ─→ static ─────┐
    └─→ dependency-review（PR）
 ```
 
-`draft-gate` 汇总 Draft PR 的 affected evidence，用于开发中快速反馈，不能满足 ruleset 的 merge requirement。`ci-gate` 由 Ready PR、`main` push、merge queue、nightly schedule 和手动运行产生；它是代码正确性 evidence 的 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。PR metadata policy 由独立的 `pr-title` check 负责；要使其阻断合并，Main ruleset 需与 `ci-gate` 一起要求该 check。
+`draft-gate` 汇总 Draft PR 的 affected evidence，用于开发中快速反馈，不能满足 ruleset 的 merge requirement。`ci-gate` 由 Ready PR、`main` push、merge queue 和手动运行产生；它是代码正确性 evidence 的 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。PR metadata policy 由独立的 `pr-title` check 负责；要使其阻断合并，Main ruleset 需与 `ci-gate` 一起要求该 check。
 
 ## Capabilities
 
@@ -27,9 +27,9 @@ plan ─→ static ─────┐
 - dead-code / dependency hygiene；
 - production build。
 
-FULL 将 app/tests/scripts 类型、ESLint、architecture 与两种 knip 检查交给一个 `checks` runner 依次执行，逐项记录原命令的 wall time，任何失败、信号或启动错误都使该 runner 失败；早期失败后仍收集其它独立检查。三个 Vitest project 和 production build 保持独立并行 runner。此分组减少 FULL 的短任务 runner 分配与重复依赖安装；普通 affected static 的选择和并行方式不变。
+普通 affected 任务在一个 runner 上安装一次依赖，逐项执行适用的格式、类型、lint、架构检查及相关 Vitest。跨 project 消费者由一次 `vitest related` 发现；变更的测试按所属 project 显式执行，未发现指定文件时阻断。FULL 并行执行静态检查、现有 unit suite 和 hermetic production build。安装／恢复工具变化时，在静态 runner 执行现有 Linux 安装器和流量状态测试。
 
-Vitest 的 React/jsdom project 只在 GitHub Actions 使用一次 diagnostic retry，本地默认不 retry。每个 static matrix task 完成后，React project 由 `scripts/ci/assert-no-flaky.mjs` 读取 `vitest-timing-reporter.ts` 产出的 machine-readable evidence；首次失败、retry 通过会被标记为 flaky 并让 static job 非零退出。其它 Vitest project 不继承该 retry，普通 PR 也不传入 `repeats`。
+普通门禁中 Vitest 和 Playwright 首次失败即失败。需要复现间歇性问题时可以定向重试。Vitest reporter 记录 project 测试结果和较慢文件，外层 wrapper 单独计量命令耗时。
 
 ### postgres
 
@@ -54,37 +54,34 @@ Release 的 migration rehearsal 使用同一套 plain `postgres:17` service、`p
 - Supabase service / access contract verification；
 - affected 关键 browser E2E 与 production build/start App Shell smoke。
 
-浏览器 lane 使用 runner 已有 Chrome，不需要在每个 run 重新安装 Playwright browser。
-system matrix 将 provider contract、production smoke 和独立的 LIVE、系列比分更正、会话撤销 browser 分片与最多七个其它 browser 分片并行执行；每个 runner 只启动自己的最小 Supabase，只有 provider 的 LIVE evidence 与含 LIVE spec 的分片启动 Realtime。受影响 spec 集合按文件精确分割，空集合不创建 browser job；provider 与 production 各执行一次，统一 gate 等待整个 matrix 成功。系列比分更正分片独占 runner，避免其它公开路由冷编译挤占其 30 秒测试预算；测试断言、超时和 flaky gate 保持原值。会话撤销分片与其 spec 的 auth scenario 使用相同的最小服务层，不与免费预测等其它冷路由共用 runner。每个 browser runner 使用两个 worker；E2E 每个 test attempt 创建独立的 DB/Auth scenario，清理仅限该场景。`major-entry` 与 production smoke 使用真实 UI 登录；其它 dev 已登录流程通过受保护的 test-only route 调用同一个 `loginWithPassword`，不会伪造应用 cookie。
+浏览器使用 runner 已有的 Chrome。Provider、普通浏览器路径与 production smoke 独立选择。普通浏览器按固定任务组共用 Next server 与最小 Local Supabase，新增 spec 进入已有组；未归组的 spec 仍执行。需验证 Storage 的组启动完整服务，Realtime 仅用于 LIVE provider 证据。比赛、账号和管理流程选一个主要视口，触屏提交与下载保留 mobile project。Production 的 App Shell 在两个视口共用一次 build/start，每条运行仍创建自己的 fixture 与 browser context。与视口无关的 BET transport 在桌面跑一次。涉及故障恢复的场景保持账户、赛事和数据隔离。
 
-CI 会把 bootstrap、各 capability lane、Vitest project、真实 PG integration、E2E body 与 FULL wall time 写入 GitHub Step Summary；其中 Vitest flaky evidence 会列出 project、file、full test name、首次失败、retry 通过和 retry count。system 失败或 retry/flaky 时保留 trace、screenshot、HTML report、脱敏 Next 日志和 scenario/attempt manifest；成功 run 不上传这些大体积 artifact。Playwright 在 CI 使用一次 retry，并以 `failOnFlakyTests` 阻断“首次失败、重试成功”的假绿；Vitest 使用同一原则，但由显式 flaky guard 保留 static job 的失败语义。
+System 失败时上传限额内的脱敏日志、截图和场景记录，不上传 trace archive。Step Summary 保存关键路径、各验证命令及诊断用的实际耗时。
 
 ### dependency review
 
-Pull Request 额外运行 dependency review；达到 workflow 设定的严重度阈值时阻断。
-
-PR 的 `dependency-graph-build` 只生成来源绑定 artifact；远端 main 图由独立 `Dependency graph` workflow 提交并逐项回读。后者的写权限、触发范围、stale-source 拒绝与恢复步骤见 [依赖维护](../dependency-maintenance.md#github-graph-与-updater)。该 lane 不取代 required PR dependency-review，也不以 main 图成功宣称 PR/fork/Dependabot coverage 已恢复。
+每个 PR 保留依赖漏洞审查。依赖变化的 main 快照生成、提交和回读由独立 `Dependency graph` workflow 负责，见 [依赖维护](../dependency-maintenance.md#github-graph-与-updater)。
 
 ## Selective vs full
 
 CI 遵循 L0–L4 风险分层与最低且足够可信证据原则：
 
-- **L0 Metadata**：docs、Changeset，以及只改变 `package.json` 顶层 `version` 的 release metadata（可伴随 `CHANGELOG.md` 与 Changeset），仅保留 planner + gate，不启动测试容器。消费 Changeset 时删除对应 Markdown 记录按 metadata 处理；与源码混合时仍按源码选择验证，其他删除保持 FULL。package dependency、script、packageManager、lockfile 或任意 source 变化都不能走该 bypass。
+- **L0 Metadata**：docs、Changeset，以及只改变 `package.json` 顶层 `version` 的 release metadata（可伴随 `CHANGELOG.md` 与 Changeset），仅保留 planner + gate，不启动测试容器。文档、设计元数据和 Changeset 的移动与删除沿用元数据分类。删除独立测试时检查剩余消费者，重命名按新旧两侧分类；删除可执行源码或无法分类时保守回退 FULL。package dependency、script、packageManager、lockfile 或任意 source 变化都不能走该 bypass。
 - **L1 Static**：pure rule、formatter、presenter、component、UI/layout 等不跨 persistence/provider 边界的变化，运行 affected type/lint/architecture/unit。
 - **L2 PostgreSQL**：Server Action persistence、DB query、transaction、migration 等，运行 L1 + real PostgreSQL。
 - **L3 System**：Auth、Session、Storage provider 或 browser/provider glue，运行 L1/L2 + Local Supabase + targeted E2E。
-- **L4 Full convergence**：CI/toolchain/harness/unknown/destructive 改动、手动 FULL 或 nightly 定时收敛，运行完整 static + postgres + system。Release 直接消费 exact release SHA 在 `main` 上的 canonical CI evidence，不重复触发或等待第二套 FULL CI。
+- **L4 Full convergence**：CI/toolchain/harness/unknown/destructive 改动、merge queue 或手动 FULL，运行完整 static + postgres + system。Release 直接消费 exact release SHA 在 `main` 上的 canonical CI evidence，不重复触发或等待第二套 FULL CI。
 
 Pull Request 的 Draft / Ready 仅代表协作与合并准入状态，不直接决定测试深度：
 
 1. Draft PR 由 changed-surface planner 输出本次改动所需最低充分 evidence，以 `draft-gate` 汇总，供开发阶段快速迭代。
 2. Ready PR 使用同一个 changed-surface planner 输出匹配风险的 evidence，并以 required `ci-gate` 汇总；不因 Ready 状态机械升级为 FULL。普通 UI / Server Action PR 仅支付对应静态或 PG 验证时间，不进入昂贵的 system 冷启动。
 3. `push` 到 `main` 同样使用 changed-surface 规划 affected smoke，不默认重复跑 FULL。
-4. 无法分类的变化、rename/delete、CI/toolchain/harness 改动 fail closed 到 FULL。
+4. 无法分类的变化、CI/toolchain/harness 改动 fail closed 到 FULL。
 
 `scripts/ci/timing.mjs` 的 command wrapper 是 project wall-time owner。`vitest-timing-reporter.ts` 只输出 per-project facts 与 top 15 per-file diagnostic duration，Step Summary 会明确区分两者。
 
-`push` 到 `main` 同样采用 changed-surface 规划 affected evidence 并产生 exact-SHA CI evidence，遇到未知/破坏性/工具链变更时 fail closed 到 FULL；merge queue、nightly 与手动 workflow 运行完整 convergence gate。Release 消费 exact tag commit SHA 的 push CI 成功证据，不重复执行代码正确性 CI。
+`push` 到 `main` 同样采用 changed-surface 规划 affected evidence 并产生 exact-SHA CI evidence，遇到未知/破坏性/工具链变更时 fail closed 到 FULL；merge queue 与手动 workflow 运行完整 convergence gate。Release 消费 exact tag commit SHA 的 push CI 成功证据，不重复执行代码正确性 CI。
 
 ## Concurrency 与 exact-SHA 证据隔离
 
@@ -92,11 +89,11 @@ CI 的 concurrency 分组策略兼顾 PR 快速取消与 release exact-SHA 证�
 
 - **Pull Request**：按 PR 编号独立分组（`ci-CI-pull_request-<number>`），启用 `cancel-in-progress: true`；同 PR 的新 push 立即取消旧 SHA 的在途 run，避免积压 CI 资源。
 - **main push**：按 exact commit SHA 独立分组（`ci-CI-push-<sha>`），配置 `cancel-in-progress: false`；每个进入 main 的 commit run 独立执行，不被后续 main push 误取消，确保 release 所需的 exact-SHA CI 证据永久可靠。
-- **schedule / merge queue / workflow_dispatch**：按各自 event 语义稳定分组。
+- **merge queue / workflow_dispatch**：按各自 event 语义稳定分组。
 
 `ci.yml` 只响应会改变代码 evidence 的 PR event（opened、synchronize、reopened、ready_for_review）。`.github/workflows/pr-metadata.yml` 在上述事件和 `edited` 上独立运行 `pr-title`；因此 title/body 编辑不会取消、覆盖或重跑当前 head 的 `ci-gate`，而新 commit 的 `synchronize` 仍会为其 SHA 重新产生 title check。Ready PR 的新 push 必须等待该 SHA 所需的 CI 完成，不能沿用旧 SHA 的成功结果。
 
-不要在本文复制每个路径匹配规则；需要修改 planner 时同时更新 `scripts/ci/plan.mjs` 和对应 regression tests。
+路径规则由 `scripts/ci/plan.mjs` 维护，现有 planner 验证与其选择契约保持一致。
 
 ## 本地复现
 
@@ -147,12 +144,12 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm verify:services
 
 ## 执行耗时门禁
 
-`execution-budget.mjs` 只读取当前 `run_id` / `run_attempt` 的分页 job/step 计时。每个 job 累计真实执行的 step 区间（重叠部分仅算一次），不把 job `started_at` 到第一条 step 之间的 runner 排队或 step 间调度空档当作执行。CI 图按 `max(plan + max(static, postgres, system), dependency-graph-build, dependency-review) + gate` 计算实际关键路径；matrix 各片取最长执行耗时，保留并行语义。gate 的本地计时在计时 API 请求前冻结，截止到核验步骤开始，不包含该次 GitHub API 等待及核验后的报告/runner post-cleanup。
+`execution-budget.mjs` 只读取当前 `run_id` / `run_attempt` 的分页 job/step 计时。每个 job 累计真实执行的 step 区间（重叠部分仅算一次），不把 job `started_at` 到第一条 step 之间的 runner 排队或 step 间调度空档当作执行。CI 图按 `max(plan + max(static, postgres, system), dependency-review) + gate` 计算实际关键路径；matrix 各片取最长执行耗时，保留并行语义。gate 的本地计时在计时 API 请求前冻结，截止到核验步骤开始，不包含该次 GitHub API 等待及核验后的报告/runner post-cleanup。
 
-`timing.mjs` 直接执行验证命令并记录本地耗时，不依赖 GitHub job/step 元数据才能启动。CI 命令未指定超时时使用本地 180 秒上限，显式超时和 job 平台超时仍生效；最终 gate 另行核验执行预算，远端计时不可用时不得声称速度达标。
+`timing.mjs` 直接执行验证命令并记录本地耗时，不依赖 GitHub job/step 元数据才能启动。GitHub Actions 中没有显式截止的命令默认使用 180 秒上限；显式超时和 job 平台超时仍生效。最终 gate 另行核验执行预算，远端计时不可用时不得声称速度达标。
 
 wrapper 同时等待 leader 和 stdio 关闭，因此 leader 退出 0、测试打印通过但 detached 后代持有 stdout 时仍受截止约束。每次顶层命令生成独立环境 token，嵌套 timing 命令继承同一 owner；只扫描并终止该 token 的进程与原进程组，不按进程名或端口清理。截止或取消先写失败证据，再 TERM，最多 2 秒后 KILL 并关闭残留管道；超时返回 124，取消与清理错误也保留非零结果。Linux runner 通过 `/proc` 查归属，macOS 本地通过 `ps`；进程环境只在内存中匹配，不写入日志。
 
 system browser 结束后独立执行有界 `cleanup-e2e`，复用本 workspace 既有 fixture manifest 与 cleanup owner；每项成功清理后才移除 manifest，失败保留以供诊断。该清理最多 15 秒加 2 秒进程回收，不覆盖测试原失败，也不延长最终 180 秒预算。能力 job 的 10 分钟平台超时约束整个 job；命令按显式超时或默认 180 秒上限运行。失败或取消后仍尝试上传脱敏 system artifacts 与 machine-readable timing；平台强制结束 runner 时，远端 artifact 上传本身无法保证完成。
 
-原 workflow wall time 仍写入报告，供排队和整体交付延迟诊断；合并门禁使用 180 秒执行预算。GitHub 计时元数据暂未补齐时有限重读，等待不计入执行预算；已测得超时立即阻断，不重试。读取持续失败、缺失 required lane/step 或 CI 图出现未知 job 均失败，不用缺失值、旧 attempt 或跳过 evidence 达成速度预算。修改 CI 图时同改此执行路径 owner 与边界测试。
+workflow 创建到门禁结束的实际等待时间用于验收反馈速度；合并门禁使用 180 秒执行预算。各 job 累计执行时间和系统环境数量随关键路径报告，供排障时参考。GitHub 计时元数据暂未补齐时有限重读，等待不计入执行预算；已测得超时立即阻断，不重试。读取持续失败、缺失 required lane/step 或 CI 图出现未知 job 均失败，不用缺失值、旧 attempt 或跳过 evidence 达成速度预算。修改 CI 图时同改此执行路径 owner 与边界测试。

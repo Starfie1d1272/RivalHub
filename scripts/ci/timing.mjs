@@ -103,24 +103,9 @@ function renderSummary() {
   }
   const projectRecords = records.filter((entry) => entry.kind === "vitest-project");
   if (projectRecords.length > 0) {
-    lines.push("", "### Vitest project facts", "", "| project | files | tests | failed | flaky |", "| --- | ---: | ---: | ---: | ---: |");
+    lines.push("", "### Vitest project facts", "", "| project | files | tests | failed |", "| --- | ---: | ---: | ---: |");
     for (const item of projectRecords) {
-      lines.push(`| ${item.project} | ${item.files} | ${item.tests} | ${item.failed} | ${item.flaky} |`);
-    }
-    const flakyTests = projectRecords.flatMap((item) => (item.flakyTests ?? []).map((test) => ({ project: item.project, ...test })));
-    if (flakyTests.length > 0) {
-      lines.push(
-        "",
-        "### Vitest flaky evidence",
-        "",
-        "first attempt failed; retry passed; retry evidence is diagnostic only; the strict flaky guard intentionally fails this static task.",
-        "",
-        "| project | file | full test name | first attempt | retry | retry count |",
-        "| --- | --- | --- | --- | --- | ---: |",
-      );
-      for (const test of flakyTests) {
-        lines.push(`| ${escapeSummaryCell(test.project)} | ${escapeSummaryCell(test.file)} | ${escapeSummaryCell(test.name)} | failed | passed | ${test.retryCount} |`);
-      }
+      lines.push(`| ${item.project} | ${item.files} | ${item.tests} | ${item.failed} |`);
     }
     const slowFiles = projectRecords
       .flatMap((item) => (item.slowFiles ?? []).map((file) => ({ project: item.project, ...file })))
@@ -142,10 +127,6 @@ function renderSummary() {
     }
   }
   appendFileSync(summaryPath, `${lines.join("\n")}\n`, "utf8");
-}
-
-function escapeSummaryCell(value) {
-  return String(value).replaceAll("|", "\\|").replaceAll("\n", "<br>");
 }
 
 const args = process.argv.slice(2);

@@ -18,7 +18,7 @@ TypeScript 7 用于原生编译/类型检查。TypeScript 6 的最新稳定 API 
 
 GitHub 静态解析可能只读取 pnpm 12 bootstrap document。`scripts/dependencies/graph.ts` 是本仓 dependency submission owner：读取所有 canonical YAML document，以 importer roots 遍历 resolved snapshots，保留 peer/optional 实际边；合并同一 npm 版本的上下文时并集依赖，runtime 优先于 development，直接声明优先于传递。npm alias 使用实际 package identity；pnpm 下载的 Node runtime 使用 generic purl，不冒称 npm node 包。未解析引用或不支持的 lock identity 失败关闭，不改写锁文件。
 
-PR CI 的只读 build job 保存 exact SHA/ref snapshot（十四天 artifact），不调用 dependency submission API，不获得 contents-write 权限。专用来源变量防止 GitHub 保留 merge identity 覆盖 PR head。PR artifact 本身不能宣称 GitHub graph 已覆盖该 PR。
+PR CI 保留只读 dependency review。
 
 `.github/workflows/dependency-graph.yml` 独立维护 main 的远端依赖元数据：锁文件、manifest、构图工具或该 workflow 的 main push，以及 weekly / 手动 main 运行，先以 contents-read 生成 exact SHA/ref snapshot，再由独立 submit job 提交。只有 submit job 声明 contents-write；它仅 checkout 对应 main source、下载本次 run 的 snapshot、执行无第三方依赖的 `scripts/dependencies/submit.mjs`，不安装或运行应用依赖。提交器在 POST 前检查 snapshot 的来源、manifest/detector/correlator 和当前 main SHA；main 已前进则失败，需从最新 main 手动重跑 workflow（rerun 旧 run 不会更新 SHA）。不得挪用 release 凭据或新增长期 token。
 

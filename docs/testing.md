@@ -36,17 +36,9 @@ DB unique/FK、transaction、row lock、migration/backfill 不用 mock 代替。
 
 ## CI
 
-PR CI 保留 `static`、`postgres`、`system` 三条 capability lane，按 L0–L4 风险分层运行最低且足够的 evidence：
+PR 与 `main` CI 按 L0–L4 风险分层选择 `static`、`postgres`、`system`。Draft 与 Ready 采用同一份计划，分别产生 `draft-gate` 与 required `ci-gate`；发布消费 exact tag SHA 在 `main` 的 canonical CI。普通改动把适用的类型、格式、lint、架构和单测放在一个静态 runner。PostgreSQL 使用真实 PG17，受影响的小集合单跑，完整集合保留两片。System 分别按需选择 provider、浏览器路径和 production smoke；桌面与移动的 production smoke 共用一次 build/start，各用独立 fixture 和 browser context。工具链、未知可执行面、merge queue 和手动运行保留 FULL。
 
-- Draft 与 Ready PR 均使用同一个 Evidence Planner 根据 changed surface 计算所需的 affected capability 与 task。Draft PR 汇总为非 required 的 `draft-gate`，用于开发阶段快速反馈；Ready PR 产生 ruleset required 的 `ci-gate`，作为合并所需的代码正确性证据。Ready 状态不自动将测试深度升级为 FULL。
-- 普通业务变更（L1 Static、L2 PostgreSQL）仅运行对应 affected tests，不再仅因涉及报名、队伍或页面重要性自动触发 Local Supabase / browser system flow。
-- System（L3）仅在真实 Auth、Session、Storage provider 或 browser/provider glue 变更时进入 critical path。
-- FULL（L4）不再是普通 Ready PR 或 `main` push 的默认行为，仅作为明确的收敛事件（CI/toolchain/harness/unknown/destructive 改动、手动 `workflow_dispatch` 或 nightly 定时收敛）。Release 直接消费 exact tag commit SHA 在 `main` 上的 canonical CI evidence，不在 production activation 后补跑第二套代码正确性 CI。
-- `main` push 采用 changed-surface 规划 affected smoke，不默认重复执行 FULL。精确 planner 与 job 以 `.github/workflows/ci.yml`、`scripts/ci/plan.mjs` 为 authority，排障见 [`operations/ci.md`](./operations/ci.md)。
-
-CI 只负责选择和阻断 evidence，不成为业务测试语义的第二 owner。全量 PostgreSQL 选择使用既有两片矩阵，包括 migration 要求全套 PG 但其它 capability 仍为 affected 的计划；显式小集合仍使用单片。两片保留全部文件且只执行一次，聚合门禁等待全部片并保留各自耗时证据，保留 180 秒实际执行关键路径预算。
-
-速度验收按实际执行关键路径计算：串行 planner 与 capability lane 的执行时间相加，并行 matrix、独立 dependency job 取最长路径，最后加上 gate 在核验前已执行的耗时。各 job 依据当前 run attempt 的实际 step 时间计算，包含 runner setup、checkout、安装、环境启动、测试及已完成的 cleanup，不使用可能早于 runner 分配的 job `started_at`；job 排队和 step 间的平台调度空档不计入。gate 在读取计时 API 前冻结本地执行耗时，API 等待不占预算；核验后的报告上传与 runner post-cleanup 不属于预算截止点。原 workflow 总 wall time 继续独立记录用于诊断。普通修改争取 60 秒，数据库、真实系统与 FULL 回归仍由门禁强制执行 180 秒实际执行上限；缺失必需 job/step 的计时数据、无效时间或未知图节点会阻断，不按零耗时放行。删行数、测试数下降或调低 timeout 都不能代替真实 CI 成功记录。system 的 provider、production smoke 与受影响 browser 分片并行，gate 等待所有分片；每个 runner 拥有独立服务，场景内部使用独立账号与赛事。系列比分修正、会话撤销各自独立分片；会话撤销复用测试声明的 auth 服务层，其余动态发现的 spec 最多分成七片。LIVE 的断流、恢复、跨场导航和换图按相关改动定向人工验收，不保留独立常驻 E2E，也不声称证明精确的 stale/unavailable 时间边界。
+速度以 required checks 实际等待时间为先。合并门禁另行强制 180 秒执行关键路径预算，扣除 runner 排队和平台调度等待；各环境累计执行时间仅用于诊断。具体选择、失败与计时语义见 [CI 运维](./operations/ci.md)。
 
 ## Staging and production
 
@@ -70,11 +62,9 @@ pnpm exec vitest run --project unit-react-jsdom path/to/related.spec.tsx
 
 环境启动和单层复现见 [`operations/local-development.md`](./operations/local-development.md)。
 
-Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 evidence owner。测试转换器显式使用 React automatic JSX runtime；应用 TypeScript 配置继续保留 JSX 供 Next.js 编译，测试不继承其 JSX preserve 行为。FULL static 的三个 unit project 共用一个 runner，分别执行并分别记录证据，任一 project 失败仍阻断；affected 保持独立选择；affected static 将每个 source 交给全部 Vitest project 的 `related` 查找跨层消费者，而变更的 test 文件以匹配实际扩展名的 project 和显式 test path 直接运行；显式清单为空或没有发现测试必须失败。source 的相关消费者为空可以通过，但不能伪装成执行了测试。混合 source/test 修改取证据并集，新增测试不得缩窄既有 PG 或共享 E2E harness 的验证范围。React/jsdom 的异步交互测试使用 `userEvent.setup()` 和 awaited interaction，并分别等待元素存在与可交互状态；只有时间推进本身是被测 contract 时才使用 fake timers。`unit-react-jsdom` 仅在 GitHub Actions 中配置一次 `retry`，本地默认保持 `0`；static matrix 在独立 React task 或 FULL unit-all task 后执行 `scripts/ci/assert-no-flaky.mjs`，所以 retry-pass 仍会使 static job 失败。project 的 wall time 由外层 timing wrapper 记录，`vitest-timing-reporter.ts` 继续作为唯一 evidence producer，除 test count、failure/flaky count 和按文件排序的 diagnostic duration 外，为每个 flaky test 写入 project、file、full test name 与 retry count，不解析 console 文本伪造失败信息，也不把并发文件 duration 总和伪装成 project wall time。
+Vitest 的 domain Node、server Node 与 React jsdom project 继续分开定义。测试使用 React automatic JSX runtime。CI 在同一次 Vitest invocation 内查找变更源码在各 project 的消费者；直接修改的测试按 project 与文件路径运行，未发现指定测试时阻断。React/jsdom 异步交互使用 `userEvent.setup()` 和 awaited interaction；只有时间推进本身是被测 contract 时使用 fake timers。Vitest 和 Playwright 普通门禁都运行一次；需要诊断时可以针对单个测试显式重试。
 
-对疑似 flake 的本地诊断可以显式运行 `pnpm exec vitest run --project unit-react-jsdom --retry 1 path/to/related.spec.tsx`；`repeats` 只作为聚焦诊断或手动/nightly 入口，不进入普通 PR 的 planner、required path 或 flaky allowlist。
-
-System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 只保留限额内的 PNG/JPEG 与脱敏文本，不上传 trace archive。文件数、目录项/深度、单文件/累计输入输出字节及行长预算由 `scripts/ci/system-artifact-sanitizer.mjs` 统一声明；超限整文件或整行跳过，`sanitization-summary.json` 只记录固定原因计数，不包含被跳过原文或路径。Next 日志先读取有界尾部、丢弃可能不完整的首行并选取最近行，再脱敏；存在多行环境密钥且截尾/过滤可能破坏完整匹配时，整份候选日志不上传。正常的小报告与重试计数保留，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。认证 helper 的 predicate URL 断言仍会等待 document load；SSR可见与load不证明hydration，真实UI/持久化结果由后续断言验证。外部遥测/资源加载和dev编译仍可能影响浏览器耗时，不将一次CI成功视作稳定性证明。
+System 失败时保存有界、脱敏的 Next 日志和允许的截图、报告及场景记录，不上传 trace archive。每条 stateful E2E 使用独立的 fixture profile 与 attempt namespace。真实 UI 操作与持久化结果证明交互成功；SSR 可见和页面 load 仅证明文档到达。
 
 统计目录、队伍目录、组队大厅和赛事阵容的公开搜索、筛选与历史导航不保留独立常驻 E2E，也不因共享搜索组件变更自动触发 browser lane。邀请接收、报名权限和正式名单完整性继续由各自高风险 owner 验证。`--repeat-each=10`、容量压测与截图不进入普通 PR 或 FULL required gate。
 

@@ -2,12 +2,6 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import type { Reporter, TestModule } from "vitest/node";
 
-export type FlakyTestRecord = {
-  file: string;
-  name: string;
-  retryCount: number;
-};
-
 export type ProjectRecord = {
   kind: "vitest-project";
   project: string;
@@ -16,8 +10,6 @@ export type ProjectRecord = {
   passed: number;
   skipped: number;
   failed: number;
-  flaky: number;
-  flakyTests: FlakyTestRecord[];
   slowFiles: Array<{ file: string; milliseconds: number }>;
 };
 
@@ -28,17 +20,6 @@ function statePath(): string {
 
 export function projectRecordFor(project: string, modules: ReadonlyArray<TestModule>): ProjectRecord {
   const tests = modules.flatMap((testModule) => [...testModule.children.allTests()]);
-  const flakyTests = modules
-    .flatMap((testModule) => {
-      const file = relative(process.cwd(), testModule.moduleId);
-      return [...testModule.children.allTests()].flatMap((test) => {
-        const diagnostic = test.diagnostic();
-        return diagnostic?.flaky
-          ? [{ file, name: test.fullName, retryCount: diagnostic.retryCount }]
-          : [];
-      });
-    })
-    .sort((left, right) => left.file.localeCompare(right.file) || left.name.localeCompare(right.name));
   const slowFiles = modules
     .map((testModule) => ({
       file: relative(process.cwd(), testModule.moduleId),
@@ -55,8 +36,6 @@ export function projectRecordFor(project: string, modules: ReadonlyArray<TestMod
     passed: tests.filter(test => test.result().state === "passed").length,
     skipped: tests.filter(test => test.result().state === "skipped").length,
     failed: tests.filter((test) => test.result().state === "failed").length,
-    flaky: flakyTests.length,
-    flakyTests,
     slowFiles,
   };
 }
@@ -72,8 +51,6 @@ export default class VitestTimingReporter implements Reporter {
       modules.push(testModule);
       grouped.set(project, modules);
     }
-    const configuredProject = process.env.RIVALHUB_VITEST_PROJECT?.trim();
-    if (grouped.size === 0 && configuredProject) grouped.set(configuredProject, []);
 
     const path = statePath();
     mkdirSync(dirname(path), { recursive: true });

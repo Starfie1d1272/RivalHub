@@ -1,8 +1,6 @@
 import { defineConfig } from "vitest/config";
 import { resolve } from "path";
 
-const vitestCiRetry = process.env.GITHUB_ACTIONS === "true" ? 1 : 0;
-
 export default defineConfig({
   // Next.js preserves JSX for its compiler; Vite 8 must lower it for tests.
   oxc: {
@@ -62,7 +60,6 @@ export default defineConfig({
           pool: "forks",
           setupFiles: ["./tests/setup-dom.ts"],
           include: ["tests/unit/**/*.test.tsx", "src/**/*.test.tsx"],
-          retry: vitestCiRetry,
         },
       },
     ],

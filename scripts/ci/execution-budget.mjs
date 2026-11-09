@@ -27,31 +27,35 @@ export function jobExecutionMilliseconds(job) {
   return elapsed;
 }
 
-/** CI's graph: plan -> parallel capability lanes; dependency jobs run independently -> gate. */
+/** CI's graph: plan -> parallel capability lanes; dependency review runs independently -> gate. */
 export function executionBudget(jobs, { requiredJobs, requireReview, gateMilliseconds }) {
   if (!Array.isArray(jobs) || !Array.isArray(requiredJobs) || requiredJobs.some(lane => !lanes.includes(lane))
     || !Number.isFinite(gateMilliseconds) || gateMilliseconds < 0) throw new Error("Invalid execution budget input");
   const durations = new Map();
+  let totalExecutionMilliseconds = gateMilliseconds;
+  let systemEnvironments = 0;
   for (const job of jobs) {
     if (["ci-gate", "draft-gate"].includes(job.name)) continue;
     const lane = lanes.find(key => job.name.startsWith(`${key} / `));
     const key = lane ?? job.name;
-    if (!["plan", "dependency-graph-build", "dependency-review", ...lanes].includes(key)) {
+    if (!["plan", "dependency-review", ...lanes].includes(key)) {
       throw new Error(`Unknown CI timing job: ${job.name}`);
     }
     if (job.conclusion === "skipped") continue;
-    durations.set(key, Math.max(durations.get(key) ?? 0, jobExecutionMilliseconds(job)));
+    const duration = jobExecutionMilliseconds(job);
+    durations.set(key, Math.max(durations.get(key) ?? 0, duration));
+    totalExecutionMilliseconds += duration;
+    if (lane === "system") systemEnvironments += 1;
   }
-  for (const name of ["plan", "dependency-graph-build", ...(requireReview ? ["dependency-review"] : []), ...requiredJobs]) {
+  for (const name of ["plan", ...(requireReview ? ["dependency-review"] : []), ...requiredJobs]) {
     if (!durations.has(name)) throw new Error(`Missing execution timing: ${name}`);
   }
   const capabilityMilliseconds = Math.max(0, ...lanes.map(lane => durations.get(lane) ?? 0));
   const executionMilliseconds = Math.max(
     durations.get("plan") + capabilityMilliseconds,
-    durations.get("dependency-graph-build"),
     durations.get("dependency-review") ?? 0,
   ) + gateMilliseconds;
-  return { executionMilliseconds, gateMilliseconds, jobs: Object.fromEntries(durations) };
+  return { executionMilliseconds, gateMilliseconds, totalExecutionMilliseconds, systemEnvironments, jobs: Object.fromEntries(durations) };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
