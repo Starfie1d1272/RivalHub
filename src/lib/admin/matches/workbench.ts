@@ -354,7 +354,12 @@ export async function loadAdminMatchWorkbench({
       reopened: rosterReopened,
       hasVideo: hasMatchRecording(match),
     }),
-    season: { id: season.id, slug: season.slug, name: season.name },
+    season: {
+      id: season.id,
+      slug: season.slug,
+      name: season.name,
+      competitionTemplate: season.competitionTemplate,
+    },
     stageName: match.testConfig ? "测试赛" : (stage?.name ?? null),
     match,
     teamAName,

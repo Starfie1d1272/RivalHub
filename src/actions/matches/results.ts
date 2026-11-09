@@ -5,6 +5,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
 import { eq, and, inArray } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db/client";
 import { matches, matchMaps } from "@/db/schema";
 import { ok } from "@/types/action";
@@ -12,8 +13,8 @@ import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { assertMatchTransition } from "@/lib/match-transitions";
-import { getMaxMaps, isMatchStatus } from "@/types/match";
-import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
+import { getMaxMaps } from "@/types/match";
+import { actionError, failValidation, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
 import { applyMatchStatusTransitionInTx } from "@/lib/matches/lifecycle";
 import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { finishCompetitionSeriesInTx } from "@/lib/matches/competition-results";
@@ -40,21 +41,14 @@ import {
  */
 export async function updateMatchStatus(
   matchId: string,
-  nextStatus: "in_progress" | "cancelled",
+  nextStatus: "cancelled",
 ): Promise<ActionResult<void>> {
+  if (!z.uuid().safeParse(matchId).success || nextStatus !== "cancelled") {
+    return failValidation("取消比赛参数无效。");
+  }
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
-    if (nextStatus === "in_progress") {
-      throw new AppError(
-        ErrorCode.MATCH_INVALID_TRANSITION,
-        "比赛须由双方在 Veto Room 确认后开始。",
-      );
-    }
-    if (!isMatchStatus(match.status)) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, `无效的比赛状态: ${match.status}`);
-    }
-    assertMatchTransition(match.status, nextStatus);
 
     const seasonForStatus = await getSeasonOrThrow(match.seasonId);
     let finishedSlug: string | null = null;
@@ -62,10 +56,11 @@ export async function updateMatchStatus(
       await applyMatchStatusTransitionInTx(tx, {
         matchId,
         nextStatus,
+        expectedStatus: "scheduled",
         actorId: auditActorId(session),
       });
 
-      if (nextStatus === "cancelled" && !match.testConfig) {
+      if (!match.testConfig) {
         finishedSlug = await maybeFinishSeason(tx, match.seasonId);
       }
     });

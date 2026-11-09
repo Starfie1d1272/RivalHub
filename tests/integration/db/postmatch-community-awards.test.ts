@@ -40,11 +40,22 @@ describe("postmatch PostgreSQL invariants", () => {
       await db.transaction((tx) => addMatchCommentatorInTx(tx, { matchId, userId: adminA, actorId: adminA }));
       const prematureSubmission = await pool.query("INSERT INTO post_match_reports (match_id,submitted_by_user_id) VALUES ($1,$2)", [matchId, adminA]).then(() => undefined, (error: { code?: string }) => error); expect(prematureSubmission?.code).toBe("23514");
       await db.transaction((tx) => addMatchCommentatorInTx(tx, { matchId: cancelledMatchId, userId: adminA, actorId: adminA }));
-      await db.transaction((tx) => applyMatchStatusTransitionInTx(tx, { matchId: cancelledMatchId, nextStatus: "cancelled", actorId: adminA }));
+      await db.transaction((tx) => applyMatchStatusTransitionInTx(tx, { matchId: cancelledMatchId, nextStatus: "cancelled", expectedStatus: "scheduled", actorId: adminA }));
       const cancelledCommentators = await pool.query<{ count: string }>("SELECT count(*)::text FROM match_commentators WHERE match_id=$1", [cancelledMatchId]); expect(cancelledCommentators.rows[0]?.count).toBe("0");
       const nonAdmin = await pool.query("INSERT INTO match_commentators (match_id,user_id,added_by_user_id) VALUES ($1,$2,$3)", [matchId, outsider, adminA]).then(() => undefined, (error: { code?: string }) => error); expect(nonAdmin?.code).toBe("23514");
       await db.transaction((tx) => addMatchCommentatorInTx(tx, { matchId, userId: adminB, actorId: adminA }));
       await pool.query("UPDATE matches SET status='in_progress' WHERE id=$1", [matchId]);
+      await expect(db.transaction((tx) => applyMatchStatusTransitionInTx(tx, {
+        matchId, nextStatus: "cancelled", expectedStatus: "scheduled", actorId: adminA,
+      }))).rejects.toMatchObject({ code: "MATCH_INVALID_TRANSITION" });
+      const afterStaleCancel = await pool.query(
+        `SELECT status,
+          (SELECT count(*)::int FROM match_commentators WHERE match_id = $1) AS claim_count,
+          (SELECT count(*)::int FROM audit_logs WHERE target_id = $1::uuid::text AND action = 'match.status_update') AS cancel_audit_count
+         FROM matches WHERE id = $1`,
+        [matchId],
+      );
+      expect(afterStaleCancel.rows).toEqual([{ status: "in_progress", claim_count: 2, cancel_audit_count: 0 }]);
       const third = await pool.query("INSERT INTO match_commentators (match_id,user_id,added_by_user_id) VALUES ($1,$2,$3)", [matchId, adminC, adminA]).then(() => undefined, (error: { code?: string }) => error); expect(third?.code).toBe("23514");
       await pool.query("UPDATE matches SET status='finished', score_a=1, score_b=0, completed_at=now() WHERE id=$1", [matchId]);
       await expect(db.transaction((tx) => submitPostMatchReportInTx(tx, { matchId, actorId: outsider }))).rejects.toMatchObject({ code: "FORBIDDEN" });

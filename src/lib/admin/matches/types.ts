@@ -182,7 +182,7 @@ export interface AdminMatchOverviewData {
 
 export interface AdminMatchWorkbenchData {
   completion: { official: string; data: string; production: string };
-  season: Pick<Season, "id" | "slug" | "name">;
+  season: Pick<Season, "id" | "slug" | "name" | "competitionTemplate">;
   stageName: string | null;
   match: Match;
   teamAName: string;
