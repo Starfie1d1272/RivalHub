@@ -69,6 +69,10 @@ describe("server-verified recovery", () => {
     expect(updateUser).toHaveBeenCalledWith("verified-auth", { password });
     expect(destroy).toHaveBeenCalledOnce();
   });
+  it("preserves confirmed recovery when clearing the already-revoked cookie fails", async () => {
+    destroy.mockRejectedValueOnce(new Error("cookie cleanup failed"));
+    expect(await resetUserPassword(proof, password)).toEqual({ success: true, data: undefined });
+  });
   it("does not mutate or clear a session after the active account changes", async () => {
     expect(await verifyPasswordRecovery(proof)).toEqual({ success: true, data: { email } });
     getSession.mockResolvedValue({ userId: "another", email: "other@example.test" });
