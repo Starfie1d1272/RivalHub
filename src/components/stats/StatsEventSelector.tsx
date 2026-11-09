@@ -2,15 +2,17 @@
 import React from "react";
 import { EventSelector, type EventOption } from "@/components/layout/EventSelector";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
+import { useStatsReadingState } from "./reading-state";
 export function StatsEventSelector({
   events,
   value,
-  query,
+  query: scopeQuery,
 }: {
   events: EventOption[];
   value: string;
   query: StatsQuery;
 }) {
+  const query = { ...scopeQuery, ...useStatsReadingState() };
   const clean = {
     ...query,
     stage: "",

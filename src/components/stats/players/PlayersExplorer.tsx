@@ -6,7 +6,7 @@ import React from "react";
 import { TeamIdentityLinks } from "../TeamIdentityLinks";
 
 import { useMemo, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
@@ -18,7 +18,8 @@ type ViewData = Pick<TournamentStats, "coverage" | "options" | "teamLinks" | "le
   performance: Pick<TournamentStats["performance"], "players" | "teams">;
 };
 import type { StatsQuery } from "@/lib/stats/view-state";
-import { navigateStatsScope } from "@/lib/stats/view-state";
+import { navigateStatsScope, STATS_QUERY_VALUE_LIMIT } from "@/lib/stats/view-state";
+import { replaceStatsReadingState, useStatsReadingState } from "../reading-state";
 
 type Family = "overall" | "opening" | "teamplay" | "utility" | "clutch";
 const families = [
@@ -411,24 +412,9 @@ export function PlayersExplorer({
   seasonSlug: string;
 }) {
   const router = useRouter();
-  function setReadingState(key: string, value: string) {
-    const next = new URLSearchParams(params.toString());
-    if (value) next.set(key, value);
-    else next.delete(key);
-    next.delete("page");
-    if (key === "family") {
-      next.delete("sort");
-      next.delete("direction");
-    }
-    window.history.replaceState(null, "", `?${next}`);
-  }
-  const params = useSearchParams();
-  const family = (families.find((row) => row.key === params.get("family"))?.key ??
-    "overall") as Family;
-  const setFamily = (value: Family) => setReadingState("family", value);
+  const { family: requestedFamily, q: search } = useStatsReadingState();
+  const family = families.find((row) => row.key === requestedFamily)?.key ?? "overall";
   const searchRef = useRef<HTMLInputElement>(null);
-  const search = String(params.get("q") ?? "").slice(0, 128);
-  const setSearch = (value: string) => setReadingState("q", value);
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const teamNames = useMemo(
     () =>
@@ -558,7 +544,7 @@ export function PlayersExplorer({
         q: "",
       });
     } else {
-      setSearch("");
+      replaceStatsReadingState({ q: "" });
     }
   }
 
@@ -606,7 +592,7 @@ export function PlayersExplorer({
           label="Player metrics"
           value={family}
           options={families}
-          onChange={setFamily}
+          onChange={(family) => replaceStatsReadingState({ family })}
           panelClassName="mt-3 space-y-3"
         >
           <div className="flex min-w-0 flex-wrap items-end gap-3">
@@ -640,8 +626,9 @@ export function PlayersExplorer({
               <input
                 ref={searchRef}
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => replaceStatsReadingState({ q: event.target.value })}
                 type="search"
+                maxLength={STATS_QUERY_VALUE_LIMIT}
                 className="min-h-8 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm"
                 placeholder="Player or team"
               />
