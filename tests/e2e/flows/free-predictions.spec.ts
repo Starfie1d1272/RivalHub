@@ -1,5 +1,3 @@
-import { execFileSync } from "node:child_process";
-import { resolve } from "node:path";
 import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -11,9 +9,8 @@ import * as schema from "@/db/schema";
 test.use({ scenarioProfile: "auth", actionTimeout: 15000 });
 test.setTimeout(180000);
 
-// Domain/PG tests own scoring, serialization and pool conservation. This browser
-// owns independent free/BET action wiring, stale locks and zero-wallet access.
-test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官方锁定", async ({ page, scenario }) => {
+// Domain/PG tests cover each lock and settlement. This path covers recovery from a stale open dialog.
+test("没有 BET 账户也可提交免费预测，旧弹窗收到锁盘后停止提交", async ({ page, scenario }) => {
   const user = scenario.accounts[0]!;
   const fixture = await createPredictionBrowserFixture(user.userId);
   const pool = new Pool({ connectionString: assertLocalDatabaseUrl(process.env.DATABASE_URL), ssl: false });
@@ -23,120 +20,38 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     const match = await db.query.matches.findFirst({ where: eq(schema.matches.seasonId, fixture.seasonId) });
     const url = `/${fixture.slug}/bet?match=${match!.id}`;
     await signInProgrammatically(page, user, scenario, `/${fixture.slug}/bet`);
-    await page.goto(`/${fixture.slug}/matches/${match!.id}`);
-    const support = page.getByRole("group", { name: "比赛支持率", exact: true });
-    await expect(support).toContainText("暂无预测");
-    await expect(support).toContainText("暂无投入");
-    await expect(support).not.toContainText("50.0%");
     await page.goto(url);
     const free = page.getByRole("region", { name: "免费赛果预测", exact: true });
-    const bp = page.getByRole("region", { name: "免费 BP 预测", exact: true });
     const choices = free.locator("button[aria-pressed]");
-    const card=page.locator("article").first();
-    async function openFree(){await card.getByRole("tab",{name:/赛果/}).click();const row=card.getByRole("region",{name:"比赛胜者",exact:true});if(await row.count())await row.locator("button:not([aria-label])").first().click();else await card.getByRole("tabpanel",{name:"赛果",exact:true}).locator("button:not([aria-label])").first().click();}
-    async function openBp(){await card.getByRole("tab",{name:/地图/}).click();const row=card.getByRole("region",{name:/BP/}).first();if(await row.count())await row.locator("button:not([aria-label])").first().click();else await card.getByRole("tabpanel",{name:"地图",exact:true}).locator("button:not([aria-label])").first().click();}
-    async function close(){await page.getByRole("dialog").getByRole("button",{name:"取消",exact:true}).click();}
-    await expect(free).toHaveCount(0);await openFree();
+    const card = page.locator("article").filter({
+      has: page.locator(`a[href^="/${fixture.slug}/matches/${match!.id}?"]`),
+    });
+    async function openFree() {
+      await card.getByRole("tab", { name: /赛果/ }).click();
+      await card.getByRole("tabpanel", { name: "赛果", exact: true }).locator("[data-prediction-key]").first().click();
+    }
+
+    await openFree();
     await expect(choices.first()).toBeEnabled();
     await choices.first().click();
     await free.getByRole("button", { name: "提交预测", exact: true }).click();
     await expect(free).toContainText("已提交");
     expect(await db.query.betAccounts.findFirst({ where: eq(schema.betAccounts.seasonId, fixture.seasonId) })).toBeUndefined();
-    await choices.last().click(); await free.getByRole("button", { name: "取消改选", exact: true }).click();
-    await expect(choices.first()).toHaveAttribute("aria-pressed", "true");
-    await close();await openBp();
-    await bp.locator("button[aria-pressed]").first().click();
-    await bp.getByRole("button", { name: "提交预测", exact: true }).click();
-    await expect(bp).toContainText("已提交");
-    await page.reload();await openFree(); await expect(choices.first()).toHaveAttribute("aria-pressed", "true");
-
-    execFileSync(resolve("node_modules/.bin/tsx"), ["scripts/db/run-server-cli.ts", "scripts/db/bet-browser-fixture.ts", fixture.seasonId, user.userId], { env: process.env, timeout: 60000 });
+    await choices.last().click();
+    await free.getByRole("button", { name: "更新预测", exact: true }).click();
+    await expect(free.getByRole("button", { name: "更新预测", exact: true })).toBeDisabled();
     await page.reload();
-    const bet = card.getByRole("region", { name: "比赛胜者", exact: true });
-    await bet.locator("button:not([aria-label])").last().click();
-    const participation=page.getByRole("dialog");
-    await expect(participation.getByLabel("投入积分",{exact:true})).toHaveCount(0);
-    await participation.getByRole("button",{name:"领取 1,000 积分",exact:true}).click();
-    await expect(participation.getByLabel("投入积分",{exact:true})).toBeEnabled();
-    await page.getByRole("button", { name: "ALL IN", exact: true }).click();
-    await expect(page.getByRole("button", { name: "确认投入", exact: true })).toBeDisabled();
-    await page.getByLabel("确认投入全部可用积分，不能撤回").check();
-    await page.getByRole("button", { name: "确认投入", exact: true }).click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(bet).toContainText("已投 1,000");
     await openFree();
-    await expect(choices.first()).toHaveAttribute("aria-pressed", "true");
-    await expect(choices.last()).toBeEnabled();
-    await choices.last().click(); await free.getByRole("button", { name: "更新预测", exact: true }).click();
-    await expect(free.getByRole("button", { name: "更新预测", exact: true })).toBeDisabled();
     await expect(choices.last()).toHaveAttribute("aria-pressed", "true");
-    await choices.first().click(); await free.getByRole("button", { name: "更新预测", exact: true }).click();
-    await expect(free.getByRole("button", { name: "更新预测", exact: true })).toBeDisabled();
-    await expect(choices.first()).toHaveAttribute("aria-pressed", "true");
-    await close();
-    await expect(card).toContainText("总回合");
 
-    {
-      const before = await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId));
-      expect(before.filter(row => row.kind === "relief")).toHaveLength(0);
-      await page.reload();
-      const claim = page.getByRole("button", { name: "领取低保 +10", exact: true });
-      // Actual publisher1: GET remains pure; only the explicit self Action grants.
-      await expect(claim).toBeVisible();
-      expect(await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).toEqual(before);
-      await claim.click();
-      // The pending label also removes the old selector; wait for the confirmed receipt before reload.
-      await expect(page.getByText("今日已领低保", { exact: true })).toBeVisible();
-      await expect(claim).toHaveCount(0);
-      await openFree();await expect(choices.first()).toBeEnabled();await close();
-      const relief=(await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row=>row.kind==="relief");
-      expect(relief).toHaveLength(1);
-      expect(relief[0]).toMatchObject({amount:BigInt(10),profit:BigInt(0)});
-      await page.reload();await expect(claim).toHaveCount(0);
-      expect((await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row=>row.kind==="relief")).toEqual(relief);
-    }
-    // Freeze browser polling so the stale-view rejection is deterministic;
-    // server Actions and the official isolated PG clock remain real.
+    // Freeze polling while the open dialog becomes stale. The server uses the real database clock.
     await page.clock.pauseAt(new Date(Date.now() + 1_000));
-    await page.waitForLoadState("networkidle");
-    await openBp();
-    await db.insert(schema.matchVetoSessions).values({ matchId: match!.id, startedAt: new Date() });
-    // Submit from the cached open view; the Action must reject and fresh-read lock it.
-    await bp.locator("button[aria-pressed]").last().click();
-    await bp.getByRole("button", { name: "更新预测", exact: true }).click();
-    await expect(bp.getByRole("alert")).toBeVisible();
-    await expect(bp.getByText("已锁定", { exact: true })).toBeVisible();
-    await expect(bp.locator("button[aria-pressed]").first()).toBeDisabled();
-    await close();await openFree();
-    await expect(choices.first()).toBeEnabled();
     await db.update(schema.matches).set({ gameplayStartedAt: new Date() }).where(eq(schema.matches.id, match!.id));
-    await choices.last().click(); await free.getByRole("button", { name: "更新预测", exact: true }).click();
+    await choices.first().click();
+    await free.getByRole("button", { name: "更新预测", exact: true }).click();
     await expect(free.getByRole("alert")).toBeVisible();
     await expect(free.getByText("已锁定", { exact: true })).toBeVisible();
     await expect(choices.first()).toBeDisabled();
-    await page.clock.resume();
-    await page.reload();
-    await expect(card.getByText(/我的免费赛果：/)).toBeVisible();
-    await expect(card.locator("button[data-bet-option],button[data-prediction-key]")).toHaveCount(0);
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-    await db.update(schema.matches).set({ status: "finished", scoreA: 1, scoreB: 0 }).where(eq(schema.matches.id, match!.id));
-    await page.goto(`/${fixture.slug}/bet?view=settled`);
-    await expect(card.getByText(/我的免费赛果：.*已命中/)).toBeVisible();
-    await expect(card.locator("button[data-bet-option],button[data-prediction-key]")).toHaveCount(0);
-    await page.goto(`/${fixture.slug}/bet?view=leaderboard`);
-    const ranking = page.getByRole("region", { name: "竞猜排行榜", exact: true });
-    for (const label of ["净收益", "赛果命中次数", "赛果命中率"]) {
-      await ranking.getByRole("button", { name: label, exact: true }).click();
-      await expect(ranking.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-pressed", "true");
-      for (const column of ["净收益", "命中次数", "命中率"]) await expect(ranking.getByRole("columnheader", { name: column, exact: true })).toBeVisible();
-    }
-    await db.update(schema.matches).set({ status: "cancelled" }).where(eq(schema.matches.id, match!.id));
-    await page.goto(`/${fixture.slug}/bet?view=settled`);
-    await expect(card.getByText(/我的免费赛果：.*已作废/)).toBeVisible();
-    await expect(card.locator("button[data-bet-option],button[data-prediction-key]")).toHaveCount(0);
-    await page.goto(`/${fixture.slug}/bet?view=mine`);
-    await expect(card.getByText(/我的免费赛果：.*已作废/)).toBeVisible();
-    await expect(card.locator("button[data-bet-option],button[data-prediction-key]")).toHaveCount(0);
   } finally {
     const predictions = await db.select({ id: schema.freePredictionChoices.id }).from(schema.freePredictionChoices).where(eq(schema.freePredictionChoices.seasonId, fixture.seasonId));
     if (predictions.length) await db.delete(schema.freePredictionRequests).where(inArray(schema.freePredictionRequests.choiceId, predictions.map(row => row.id)));

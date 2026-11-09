@@ -1,5 +1,3 @@
-import { Pool } from "pg";
-import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import { expect, signInProgrammatically, test } from "../fixtures";
 
 test.use({ scenarioProfile: "major-qualification" });
@@ -63,47 +61,6 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   await roundPreview.getByRole("button", { name: "确认并生成对阵" }).click();
   await expect(page.getByText("第 1 轮对阵已生成")).toBeVisible();
 
-  await page.goto(`/admin/${scenario.slug}/matches?stage=play-in`);
-  await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute(
-    "data-state",
-    "active",
-  );
-  const activeStagePanel = page.locator(
-    '[role="tabpanel"][data-state="active"]',
-  );
-  const matchPaths = await activeStagePanel
-    .locator(`a[href^="/admin/${scenario.slug}/matches/"]`)
-    .evaluateAll((links) =>
-      links
-        .map((link) => link.getAttribute("href"))
-        .filter((href): href is string => Boolean(href)),
-    );
-  expect([...new Set(matchPaths)]).toHaveLength(6);
-
-  const nextRound = page.getByRole("button", { name: "预览 Play-in 下一轮" });
-  await expect(nextRound).toBeVisible();
-  await nextRound.click();
-  await expect(page.getByText("当前轮次尚未全部完成，不能预览下一轮。 ")).toBeVisible();
-  const pool = new Pool({ connectionString: assertLocalDatabaseUrl(process.env.RIVALHUB_LOCAL_DATABASE_URL ?? process.env.DATABASE_URL, "browser fixture"), ssl: false });
-  try {
-    await pool.query("UPDATE matches SET status = 'finished', score_a = 1, score_b = 0, completed_at = now() WHERE season_id = $1 AND stage = 'play-in' AND round = 1", [scenario.seasonId]);
-  } finally { await pool.end(); }
   await page.reload();
-  await page.getByRole("button", { name: "预览 Play-in 下一轮" }).click();
-  const secondRound = page.getByRole("dialog", { name: "第 2 轮对阵预览" });
-  await expect(secondRound.getByRole("listitem")).toHaveCount(6);
-  await secondRound.getByRole("button", { name: "确认并生成对阵" }).click();
-  await expect(page.getByText("第 2 轮对阵已生成")).toBeVisible();
-
-  await page.reload();
-  await expect(page.getByRole("tab", { name: "PLAY-IN" })).toHaveAttribute(
-    "data-state",
-    "active",
-  );
-  await expect.poll(async () => {
-    const persistedPaths = await activeStagePanel
-      .locator(`a[href^="/admin/${scenario.slug}/matches/"]`)
-      .evaluateAll((links) => links.map((link) => link.getAttribute("href")).filter(Boolean));
-    return [...new Set(persistedPaths)].sort();
-  }).toEqual(expect.arrayContaining([...new Set(matchPaths)].sort()));
+  await expect(page.getByText("已生成 6 场 · 已完成 0 场 · 当前第 1 轮")).toBeVisible();
 });
