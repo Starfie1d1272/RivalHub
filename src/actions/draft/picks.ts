@@ -18,7 +18,12 @@ import {
 } from "@/lib/validators/draft";
 import { DRAFT_ROUND_TIMEOUT_SECONDS } from "@/types/draft";
 import { getNextEntryId } from "@/lib/draft/rules";
-import { executeDraftPick, finalizeDraft } from "@/lib/draft/operations";
+import {
+  assertCurrentDraftTurn,
+  executeDraftPick,
+  finalizeDraft,
+  findDraftAutoPickCandidate,
+} from "@/lib/draft/operations";
 
 export async function pickPlayer(
   input: PickPlayerInput,
@@ -28,16 +33,17 @@ export async function pickPlayer(
     return failValidation("选择选手参数无效");
   }
 
-  const { seasonId, entryId, registrationId, clientRequestId } = parsed.data;
+  const { seasonId, expectedTurn, registrationId, clientRequestId } = parsed.data;
 
   try {
     const user = await requireAuth();
     const result = await db.transaction(async (tx) => {
       return executeDraftPick(tx, {
         seasonId,
-        entryId,
+        entryId: expectedTurn.entryId,
         registrationId,
         clientRequestId,
+        expectedTurn,
         autoPicked: false,
         deadlinePolicy: "before-deadline",
         captainUserId: user.userId,
@@ -55,11 +61,7 @@ export async function pickPlayer(
   }
 }
 
-/**
- * Operator-only recovery path for the rare timeout state with no eligible
- * candidate. It is intentionally retained even when static callers are absent:
- * the timeout cron reports this action as the manual remediation.
- */
+/** Operator recovery for a timed-out turn with no automatic pick candidate. */
 export async function skipDraftTurn(
   input: SkipDraftTurnInput,
 ): Promise<ActionResult<{ skipped: boolean; completed: boolean }>> {
@@ -67,28 +69,37 @@ export async function skipDraftTurn(
   if (!parsed.success) {
     return failValidation("跳过轮次参数无效");
   }
-  const admin = await requireSeasonAdmin(parsed.data.seasonId);
+  const { seasonId, expectedTurn } = parsed.data;
 
   try {
+    const admin = await requireSeasonAdmin(seasonId);
     const result = await db.transaction(async (tx) => {
       const season = await tx.query.seasons.findFirst({
-        where: eq(seasons.id, parsed.data.seasonId),
+        where: eq(seasons.id, seasonId),
       });
       if (!season) {
         throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       }
-      if (season.status !== "drafting") {
-        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 drafting 状态的赛季可以跳过轮次");
+      if (!season.hasDraft || season.status !== "drafting") {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事当前无法跳过选秀轮次。");
       }
 
       const [ds] = await tx
         .select()
         .from(draftState)
-        .where(eq(draftState.seasonId, parsed.data.seasonId))
+        .where(eq(draftState.seasonId, seasonId))
         .for("update");
 
       if (!ds?.isActive || !ds.currentEntryId) {
         throw new AppError(ErrorCode.DRAFT_NOT_ACTIVE, ERROR_MESSAGES.DRAFT_NOT_ACTIVE);
+      }
+      assertCurrentDraftTurn(ds, expectedTurn);
+      const now = new Date();
+      if (!ds.roundDeadline || ds.roundDeadline > now) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "当前轮次尚未超时。");
+      }
+      if (await findDraftAutoPickCandidate(tx, seasonId, ds.currentEntryId)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "本轮仍有符合条件的选手，请等待自动选人。");
       }
 
       const seasonTeams = await tx
@@ -99,7 +110,7 @@ export async function skipDraftTurn(
         .from(competitionEntries)
         .where(
           and(
-            eq(competitionEntries.competitionId, parsed.data.seasonId),
+            eq(competitionEntries.competitionId, seasonId),
             isNotNull(competitionEntries.formationOrder),
           ),
         )
@@ -108,18 +119,17 @@ export async function skipDraftTurn(
       const skippedEntryId = ds.currentEntryId;
       const skippedRound = ds.currentRound;
       const next = getNextEntryId(seasonTeams, ds.currentEntryId, ds.currentRound);
-      const now = new Date();
 
       if (!next) {
         await finalizeDraft(tx, {
-          seasonId: parsed.data.seasonId,
+          seasonId,
           draftStateId: ds.id,
           now,
           actorId: auditActorId(admin),
         });
 
         await writeAuditInTx(tx, {
-          seasonId: parsed.data.seasonId,
+          seasonId,
           action: "draft.skip_turn",
           actorId: auditActorId(admin),
           targetId: ds.id,
@@ -147,7 +157,7 @@ export async function skipDraftTurn(
         .where(eq(draftState.id, ds.id));
 
       await writeAuditInTx(tx, {
-        seasonId: parsed.data.seasonId,
+        seasonId,
         action: "draft.skip_turn",
         actorId: auditActorId(admin),
         targetId: ds.id,

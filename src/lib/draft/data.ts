@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { DRAFT_TEAMS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
 import type { MapPreference } from "@/types/season";
+import { findDraftAutoPickCandidate } from "./operations";
 import { getSnakeOrder } from "./rules";
 
 // ── 公开 DTO ─────────────────────────────────────────────
@@ -124,6 +125,7 @@ export interface CaptainDraftData {
 /** Admin control needs state and counts, not the player registration payload. */
 export interface DraftAdminData {
   state: DraftLiveState | null;
+  turnStatus: "open" | "timed_out" | "blocked" | null;
   teams: DraftTeamSlot[];
   totalPicks: number;
   maxPicks: number;
@@ -567,8 +569,20 @@ export async function getDraftAdminData(
     .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(and(...where));
 
+  const state = base.state;
+  let turnStatus: DraftAdminData["turnStatus"] = null;
+  if (state?.isActive && state.currentEntryId && state.roundDeadline) {
+    if (Date.parse(state.roundDeadline) > Date.now()) {
+      turnStatus = "open";
+    } else {
+      const candidate = await findDraftAutoPickCandidate(db, seasonId, state.currentEntryId);
+      turnStatus = candidate ? "timed_out" : "blocked";
+    }
+  }
+
   return {
-    state: base.state,
+    state,
+    turnStatus,
     teams: base.teams,
     totalPicks: base.totalPicks,
     maxPicks: base.maxPicks,

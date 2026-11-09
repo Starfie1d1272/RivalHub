@@ -6,6 +6,7 @@ import { PageLayout, Panel } from "@/components/rivalhub";
 import { getPublicCaptainVotingData, getCaptainVotingViewer } from "@/lib/captains/data";
 import { getUserSession } from "@/lib/auth/session";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
+import type { SeasonStatus } from "@/types/season";
 
 interface CaptainsPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -51,7 +52,9 @@ async function CaptainsContent({ params }: CaptainsPageProps) {
         </p>
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">队长投票</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-          公开票数与当前前 8 会定时刷新；赛季进入 drafting 后本页保留最终结果。
+          {season.status === "voting"
+            ? "公开票数与当前前 8 名会定时更新。"
+            : "查看本届队长候选人与公开票数。"}
         </p>
       </div>
 
@@ -90,7 +93,7 @@ async function CaptainViewerPanel({
   season,
   data,
 }: {
-  season: { id: string; slug: string; name: string; status: string };
+  season: { id: string; slug: string; name: string; status: SeasonStatus };
   data: Awaited<ReturnType<typeof getPublicCaptainVotingData>>;
 }) {
   const session = await getUserSession();

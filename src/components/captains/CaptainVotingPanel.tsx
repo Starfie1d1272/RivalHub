@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
 import { MAX_CAPTAIN_VOTES } from "@/lib/captains/rules";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { positionLabel } from "@/lib/validators/registration";
 import type {
   PublicCaptainCandidate,
@@ -34,7 +35,7 @@ interface CaptainVotingPanelProps {
   seasonSlug: string;
   viewerPending?: boolean;
   seasonName: string;
-  seasonStatus: string;
+  seasonStatus: CaptainVotingSnapshot["seasonStatus"];
   currentVoter: PublicCaptainVoter | null;
   candidates: PublicCaptainCandidate[];
   votes: CaptainVoteRecord[];
@@ -52,7 +53,7 @@ export function CaptainVotingPanel({
   const router = useRouter();
   const [polled, setPolled] = useState<{
     source: typeof initialCandidates;
-    sourceStatus: string;
+    sourceStatus: typeof initialStatus;
     sourceVoter: typeof initialVoter;
     sourceVotes: typeof initialVotes;
     data: CaptainVotingSnapshot;
@@ -72,6 +73,12 @@ export function CaptainVotingPanel({
         };
   const [isPending, startTransition] = useTransition();
   const isVotingOpen = seasonStatus === "voting";
+  const eligibilityMessage =
+    isVotingOpen && !currentVoter
+      ? viewerPending
+        ? "正在核对投票资格…"
+        : "请先登录并通过报名审核后方可投票。"
+      : null;
 
   useGuardedVisiblePolling(
     async (isCurrent) => {
@@ -166,9 +173,9 @@ export function CaptainVotingPanel({
           </div>
         </div>
 
-        {!currentVoter && (
+        {eligibilityMessage && (
           <p className="text-xs text-[var(--color-fg-mid)] border border-[var(--color-border)] rounded-sm px-3 py-2">
-            {viewerPending ? "正在核对投票资格…" : "请先登录并通过报名审核后方可投票。"}
+            {eligibilityMessage}
           </p>
         )}
 
@@ -260,9 +267,13 @@ export function CaptainVotingPanel({
           <Panel contentClassName="p-4">
             <div className="space-y-3">
               <div>
-                <h2 className="text-base font-semibold">我的投票</h2>
+                <h2 className="text-base font-semibold">
+                  {isVotingOpen || currentVoter ? "我的投票" : "投票结果"}
+                </h2>
                 <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-                  每名已通过报名的选手最多投 {MAX_CAPTAIN_VOTES} 票。
+                  {isVotingOpen
+                    ? `每名已通过报名的选手最多投 ${MAX_CAPTAIN_VOTES} 票。`
+                    : "查看本届候选得票。"}
                 </p>
               </div>
 
@@ -296,9 +307,11 @@ export function CaptainVotingPanel({
                   </div>
                 </>
               ) : (
-                <p className="rounded-md border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
-                  {viewerPending ? "正在核对投票资格…" : "请先登录并通过报名审核后方可投票。"}
-                </p>
+                eligibilityMessage && (
+                  <p className="rounded-md border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
+                    {eligibilityMessage}
+                  </p>
+                )
               )}
 
               <Button
@@ -318,7 +331,9 @@ export function CaptainVotingPanel({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-semibold">{seasonName} 队长候选</h2>
-              <p className="mt-1 text-sm text-[var(--color-fg-mid)]">当前状态：{seasonStatus}</p>
+              <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
+                赛事阶段 · {presentSeasonStatus(seasonStatus).label}
+              </p>
             </div>
             <Badge variant={isVotingOpen ? "default" : "secondary"}>
               {isVotingOpen ? "投票开放" : "结果展示"}
@@ -374,26 +389,28 @@ export function CaptainVotingPanel({
                           <div className="text-lg font-semibold">{candidate.voteCount}</div>
                           <div className="text-xs text-[var(--color-fg-mid)]">票</div>
                         </div>
-                        {hasVoted ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            disabled={!isVotingOpen || isPending}
-                            onClick={() => handleRetract(candidate.id)}
-                          >
-                            <Undo2 />
-                            撤回
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            disabled={voteDisabled}
-                            onClick={() => handleCast(candidate.id)}
-                          >
-                            <Vote />
-                            投票
-                          </Button>
-                        )}
+                        {isVotingOpen &&
+                          (hasVoted ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={isPending}
+                              onClick={() => handleRetract(candidate.id)}
+                            >
+                              <Undo2 />
+                              撤回
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              disabled={voteDisabled}
+                              onClick={() => handleCast(candidate.id)}
+                            >
+                              <Vote />
+                              投票
+                            </Button>
+                          ))}
+                        {!isVotingOpen && hasVoted && <Badge variant="outline">已投</Badge>}
                       </div>
                     </div>
                   </Panel>
