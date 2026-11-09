@@ -34,7 +34,17 @@ async function lockUser(tx: TxDb, userId: string) {
 
 export async function assertFreshAuthenticationInTx(tx: TxDb, userId: string, startedAt: string) {
   await lockUser(tx, userId);
-  const [control] = await tx
+  await assertAuthenticationFence(tx, userId, startedAt, { requireControl: true });
+}
+
+/** Read-only check for a recovery link. The mutation rechecks under the user lock. */
+export async function assertAuthenticationFence(
+  database: Pick<DB, "select">,
+  userId: string,
+  startedAt: string,
+  { requireControl = false }: { requireControl?: boolean } = {},
+): Promise<void> {
+  const [control] = await database
     .select({
       stale: sql<boolean>`${controls.revokedBefore} >= ${startedAt}::timestamptz`,
       pending: controls.passwordMutationId,
@@ -42,7 +52,7 @@ export async function assertFreshAuthenticationInTx(tx: TxDb, userId: string, st
     .from(controls)
     .where(eq(controls.userId, userId));
   if (control?.pending) throw new PasswordMutationError("pending", undefined);
-  if (!control || control.stale) {
+  if (control?.stale || (requireControl && !control)) {
     throw new AppError(ErrorCode.UNAUTHORIZED, "账号安全状态已改变，请重新登录或稍后重试。");
   }
 }

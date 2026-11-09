@@ -1,6 +1,7 @@
-import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
+import { findAdminSeasonBySlug, resolveAdminSeasonPageAccess } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
 
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { MajorPrestartConsole } from "@/components/admin/MajorPrestartConsole";
 import { SeasonPrestartCapabilityPanel } from "@/components/admin/SeasonPrestartCapabilityPanel";
 import { loadMajorPrestartPageData } from "@/lib/admin/season-workspace/major-prestart";
@@ -12,6 +13,8 @@ export default async function AdminSeasonPrestartPage({
   params: Promise<{ seasonSlug: string }>;
 }) {
   const { seasonSlug } = await params;
+  if (!(await resolveAdminSeasonPageAccess(seasonSlug))) return <AdminAccessDenied />;
+
   const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) notFound();
 

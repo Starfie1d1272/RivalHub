@@ -1,15 +1,15 @@
-import React, { type ReactNode } from "react";
+import React from "react";
 import type { UseFormRegister, UseFormWatch } from "react-hook-form";
 import type { RegistrationInput } from "@/lib/validators/registration";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RegistrationSectionTitle } from "./RegistrationSectionTitle";
+import type { RegistrationFieldFeedback } from "./registration-form-utils";
 
-interface RegistrationOtherSectionProps {
+interface RegistrationOtherSectionProps extends RegistrationFieldFeedback {
   inputClassName: string;
   register: UseFormRegister<RegistrationInput>;
   watch: UseFormWatch<RegistrationInput>;
-  renderError: (name: string) => ReactNode;
 }
 
 export function RegistrationOtherSection({
@@ -17,6 +17,7 @@ export function RegistrationOtherSection({
   register,
   watch,
   renderError,
+  errorAttributes,
 }: RegistrationOtherSectionProps) {
   return (
     <section>
@@ -28,6 +29,7 @@ export function RegistrationOtherSection({
             type="checkbox"
             className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
             {...register("willingToBeCaptain")}
+            {...errorAttributes("willingToBeCaptain")}
           />
           <div>
             <Label htmlFor="willingToBeCaptain" className="text-[var(--color-fg)] cursor-pointer">
@@ -49,6 +51,7 @@ export function RegistrationOtherSection({
             placeholder="时间冲突、特殊情况等可在此说明…"
             className={`${inputClassName} resize-none`}
             {...register("notes")}
+            {...errorAttributes("notes")}
           />
           <div className="flex justify-between mt-1">
             {renderError("notes")}

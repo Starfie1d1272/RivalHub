@@ -1,6 +1,16 @@
-import { POSITION_LABELS } from "@/lib/validators/registration";
+import type { ReactNode } from "react";
+import type { FieldPath } from "react-hook-form";
+import { POSITION_LABELS, type RegistrationInput } from "@/lib/validators/registration";
 import { PLAYABLE_MAP_LEVELS } from "@/lib/maps";
 import type { MapPreferenceLevel } from "@/types/season";
+
+export interface RegistrationFieldFeedback {
+  renderError: (name: FieldPath<RegistrationInput>) => ReactNode;
+  errorAttributes: (name: FieldPath<RegistrationInput>) => {
+    "aria-invalid"?: true;
+    "aria-describedby"?: string;
+  };
+}
 
 export function isPositionFull(
   pos: string,

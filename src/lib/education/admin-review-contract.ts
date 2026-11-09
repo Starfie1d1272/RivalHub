@@ -1,6 +1,7 @@
 import type { AcademicStatus, EducationVerificationStatus } from "./presentation";
 
 export const EDUCATION_REVIEW_PAGE_SIZE = 25;
+export const EDUCATION_REVIEW_NOTE_MAX_LENGTH = 1000;
 
 export const EDUCATION_REVIEW_DEFAULTS = {
   q: "",

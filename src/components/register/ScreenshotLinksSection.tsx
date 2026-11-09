@@ -1,15 +1,15 @@
-import React, { type ReactNode } from "react";
+import React from "react";
 import type { UseFormRegister } from "react-hook-form";
 import type { RegistrationInput } from "@/lib/validators/registration";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RegistrationSectionTitle } from "./RegistrationSectionTitle";
+import type { RegistrationFieldFeedback } from "./registration-form-utils";
 
-interface ScreenshotLinksSectionProps {
+interface ScreenshotLinksSectionProps extends RegistrationFieldFeedback {
   screenshotCount: number;
   inputClassName: string;
   register: UseFormRegister<RegistrationInput>;
-  renderError: (name: string) => ReactNode;
 }
 
 export function ScreenshotLinksSection({
@@ -17,9 +17,15 @@ export function ScreenshotLinksSection({
   inputClassName,
   register,
   renderError,
+  errorAttributes,
 }: ScreenshotLinksSectionProps) {
   return (
-    <section>
+    <section
+      role="group"
+      aria-label="近两周天梯截图"
+      tabIndex={-1}
+      {...errorAttributes("screenshotUrls")}
+    >
       <RegistrationSectionTitle>近两周天梯截图</RegistrationSectionTitle>
       <p className="text-sm text-[var(--color-fg-mid)] mb-4">
         可将近两周天梯对局截图上传至
@@ -48,6 +54,7 @@ export function ScreenshotLinksSection({
               placeholder="https://box.nju.edu.cn/d/..."
               className={inputClassName}
               {...register(`screenshotUrls.${index}`)}
+              {...errorAttributes(`screenshotUrls.${index}`)}
             />
             {renderError(`screenshotUrls.${index}`)}
           </div>

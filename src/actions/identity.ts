@@ -8,9 +8,10 @@ import { db } from "@/db/client";
 import { identityLinkRequests, users } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { createPublicAuthClient } from "@/lib/auth/supabase-server";
-import { isSecondaryEmailOtpType } from "@/lib/auth/secondary-email-otp";
+import { secondaryEmailLinkProofSchema } from "@/lib/auth/secondary-email-otp";
 import { destroyUserSession, requireAuth } from "@/lib/auth/session";
 import {
+  assertSecondaryEmailLinkReady,
   completeSecondaryIdentityLinkInTx,
   hashIdentityLinkState,
   revokeSecondaryEmailIdentityInTx,
@@ -152,18 +153,17 @@ export async function confirmSecondaryEmailIdentity(input: {
   tokenHash: string;
   otpType: string;
 }): Promise<ActionResult<CompleteIdentityLinkOutcome & { redirectTo: string }>> {
-  const parsed = z
-    .object({
-      requestId: uuidSchema,
-      stateToken: z.string().min(20).max(200),
-      tokenHash: z.string().min(1),
-      otpType: z.string().refine(isSecondaryEmailOtpType),
-    })
-    .safeParse(input);
+  const parsed = secondaryEmailLinkProofSchema.safeParse(input);
   if (!parsed.success)
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "邮箱绑定链接无效，请重新发起。" });
   try {
     const session = await requireAuth();
+    const actor = {
+      requestId: parsed.data.requestId,
+      stateToken: parsed.data.stateToken,
+      currentUserId: session.userId,
+    };
+    await assertSecondaryEmailLinkReady(db, actor);
     const { data, error } = await createPublicAuthClient().auth.verifyOtp({
       token_hash: parsed.data.tokenHash,
       type: parsed.data.otpType,
@@ -177,9 +177,7 @@ export async function confirmSecondaryEmailIdentity(input: {
     }
     const outcome = await db.transaction((tx) =>
       completeSecondaryIdentityLinkInTx(tx, {
-        requestId: parsed.data.requestId,
-        stateToken: parsed.data.stateToken,
-        currentUserId: session.userId,
+        ...actor,
         authId: data.user!.id,
         email: data.user!.email!,
         verifiedAt: new Date(data.user!.email_confirmed_at!),
