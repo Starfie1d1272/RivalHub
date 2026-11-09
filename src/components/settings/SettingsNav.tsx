@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useRef } from "react";
+import { useRevealCurrentItem } from "@/components/rivalhub/ScrollHint";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
@@ -22,8 +23,11 @@ const items = [
 
 export function SettingsNav() {
   const pathname = usePathname();
+  const navigationRef = useRef<HTMLElement>(null);
+  useRevealCurrentItem(navigationRef, pathname);
   return (
     <nav
+      ref={navigationRef}
       aria-label="参赛资料导航"
       className="flex overflow-x-auto border border-[var(--color-border)] lg:block lg:overflow-visible"
     >
@@ -33,6 +37,7 @@ export function SettingsNav() {
           <Link
             key={item.href}
             href={item.href}
+            aria-current={active ? "page" : undefined}
             className={cn(
               "min-w-28 shrink-0 border-r border-[var(--color-border)] px-3 py-2.5 last:border-r-0 lg:block lg:min-w-0 lg:border-r-0 lg:border-b lg:last:border-b-0",
               active

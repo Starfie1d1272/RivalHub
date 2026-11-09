@@ -1,6 +1,8 @@
 "use client";
-import React from "react";
-import { recordFilter } from "@/lib/telemetry/client";
+
+import type { ReactNode } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils/cn";
 
 export interface MetricFamilyOption<Key extends string = string> {
   key: Key;
@@ -12,42 +14,37 @@ export function MetricFamilyTabs<Key extends string>({
   value,
   options,
   onChange,
+  children,
+  panelClassName,
 }: {
   label: string;
   value: Key;
   options: readonly MetricFamilyOption<Key>[];
   onChange: (value: Key) => void;
+  children: ReactNode;
+  panelClassName?: string;
 }) {
   return (
-    <div
-      role="tablist"
-      aria-label={label}
-      className="flex min-w-0 gap-1 overflow-x-auto border-b border-[var(--color-border)]"
+    <Tabs
+      value={value}
+      activationMode="manual"
+      onValueChange={(next) => {
+        const option = options.find(({ key }) => key === next);
+        if (option) onChange(option.key);
+      }}
     >
-      {options.map((option) => {
-        const active = value === option.key;
-        return (
-          <button
-            key={option.key}
-            role="tab"
-            aria-selected={active}
-            type="button"
-            onClick={() => {
-              recordFilter("tab", option.key);
-              onChange(option.key);
-            }}
-            className={[
-              "-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
-              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]",
-              active
-                ? "border-[var(--color-accent)] text-[var(--color-fg)]"
-                : "border-transparent text-[var(--color-fg-mid)] hover:border-[var(--color-border-hi)] hover:text-[var(--color-fg)]",
-            ].join(" ")}
-          >
+      <TabsList aria-label={label} appearance="underline">
+        {options.map((option) => (
+          <TabsTrigger key={option.key} value={option.key} appearance="underline">
             {option.label}
-          </button>
-        );
-      })}
-    </div>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {options.map((option) => (
+        <TabsContent key={option.key} value={option.key} className={cn("min-w-0", panelClassName)}>
+          {option.key === value ? children : null}
+        </TabsContent>
+      ))}
+    </Tabs>
   );
 }

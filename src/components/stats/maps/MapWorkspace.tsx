@@ -327,195 +327,204 @@ export function MapWorkspace({
               : ""}
           </p>
         </header>
-        <MetricFamilyTabs label="Map workspace" value={tab} options={tabs} onChange={setTab} />
-
-        {tab === "overview" && (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <MetricPanel title="Map Selection">
-              <dl className="grid grid-cols-3 gap-3">
-                <div>
-                  <dt className="text-xs text-[var(--color-fg-mid)]">Picks</dt>
-                  <dd className="font-semibold tabular-nums">{bp?.picks ?? 0}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-[var(--color-fg-mid)]">Bans</dt>
-                  <dd className="font-semibold tabular-nums">{bp?.bans ?? 0}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-[var(--color-fg-mid)]">Deciders</dt>
-                  <dd className="font-semibold tabular-nums">{bp?.deciders ?? 0}</dd>
-                </div>
-              </dl>
-            </MetricPanel>
-            <MetricPanel title="Round Profile">
-              {mapAnalytics ? (
-                <dl className="grid grid-cols-2 gap-3">
+        <MetricFamilyTabs
+          label="Map workspace"
+          value={tab}
+          options={tabs}
+          onChange={setTab}
+          panelClassName="mt-5 space-y-5"
+        >
+          {tab === "overview" && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <MetricPanel title="Map Selection">
+                <dl className="grid grid-cols-3 gap-3">
                   <div>
-                    <dt>
-                      <StatsMetricLabel metric="roundWin">CT / T</StatsMetricLabel>
-                    </dt>
-                    <dd className="flex flex-wrap gap-2">
-                      <MetricValue
-                        metric="roundWin"
-                        value={mapAnalytics.ct}
-                        sampleLabel="CT rounds"
-                      />
-                      <MetricValue
-                        metric="roundWin"
-                        value={mapAnalytics.t}
-                        sampleLabel="T rounds"
-                      />
-                    </dd>
+                    <dt className="text-xs text-[var(--color-fg-mid)]">Picks</dt>
+                    <dd className="font-semibold tabular-nums">{bp?.picks ?? 0}</dd>
                   </div>
                   <div>
-                    <dt>
-                      <StatsMetricLabel metric="pistol">Pistol CT / T</StatsMetricLabel>
-                    </dt>
-                    <dd className="flex flex-wrap gap-2">
-                      <MetricValue
-                        metric="pistol"
-                        value={mapAnalytics.pistolCt}
-                        sampleLabel="CT pistol rounds"
-                      />
-                      <MetricValue
-                        metric="pistol"
-                        value={mapAnalytics.pistolT}
-                        sampleLabel="T pistol rounds"
-                      />
-                    </dd>
+                    <dt className="text-xs text-[var(--color-fg-mid)]">Bans</dt>
+                    <dd className="font-semibold tabular-nums">{bp?.bans ?? 0}</dd>
                   </div>
                   <div>
-                    <dt>
-                      <StatsMetricLabel metric="openingConversion">
-                        {STATS_METRICS.openingConversion.label}
-                      </StatsMetricLabel>
-                    </dt>
-                    <dd>
-                      {performanceMap ? (
-                        <MetricValue
-                          metric="openingConversion"
-                          value={performanceMap.opening.conversionRate}
-                        />
-                      ) : (
-                        "—"
-                      )}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>
-                      <StatsMetricLabel metric="openingComeback">
-                        {STATS_METRICS.openingComeback.label}
-                      </StatsMetricLabel>
-                    </dt>
-                    <dd>
-                      {performanceMap ? (
-                        <MetricValue
-                          metric="openingComeback"
-                          value={performanceMap.opening.comebackRate}
-                        />
-                      ) : (
-                        "—"
-                      )}
-                    </dd>
+                    <dt className="text-xs text-[var(--color-fg-mid)]">Deciders</dt>
+                    <dd className="font-semibold tabular-nums">{bp?.deciders ?? 0}</dd>
                   </div>
                 </dl>
-              ) : (
-                <p className="text-sm text-[var(--color-fg-mid)]">暂无完整回合数据。</p>
-              )}
-            </MetricPanel>
-          </div>
-        )}
-
-        {tab === "teams" && (
-          <StatsDataTable
-            rows={detail.analytics.teams}
-            rankingBaselineRows={detail.analytics.teams}
-            columns={teamColumns}
-            rowKey={(row) => row.team.entityKey}
-            initialSortKey="rw"
-            emptyLabel="暂无队伍统计"
-          />
-        )}
-        {tab === "players" && (
-          <StatsDataTable
-            rows={playersWithTeam}
-            rankingBaselineRows={playersWithTeam}
-            columns={playerColumns}
-            rowKey={(row) => row.player.entityKey}
-            initialSortKey="opening"
-            emptyLabel="暂无选手统计"
-          />
-        )}
-        {tab === "economy" && (
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <MetricPanel
-                title={<StatsMetricLabel metric="pistol">Pistol CT / T</StatsMetricLabel>}
-              >
-                <div className="flex flex-wrap gap-3 text-sm">
-                  <span>
-                    CT{" "}
-                    <MetricValue
-                      metric="pistol"
-                      value={detail.analytics.totals.pistolCt}
-                      sampleLabel="CT pistol rounds"
-                    />
-                  </span>
-                  <span>
-                    T{" "}
-                    <MetricValue
-                      metric="pistol"
-                      value={detail.analytics.totals.pistolT}
-                      sampleLabel="T pistol rounds"
-                    />
-                  </span>
-                </div>
               </MetricPanel>
-              <MetricPanel
-                title={
-                  <StatsMetricLabel metric="conversion">
-                    {STATS_METRICS.conversion.label}
-                  </StatsMetricLabel>
-                }
-              >
-                <MetricValue metric="conversion" value={detail.analytics.totals.round2Conversion} />
-              </MetricPanel>
-              <MetricPanel
-                title={
-                  <StatsMetricLabel metric="break">{STATS_METRICS.break.label}</StatsMetricLabel>
-                }
-              >
-                <MetricValue metric="break" value={detail.analytics.totals.round2Break} />
-              </MetricPanel>
-              <MetricPanel title={<StatsMetricLabel metric="fiveVFour">5v4</StatsMetricLabel>}>
-                <MetricValue
-                  metric="fiveVFour"
-                  value={detail.analytics.totals.manAdvantage["5v4"]}
-                />
-              </MetricPanel>
-              <MetricPanel title={<StatsMetricLabel metric="fourVFive">4v5</StatsMetricLabel>}>
-                <MetricValue
-                  metric="fourVFive"
-                  value={detail.analytics.totals.manAdvantage["4v5"]}
-                />
-              </MetricPanel>
-              <MetricPanel
-                title={<StatsMetricLabel metric="ecoSemi">Eco/Semi Win%</StatsMetricLabel>}
-              >
-                <MetricValue metric="ecoSemi" value={detail.analytics.totals.ecoSemiUpset} />
+              <MetricPanel title="Round Profile">
+                {mapAnalytics ? (
+                  <dl className="grid grid-cols-2 gap-3">
+                    <div>
+                      <dt>
+                        <StatsMetricLabel metric="roundWin">CT / T</StatsMetricLabel>
+                      </dt>
+                      <dd className="flex flex-wrap gap-2">
+                        <MetricValue
+                          metric="roundWin"
+                          value={mapAnalytics.ct}
+                          sampleLabel="CT rounds"
+                        />
+                        <MetricValue
+                          metric="roundWin"
+                          value={mapAnalytics.t}
+                          sampleLabel="T rounds"
+                        />
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <StatsMetricLabel metric="pistol">Pistol CT / T</StatsMetricLabel>
+                      </dt>
+                      <dd className="flex flex-wrap gap-2">
+                        <MetricValue
+                          metric="pistol"
+                          value={mapAnalytics.pistolCt}
+                          sampleLabel="CT pistol rounds"
+                        />
+                        <MetricValue
+                          metric="pistol"
+                          value={mapAnalytics.pistolT}
+                          sampleLabel="T pistol rounds"
+                        />
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <StatsMetricLabel metric="openingConversion">
+                          {STATS_METRICS.openingConversion.label}
+                        </StatsMetricLabel>
+                      </dt>
+                      <dd>
+                        {performanceMap ? (
+                          <MetricValue
+                            metric="openingConversion"
+                            value={performanceMap.opening.conversionRate}
+                          />
+                        ) : (
+                          "—"
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <StatsMetricLabel metric="openingComeback">
+                          {STATS_METRICS.openingComeback.label}
+                        </StatsMetricLabel>
+                      </dt>
+                      <dd>
+                        {performanceMap ? (
+                          <MetricValue
+                            metric="openingComeback"
+                            value={performanceMap.opening.comebackRate}
+                          />
+                        ) : (
+                          "—"
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className="text-sm text-[var(--color-fg-mid)]">暂无完整回合数据。</p>
+                )}
               </MetricPanel>
             </div>
-            <MetricPanel title="Economy Matchups">
-              <StatsDataTable
-                embedded
-                rows={detail.analytics.economyMatrix}
-                columns={economyColumns}
-                rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`}
-                emptyLabel="暂无经济样本"
-              />
-            </MetricPanel>
-          </div>
-        )}
+          )}
+
+          {tab === "teams" && (
+            <StatsDataTable
+              rows={detail.analytics.teams}
+              rankingBaselineRows={detail.analytics.teams}
+              columns={teamColumns}
+              rowKey={(row) => row.team.entityKey}
+              initialSortKey="rw"
+              emptyLabel="暂无队伍统计"
+            />
+          )}
+          {tab === "players" && (
+            <StatsDataTable
+              rows={playersWithTeam}
+              rankingBaselineRows={playersWithTeam}
+              columns={playerColumns}
+              rowKey={(row) => row.player.entityKey}
+              initialSortKey="opening"
+              emptyLabel="暂无选手统计"
+            />
+          )}
+          {tab === "economy" && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <MetricPanel
+                  title={<StatsMetricLabel metric="pistol">Pistol CT / T</StatsMetricLabel>}
+                >
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    <span>
+                      CT{" "}
+                      <MetricValue
+                        metric="pistol"
+                        value={detail.analytics.totals.pistolCt}
+                        sampleLabel="CT pistol rounds"
+                      />
+                    </span>
+                    <span>
+                      T{" "}
+                      <MetricValue
+                        metric="pistol"
+                        value={detail.analytics.totals.pistolT}
+                        sampleLabel="T pistol rounds"
+                      />
+                    </span>
+                  </div>
+                </MetricPanel>
+                <MetricPanel
+                  title={
+                    <StatsMetricLabel metric="conversion">
+                      {STATS_METRICS.conversion.label}
+                    </StatsMetricLabel>
+                  }
+                >
+                  <MetricValue
+                    metric="conversion"
+                    value={detail.analytics.totals.round2Conversion}
+                  />
+                </MetricPanel>
+                <MetricPanel
+                  title={
+                    <StatsMetricLabel metric="break">{STATS_METRICS.break.label}</StatsMetricLabel>
+                  }
+                >
+                  <MetricValue metric="break" value={detail.analytics.totals.round2Break} />
+                </MetricPanel>
+                <MetricPanel title={<StatsMetricLabel metric="fiveVFour">5v4</StatsMetricLabel>}>
+                  <MetricValue
+                    metric="fiveVFour"
+                    value={detail.analytics.totals.manAdvantage["5v4"]}
+                  />
+                </MetricPanel>
+                <MetricPanel title={<StatsMetricLabel metric="fourVFive">4v5</StatsMetricLabel>}>
+                  <MetricValue
+                    metric="fourVFive"
+                    value={detail.analytics.totals.manAdvantage["4v5"]}
+                  />
+                </MetricPanel>
+                <MetricPanel
+                  title={<StatsMetricLabel metric="ecoSemi">Eco/Semi Win%</StatsMetricLabel>}
+                >
+                  <MetricValue metric="ecoSemi" value={detail.analytics.totals.ecoSemiUpset} />
+                </MetricPanel>
+              </div>
+              <MetricPanel title="Economy Matchups">
+                <StatsDataTable
+                  embedded
+                  rows={detail.analytics.economyMatrix}
+                  columns={economyColumns}
+                  rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`}
+                  emptyLabel="暂无经济样本"
+                />
+              </MetricPanel>
+            </div>
+          )}
+        </MetricFamilyTabs>
       </section>
       <ContentReady module="statistics" phase="primary" />
     </>
