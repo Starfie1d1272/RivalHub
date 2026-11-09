@@ -43,3 +43,50 @@
 | `design-system-radius` advisory | 5 | 赛事模块 4 条 5px／9px 圆角纳入卡片角色核对。PhaseStep 的 2px 为 `var(--radius-sm, 2px)` fallback，运行时已有根 radius token。 |
 
 本轮的无名字段、重复焦点、320px 溢出、错误范围交接等来自浏览器和源码人工核对。检测命中不用于推导 WCAG 合规结论或直接换算 P0–P3。
+
+## 冻结前补证
+
+### FZ-01 · 匿名浏览与环境
+
+2026-11-09，源码 `3ac65bdf`、线上 `2.25.42`。用 Chrome 157.0.8103.39 和已安装的 Playwright 1.64.1 开独立匿名上下文。只允许指定文档、本站脚本/样式/字体的 GET，没有复用任何登录凭证；阻止 Service Worker、WebSocket、后台读请求、外部资源及一切非 GET。浏览时确有自动 POST 被拦截。未开已登录生产页、未提交表单、未调用任何业务 action。浏览器为桌面缩放视口，屏幕阅读器与真机未用。
+
+| 取证 | 视口及观察 |
+| --- | --- |
+| Rivals 历史、Major 能力未启用 | 1280px：Rivals 票榜、选秀归档、队长阶段外提示/公开回链、已结束报名和报名名单；Major 直接访问投票/选秀显示能力未启用，旧 Players 入口跳到参赛阵容。Rivals 票榜、归档、队长入口与报名名单在 320px 文档宽仍为 320px。 |
+| 标题与面板 | 1280px：历史票榜 H1 30px，候选标题 20px；选秀归档 H1 30px，阵容及记录标题 14px。两者密度和数据组织不同；该差异用于设计层级对照。 |
+| 匿名权限与恢复 | `/my` 与 `/settings/security` 回登录且保留 `next`；`/admin` 回登录无来源。确认缺参显示「邮箱验证未完成」。找回无票据在 1280/320px 都显示两个密码字段和提交，无重发入口。 |
+| Before 截图 | [无票据密码找回](2026-11-09-reset-320-before.png)：`/reset-password`，320×680 CSS px，匿名、无链接参数或浏览器恢复会话，截取标题、说明与表单区域。没有输入或提交。 |
+
+Preview 的认证入口存在，但只读状态确认服务 `inactive`。宿主剩余内存低于该服务上限，保持按需服务关闭。本机 Docker daemon 不可用，无隔离的 Local Supabase 服务。以下夹具仅使用 loopback、合成数据和替代 action，不接真实 DB、Auth、邮箱或调度器。
+
+### FZ-02 · 主题作用域与实测配色
+
+用仓库安装的 Tailwind 4.3.3 编译 `src/app/globals.css` 与源码 class，以 `seasonAccentStyle` 创建合成赛事 wrapper。渲染真实 Button、Input、Select、Dialog、DropdownMenu、HelpTooltip 和 MatchLiveViewing；Next 的 Link 只作本地展示。loopback HTTP 只提供静态夹具，阻断外网、表单提交和 iframe。Chrome 采集计算样式和 Portal 与 wrapper 的包含关系。
+
+| 取证条件 | Chrome 观察 |
+| --- | --- |
+| 390px，自定义 `#4ade80` | 直接取主色的文字/填充为 `#4ade80`，默认 Button 填充仍 `#ff6b1a`。Button 直接取焦点为 `#4ade80`，Select 的 `ring-ring` 为 `#ff6b1a`。使用历史 Rivals 的 `#f97316` 再测，填充别名仍为根橙。 |
+| 开启浮层 | Dialog、Select、DropdownMenu 与 HelpTooltip 不在赛事 wrapper 内，均解析到根主色。Dialog 内直接取主色的样本为根橙；HelpTooltip 平时使用中性表面，作用域差异本身不等于可见缺陷。Dialog 在 390px 为 358px 宽，在 1280px 为 448px。 |
+| 真实填充与边界 | 根色下合成两位进行中解说，初始选中为白／橙 **2.85:1**。真实 destructive Button 为 `#e7ecf3`／`#ff5470` **2.62:1**。输入框边线对内嵌底色 **1.24:1**、对面板 **1.21:1**；填充对面板 **1.02:1**。 |
+| 合法输入色边界 | `#777777` 的函数选色为 `#0a0c10`（**4.37:1**）；代入白字为 **4.48:1**。赛事 `#111111` 的 Button 实测焦点色对页面 **1.04:1**、对面板 **1.02:1**。这些颜色仅用合成组件取证，未改赛事配置。 |
+
+对比度按相对亮度 `(L较亮 + .05) / (L较暗 + .05)` 计算，实际字号和边界用途分别按 [WCAG 2.2 文字对比度](https://www.w3.org/TR/WCAG22/#contrast-minimum) 和 [非文本对比度](https://www.w3.org/TR/WCAG22/#non-text-contrast) 判断。[CSS 自定义属性计算规则](https://www.w3.org/TR/css-variables-1/#cycles)
+
+Before：[赛事 wrapper](2026-11-09-theme-scope-390-before.png) · [打开 Dialog](2026-11-09-theme-portal-390-before.png)。两张为本机 `/theme`，390×700 CSS px，合成赛事 `#4ade80`，深色，未提交。第一张保留主按钮、直接取色、禁用和输入边界，第二张用同一赛事打开真实 Portal。
+
+### FZ-03 · 报名、选秀与纪律隔离复现
+
+使用仓库安装的 Vitest 5.0.5／jsdom，加载真实 TSX 与表单库，以合成 DTO、受控 Promise、假时钟及 stub 替代网络、会话和动作。参赛/选秀共 3 个临时夹具、13 个场景通过；纪律另 1 个场景通过。未运行项目 E2E/数据库集成套件。
+
+| 证据 | 复现及边界 |
+| --- | --- |
+| UIA-033、034、044 | `RegistrationForm` 开放个人报名：保持读取 Promise pending，改「游戏风格自述」，释放同字段草稿，DOM 显示旧值，save/submit 调用为 0。合成完整草稿的承诺值为 true，控件未勾，mock submit 接到 true。闭窗时字段可编辑但提交/草稿禁用；返回字段错误只显示通用 toast；成功 DTO 显示回执且没有进度链接。真实审核、落库和关闭竞争未测试。 |
+| UIA-042、045、046 | 队长未启动时，实际 page 的 SSR 夹具仅有等待提示。进入本队回合后模拟 10s 轮询，注入一次传输拒绝，候选继续 disabled，之后 30s 无第二次刷新。后台给无可选者/完结 DTO，分别只见暂停/恢复以及「已暂停」「第 7 / 6 轮」。队长确认给 8 名候选、0 票仍可进入，mock 只接赛事 ID；真实排序函数对后到票样本重算时名单变化。状态与时钟来自合成数据，无实际定时调度或提交。 |
+| UIA-041 | 让 Alpha、Beta 两个搜索均已发出，先兑现 Beta，再兑现 Alpha；输入仍 Beta，结果仅 Alpha。选择 Alpha 并签发，mock 接到 Alpha ID。未处罚用户。对照 `UserSessionControl.tsx:40–60` 现有请求代际守卫。 |
+
+### FZ-04 · 高影响与性能的剩余边界
+
+- **UIA-028。** `postmatch-community-awards.test.ts` 有清除认领的持久化场景，末轮只核对断言。通用转移在 `competition-policy.ts:21–25` 排除 Play-in；托管 Swiss 的 `src/lib/major/swiss-runtime.ts:63–77,163–186` 要求完赛事实。常规更正仅已结束，弃赛也走状态机。无 Swiss 且满足终态条件才走 `src/lib/seasons/transitions.ts:79–107` 的赛季收尾。盘口锁定与 dirty 来源为 `0096_bet_locked_market_noop.sql:24–29,60`；退款由后续 `bet/domain.ts:122` 和 `bet/service.ts:470–491` 决定。未执行取消、退款或竞态。
+- **UIA-035、036、047、049。** 会话 fixture `application-sessions.test.ts:145–163` 与 `identity-revocation-race.test.ts:50–111` 支持全账号旧会话范围与并发保护。找回的 provider session 行为按已安装 Supabase SDK 2.118.0 及默认 `persistSession`、`detectSessionInUrl` 核对；没有验证遗留真实 token 或消费实际邮件。Next 16.4.3 本地指南 `authentication.md#layouts-and-auth-checks` 建议在 data source 附近检查授权；现有跨届内容 E2E 的覆盖范围不能代替这些私有读取页的验证。实际改密目标、拒绝态、RSC 与会话清理须用隔离角色验证。
+- **UIA-029。** 4 次/秒是源码 interval 调度，不等于每秒四次 React commit 或实际耗电。采样固定可见状态、设备节流和暂停/恢复；保留回前台重读、到期及待补缓存投递。没有生产活跃 BP trace。
+- **UIA-030。** 赛后资料为父查询和八组批读，后续全范围投影再分页。已有小规模 fixture 保护缺口及恢复正确性。对照实验调用真实 `betOperationsList`，构造 25/100/250 个组，每组 5 市场：每次返回 10 组，`matchId` 属性读取分别为 3,250／50,500／313,750 次。它只量算法访问，不量 DB、Flight 字节或用户时延。两条读路径分别采样，在已知瓶颈上改动。
