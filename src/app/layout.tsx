@@ -52,9 +52,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" className="dark">
-      <head>
-        <link rel="stylesheet" href="/brackets-viewer.min.css" />
-      </head>
+      <head></head>
       <body
         className={`${geist.variable} ${jetbrainsMono.variable} antialiased min-h-screen flex flex-col`}
       >
