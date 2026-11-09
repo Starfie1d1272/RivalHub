@@ -32,7 +32,9 @@ export default async function ConfirmationPage({
         {flow === "link_identity" ? (
           <>
             <h1 className="text-xl font-semibold">确认绑定身份</h1>
-            <SecondaryEmailLink proof={{ tokenHash, requestId: request, stateToken: state, otpType: type }} />
+            <SecondaryEmailLink
+              proof={{ tokenHash, requestId: request, stateToken: state, otpType: type }}
+            />
           </>
         ) : confirmationFlow && tokenHash ? (
           <>
@@ -64,19 +66,30 @@ export default async function ConfirmationPage({
 async function SecondaryEmailLink({ proof }: { proof: unknown }) {
   const session = await getUserSession();
   if (!session) {
-    return <SecondaryEmailLinkMessage message="请登录发起绑定的 RivalHub 账号，再从邮件重新打开此链接。" />;
+    return (
+      <SecondaryEmailLinkMessage message="请登录发起绑定的 RivalHub 账号，再从邮件重新打开此链接。" />
+    );
   }
 
   const parsed = secondaryEmailLinkProofSchema.safeParse(proof);
   if (!parsed.success) {
-    return <SecondaryEmailLinkMessage signedIn message="邮箱绑定链接无效，请在账号与安全中重新发起。" />;
+    return (
+      <SecondaryEmailLinkMessage signedIn message="邮箱绑定链接无效，请在账号与安全中重新发起。" />
+    );
   }
 
   const { requestId, stateToken } = parsed.data;
   try {
-    await assertSecondaryEmailLinkReady(db, { requestId, stateToken, currentUserId: session.userId });
+    await assertSecondaryEmailLinkReady(db, {
+      requestId,
+      stateToken,
+      currentUserId: session.userId,
+    });
   } catch (error) {
-    if (isAppErrorCode(error, ErrorCode.FORBIDDEN) || isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) {
+    if (
+      isAppErrorCode(error, ErrorCode.FORBIDDEN) ||
+      isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)
+    ) {
       return <SecondaryEmailLinkMessage signedIn message={error.message} />;
     }
     throw error;
@@ -92,10 +105,18 @@ async function SecondaryEmailLink({ proof }: { proof: unknown }) {
   );
 }
 
-function SecondaryEmailLinkMessage({ message, signedIn = false }: { message: string; signedIn?: boolean }) {
+function SecondaryEmailLinkMessage({
+  message,
+  signedIn = false,
+}: {
+  message: string;
+  signedIn?: boolean;
+}) {
   return (
     <>
-      <p role="alert" className="text-sm text-[var(--color-fg-mid)]">{message}</p>
+      <p role="alert" className="text-sm text-[var(--color-fg-mid)]">
+        {message}
+      </p>
       <Button asChild variant="outline" className="w-full">
         <Link href={signedIn ? "/settings/security" : "/login"} prefetch={false}>
           {signedIn ? "查看当前账号" : "去登录"}

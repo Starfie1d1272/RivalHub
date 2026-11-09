@@ -59,7 +59,10 @@ function assertPendingLinkRequest(
     request.status !== "pending" ||
     request.expiresAt <= new Date()
   ) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "邮箱绑定链接已失效，请在账号与安全中重新发起。");
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "邮箱绑定链接已失效，请在账号与安全中重新发起。",
+    );
   }
   if (request.userId !== currentUserId) {
     throw new AppError(
@@ -113,7 +116,10 @@ export async function completeSecondaryIdentityLinkInTx(
     .for("update");
   assertPendingLinkRequest(request, { ...input, currentUserId: canonicalCurrentId });
   if (request.normalizedEmail !== normalizedEmail) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "验证邮箱与绑定申请不一致，请从原邮件重新打开链接。");
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "验证邮箱与绑定申请不一致，请从原邮件重新打开链接。",
+    );
   }
 
   const matchingIdentities = await tx.select().from(userIdentities).where(matchingCredential);

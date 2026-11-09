@@ -53,7 +53,9 @@ export function SecondaryIdentityConfirmationForm({
     return (
       <div className="space-y-3">
         <p role="alert" className="text-sm text-[var(--color-fg-mid)]">
-          {needsLogin ? "请登录发起绑定的 RivalHub 账号，再从邮件重新打开此链接。" : failure.message}
+          {needsLogin
+            ? "请登录发起绑定的 RivalHub 账号，再从邮件重新打开此链接。"
+            : failure.message}
         </p>
         <Button asChild variant="outline" className="w-full">
           <Link href={needsLogin ? "/login" : "/settings/security"} prefetch={false}>
