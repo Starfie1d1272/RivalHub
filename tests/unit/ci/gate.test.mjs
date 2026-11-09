@@ -14,7 +14,6 @@ function runGate(overrides) {
       POSTGRES_RESULT: "skipped",
       SYSTEM_RESULT: "skipped",
       DEPENDENCY_REVIEW_RESULT: "skipped",
-      DEPENDENCY_GRAPH_BUILD_RESULT: "success",
       EVENT_NAME: "push",
       REQUIRED_JOBS: "[]",
       ...overrides,

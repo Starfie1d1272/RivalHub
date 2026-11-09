@@ -13,7 +13,7 @@ const job = (name, duration, start = 0) => ({ name, started_at: stamp(-3_600_000
 const options = { requiredJobs: ["static", "postgres"], requireReview: true, gateMilliseconds: 5_000 };
 const corpus = () => [job("plan", 10_000), job("static / types", 30_000, 3_600_000), job("static / unit", 20_000, 7_200_000),
   job("postgres / 1/2", 40_000, 10_800_000), job("postgres / 2/2", 15_000, 14_400_000),
-  job("dependency-graph-build", 60_000), job("dependency-review", 5_000),
+  job("dependency-review", 60_000),
   { name: "system / skipped", conclusion: "skipped" }, { name: "ci-gate", steps: [] }];
 
 describe("CI execution budget", () => {
@@ -39,7 +39,7 @@ describe("CI execution budget", () => {
 
   it("accepts optional skipped lanes and dependency review outside a PR", () => {
     const rows = corpus().filter(row => !row.name.startsWith("postgres / ") && row.name !== "dependency-review");
-    expect(executionBudget(rows, { ...options, requiredJobs: ["static"], requireReview: false }).executionMilliseconds).toBe(65_000);
+    expect(executionBudget(rows, { ...options, requiredJobs: ["static"], requireReview: false }).executionMilliseconds).toBe(45_000);
   });
 
   it("fails closed for missing required lanes, missing review, unknown jobs and incomplete timestamps", () => {
@@ -55,7 +55,7 @@ describe("CI execution budget", () => {
     const dir = mkdtempSync(join(tmpdir(), "ci-budget-"));
     try {
       const path = join(dir, "jobs.json");
-      const rows = [job("plan", 10_000), job("static / unit", 168_000), job("dependency-graph-build", 1)];
+      const rows = [job("plan", 10_000), job("static / unit", 168_000)];
       writeFileSync(path, rows.map(row => JSON.stringify(row)).join("\n"));
       const run = gate => spawnSync(process.execPath, ["scripts/ci/execution-budget.mjs", "--jobs", path,
         "--gate-ms", String(gate), "--budget-ms", "180000"], { encoding: "utf8",

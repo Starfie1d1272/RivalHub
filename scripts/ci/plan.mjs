@@ -9,8 +9,6 @@ export const CAPABILITIES = ["static", "postgres", "system"];
 
 const STATIC_PROJECTS = ["unit-domain-node", "unit-server-node", "unit-react-jsdom"];
 const FULL_STATIC_MATRIX = [
-  // Short checks and unit projects each share their setup instead of repeating
-  // runner allocation, checkout and installation. Affected planning is unchanged.
   { task: "checks", changedPaths: [] },
   { task: "unit-all", mode: "full", changedPaths: [] },
   { task: "build", changedPaths: [] },
@@ -26,17 +24,6 @@ const DB_BACKED_APP_PREFIXES = [
   "src/app/seasons/",
   "src/app/settings/",
 ];
-const SYSTEM_APP_PREFIXES = [
-  "src/app/auth/",
-  "src/app/login/",
-  "src/app/forgot-password/",
-  "src/app/reset-password/",
-  "src/app/api/test/e2e/",
-];
-const SYSTEM_ACTION_PREFIXES = [
-  "src/actions/auth",
-];
-
 // Mizar/RivalHub machine contract surfaces. These need the cross-repo adapter and
 // parser evidence from scripts/mizar-contract-check.mjs, not business-table REST.
 const LIVE_SURFACES = [
@@ -58,8 +45,13 @@ const LIVE_SURFACES = [
   "drizzle/migrations/0066_mizar_backend_contracts",
 ];
 const SYSTEM_FLOW_MAP = [
+  { prefixes: ["src/lib/admin/season-context.ts", "src/app/admin/layout.tsx", "src/app/admin/logs/"], specs: ["tests/e2e/flows/admin-immediate-boundaries.spec.ts"] },
+  { prefixes: ["src/lib/registrations/admin-review", "src/app/admin/[seasonSlug]/registrations/"], specs: ["tests/e2e/flows/admin-season-private-reads.spec.ts"] },
+
   { prefixes: ["src/actions/test-matches.ts", "src/lib/matches/test-matches.ts", "src/components/matches/TestMatch", "src/app/admin/[seasonSlug]/test-matches/"], specs: ["tests/e2e/flows/test-matches.spec.ts"] },
   { prefixes: ["src/actions/bet.ts", "src/components/bet/BetBoard", "src/components/bet/BetOperations"], specs: ["tests/e2e/flows/bet.spec.ts"] },
+  { prefixes: ["src/actions/free-predictions.ts", "src/components/bet/FreePrediction"], specs: ["tests/e2e/flows/free-predictions.spec.ts"] },
+  { prefixes: ["src/actions/identity.ts", "src/lib/identity/linking.ts", "src/components/auth/SecondaryIdentityConfirmationForm.tsx"], specs: ["tests/e2e/flows/secondary-email-confirmation.spec.ts"] },
   { prefixes: ["src/actions/predictions.ts", "src/components/predictions/PickEm", "src/components/predictions/PredictionBoard.tsx", "src/components/predictions/PickEditor.tsx"], specs: ["tests/e2e/flows/predictions.spec.ts"] },
   { prefixes: ["src/actions/competition-qualification.ts", "src/components/admin/MajorPrestartConsole", "src/components/admin/MajorCompetitionFlow.tsx"], specs: ["tests/e2e/flows/major-qualification.spec.ts"] },
   { prefixes: ["src/components/matches/SeriesScoreCorrection"], specs: ["tests/e2e/flows/series-score-correction.spec.ts"] },
@@ -85,12 +77,56 @@ const SYSTEM_FLOW_MAP = [
       "src/actions/session-management.ts",
       "src/lib/auth/",
       "src/lib/session/",
+      "src/app/api/test/e2e/",
       "src/components/auth/LoginForm.tsx",
       "src/components/auth/TurnstileWidget.tsx",
     ],
-    specs: ["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts"],
+    specs: ["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts", "tests/e2e/flows/secondary-email-confirmation.spec.ts"],
   },
 ];
+
+const BROWSER_GROUPS = {
+  account: ["account-transport-budget", "major-entry", "secondary-email-confirmation", "session-revocation"],
+  admin: ["admin-awards-boundaries", "admin-content-read-boundaries", "admin-season-private-reads"],
+  // The Flight query-count probe reads database-wide pg_stat_statements.
+  "admin-query": ["admin-immediate-boundaries"],
+  predictions: ["bet", "free-predictions", "predictions"],
+  matches: ["mizar-source-lifecycle", "ocr-receipt-recovery", "series-score-correction"],
+  events: ["event-logo", "major-qualification"],
+  teams: ["team-invitations", "test-matches"],
+};
+
+const PRODUCTION_HARNESS_PREFIXES = [
+  "playwright.production.config.",
+  "tests/e2e/production/",
+  "tests/e2e/helpers/production-server",
+  "tests/e2e/helpers/bet-read-stages.ts",
+];
+
+const PRODUCTION_SMOKE_PREFIXES = [
+  ...PRODUCTION_HARNESS_PREFIXES,
+  "tests/e2e/fixtures.ts",
+  "tests/e2e/helpers/production-server",
+  "tests/e2e/helpers/bet-read-stages.ts",
+  "scripts/db/local.ts",
+  "scripts/db/local-environment.ts",
+  "src/app/layout.tsx",
+  "src/components/layout/Header",
+  "src/components/layout/SeasonNav.tsx",
+  "src/app/login/",
+  "src/lib/auth/session.ts",
+  "src/lib/session/",
+  "src/app/api/bet/",
+  "src/app/[seasonSlug]/bet/",
+  "src/lib/bet/board-read.ts",
+  "src/lib/bet/read-access.ts",
+  "src/lib/bet/request-read.ts",
+];
+
+function isDeploymentTool(path) {
+  return path.startsWith("scripts/standby/") || path === "scripts/release/linux-routing.ts"
+    || path === ".github/workflows/release.yml" || path === ".github/workflows/standby-package.yml";
+}
 
 function browserSpecs(directory = "tests/e2e") {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -133,7 +169,7 @@ export function classifyChangedFiles(entries, options = {}) {
     };
   };
   if (forceFull) {
-    return result(CAPABILITIES, true, "受保护分支、merge queue、schedule 或手动运行，强制 full gate");
+    return result(CAPABILITIES, true, "merge queue、手动运行或缺少基准提交，强制 full gate");
   }
   if (entries.length === 0) {
     return result(CAPABILITIES, true, "无法取得 changed-surface，fail closed 到 full gate");
@@ -151,71 +187,63 @@ export function classifyChangedFiles(entries, options = {}) {
     typeScripts: false,
     architecture: false,
     lintPaths: new Set(),
-    unitRelatedSources: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
+    unitRelatedSources: new Set(),
     unitExplicitTests: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
     integrationSpecs: new Set(),
     integrationFull: false,
     e2eFull: false,
     e2eSpecs: new Set(),
+    provider: false,
+    production: false,
+    deployment: false,
   };
-  let docsOnly = true;
   for (const entry of entries) {
-    // Consuming a Changeset removes release notes, not executable code. Keep
-    // all other deletes fail-closed, including Changeset configuration/README.
-    if (entry.status === "D" && entry.paths?.length === 1
-      && /^\.changeset\/(?!README\.md$)[^/]+\.md$/.test(entry.paths[0])) {
-      reasons.add(`consumed Changeset: ${entry.paths[0]}`);
-      continue;
+    const removed = /^[DR]/.test(entry.status);
+    for (const [index, path] of entry.paths.entries()) {
+      const existsAtHead = !removed || index > 0;
+      const classification = classifyPath(path, existsAtHead);
+      if (classification.capabilities === "full") {
+        return result(CAPABILITIES, true, classification.reason);
+      }
+
+      for (const capability of classification.capabilities) capabilities.add(capability);
+      reasons.add(classification.reason);
+      evidence.provider ||= classification.provider === true;
+      evidence.production ||= PRODUCTION_SMOKE_PREFIXES.some(prefix => path.startsWith(prefix));
+      evidence.deployment ||= isDeploymentTool(path);
+      evidence.e2eFull ||= classification.e2eFull === true;
+      if (!existsAtHead) {
+        evidence.typeTests ||= path.startsWith("tests/");
+        continue;
+      }
+      collectEvidence(path, classification, evidence);
+      if (classification.capabilities.includes("postgres") && !classification.integrationSpecs) {
+        const specs = postgresSpecsForSource(path);
+        if (specs === null) evidence.integrationFull = true;
+        else for (const spec of specs) evidence.integrationSpecs.add(spec);
+      }
     }
-    if (entry.status === "R" || entry.status === "D" || entry.status.startsWith("R") || entry.status.startsWith("D")) {
-      return result(CAPABILITIES, true, `检测到 ${entry.status} rename/delete：${entry.paths.join(" -> ")}`);
-    }
-    const path = entry.paths[entry.paths.length - 1] ?? "";
-    const classification = classifyPath(path);
-    if (classification.capabilities === "full") {
-      return result(CAPABILITIES, true, classification.reason);
-    }
-    if (classification.capabilities.length > 0) docsOnly = false;
-    for (const capability of classification.capabilities) capabilities.add(capability);
-    reasons.add(classification.reason);
-    collectEvidence(path, classification, evidence);
-    if (classification.capabilities.includes("postgres") && !classification.integrationSpecs) {
-      const specs = postgresSpecsForSource(path);
-      if (specs === null) evidence.integrationFull = true;
-      else for (const spec of specs) evidence.integrationSpecs.add(spec);
-    }
-    const mappedSystemFlow = SYSTEM_FLOW_MAP.some(mapping => mapping.prefixes.some(prefix => path === prefix || path.startsWith(prefix)));
-    // An explicit empty mapping selects provider-only evidence; unmapped
-    // system surfaces still fail closed to the complete browser suite.
-    if (classification.capabilities.includes("system") && !classification.e2eSpecs && !mappedSystemFlow) evidence.e2eFull = true;
   }
 
-  if (evidence.e2eSpecs.size > 0) {
-    capabilities.add("system");
-  }
-
-  if (liveSurfaceChanged) {
+  if (evidence.e2eSpecs.size || evidence.e2eFull || liveSurfaceChanged || evidence.provider || evidence.production) {
     capabilities.add("system");
   }
 
   if (capabilities.size === 0) {
-    return docsOnly
-      ? result([], false, `docs-only surface：只保留 planner + ${gateName}`)
-      : result(CAPABILITIES, true, "changed-surface 未命中已声明 capability，fail closed 到 full gate");
+    return result([], false, `docs-only surface：只保留 planner + ${gateName}`);
   }
 
-  const staticMatrix = buildStaticMatrix(evidence);
+  const staticMatrix = capabilities.has("static") ? buildStaticMatrix(evidence) : [];
   return result(
     [...capabilities].sort((a, b) => CAPABILITIES.indexOf(a) - CAPABILITIES.indexOf(b)),
     false,
     [...reasons].join("；"),
     {
       staticMatrix,
-      unitMode: staticMatrix.some((item) => item.mode === "related" || item.mode === "explicit") ? "affected" : "none",
-      relatedSources: unique([...evidence.unitRelatedSources.values()].flatMap((paths) => [...paths])),
-      explicitTests: unique([...evidence.unitExplicitTests.values()].flatMap((paths) => [...paths])),
       integrationSpecs: evidence.integrationFull ? [] : [...evidence.integrationSpecs].sort(),
       e2eSpecs: evidence.e2eFull ? browserSpecs() : [...evidence.e2eSpecs].sort(),
+      provider: evidence.provider,
+      production: evidence.production,
     },
   );
 }
@@ -243,7 +271,7 @@ export function isReleaseMetadataOnly(entries, options = {}) {
 }
 
 function isReleaseMetadataPath(path) {
-  return path.startsWith(".changeset/") || path === "CHANGELOG.md" || path === "package.json";
+  return isChangesetNote(path) || path === "CHANGELOG.md" || path === "package.json";
 }
 
 function withoutPackageVersion(value) {
@@ -277,13 +305,29 @@ export function parseNameStatus(raw) {
     });
 }
 
-function classifyPath(path) {
-  if (path.startsWith(".changeset/")) {
-    return { capabilities: [], reason: `release metadata: ${path}` };
+function isChangesetNote(path) {
+  return /^\.changeset\/(?!README\.md$)[^/]+\.md$/.test(path);
+}
+
+function classifyPath(path, existsAtHead) {
+  if (isChangesetNote(path)) return { capabilities: [], reason: `release metadata: ${path}` };
+
+  const docs = path === ".impeccable/design.json" || path.startsWith("docs/") || path.endsWith(".md") || path.endsWith(".mdx");
+  if (docs) return { capabilities: [], reason: `docs-only: ${path}` };
+
+  if (!existsAtHead && (isIntegrationSpec(path) || isE2ESpec(path) || /^tests\/unit\/.*\.test\.[cm]?[jt]sx?$/.test(path))) {
+    return { capabilities: ["static"], reason: `removed test; check remaining consumers: ${path}` };
+  }
+  if (!existsAtHead && path.startsWith("src/") && CODE_EXTENSIONS.test(path)) {
+    return { capabilities: "full", reason: `removed executable surface: ${path}` };
   }
 
-  const docs = path.startsWith("docs/") || path.endsWith(".md") || path.endsWith(".mdx");
-  if (docs) return { capabilities: [], reason: `docs-only: ${path}` };
+  if (PRODUCTION_HARNESS_PREFIXES.some(prefix => path.startsWith(prefix))) {
+    return { capabilities: ["static"], reason: `production browser smoke surface: ${path}` };
+  }
+  if (isDeploymentTool(path)) {
+    return { capabilities: ["static"], reason: `deployment owner: ${path}` };
+  }
 
   const fullPrefixes = [
     ".github/",
@@ -306,7 +350,7 @@ function classifyPath(path) {
     return { capabilities: "full", reason: `Supabase project surface: ${path}` };
   }
   if (path === "supabase/config.toml") {
-    return { capabilities: ["system"], reason: `Supabase service contract: ${path}` };
+    return { capabilities: ["system"], provider: true, reason: `Supabase service contract: ${path}` };
   }
 
   if (path.startsWith("drizzle/migrations/")) {
@@ -327,31 +371,24 @@ function classifyPath(path) {
   if (path.startsWith("tests/e2e/acceptance/") || path.startsWith("tests/e2e/visual/")) {
     return { capabilities: ["static"], reason: `opt-in visual/acceptance surface: ${path}` };
   }
-  if (path.startsWith("tests/e2e/production/")) {
-    return { capabilities: ["static", "system"], reason: `production browser smoke surface: ${path}` };
-  }
   if (path.startsWith("tests/e2e/")) {
     return isE2ESpec(path)
-      ? { capabilities: ["static", "system"], reason: `browser and Local Supabase E2E spec: ${path}`, e2eSpecs: [path] }
-      : { capabilities: ["static", "system"], reason: `E2E support surface；system 使用 full suite: ${path}` };
+      ? { capabilities: ["static"], reason: `browser and Local Supabase E2E spec: ${path}`, e2eSpecs: [path] }
+      : { capabilities: ["static"], e2eFull: true, reason: `shared E2E support: ${path}` };
   }
 
-  const source = readSourceDependencies(path);
+  const source = existsAtHead ? readSourceDependencies(path) : { usesDatabase: false, usesSupabase: false };
   if (source.unreadable) {
     return { capabilities: "full", reason: `source dependency surface unreadable: ${path}` };
   }
 
   if (path.startsWith("scripts/")) return classifyScriptPath(path);
 
-  const flowSpecs = systemSpecsForPath(path);
-
   if (path.startsWith("src/actions/")) {
     const capabilities = ["static", "postgres"];
-    if (SYSTEM_ACTION_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase || flowSpecs.length > 0) {
-      capabilities.push("system");
-    }
     return {
       capabilities,
+      provider: source.usesSupabase,
       reason: `Server Action surface${source.usesSupabase ? " with Supabase dependency" : ""}: ${path}`,
     };
   }
@@ -361,17 +398,13 @@ function classifyPath(path) {
     if (DB_BACKED_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesDatabase) {
       capabilities.push("postgres");
     }
-    if (SYSTEM_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase || flowSpecs.length > 0) {
-      capabilities.push("system");
-    }
-    return { capabilities, reason: `App Router surface: ${path}` };
+    return { capabilities, provider: source.usesSupabase, reason: `App Router surface: ${path}` };
   }
 
   if (path.startsWith("src/components/")) {
     const capabilities = ["static"];
     if (source.usesDatabase) capabilities.push("postgres");
-    if (source.usesSupabase || flowSpecs.length > 0) capabilities.push("system");
-    return { capabilities, reason: `UI surface: ${path}` };
+    return { capabilities, provider: source.usesSupabase, reason: `UI surface: ${path}` };
   }
 
   if (path.startsWith("tests/unit/")) {
@@ -381,10 +414,7 @@ function classifyPath(path) {
   if (path.startsWith("src/lib/")) {
     const capabilities = ["static"];
     if (source.usesDatabase) capabilities.push("postgres");
-    if (source.usesSupabase || path === "src/lib/auth/session.ts" || path.startsWith("src/lib/session/") || flowSpecs.length > 0) {
-      capabilities.push("system");
-    }
-    return { capabilities, reason: `library surface: ${path}` };
+    return { capabilities, provider: source.usesSupabase, reason: `library surface: ${path}` };
   }
   if (path.startsWith("public/") || path.startsWith("styles/") || path.endsWith(".css")) {
     return { capabilities: ["static"], reason: `presentation asset surface: ${path}` };
@@ -397,13 +427,16 @@ function classifyScriptPath(path) {
     return { capabilities: ["static"], reason: `CI timing utility surface: ${path}` };
   }
   if (path.startsWith("scripts/ci/system-artifact")) {
-    return { capabilities: ["static", "system"], reason: `system artifact security surface: ${path}` };
+    return { capabilities: ["static"], reason: `system artifact security surface: ${path}` };
   }
   if (path.startsWith("scripts/mizar-contract-check")) {
-    return { capabilities: ["static", "system"], reason: `Mizar cross-repo contract surface: ${path}` };
+    return { capabilities: ["static"], reason: `Mizar cross-repo contract surface: ${path}` };
   }
   if (path.startsWith("scripts/db/major-browser-fixture") || path.startsWith("scripts/db/local")) {
-    return { capabilities: ["static", "postgres", "system"], reason: `database/browser fixture surface: ${path}` };
+    return { capabilities: ["static", "postgres"], e2eFull: true, provider: path.startsWith("scripts/db/local"), reason: `database/browser fixture surface: ${path}` };
+  }
+  if (/^scripts\/db\/(?:verification-contract|verify-supabase)/.test(path)) {
+    return { capabilities: ["static"], provider: true, reason: `provider verification surface: ${path}` };
   }
   if (path.startsWith("scripts/db/integration") || path.startsWith("scripts/db/pg17") || path.startsWith("scripts/db/prepare-pg17")) {
     return { capabilities: ["static", "postgres"], reason: `PostgreSQL harness surface: ${path}` };
@@ -439,7 +472,7 @@ function collectEvidence(path, classification, evidence) {
   if (project && isTest) evidence.unitExplicitTests.get(project).add(path);
   if (isCode && !isTest) {
     // Consumers can belong to any project, regardless of the source folder.
-    for (const sources of evidence.unitRelatedSources.values()) sources.add(path);
+    evidence.unitRelatedSources.add(path);
   }
   for (const spec of systemSpecsForPath(path)) {
     evidence.e2eSpecs.add(spec);
@@ -461,7 +494,7 @@ function unitProjectFor(path) {
 
 function buildStaticMatrix(evidence) {
   const matrix = [];
-  if (evidence.typeApp) matrix.push({ task: "type-app", changedPaths: [] });
+  if (evidence.typeApp) matrix.push({ task: "format" }, { task: "type-app" });
   if (evidence.typeTests) matrix.push({ task: "type-tests", changedPaths: [] });
   if (evidence.typeScripts) matrix.push({ task: "type-scripts", changedPaths: [] });
   if (evidence.architecture) matrix.push({ task: "architecture", changedPaths: [] });
@@ -469,19 +502,19 @@ function buildStaticMatrix(evidence) {
   const lintPaths = [...evidence.lintPaths].filter((path) => LINT_EXTENSIONS.test(path)).sort();
   if (lintPaths.length > 0) matrix.push({ task: "lint-changed", changedPaths: lintPaths });
 
+  if (evidence.unitRelatedSources.size) {
+    matrix.push({ task: "unit-related", relatedSources: [...evidence.unitRelatedSources].sort() });
+  }
   for (const project of STATIC_PROJECTS) {
-    const relatedSources = [...evidence.unitRelatedSources.get(project)].sort();
-    if (relatedSources.length > 0) {
-      matrix.push({ task: `unit-related-${project}`, project, mode: "related", relatedSources });
-    }
     const explicitTests = [...evidence.unitExplicitTests.get(project)].sort();
     if (explicitTests.length > 0) {
-      matrix.push({ task: `unit-explicit-${project}`, project, mode: "explicit", explicitTests });
+      matrix.push({ task: `unit-explicit-${project}`, project, explicitTests });
     }
   }
 
-  if (matrix.length === 0) matrix.push({ task: "type-app", changedPaths: [] });
-  return matrix;
+  if (evidence.deployment) matrix.push({ task: "deployment" });
+  if (matrix.length === 0) matrix.push({ task: "type-app" });
+  return [{ task: "affected", checks: matrix }];
 }
 
 function readSourceDependencies(path) {
@@ -510,66 +543,32 @@ function resultFor(requiredJobs, full, reason, evidence = {}) {
     runPostgres: requiredJobs.includes("postgres"),
     runSystem: requiredJobs.includes("system"),
     staticMatrix,
-    unitMode: full ? "full" : evidence.unitMode ?? "none",
-    relatedSources: full ? [] : evidence.relatedSources ?? [],
-    explicitTests: full ? [] : evidence.explicitTests ?? [],
     integrationSpecs: full ? [] : evidence.integrationSpecs ?? [],
     e2eSpecs: full ? [] : evidence.e2eSpecs ?? [],
+    provider: full || evidence.provider === true,
+    production: full || evidence.production === true,
     reason,
   };
 }
 
-// Each matrix runner owns its entire local stack. Partition the selected set,
-// never rediscover FULL in an empty shard. Production viewports run once each,
-// independently of provider and browser shards.
+// Use a fixed set of browser groups so adding a spec does not add a Supabase
+// environment. Unassigned specs still run in the mixed group.
 export function systemMatrixFor(plan, liveEvidence) {
   if (!plan.runSystem) return [];
-  const specs = plan.full ? browserSpecs() : [...new Set(plan.e2eSpecs)].sort();
-  const matrix = [
-    { task: "provider", live: liveEvidence, specs: [] },
-    ...["chromium", "mobile-chrome"].map(project => ({ task: `production-${project}`, live: false, specs: [], project })),
-  ];
-  const seriesSpec = "tests/e2e/flows/series-score-correction.spec.ts";
-  // This 30-second flow validates stale-preview recovery and persisted results.
-  // Concurrent public-page cold compilation can consume its entire budget.
-  if (specs.includes(seriesSpec)) matrix.push({ task: "browser-series", live: false, specs: [seriesSpec] });
-  const sessionSpec = "tests/e2e/flows/session-revocation.spec.ts";
-  // Four auth flows plus unrelated cold routes exceed the execution budget.
-  // Match the spec's auth scenario profile on its own runner.
-  if (specs.includes(sessionSpec)) matrix.push({ task: "browser-session", live: false, specs: [sessionSpec] });
-  // Actual 40143081538/40144055247 timings leave only 81–97 seconds
-  // after stack/bootstrap/install. Do not co-schedule these cold admin routes.
-  const isolated = new Map([
-    ["tests/e2e/flows/admin-match-readiness.spec.ts", "browser-match-readiness"],
-    ["tests/e2e/flows/admin-content-read-boundaries.spec.ts", "browser-admin-content"],
-    ["tests/e2e/flows/major-qualification.spec.ts", "browser-qualification"],
-    ["tests/e2e/flows/major-entry.spec.ts", "browser-major-entry"],
-    ["tests/e2e/flows/predictions.spec.ts", "browser-predictions"],
-    ["tests/e2e/flows/test-matches.spec.ts", "browser-test-matches"],
-  ]);
-  for (const [spec, task] of isolated) {
-    if (specs.includes(spec)) matrix.push({ task, live: false, specs: [spec] });
+  const specs = new Set(plan.full ? browserSpecs() : plan.e2eSpecs);
+  const matrix = [];
+  if (plan.provider || liveEvidence) matrix.push({ task: "provider", live: liveEvidence, profile: "full" });
+  if (plan.production) matrix.push({ task: "production", live: false, profile: "auth" });
+
+  for (const [group, names] of Object.entries(BROWSER_GROUPS)) {
+    const selected = names.map(name => `tests/e2e/flows/${name}.spec.ts`).filter(spec => specs.delete(spec));
+    if (selected.length) {
+      const needsStorage = selected.includes("tests/e2e/flows/event-logo.spec.ts");
+      matrix.push({ task: `browser-${group}`, specs: selected, live: false, profile: needsStorage ? "full" : "auth" });
+    }
   }
-  // The persistent-profile recovery flow is desktop-only. Mobile UI recovery
-  // is covered by the component tests; avoid a runner that only skips cases.
-  const ocrSpec = "tests/e2e/flows/ocr-receipt-recovery.spec.ts";
-  if (specs.includes(ocrSpec)) {
-    matrix.push({ task: "browser-ocr-chromium", live: false, specs: [ocrSpec], project: "chromium" });
-  }
-  // The RSC, permission and navigation flow is viewport-independent. Its
-  // pg_stat_statements observations still need their own database runner.
-  const adminEvidenceSpec = "tests/e2e/flows/admin-immediate-boundaries.spec.ts";
-  if (specs.includes(adminEvidenceSpec)) {
-    matrix.push({ task: "browser-admin-evidence-chromium", live: false, specs: [adminEvidenceSpec], project: "chromium" });
-  }
-  const ordinary = specs.filter(spec => spec !== seriesSpec && spec !== sessionSpec && spec !== ocrSpec && spec !== adminEvidenceSpec && !isolated.has(spec));
-  // Keep remaining combinations bounded as coverage grows instead of packing
-  // every new spec into a fixed seven-runner ceiling. No duration scheduler.
-  const shards = [];
-  for (let index = 0; index < ordinary.length; index += 2) shards.push(ordinary.slice(index, index + 2));
-  return [...matrix, ...shards.map((specs, index) => ({
-    task: `browser-${index + 1}`, specs, live: false,
-  }))];
+  if (specs.size) matrix.push({ task: "browser-mixed", specs: [...specs].sort(), live: false, profile: "full" });
+  return matrix;
 }
 
 function isE2ESpec(path) {
@@ -578,10 +577,6 @@ function isE2ESpec(path) {
 
 function isIntegrationSpec(path) {
   return INTEGRATION_SPEC_FILE.test(path);
-}
-
-function unique(values) {
-  return [...new Set(values)].sort();
 }
 
 function output(name, value) {
@@ -617,7 +612,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   });
   console.log(`CI plan: ${plan.full ? "FULL" : plan.requiredJobs.join(" + ")} | ${plan.reason}`);
   for (const entry of entries) console.log(`changed ${entry.status}\t${entry.paths.join("\t")}`);
-  output("full", String(plan.full));
   output("run_static", String(plan.runStatic));
   output("run_postgres", String(plan.runPostgres));
   output("run_system", String(plan.runSystem));
@@ -625,19 +619,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("static_matrix", JSON.stringify(plan.staticMatrix));
   output("system_matrix", JSON.stringify(plan.systemMatrix));
   output("postgres_matrix", JSON.stringify(plan.postgresMatrix));
-  output("unit_mode", plan.unitMode);
-  output("related_sources", JSON.stringify(plan.relatedSources));
-  output("explicit_tests", JSON.stringify(plan.explicitTests));
-  output("postgres_mode", plan.integrationSpecs.length > 0 ? "affected" : "full");
   output("integration_specs", JSON.stringify(plan.integrationSpecs));
-  output("system_mode", plan.e2eSpecs.length > 0 ? "affected" : "full");
-  output("e2e_specs", JSON.stringify(plan.e2eSpecs));
-  output("live_evidence", String(plan.liveEvidence));
   output("gate_name", plan.gateName);
-  output("release_metadata_only", String(isReleaseMetadataOnly(entries, {
-    packageJsonBefore: readPackageJsonAtRevision(process.env.BASE_SHA),
-    packageJsonAfter: readPackageJsonAtRevision(process.env.HEAD_SHA || "HEAD"),
-  })));
+
 }
 
 function readPackageJsonAtRevision(revision) {

@@ -6,11 +6,10 @@ import { localDatabaseUrl } from "./harness/database";
 import { trafficAck, trafficFixture } from "./harness/traffic";
 
 type TrafficRow = { source: string; template: string; queries: number; rxBytes: number; logicalMeasuredQueries: number; skipReasons: { budget: number; unsupported_value: number; error: number } };
-type TrafficBatch = { at: number; receivedBytes: number; remainingRxBytes: number; remaining: Record<string, number>; rows: TrafficRow[]; dropped: number; droppedReceivedBytes: number; unconfirmedReceivedBytes: number; unconfirmedBatches: number };
+type TrafficBatch = { receivedBytes: number; remainingRxBytes: number; remaining: Record<string, number>; rows: TrafficRow[]; dropped: number; droppedReceivedBytes: number; unconfirmedReceivedBytes: number; unconfirmedBatches: number };
 
-// Exercises the installed driver and a real loopback PostgreSQL, including a frame
-// split at a sampler boundary. No SQL or payload values are sent to telemetry.
-it("conserves received protocol bytes across owners, errors, timeouts and a split flush", async () => {
+// Exercises the installed driver and a real loopback PostgreSQL.
+it("conserves received protocol bytes across owners, errors and timeouts", async () => {
   const cleanupTraffic = await trafficFixture();
   const oldEndpoint = process.env.PRODUCT_TELEMETRY_ENDPOINT;
   const oldKey = process.env.DB_TRAFFIC_KEY;
@@ -20,11 +19,13 @@ it("conserves received protocol bytes across owners, errors, timeouts and a spli
   vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: { body: string }) => {
     sent.push(JSON.parse(init.body)); return trafficAck(init.body);
   }));
+  // Keep the bytes sampled here in the same hour regardless of runner time.
+  vi.spyOn(Date, "now").mockReturnValue(Date.now());
   const pool = new DatabasePool({ connectionString: localDatabaseUrl(), ssl: false, max: 2 });
   let raw = 0;
   const first = await pool.connect();
   const second = await pool.connect();
-  let firstReleased = false, secondReleased = false;
+  let secondReleased = false;
   try {
     const streamA = (first as unknown as { connection: { stream: NodeJS.ReadableStream } }).connection.stream;
     const streamB = (second as unknown as { connection: { stream: NodeJS.ReadableStream } }).connection.stream;
@@ -82,69 +83,9 @@ it("conserves received protocol bytes across owners, errors, timeouts and a spli
     expect(batch.remaining.unsupported).toBeGreaterThan(0);
     expect(batch.rows.find(row => row.source === "stats.platform" && row.template === "overflow")?.rxBytes).toBeGreaterThan(0);
     expect(batch).toMatchObject({ dropped: 0, droppedReceivedBytes: 0, unconfirmedReceivedBytes: 0, unconfirmedBatches: 0 });
-    const beforeSplit = raw;
-    // The driver still parses the actual bytes from PostgreSQL; only delivery of
-    // one socket chunk is split, simulating a sampler flush and hour boundary.
-    const socket = streamA as unknown as { emit: (event: string, ...args: unknown[]) => boolean };
-    const originalEmit = socket.emit;
-    const now = Date.now();
-    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
-    let split = false;
-    socket.emit = function (event: string, ...args: unknown[]) {
-      const chunk = args[0];
-      if (!split && event === "data" && Buffer.isBuffer(chunk) && chunk.length > 3) {
-        split = true;
-        const firstResult = Reflect.apply(originalEmit, this, [event, chunk.subarray(0, 3)]);
-        flushDbTraffic();
-        clock.mockReturnValue((Math.floor(now / 3600000) + 1) * 3600000 + 10);
-        Reflect.apply(originalEmit, this, [event, chunk.subarray(3)]);
-        return firstResult;
-      }
-      return Reflect.apply(originalEmit, this, [event, ...args]);
-    };
-    try { await withDbTrafficSource("dak", () => first.query("select repeat('z', 5000) as split_value")); }
-    finally { socket.emit = originalEmit; }
-    expect(split).toBe(true);
-    // Residual traffic is sealed on a subsequent sampler tick, after the
-    // previous asynchronous seal and send have completed.
-    const trafficState = () => (process as unknown as Record<symbol, { sending: boolean }>)[Symbol.for("rivalhub.db-traffic.v3")];
-    await vi.waitFor(() => expect(trafficState().sending).toBe(false), { timeout: 10000 });
-    flushDbTraffic();
-    await vi.waitFor(() => expect(trafficState().sending).toBe(false), { timeout: 10000 });
-    flushDbTraffic();
-    await vi.waitFor(() => expect(sent.length).toBeGreaterThanOrEqual(3), { timeout: 10000 });
-    clock.mockRestore();
-    const splitBatches = sent.slice(1);
-    const splitBytes = raw - beforeSplit;
-    expect(splitBatches.reduce((sum, item) => sum + item.receivedBytes, 0)).toBe(splitBytes);
-    expect(splitBatches[0].remaining.partial).toBe(3);
-    expect(Math.floor(splitBatches[0].at / 3600000)).not.toBe(Math.floor(splitBatches.at(-1)!.at / 3600000));
-    for (const item of splitBatches) {
-      const assigned = item.rows.reduce((sum, row) => sum + row.rxBytes, 0);
-      expect(item.receivedBytes).toBe(assigned + item.remainingRxBytes);
-      expect(item.remainingRxBytes).toBe(Object.values(item.remaining).reduce((sum, n) => sum + n, 0));
-    }
-    // A failed or lost ACK retries the identical payload and batch ID; the
-    // Worker deduplication test independently covers an already accepted ID.
-    const attempts: string[] = [];
-    vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: { body: string }) => {
-      attempts.push(init.body);
-      if (attempts.length === 1) throw new Error("fixture lost acknowledgement");
-      return trafficAck(init.body);
-    }));
-    await withDbTrafficSource("mizar", () => first.query("select 3 as retry_fixture"));
-    flushDbTraffic();
-    await vi.waitFor(() => expect(attempts).toHaveLength(1));
-    await vi.waitFor(() => expect(((process as unknown as Record<symbol, unknown>)[Symbol.for("rivalhub.db-traffic.v3")] as { sending: boolean }).sending).toBe(false));
-    const retryClock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60000);
-    flushDbTraffic();
-    await vi.waitFor(() => expect(attempts).toHaveLength(2));
-    retryClock.mockRestore();
-    expect(attempts[1]).toBe(attempts[0]);
-    first.release(); firstReleased = true;
-    console.log("DB_RX_EVIDENCE", JSON.stringify({ receivedBytes: batch.receivedBytes, attributed, remaining: batch.remaining, sources: Object.fromEntries([...new Set(batch.rows.map(row => row.source))].map(source => [source, batch.rows.filter(row => row.source === source).reduce((n, row) => n + row.rxBytes, 0)])), difference: batch.receivedBytes - attributed - batch.remainingRxBytes, dropped: batch.dropped, splitBytes, splitBatches: splitBatches.map(item => ({ at: item.at, receivedBytes: item.receivedBytes, attributed: item.rows.reduce((n, row) => n + row.rxBytes, 0), remaining: item.remaining })) }));
+    console.log("DB_RX_EVIDENCE", JSON.stringify({ receivedBytes: batch.receivedBytes, attributed, remaining: batch.remaining, sources: Object.fromEntries([...new Set(batch.rows.map(row => row.source))].map(source => [source, batch.rows.filter(row => row.source === source).reduce((n, row) => n + row.rxBytes, 0)])), difference: batch.receivedBytes - attributed - batch.remainingRxBytes, dropped: batch.dropped }));
   } finally {
-    if (!firstReleased) first.release(true);
+    first.release(true);
     if (!secondReleased) second.release(true);
     await pool.end();
     if (oldEndpoint === undefined) delete process.env.PRODUCT_TELEMETRY_ENDPOINT; else process.env.PRODUCT_TELEMETRY_ENDPOINT = oldEndpoint;

@@ -1,99 +1,44 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 
-const FULL_CHECK_TASKS = ["type-app", "type-tests", "type-scripts", "lint", "architecture", "dead-code"];
-const FULL_UNIT_PROJECTS = ["unit-domain-node", "unit-server-node", "unit-react-jsdom"];
+const FULL_CHECKS = ["format", "type-app", "type-tests", "type-scripts", "lint", "architecture", "dead-code", "deployment"];
+const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const task = process.env.STATIC_TASK;
 
-export function runFullUnitProjects(runProject) {
-  let failed = false;
-  for (const project of FULL_UNIT_PROJECTS) {
-    try {
-      if (runProject(project) !== 0) failed = true;
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
-      failed = true;
-    }
-  }
-  return failed ? 1 : 0;
-}
-
-// Continue collecting independent evidence after a failure, and preserve every
-// failed/error/signal result in the aggregate. This does not run unit/build tasks.
-export function runFullChecks(runTask) {
-  let failed = false;
-  for (const task of FULL_CHECK_TASKS) {
-    try {
-      if (runTask(task) !== 0) failed = true;
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
-      failed = true;
-    }
-  }
-  return failed ? 1 : 0;
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const task = required(process.env.STATIC_TASK, "STATIC_TASK");
-  const project = process.env.STATIC_PROJECT?.trim();
-  const changedPaths = parseJsonArray(process.env.STATIC_CHANGED_PATHS, "STATIC_CHANGED_PATHS");
-  const relatedSources = parseJsonArray(process.env.STATIC_RELATED_SOURCES, "STATIC_RELATED_SOURCES");
-  const explicitTests = parseJsonArray(process.env.STATIC_EXPLICIT_TESTS, "STATIC_EXPLICIT_TESTS");
-  const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-
-  if (task === "unit-all") {
-    const status = runFullUnitProjects((unitProject) => {
-      const result = spawnSync(process.execPath, ["scripts/ci/timing.mjs", `static/${unitProject}`, "--", pnpm, "exec", "vitest", "run", "--project", unitProject], {
-        cwd: process.cwd(),
-        env: { ...process.env, RIVALHUB_VITEST_PROJECT: unitProject, RIVALHUB_TIMING_TEST_KIND: "unit" },
-        stdio: "inherit",
-      });
-      if (result.error) throw result.error;
-      if (result.signal) throw new Error(`static/${unitProject} 被信号 ${result.signal} 终止。`);
-      return result.status ?? 1;
+let failed = false;
+for (const check of checksFor(task)) {
+  try {
+    const args = commandFor(check);
+    const result = spawnSync(process.execPath, ["scripts/ci/timing.mjs", `static/${check.task}`, "--", pnpm, ...args], {
+      env: { ...process.env, RIVALHUB_TIMING_TEST_KIND: check.task.startsWith("unit") ? "unit" : "" },
+      stdio: "inherit",
     });
-    process.exit(status);
+    if (result.error) throw result.error;
+    if (result.signal) throw new Error(`static/${check.task} 被信号 ${result.signal} 终止。`);
+    if (result.status !== 0) failed = true;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    failed = true;
   }
+}
+if (failed) process.exitCode = 1;
 
-  if (task === "checks") {
-    const status = runFullChecks((check) => {
-      const result = spawnSync(process.execPath, ["scripts/ci/timing.mjs", `static/${check}`, "--", pnpm, ...commandFor(check)], {
-        cwd: process.cwd(), env: process.env, stdio: "inherit",
-      });
-      if (result.error) throw result.error;
-      if (result.signal) throw new Error(`static/${check} 被信号 ${result.signal} 终止。`);
-      return result.status ?? 1;
-    });
-    process.exit(status);
-  }
-  const args = commandFor(task, project, relatedSources, explicitTests, changedPaths);
-  if (task === `unit-explicit-${project}`) {
-    const discovery = spawnSync(process.execPath, ["node_modules/vitest/vitest.mjs", "list", "--project", project, "--filesOnly", ...explicitTests, "--json"], { encoding: "utf8", env: process.env });
-    if (discovery.error) throw discovery.error;
-    if (discovery.status !== 0) throw new Error(`explicit test discovery failed: ${discovery.stderr}`);
-    const discovered = new Set(JSON.parse(discovery.stdout).map(item => resolve(item.file)));
-    const missing = explicitTests.filter(path => !discovered.has(resolve(path)));
-    if (missing.length) throw new Error(`explicit tests were not discovered in ${project}: ${missing.join(", ")}`);
-  }
-  const result = spawnSync(pnpm, args, {
-    cwd: process.cwd(),
-    env: process.env,
-    stdio: "inherit",
-  });
-
-  if (result.error) throw result.error;
-  if (result.signal) throw new Error(`static task 被信号 ${result.signal} 终止。`);
-  process.exit(result.status ?? 1);
+function checksFor(name) {
+  if (name === "checks") return FULL_CHECKS.map(task => ({ task }));
+  if (name !== "affected") return [{ task: name }];
+  const checks = JSON.parse(process.env.STATIC_CHECKS ?? "null");
+  if (!Array.isArray(checks) || !checks.length) throw new Error("Missing affected static tasks");
+  return checks;
 }
 
-export function commandFor(name, projectName, relatedSources = [], explicitTests = [], changedPaths = []) {
-  switch (name) {
+function commandFor({ task, project, relatedSources, explicitTests, changedPaths }) {
+  switch (task) {
+    case "format":
+      return ["format:check"];
     case "type-app":
-      return ["type-check:app"];
     case "type-tests":
-      return ["type-check:tests"];
     case "type-scripts":
-      return ["type-check:scripts"];
+      return [`type-check:${task.slice(5)}`];
     case "lint":
       return ["lint"];
     case "architecture":
@@ -104,39 +49,29 @@ export function commandFor(name, projectName, relatedSources = [], explicitTests
       return ["exec", "bash", "-c", "pnpm knip && pnpm knip --production"];
     case "build":
       return ["exec", "node", "scripts/ci/hermetic-production-build.mjs"];
+    case "deployment":
+      return ["exec", "node", "--test",
+        "scripts/standby/install-production.test.mjs", "scripts/standby/production-quiescence.test.mjs",
+        "scripts/standby/production-traffic-status.test.mjs"];
+    case "unit-all":
+      return ["exec", "vitest", "run"];
+    case "unit-related":
+      return ["exec", "vitest", "related", "--run", "--passWithNoTests", ...relatedSources];
     default:
-      const fullTask = projectName === "unit-domain-node" ? "unit-domain"
-        : projectName === "unit-server-node" ? "unit-server"
-          : "unit-react";
-      if (projectName && name === `unit-related-${projectName}`) {
-        return ["exec", "vitest", "related", "--project", projectName, "--run", "--passWithNoTests", ...relatedSources];
+      if (project && task === `unit-explicit-${project}`) {
+        assertExplicitTests(project, explicitTests);
+        return ["exec", "vitest", "run", "--project", project, ...explicitTests];
       }
-      if (projectName && name === `unit-explicit-${projectName}`) {
-        if (explicitTests.length === 0) throw new Error("explicit test selection must not be empty");
-        return ["exec", "vitest", "run", "--project", projectName, ...explicitTests];
-      }
-      if (projectName && name === fullTask) {
-        return ["exec", "vitest", "run", "--project", projectName];
-      }
-      throw new Error(`unknown static task: ${name}`);
+      throw new Error(`unknown static task: ${task}`);
   }
 }
 
-function parseJsonArray(value, name) {
-  if (!value?.trim() || value.trim() === "null") return [];
-  let parsed;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new Error(`${name} 必须是 JSON 数组。`);
-  }
-  if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== "string" || !item.trim())) {
-    throw new Error(`${name} 必须是字符串数组。`);
-  }
-  return parsed;
-}
-
-function required(value, name) {
-  if (!value?.trim()) throw new Error(`${name} 未设置。`);
-  return value.trim();
+function assertExplicitTests(project, paths) {
+  if (!paths.length) throw new Error("explicit test selection must not be empty");
+  const discovery = spawnSync(process.execPath, ["node_modules/vitest/vitest.mjs", "list", "--project", project, "--filesOnly", ...paths, "--json"], { encoding: "utf8" });
+  if (discovery.error) throw discovery.error;
+  if (discovery.status !== 0) throw new Error(`explicit test discovery failed: ${discovery.stderr}`);
+  const discovered = new Set(JSON.parse(discovery.stdout).map(item => resolve(item.file)));
+  const missing = paths.filter(path => !discovered.has(resolve(path)));
+  if (missing.length) throw new Error(`explicit tests were not discovered in ${project}: ${missing.join(", ")}`);
 }

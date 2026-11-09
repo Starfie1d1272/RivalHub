@@ -1,22 +1,19 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const configuredRetries = process.env.PLAYWRIGHT_RETRIES;
-const retries = configuredRetries === undefined
-  ? (process.env.CI ? 1 : 0)
-  : Number(configuredRetries);
+const excluded = ["**/visual/**", "**/acceptance/**", "**/production/**"];
+const touchFlows = ["**/bet.spec.ts", "**/free-predictions.spec.ts", "**/predictions.spec.ts"];
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**"],
+  testIgnore: excluded,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries,
+  retries: Number(process.env.PLAYWRIGHT_RETRIES ?? 0),
   failOnFlakyTests: !!process.env.CI,
   workers: process.env.CI ? Number(process.env.PLAYWRIGHT_WORKERS ?? 1) : undefined,
-  reporter: process.env.CI ? [["list"], ["./scripts/ci/playwright-exit-reporter.ts", { phase: "before-html" }], ["html", { open: "never" }], ["./scripts/ci/playwright-exit-reporter.ts", { phase: "after-html" }]] : "html",
+  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "html",
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
-    trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
   expect: { timeout: 10_000 },
@@ -28,7 +25,7 @@ export default defineConfig({
       name: "chromium",
       // Shared flows run once, on the viewport exercising their distinct risk:
       // touch submission/download on mobile.
-      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/bet.spec.ts", "**/free-predictions.spec.ts", "**/predictions.spec.ts"],
+      testIgnore: [...excluded, ...touchFlows],
       use: {
         ...devices["Desktop Chrome"],
         channel: process.env.PLAYWRIGHT_CHANNEL === "chrome" ? "chrome" : undefined,
@@ -36,7 +33,7 @@ export default defineConfig({
     },
     {
       name: "mobile-chrome",
-      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/team-invitations.spec.ts", "**/major-entry.spec.ts", "**/event-logo.spec.ts", "**/major-qualification.spec.ts", "**/series-score-correction.spec.ts", "**/session-revocation.spec.ts", "**/test-matches.spec.ts", "**/ocr-receipt-recovery.spec.ts", "**/admin-immediate-boundaries.spec.ts"],
+      testMatch: touchFlows,
       use: {
         ...devices["Pixel 5"],
         channel: process.env.PLAYWRIGHT_CHANNEL === "chrome" ? "chrome" : undefined,

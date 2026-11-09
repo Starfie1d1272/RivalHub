@@ -5,7 +5,12 @@ export default defineConfig({
   ...core,
   testDir: "./tests/e2e/production",
   testIgnore: [],
-  projects: core.projects?.map(project => ({ ...project, testIgnore: [] })),
+  projects: core.projects?.map(project => ({
+    ...project,
+    // BET transport is viewport-independent; App Shell is exercised in both.
+    testIgnore: project.name === "mobile-chrome" ? ["**/bet-read-stages.spec.ts"] : [],
+    testMatch: "**/*.spec.ts",
+  })),
   webServer: {
     command: "node tests/e2e/helpers/production-server.mjs",
     url: "http://localhost:3000/favicon.ico",
