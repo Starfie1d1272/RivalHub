@@ -22,6 +22,9 @@ const isCIE2E = ["1", "true"].includes(process.env.CI ?? "")
   && process.env.RIVALHUB_E2E_AUTH_BOOTSTRAP === "1";
 
 const nextConfig: NextConfig = {
+  // Local Supabase sends Auth callbacks to 127.0.0.1 even when Next's dev
+  // runner starts from localhost. Next only applies this list in development.
+  ...(process.env.RIVALHUB_DB_TARGET === "local" ? { allowedDevOrigins: ["127.0.0.1"] } : {}),
   // Keep the framework rendering indicator from intercepting fixture clicks.
   // Next still surfaces compile/runtime errors when this indicator is disabled.
   ...(isCIE2E ? { devIndicators: false as const } : {}),
