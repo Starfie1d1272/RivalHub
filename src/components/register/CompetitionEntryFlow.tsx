@@ -182,6 +182,9 @@ export function CompetitionEntryFlow(props: Props) {
   const [confirmTransfer, setConfirmTransfer] = useState(false);
   const [confirmRosterChange, setConfirmRosterChange] = useState(false);
   const [confirmParticipantWithdrawal, setConfirmParticipantWithdrawal] = useState(false);
+  const transferTrigger = useRef<HTMLButtonElement>(null);
+  const rosterChangeTrigger = useRef<HTMLButtonElement>(null);
+  const withdrawalTrigger = useRef<HTMLButtonElement>(null);
   const [removeMember, setRemoveMember] = useState<Candidate | null>(null);
   const [teamId, setTeamId] = useState(props.captainedTeams[0]?.id ?? "");
   const selectedCaptainedTeam = props.captainedTeams.find((team) => team.id === teamId);
@@ -218,8 +221,11 @@ export function CompetitionEntryFlow(props: Props) {
     startTransition(async () => {
       const token = step ? task.begin(step) : null;
       if (step) task.step(step, token);
-      const result = await work();
-      if (result.success) {
+      const result = await work().catch(() => null);
+      if (!result) {
+        toast.error("操作结果暂未确认。请核对刷新后的参赛状态。");
+        refreshStatus();
+      } else if (result.success) {
         toast.success(message);
         if (step === "submit") task.complete(token);
         router.refresh();
@@ -637,6 +643,8 @@ export function CompetitionEntryFlow(props: Props) {
                 title={`确认转为代表${entry.name}参赛？`}
                 sub="确认后会结束代表原队的参赛确认，并接受新队邀请。历史名单和比赛记录保留；新名单仍需队长提交并由赛委会审核。"
                 confirmLabel="确认更换参赛队伍"
+                pending={pending}
+                returnFocusRef={transferTrigger}
                 onCancel={() => setConfirmTransfer(false)}
                 onConfirm={() => {
                   setConfirmTransfer(false);
@@ -651,7 +659,11 @@ export function CompetitionEntryFlow(props: Props) {
                 }}
               />
             ) : (
-              <Button disabled={pending} onClick={() => setConfirmTransfer(true)}>
+              <Button
+                ref={transferTrigger}
+                disabled={pending}
+                onClick={() => setConfirmTransfer(true)}
+              >
                 确认转为代表{entry.name}参赛
               </Button>
             )
@@ -860,6 +872,8 @@ export function CompetitionEntryFlow(props: Props) {
                         ? "确认结束原队参赛确认"
                         : "确认退出本届赛事"
                     }
+                    pending={pending}
+                    returnFocusRef={withdrawalTrigger}
                     onCancel={() => setConfirmParticipantWithdrawal(false)}
                     onConfirm={() => {
                       setConfirmParticipantWithdrawal(false);
@@ -873,6 +887,7 @@ export function CompetitionEntryFlow(props: Props) {
                   />
                 ) : (
                   <Button
+                    ref={withdrawalTrigger}
                     variant="outline"
                     disabled={pending}
                     onClick={() => setConfirmParticipantWithdrawal(true)}
@@ -939,6 +954,8 @@ export function CompetitionEntryFlow(props: Props) {
                         title="发起名单变更？"
                         sub="当前已通过名单会保留为历史记录。新名单需完成成员确认与资格检查后再次提交审核。"
                         confirmLabel="确认发起名单变更"
+                        pending={pending}
+                        returnFocusRef={rosterChangeTrigger}
                         onCancel={() => setConfirmRosterChange(false)}
                         onConfirm={() => {
                           setConfirmRosterChange(false);
@@ -950,6 +967,7 @@ export function CompetitionEntryFlow(props: Props) {
                       />
                     ) : (
                       <Button
+                        ref={rosterChangeTrigger}
                         variant="outline"
                         disabled={pending}
                         onClick={() => setConfirmRosterChange(true)}
@@ -1254,6 +1272,8 @@ export function CompetitionEntryFlow(props: Props) {
                         title="发起名单变更？"
                         sub="当前已通过名单会保留为历史记录。发起后可编辑新的名单，新成员须本人确认，完成资格检查后再次提交审核；名单调整截止后不能自行发起。"
                         confirmLabel="确认发起名单变更"
+                        pending={pending}
+                        returnFocusRef={rosterChangeTrigger}
                         onCancel={() => setConfirmRosterChange(false)}
                         onConfirm={() => {
                           setConfirmRosterChange(false);
@@ -1265,6 +1285,7 @@ export function CompetitionEntryFlow(props: Props) {
                       />
                     ) : (
                       <Button
+                        ref={rosterChangeTrigger}
                         variant="outline"
                         disabled={pending}
                         onClick={() => setConfirmRosterChange(true)}

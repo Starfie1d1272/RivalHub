@@ -187,6 +187,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const [rewindReason, setRewindReason] = useState("");
   const [rewindTurn, setRewindTurn] = useState("choose-veto-team-a");
   const [confirmRewind, setConfirmRewind] = useState(false);
+  const rewindTrigger = useRef<HTMLButtonElement>(null);
   const [resolutionNote, setResolutionNote] = useState("");
   const [appealReasons, setAppealReasons] = useState<Record<string, string>>({});
   const boundaryAttempt = useRef({ key: "", confirmed: false, attempts: 0, retryAt: 0 });
@@ -1471,6 +1472,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                 </p>
                 {!confirmRewind ? (
                   <Button
+                    ref={rewindTrigger}
                     variant="outline"
                     disabled={controlsPending || rewindReason.trim().length < 3}
                     onClick={() => setConfirmRewind(true)}
@@ -1483,6 +1485,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                     title={`确认恢复到「${rewindOptions.find((option) => option.key === rewindTurn)?.label ?? "指定回合"}」？`}
                     sub="确认后将清除所选位置及之后的 BP 结果，并暂停 BP 供双方重新核对。恢复适用于地图比赛开始前。"
                     confirmLabel="确认恢复"
+                    returnFocusRef={rewindTrigger}
                     onCancel={() => setConfirmRewind(false)}
                     onConfirm={() => {
                       if (controlsPending) return;

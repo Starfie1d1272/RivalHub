@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { rollbackMajorPrestartEntrants as telemetry_rollbackMajorPrestartEntrants } from "@/actions/major-prestart";
@@ -18,8 +18,8 @@ const rollbackMajorPrestartEntrants = observeAction(
 export function MajorPrestartRollbackControl({ seasonId }: { seasonId: string }) {
   const [reason, setReason] = useState("");
   const [reopenUntil, setReopenUntil] = useState("");
-  const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
   return (
@@ -31,7 +31,7 @@ export function MajorPrestartRollbackControl({ seasonId }: { seasonId: string })
             id="major-reopen-until"
             type="datetime-local"
             value={reopenUntil}
-            disabled={pending || confirming}
+            disabled={confirming}
             onChange={(event) => setReopenUntil(event.target.value)}
           />
         </div>
@@ -42,14 +42,15 @@ export function MajorPrestartRollbackControl({ seasonId }: { seasonId: string })
             value={reason}
             maxLength={1000}
             placeholder="如：补正遗漏转会成员"
-            disabled={pending || confirming}
+            disabled={confirming}
             onChange={(event) => setReason(event.target.value)}
           />
         </div>
         <Button
+          ref={triggerRef}
           type="button"
           variant="outline"
-          disabled={pending || confirming || !reason.trim() || !reopenUntil}
+          disabled={confirming || !reason.trim() || !reopenUntil}
           onClick={() => setConfirming(true)}
         >
           撤回冻结
@@ -59,27 +60,23 @@ export function MajorPrestartRollbackControl({ seasonId }: { seasonId: string })
         <InlineConfirm
           title="确认撤回正式名单冻结？"
           sub="原种子参考将作废；需重新冻结后才能排序。"
-          confirmLabel={pending ? "处理中…" : "确认撤回"}
+          confirmLabel="确认撤回"
           danger
-          onCancel={() => {
-            if (!pending) setConfirming(false);
-          }}
-          onConfirm={() => {
-            if (pending) return;
-            startTransition(async () => {
-              const result = await rollbackMajorPrestartEntrants({
-                seasonId,
-                reason: reason.trim(),
-                reopenUntil,
-              });
-              if (!result.success) {
-                toast.error(result.error.message);
-                return;
-              }
-              setConfirming(false);
-              toast.success("名单已恢复为待冻结状态");
-              router.refresh();
+          returnFocusRef={triggerRef}
+          onCancel={() => setConfirming(false)}
+          onConfirm={async () => {
+            const result = await rollbackMajorPrestartEntrants({
+              seasonId,
+              reason: reason.trim(),
+              reopenUntil,
             });
+            if (!result.success) {
+              toast.error(result.error.message);
+              return;
+            }
+            setConfirming(false);
+            toast.success("名单已恢复为待冻结状态");
+            router.refresh();
           }}
         />
       )}

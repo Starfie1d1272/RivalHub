@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { runSchedulerJobManually as telemetry_runSchedulerJobManually } from "@/actions/scheduler";
@@ -22,21 +22,15 @@ function formatHealthTime(value: string | null): string {
 
 export function SchedulerHealthPanel({ jobs }: { jobs: SchedulerHealthView[] }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [confirming, setConfirming] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<SchedulerHealthView["jobKey"] | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
-  function run(jobKey: SchedulerHealthView["jobKey"]): void {
-    startTransition(async () => {
-      const result = await runSchedulerJobManually({ jobKey });
-      setConfirming(null);
-      if (result.success) {
-        toast.success("定时任务已运行。");
-        router.refresh();
-      } else {
-        toast.error(result.error.message);
-        router.refresh();
-      }
-    });
+  async function run(jobKey: SchedulerHealthView["jobKey"]) {
+    const result = await runSchedulerJobManually({ jobKey });
+    setConfirming(null);
+    if (result.success) toast.success("定时任务已运行。");
+    else toast.error(result.error.message);
+    router.refresh();
   }
 
   return (
@@ -71,8 +65,11 @@ export function SchedulerHealthPanel({ jobs }: { jobs: SchedulerHealthView[] }) 
             <button
               type="button"
               className="text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline disabled:opacity-50"
-              disabled={pending}
-              onClick={() => setConfirming(job.jobKey)}
+              disabled={confirming !== null}
+              onClick={(event) => {
+                triggerRef.current = event.currentTarget;
+                setConfirming(job.jobKey);
+              }}
             >
               立即运行一次
             </button>
@@ -113,6 +110,7 @@ export function SchedulerHealthPanel({ jobs }: { jobs: SchedulerHealthView[] }) 
               confirmLabel="确认运行"
               onCancel={() => setConfirming(null)}
               onConfirm={() => run(job.jobKey)}
+              returnFocusRef={triggerRef}
             />
           )}
         </Panel>

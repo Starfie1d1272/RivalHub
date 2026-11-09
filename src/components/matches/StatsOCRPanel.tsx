@@ -191,6 +191,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   }
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const clearTrigger = useRef<HTMLButtonElement>(null);
 
   // Each mounted map owns its state; the workbench keys panels by map ID.
   useEffect(() => {
@@ -740,6 +741,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
               <InlineConfirm
                 title="确认清除计分板输入？"
                 sub="已确认 Demo 的比赛数据保留，Rating / RWS / WE 将清空"
+                returnFocusRef={clearTrigger}
                 onConfirm={handleClear}
                 onCancel={() => setShowClearConfirm(false)}
               />
@@ -755,6 +757,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
             )}
             {!showClearConfirm && (
               <Button
+                ref={clearTrigger}
                 size="sm"
                 variant="ghost"
                 className="text-[var(--color-danger)]"

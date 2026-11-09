@@ -41,7 +41,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 | `DialogContent/Body/Footer` | viewport、滚动、focus、操作区与尺寸 contract |
 | `StatusBanner` / `StatusPill` / `Checklist` | 状态解释、紧凑状态与 readiness |
 | `EmptyState` / `ErrorState` / `Skeleton` | empty/error/loading 的明确三态 |
-| `InlineConfirm` | 高影响 mutation 的影响说明与二次确认；打开后先聚焦取消；Escape 或取消恢复触发焦点，条件替换按钮时传入触发器 ref。窄屏操作区换到说明下方 |
+| `InlineConfirm` | 高影响操作的影响说明与二次确认。打开时聚焦取消。取消或按 Escape 后恢复触发焦点，条件替换按钮时传入触发器 ref。直接返回提交 Promise 可禁用确认和取消，响应中断时提示先核对结果。外层已统一管理忙碌状态的流程传入 `pending`。窄屏操作区换到说明下方 |
 
 首页备案信息位于共享页脚的最下方，独立一行相对页面居中，使用 12px 常规中文字体与次要灰色文字，链接支持悬停和键盘聚焦。仅首页展示已确认适用的备案信息，其他路由不占用该行空间。
 

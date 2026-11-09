@@ -45,7 +45,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, size = "md", style, ...props }, ref) => {
+>(({ className, children, size = "md", style, onEscapeKeyDown, ...props }, ref) => {
   const portalStyle = usePortalTheme(style);
   return (
     <DialogPortal>
@@ -58,6 +58,13 @@ const DialogContent = React.forwardRef<
           DIALOG_CONTENT_SIZE_CLASSES[size],
         )}
         style={portalStyle}
+        onEscapeKeyDown={(event) => {
+          onEscapeKeyDown?.(event);
+          // Radix listens before the inline confirmation handles its own Escape.
+          if (event.target instanceof Element && event.target.closest("[data-inline-confirm]")) {
+            event.preventDefault();
+          }
+        }}
         {...props}
       >
         {children}

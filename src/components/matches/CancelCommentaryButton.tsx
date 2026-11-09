@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useTransition } from "react";
+import React, { useRef, useState } from "react";
 import { cancelMatchCommentary as telemetry_cancelMatchCommentary } from "@/actions/postmatch";
 import { InlineConfirm } from "@/components/rivalhub/InlineConfirm";
 import { Button } from "@/components/ui/button";
@@ -12,24 +12,18 @@ const cancelMatchCommentary = observeAction(
 );
 
 export function CancelCommentaryButton({ matchId }: { matchId: string }) {
-  const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [cancelled, setCancelled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function cancel() {
-    setConfirming(false);
+  async function cancel() {
     setError(null);
-    startTransition(async () => {
-      try {
-        const result = await cancelMatchCommentary({ matchId });
-        if (result.success) setCancelled(true);
-        else setError(result.error.message);
-      } catch {
-        setError("取消认领未完成，请重试。");
-      }
-    });
+    const result = await cancelMatchCommentary({ matchId });
+    if (result.success) {
+      setConfirming(false);
+      setCancelled(true);
+    } else setError(result.error.message);
   }
 
   return (
@@ -49,10 +43,10 @@ export function CancelCommentaryButton({ matchId }: { matchId: string }) {
           type="button"
           size="sm"
           variant="outline"
-          disabled={pending || cancelled}
+          disabled={cancelled}
           onClick={() => setConfirming(true)}
         >
-          {pending ? "正在取消…" : cancelled ? "已取消认领" : "取消认领"}
+          {cancelled ? "已取消认领" : "取消认领"}
         </Button>
       )}
       {error && (

@@ -198,7 +198,7 @@ export function MatchResources({ seasonId }: { seasonId: string }) {
               <Button variant="outline" size="sm" onClick={() => setShowSources((value) => !value)}>
                 {showSources ? "收起来源会话" : "查看来源会话"}
               </Button>
-              {showSources && <SourceSessions seasonId={seasonId} />}
+              {showSources && <SourceSessions key={seasonId} seasonId={seasonId} />}
               <MatchDownloads downloads={data.downloads} />
             </>
           )}

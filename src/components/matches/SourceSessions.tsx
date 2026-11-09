@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { readSourceSessions } from "@/app/admin/[seasonSlug]/matches/actions";
 import { closeCompletedSources } from "@/actions/match-operations";
 import type { listSourceSessions } from "@/lib/mizar/source-management";
@@ -11,7 +11,7 @@ import { formatCSTDateTime } from "@/lib/utils/date";
 type Page = Awaited<ReturnType<typeof listSourceSessions>>;
 const time = (value: string | null) => (value ? formatCSTDateTime(new Date(value)) : "无");
 export function SourceSessions({ seasonId }: { seasonId: string }) {
-  const [page, setPage] = useState<Page | null>(null);
+  const [read, setRead] = useState<{ key: string; page?: Page; error?: string } | null>(null);
   const [cursor, setCursor] = useState<string | undefined>();
   const [history, setHistory] = useState<(string | undefined)[]>([]);
   const [revision, setRevision] = useState(0);
@@ -19,24 +19,29 @@ export function SourceSessions({ seasonId }: { seasonId: string }) {
   const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState("");
-  const [pending, startTransition] = useTransition();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const readKey = JSON.stringify([seasonId, cursor, revision]);
+
   useEffect(() => {
     let cancelled = false;
     readSourceSessions(seasonId, cursor)
       .then((result) => {
         if (cancelled) return;
         if (result.success) {
-          setPage(result.data);
+          setRead({ key: readKey, page: result.data });
           setSelected([]);
-        } else setMessage(result.error.message);
+        } else setRead({ key: readKey, error: result.error.message });
       })
       .catch(() => {
-        if (!cancelled) setMessage("无法读取来源会话。");
+        if (!cancelled) setRead({ key: readKey, error: "无法读取来源会话。" });
       });
     return () => {
       cancelled = true;
     };
-  }, [seasonId, cursor, revision]);
+  }, [seasonId, cursor, readKey]);
+  const currentRead = read?.key === readKey ? read : null;
+  const page = currentRead?.page;
+  const readError = currentRead?.error;
   const rows = page?.rows ?? [];
   const candidates = rows.filter((row) => selected.includes(row.sessionId));
   return (
@@ -46,8 +51,13 @@ export function SourceSessions({ seasonId }: { seasonId: string }) {
         未释放来源不代表正在直播或上报。当前接收状态未知；回执时间是服务器确认时间。关闭已完赛来源会拒绝迟到的旧事件，无法证明设备没有离线队列。
       </p>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => setRevision((value) => value + 1)}>
-          刷新
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={confirming}
+          onClick={() => setRevision((value) => value + 1)}
+        >
+          {readError ? "重试读取" : "刷新"}
         </Button>
         <Button
           size="sm"
@@ -67,7 +77,8 @@ export function SourceSessions({ seasonId }: { seasonId: string }) {
           导出本页 JSON
         </Button>
       </div>
-      {!page && <p>正在读取来源会话…</p>}
+      {!currentRead && <p>正在读取来源会话…</p>}
+      {readError && <p role="alert">{readError}</p>}
       {page && !rows.length && <p>没有来源会话。</p>}
       {rows.map((row) => (
         <article
@@ -116,7 +127,9 @@ export function SourceSessions({ seasonId }: { seasonId: string }) {
               <input
                 type="checkbox"
                 checked={selected.includes(row.sessionId)}
-                disabled={pending || (!selected.includes(row.sessionId) && selected.length >= 20)}
+                disabled={
+                  confirming || (!selected.includes(row.sessionId) && selected.length >= 20)
+                }
                 onChange={(event) =>
                   setSelected((current) =>
                     event.target.checked
@@ -130,12 +143,12 @@ export function SourceSessions({ seasonId }: { seasonId: string }) {
           )}
         </article>
       ))}
-      {page && (
+      {(page || (readError && history.length > 0)) && (
         <div className="flex gap-2">
           <Button
             size="sm"
             variant="outline"
-            disabled={!history.length}
+            disabled={confirming || !history.length}
             onClick={() => {
               setCursor(history.at(-1));
               setHistory(history.slice(0, -1));
@@ -146,10 +159,11 @@ export function SourceSessions({ seasonId }: { seasonId: string }) {
           <Button
             size="sm"
             variant="outline"
-            disabled={!page.nextCursor}
+            disabled={confirming || !page?.nextCursor}
             onClick={() => {
+              if (!page?.nextCursor) return;
               setHistory([...history, cursor]);
-              setCursor(page.nextCursor!);
+              setCursor(page.nextCursor);
             }}
           >
             下一页
@@ -163,54 +177,66 @@ export function SourceSessions({ seasonId }: { seasonId: string }) {
             <Input
               maxLength={500}
               value={reason}
+              disabled={confirming}
               onChange={(event) => setReason(event.target.value)}
             />
           </label>
-          <Button size="sm" disabled={pending} onClick={() => setConfirming(true)}>
+          <Button
+            ref={triggerRef}
+            size="sm"
+            disabled={confirming}
+            onClick={() => {
+              if (candidates.some((row) => !row.owned) && !reason.trim()) {
+                setMessage("请填写关闭他人设备来源的原因。");
+                return;
+              }
+              setConfirming(true);
+            }}
+          >
             关闭所选 {candidates.length} 条
           </Button>
           {confirming && (
             <InlineConfirm
-              title="确认关闭这些已完赛来源？"
+              title={`确认关闭所选 ${candidates.length} 条已完赛来源？`}
               sub="每条会重新核对，变化或不符合条件的会跳过。"
               danger
+              returnFocusRef={triggerRef}
               onCancel={() => setConfirming(false)}
-              onConfirm={() => {
-                if (candidates.some((row) => !row.owned) && !reason.trim()) {
-                  setMessage("请填写关闭他人设备来源的原因。");
+              onConfirm={async () => {
+                const result = await closeCompletedSources(
+                  seasonId,
+                  candidates.map((row) => ({
+                    sessionId: row.sessionId,
+                    identity: row.identity,
+                    expectedVersion: row.expectedVersion,
+                    reason,
+                  })),
+                ).catch(() => null);
+                setConfirming(false);
+                if (result && !result.success) {
+                  setMessage(result.error.message);
                   return;
                 }
-                startTransition(async () => {
-                  const result = await closeCompletedSources(
-                    seasonId,
-                    candidates.map((row) => ({
-                      sessionId: row.sessionId,
-                      identity: row.identity,
-                      expectedVersion: row.expectedVersion,
-                      reason,
-                    })),
+                if (!result) {
+                  setMessage("关闭结果暂未确认。请核对刷新后的来源状态。");
+                } else {
+                  const labels = {
+                    closed: "已关闭",
+                    already_closed: "此前已关闭",
+                    changed: "状态已变化，请刷新核对",
+                    blocked: "暂不可关闭",
+                    failed: "操作失败，请核对",
+                  };
+                  setMessage(
+                    result.data
+                      .map(
+                        (item) =>
+                          `${item.sessionId}: ${labels[item.status]}${"reason" in item ? ` (${item.reason})` : ""}`,
+                      )
+                      .join("；"),
                   );
-                  setConfirming(false);
-                  if (!result.success) setMessage(result.error.message);
-                  else {
-                    const labels = {
-                      closed: "已关闭",
-                      already_closed: "此前已关闭",
-                      changed: "状态已变化，请刷新核对",
-                      blocked: "暂不可关闭",
-                      failed: "操作失败，请核对",
-                    };
-                    setMessage(
-                      result.data
-                        .map(
-                          (item) =>
-                            `${item.sessionId}: ${labels[item.status]}${"reason" in item ? ` (${item.reason})` : ""}`,
-                        )
-                        .join("；"),
-                    );
-                    setRevision((value) => value + 1);
-                  }
-                });
+                }
+                setRevision((value) => value + 1);
               }}
             />
           )}

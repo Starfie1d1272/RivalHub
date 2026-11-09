@@ -1,6 +1,6 @@
 "use client";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ export function MapScoreCorrectInput({
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const confirmTrigger = useRef<HTMLButtonElement>(null);
   const router = useRouter();
   return (
     <div className="space-y-3 text-sm">
@@ -188,6 +189,7 @@ export function MapScoreCorrectInput({
             <InlineConfirm
               title={`确认更正为 ${valA}:${valB}？`}
               sub="将更新本图比分与系列赛地图胜数，保存更正原因。已同步的 Demo 会按新比分重新核对。"
+              returnFocusRef={confirmTrigger}
               onCancel={() => setConfirming(false)}
               onConfirm={() =>
                 startTransition(async () => {
@@ -195,14 +197,15 @@ export function MapScoreCorrectInput({
                     expectedScoreA: scoreA,
                     expectedScoreB: scoreB,
                     reason,
-                  });
-                  if (!result.success) {
+                  }).catch(() => null);
+                  setConfirming(false);
+                  if (!result) {
+                    setError("更正结果暂未确认。请先刷新核对正式比分。");
+                  } else if (!result.success) {
                     setError(result.error.message);
-                    setConfirming(false);
                   } else {
                     toast.success("比分已更正");
                     setEditing(false);
-                    setConfirming(false);
                     router.refresh();
                   }
                 })
@@ -210,7 +213,7 @@ export function MapScoreCorrectInput({
             />
           ) : (
             <div className="flex gap-2">
-              <Button size="sm" type="submit" disabled={pending}>
+              <Button ref={confirmTrigger} size="sm" type="submit" disabled={pending}>
                 核对更正
               </Button>
               <Button size="sm" type="button" variant="ghost" onClick={() => setEditing(false)}>
