@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef } from "react";
 import {
   ClearFilters,
@@ -9,7 +10,12 @@ import {
   useListQueryParams,
 } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
-import { CS2_POSITION_VALUES, type Cs2Position } from "@/lib/config/cs2-positions";
+import {
+  CS2_POSITION_LABELS,
+  CS2_POSITION_VALUES,
+  type Cs2Position,
+} from "@/lib/config/cs2-positions";
+import { applyListQueryUpdates } from "@/lib/list-query";
 import { mapLabel } from "@/lib/maps";
 import type { RecruitmentFilters, RecruitmentTeamSize } from "@/lib/recruitment/contract";
 
@@ -78,37 +84,40 @@ export function RecruitmentLobbyControls({
     ? (searchParams.get("map") ?? undefined)
     : normalizedFilters.map;
 
-  function switchView(nextView: "teams" | "players") {
-    update({ view: nextView, size: undefined, map: undefined });
+  function viewHref(nextView: "teams" | "players") {
+    const query = applyListQueryUpdates(
+      new URLSearchParams(searchParams.toString()),
+      { view: nextView, size: undefined, map: undefined },
+      { defaults: RECRUITMENT_QUERY_DEFAULTS },
+    );
+    return `/teams/recruitment?${query}` as const;
   }
 
   return (
     <div className="min-w-0 space-y-4">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-y border-[var(--color-border)] py-3">
-        <div className="flex min-w-0 flex-wrap gap-2" role="tablist" aria-label="组队大厅视图">
+        <nav className="flex min-w-0 flex-wrap gap-2" aria-label="组队大厅视图">
           <Button
-            type="button"
-            role="tab"
-            aria-selected={view === "teams"}
+            asChild
             variant={view === "teams" ? "outline" : "ghost"}
             size="sm"
             className={tabClassName}
-            onClick={() => switchView("teams")}
           >
-            队伍招募 {teamCount}
+            <Link href={viewHref("teams")} aria-current={view === "teams" ? "page" : undefined}>
+              队伍招募 {teamCount}
+            </Link>
           </Button>
           <Button
-            type="button"
-            role="tab"
-            aria-selected={view === "players"}
+            asChild
             variant={view === "players" ? "outline" : "ghost"}
             size="sm"
             className={tabClassName}
-            onClick={() => switchView("players")}
           >
-            选手找队 {playerCount}
+            <Link href={viewHref("players")} aria-current={view === "players" ? "page" : undefined}>
+              选手找队 {playerCount}
+            </Link>
           </Button>
-        </div>
+        </nav>
         <p className="text-xs text-[var(--color-fg-dim)]">最近更新优先</p>
       </div>
 
@@ -128,6 +137,7 @@ export function RecruitmentLobbyControls({
             <Button
               type="button"
               size="sm"
+              aria-pressed={!position}
               variant={!position ? "outline" : "ghost"}
               onClick={() => update({ position: undefined })}
             >
@@ -138,10 +148,11 @@ export function RecruitmentLobbyControls({
                 key={item}
                 type="button"
                 size="sm"
+                aria-pressed={position === item}
                 variant={position === item ? "outline" : "ghost"}
                 onClick={() => update({ position: item })}
               >
-                {item}
+                {CS2_POSITION_LABELS[item].full}
               </Button>
             ))}
           </div>

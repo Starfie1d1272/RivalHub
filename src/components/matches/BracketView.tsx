@@ -385,6 +385,7 @@ export function BracketView({
 
   return (
     <>
+      <link rel="stylesheet" href="/brackets-viewer.min.css" precedence="vendor" />
       <Script
         src="/brackets-viewer.min.js"
         strategy="afterInteractive"

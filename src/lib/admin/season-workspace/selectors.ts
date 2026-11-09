@@ -1,4 +1,5 @@
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
+import { matchLineupReviewHref } from "@/lib/admin/matches/return-context";
 import type { SeasonStatus } from "@/types/season";
 import type {
   SeasonWorkspaceNextAction,
@@ -70,13 +71,17 @@ export function selectSeasonWorkspaceNextAction(
   }
 
   if (season.status === "playing") {
-    if (summary.scheduledMatchesWithoutConfirmedLineups > 0 || summary.matchCount > 0) {
+    if (summary.lineupReview.total > 0) {
+      return {
+        label: "核对比赛首发",
+        detail: `${summary.lineupReview.total} 场已排期比赛等待首发确认。`,
+        href: matchLineupReviewHref(season.slug, summary.lineupReview.onlyMatchId),
+      };
+    }
+    if (summary.matchCount > 0) {
       return {
         label: "进入比赛执行",
-        detail:
-          summary.scheduledMatchesWithoutConfirmedLineups > 0
-            ? `${summary.scheduledMatchesWithoutConfirmedLineups} 场已排期比赛等待名单确认。`
-            : `${summary.matchCount} 场比赛可在比赛执行中查看。`,
+        detail: `${summary.matchCount} 场比赛可在比赛执行中查看。`,
         href: `/admin/${season.slug}/matches`,
       };
     }

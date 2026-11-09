@@ -1,10 +1,12 @@
 import "server-only";
 
+import { notFound } from "next/navigation";
 import { cache } from "react";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth/session";
+import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
+import { requireAdmin, requireSeasonAdmin } from "@/lib/auth/session";
 
 /** RSC-request reuse only. Every consumer retains its own authorization boundary. */
 export const findAdminSeasonOverviewBySlug = cache((slug: string) =>
@@ -23,6 +25,13 @@ export const findAdminSeasonOverviewBySlug = cache((slug: string) =>
     },
   }),
 );
+
+export async function resolveAdminSeasonPageAccess(slug: string) {
+  const season = await findAdminSeasonOverviewBySlug(slug);
+  if (!season) notFound();
+  const admin = await resolveAdminPageAccess(() => requireSeasonAdmin(season.id));
+  return admin ? season : null;
+}
 
 const findAdminSeasonById = cache((id: string) =>
   db.query.seasons.findFirst({ where: eq(seasons.id, id) }),

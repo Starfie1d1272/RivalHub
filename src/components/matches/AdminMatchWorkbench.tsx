@@ -39,10 +39,21 @@ import {
 import { mapLabel } from "@/lib/maps";
 import type { AdminMatchWorkbenchData } from "@/lib/admin/matches/types";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { getAdminMatchStartBlockers } from "@/lib/admin/matches/start-blockers";
+import {
+  getAdminMatchStartBlockers,
+  matchLineupStatusLabel,
+} from "@/lib/admin/matches/start-blockers";
+import {
+  MATCH_WORKBENCH_TASK_ANCHORS,
+  matchWorkbenchContextQuery,
+  type MatchWorkbenchTask,
+} from "@/lib/admin/matches/return-context";
 import { formatCSTDateTime, toCSTDateTimeInput } from "@/lib/utils/date";
 
-export type AdminMatchWorkbenchProps = AdminMatchWorkbenchData;
+export type AdminMatchWorkbenchProps = AdminMatchWorkbenchData & {
+  task?: MatchWorkbenchTask;
+  returnTo?: string;
+};
 
 function RosterSummary({
   teamName,
@@ -89,7 +100,7 @@ function RosterSummary({
           <TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink>
         </p>
         <span className="text-xs text-[var(--color-fg-mid)]">
-          {roster.status === "confirmed" ? "已定格" : "待开赛核验"}
+          {matchLineupStatusLabel(roster.status)}
         </span>
       </div>
       <p className="mt-2 text-xs leading-5 text-[var(--color-fg-mid)]">
@@ -132,6 +143,8 @@ export function AdminMatchWorkbench({
   demoQualitySummaries = [],
   operator,
   commentary,
+  task,
+  returnTo,
 }: AdminMatchWorkbenchProps) {
   const requiresPreflight = requiresCompetitionLineupPreflight(match);
   const startBlockers = getAdminMatchStartBlockers({
@@ -210,37 +223,6 @@ export function AdminMatchWorkbench({
             <span>截止：{formatCSTDateTime(match.completionDeadline)}</span>
           )}
         </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {postMatch && (match.status === "scheduled" || match.status === "in_progress") ? (
-            <details className="min-w-0 space-y-3">
-              <summary className="cursor-pointer text-sm font-medium">
-                解说管理 · {postMatch.commentators.length}/2
-              </summary>
-              {commentary.byMatchId[match.id] && (
-                <MatchCommentaryStatus
-                  matchId={match.id}
-                  assignment={commentary.byMatchId[match.id]}
-                  showCommentators={false}
-                />
-              )}
-              <PostMatchRecordPanel matchId={match.id} data={postMatch} />
-            </details>
-          ) : (
-            match.status === "cancelled" &&
-            commentary.byMatchId[match.id] && (
-              <MatchCommentaryStatus
-                matchId={match.id}
-                assignment={commentary.byMatchId[match.id]}
-              />
-            )
-          )}
-          {["scheduled", "in_progress"].includes(match.status) && (
-            <Suspense fallback={<p className="min-h-4 text-xs">正在读取转播状态…</p>}>
-              <MatchBroadcastStatus seasonId={season.id} matchId={match.id} />
-            </Suspense>
-          )}
-        </div>
       </header>
 
       <Separator />
@@ -258,8 +240,61 @@ export function AdminMatchWorkbench({
             autoRefresh={match.status === "scheduled" || match.status === "in_progress"}
           />
         </div>
-        {match.status === "scheduled" && startBlockers.length > 0 && (
-          <p className="text-sm text-[var(--color-warn)]">{startBlockers.join("；")}</p>
+        {match.status === "scheduled" && (
+          <section
+            id={MATCH_WORKBENCH_TASK_ANCHORS.lineups}
+            aria-label="双方首发核对"
+            className="scroll-mt-4 space-y-2"
+          >
+            <ul className="grid gap-1 text-sm [overflow-wrap:anywhere] sm:grid-cols-2">
+              <li>
+                <strong>{teamAName}</strong> · {matchLineupStatusLabel(teamARoster?.status ?? null)}
+              </li>
+              <li>
+                <strong>{teamBName}</strong> · {matchLineupStatusLabel(teamBRoster?.status ?? null)}
+              </li>
+            </ul>
+            {startBlockers.length > 0 && (
+              <ul className="list-disc space-y-1 pl-4 text-sm text-[var(--color-warn)]">
+                {startBlockers.map((blocker, index) => (
+                  <li key={index}>{blocker}</li>
+                ))}
+              </ul>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <AdminRosterDialog
+                matchId={match.id}
+                teamAName={teamAName}
+                teamBName={teamBName}
+                entryAId={match.entryAId}
+                entryBId={match.entryBId}
+                teamAMembers={teamAMembers}
+                teamBMembers={teamBMembers}
+                teamARoster={teamARoster}
+                teamBRoster={teamBRoster}
+                allowSubstitutes={match.ownership !== "major_stage"}
+              />
+              <a href="#match-lineup-details" className="text-sm underline underline-offset-4">
+                查看首发队员
+              </a>
+            </div>
+          </section>
+        )}
+        {task && match.status === "cancelled" && (
+          <p
+            id={MATCH_WORKBENCH_TASK_ANCHORS[task]}
+            className="scroll-mt-4 text-sm text-[var(--color-fg-secondary)]"
+          >
+            比赛已取消，赛前工作已结束。
+          </p>
+        )}
+        {task === "scheduling" && match.status === "finished" && (
+          <p
+            id={MATCH_WORKBENCH_TASK_ANCHORS.scheduling}
+            className="scroll-mt-4 text-sm text-[var(--color-fg-secondary)]"
+          >
+            比赛已结束，开赛时间与最晚完成时间已锁定。
+          </p>
         )}
         {operator.workflow.primaryTask === "source_check" && (
           <p className="text-sm text-[var(--color-warn)]">{operator.workflow.description}</p>
@@ -272,9 +307,11 @@ export function AdminMatchWorkbench({
                   ? "text-[var(--color-fg-mid)] underline underline-offset-4"
                   : "inline-flex min-h-10 items-center rounded bg-[var(--color-accent)] px-4 font-medium text-[var(--color-accent-fg)]"
               }
-              href={`/${season.slug}/matches/${match.id}/veto`}
+              href={
+                `/${season.slug}/matches/${match.id}/veto${matchWorkbenchContextQuery(returnTo, task)}` as never
+              }
             >
-              {vetoCompletedAt || match.status === "finished" ? "查看 BP" : "进入 BP"}
+              {vetoCompletedAt || match.status === "finished" ? "查看 BP" : "进入 BP 房间"}
             </Link>
           )}
           {operator.workflow.focusMapId && match.status !== "finished" && (
@@ -303,6 +340,11 @@ export function AdminMatchWorkbench({
             </a>
           ))}
         </div>
+        {match.status === "scheduled" && (
+          <p className="text-sm text-[var(--color-fg-secondary)]">
+            BP 开始前双方首发须就绪，由负责人在房间内确认。完成禁选与选边后，按地图计划建房。
+          </p>
+        )}
         {operator.review && (
           <OperatorIssuePanel reasons={operator.workflow.reviewReasons} review={operator.review} />
         )}
@@ -361,6 +403,37 @@ export function AdminMatchWorkbench({
             </details>
           )}
       </section>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        {postMatch && (match.status === "scheduled" || match.status === "in_progress") ? (
+          <details
+            id={MATCH_WORKBENCH_TASK_ANCHORS.commentary}
+            open={task === "commentary"}
+            className="scroll-mt-4 min-w-0 space-y-3"
+          >
+            <summary className="cursor-pointer text-sm font-medium">
+              解说管理 · {postMatch.commentators.length}/2
+            </summary>
+            {commentary.byMatchId[match.id] && (
+              <MatchCommentaryStatus
+                matchId={match.id}
+                assignment={commentary.byMatchId[match.id]}
+                showCommentators={false}
+              />
+            )}
+            <PostMatchRecordPanel matchId={match.id} data={postMatch} />
+          </details>
+        ) : (
+          match.status === "cancelled" &&
+          commentary.byMatchId[match.id] && (
+            <MatchCommentaryStatus matchId={match.id} assignment={commentary.byMatchId[match.id]} />
+          )
+        )}
+        {(match.status === "scheduled" || match.status === "in_progress") && (
+          <Suspense fallback={<p className="min-h-4 text-xs">正在读取转播状态…</p>}>
+            <MatchBroadcastStatus seasonId={season.id} matchId={match.id} />
+          </Suspense>
+        )}
+      </div>
       <aside
         aria-label="比赛与数据源"
         className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-fg-mid)]"
@@ -403,11 +476,16 @@ export function AdminMatchWorkbench({
       {match.status === "finished" && postMatch && (
         <details
           id="match-workbench-finished-postmatch"
-          open={postMatchTasks.some((task) => task.anchor === "match-workbench-finished-postmatch")}
+          open={
+            task === "commentary" ||
+            postMatchTasks.some((task) => task.anchor === "match-workbench-finished-postmatch")
+          }
           className="space-y-3 rounded border border-[var(--color-border)] p-3"
         >
           <summary className="cursor-pointer font-medium">解说与录像</summary>
-          <PostMatchRecordPanel matchId={match.id} data={postMatch} />
+          <div id={MATCH_WORKBENCH_TASK_ANCHORS.commentary} className="scroll-mt-4">
+            <PostMatchRecordPanel matchId={match.id} data={postMatch} />
+          </div>
         </details>
       )}
       {operator.workflow.completedMaps.length > 0 && match.status !== "cancelled" && (
@@ -505,9 +583,13 @@ export function AdminMatchWorkbench({
 
       {match.status !== "cancelled" && (
         <details
-          id="match-lineups"
-          className="space-y-4 rounded border border-[var(--color-border)] p-4"
-          open={match.status === "scheduled"}
+          id={
+            match.status === "scheduled"
+              ? "match-lineup-details"
+              : MATCH_WORKBENCH_TASK_ANCHORS.lineups
+          }
+          className="scroll-mt-4 space-y-4 rounded border border-[var(--color-border)] p-4"
+          open={match.status === "scheduled" || task === "lineups" || task === "scheduling"}
         >
           <summary className="cursor-pointer font-semibold">首发、BP 与赛程管理</summary>
           {
@@ -534,26 +616,16 @@ export function AdminMatchWorkbench({
                   roster={teamBRoster}
                 />
               </div>
-              {match.status !== "finished" && (
-                <AdminRosterDialog
-                  matchId={match.id}
-                  teamAName={teamAName}
-                  teamBName={teamBName}
-                  entryAId={match.entryAId}
-                  entryBId={match.entryBId}
-                  teamAMembers={teamAMembers}
-                  teamBMembers={teamBMembers}
-                  teamARoster={teamARoster}
-                  teamBRoster={teamBRoster}
-                  allowSubstitutes={match.ownership !== "major_stage"}
-                />
-              )}
             </section>
           }
 
           {match.status !== "finished" && (
             <>
-              <section aria-labelledby="match-workbench-maps" className="space-y-3">
+              <section
+                id={MATCH_WORKBENCH_TASK_ANCHORS.scheduling}
+                aria-labelledby="match-workbench-maps"
+                className="scroll-mt-4 space-y-3"
+              >
                 <div>
                   <h2
                     id="match-workbench-maps"
@@ -566,6 +638,7 @@ export function AdminMatchWorkbench({
                   matchId={match.id}
                   currentScheduledAt={match.scheduledAt}
                   currentCompletionDeadline={match.completionDeadline}
+                  canEditScheduledAt={match.status === "scheduled"}
                 />
                 {match.status === "in_progress" ? (
                   vetoCompletedAt ? (
@@ -596,6 +669,12 @@ export function AdminMatchWorkbench({
                     matchId={match.id}
                     currentStatus={match.status}
                     allowCancel={match.qualificationRunId === null}
+                    matchLabel={`${teamAName} vs ${teamBName}`}
+                    impact={{
+                      test: Boolean(match.testConfig),
+                      managed: match.ownership === "major_stage",
+                      bet: season.competitionTemplate === "major" && !match.testConfig,
+                    }}
                   />
                 )}
               </section>

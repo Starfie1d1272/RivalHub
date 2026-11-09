@@ -5,6 +5,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
 import { eq, and, inArray } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db/client";
 import { matches, matchMaps } from "@/db/schema";
 import { ok } from "@/types/action";
@@ -12,8 +13,8 @@ import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { assertMatchTransition } from "@/lib/match-transitions";
-import { getMaxMaps, isMatchStatus } from "@/types/match";
-import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
+import { getMaxMaps } from "@/types/match";
+import { actionError, failValidation, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
 import { applyMatchStatusTransitionInTx } from "@/lib/matches/lifecycle";
 import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { finishCompetitionSeriesInTx } from "@/lib/matches/competition-results";
@@ -40,21 +41,14 @@ import {
  */
 export async function updateMatchStatus(
   matchId: string,
-  nextStatus: "in_progress" | "cancelled",
+  nextStatus: "cancelled",
 ): Promise<ActionResult<void>> {
+  if (!z.uuid().safeParse(matchId).success || nextStatus !== "cancelled") {
+    return failValidation("取消比赛参数无效。");
+  }
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
-    if (nextStatus === "in_progress") {
-      throw new AppError(
-        ErrorCode.MATCH_INVALID_TRANSITION,
-        "比赛须由双方在 Veto Room 确认后开始。",
-      );
-    }
-    if (!isMatchStatus(match.status)) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, `无效的比赛状态: ${match.status}`);
-    }
-    assertMatchTransition(match.status, nextStatus);
 
     const seasonForStatus = await getSeasonOrThrow(match.seasonId);
     let finishedSlug: string | null = null;
@@ -62,10 +56,11 @@ export async function updateMatchStatus(
       await applyMatchStatusTransitionInTx(tx, {
         matchId,
         nextStatus,
+        expectedStatus: "scheduled",
         actorId: auditActorId(session),
       });
 
-      if (nextStatus === "cancelled" && !match.testConfig) {
+      if (!match.testConfig) {
         finishedSlug = await maybeFinishSeason(tx, match.seasonId);
       }
     });
@@ -172,30 +167,32 @@ export async function updateMatchCompletionDeadline(
   matchId: string,
   completionDeadline: Date | null,
 ): Promise<ActionResult<void>> {
+  if (
+    !z.uuid().safeParse(matchId).success ||
+    !z.date().nullable().safeParse(completionDeadline).success
+  ) {
+    return failValidation("最晚完成时间参数无效。");
+  }
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
-
-    if (match.status === "finished" || match.status === "cancelled") {
-      throw new AppError(
-        ErrorCode.MATCH_INVALID_TRANSITION,
-        "已结束或已取消的比赛不能修改最晚完成时间",
-      );
-    }
-    if (completionDeadline && completionDeadline.getTime() <= Date.now()) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "最晚完成时间必须晚于当前时间");
-    }
-    if (
-      completionDeadline &&
-      match.scheduledAt &&
-      match.scheduledAt.getTime() > completionDeadline.getTime()
-    ) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "最晚完成时间不能早于已设定的比赛时间");
-    }
-
     const season = await getSeasonOrThrow(match.seasonId);
     await db.transaction(async (tx) => {
-      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
+      const locked = await lockMatchInTx(tx, matchId);
+      if (locked.seasonId !== match.seasonId)
+        throw new AppError(ErrorCode.FORBIDDEN, "比赛所属赛事已变化。");
+      if (locked.status === "finished" || locked.status === "cancelled") {
+        throw new AppError(
+          ErrorCode.MATCH_INVALID_TRANSITION,
+          "已结束或已取消的比赛不能修改最晚完成时间",
+        );
+      }
+      if (completionDeadline && completionDeadline.getTime() <= Date.now()) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "最晚完成时间必须晚于当前时间");
+      }
+      if (completionDeadline && locked.scheduledAt && locked.scheduledAt > completionDeadline) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "最晚完成时间不能早于已设定的比赛时间");
+      }
       await tx
         .update(matches)
         .set({ completionDeadline, updatedAt: new Date() })
@@ -345,21 +342,30 @@ export async function updateMatchCompletedAt(
   matchId: string,
   completedAtStr: string | null,
 ): Promise<ActionResult<void>> {
+  if (
+    !z.uuid().safeParse(matchId).success ||
+    !z.string().nullable().safeParse(completedAtStr).success
+  ) {
+    return failValidation("实际完成时间参数无效。");
+  }
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
-
-    if (match.status !== "finished") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已完成的比赛才能修改完成时间");
-    }
-
     const { parseCSTInput } = await import("@/lib/utils/date");
     const completedAt = parseCSTInput(completedAtStr);
+    if (completedAtStr !== null && !completedAt) {
+      return failValidation("请输入有效的实际完成时间。");
+    }
 
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
-      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
+      const locked = await lockMatchInTx(tx, matchId);
+      if (locked.seasonId !== match.seasonId)
+        throw new AppError(ErrorCode.FORBIDDEN, "比赛所属赛事已变化。");
+      if (locked.status !== "finished") {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已完成的比赛才能修改完成时间");
+      }
       await tx
         .update(matches)
         .set({ completedAt, updatedAt: new Date() })

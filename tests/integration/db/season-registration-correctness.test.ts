@@ -1,13 +1,25 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { createCustomTournamentTemplate } from "../../../src/lib/competition/templates";
 import { openSeasonRegistrationInTx } from "../../../src/lib/seasons/lifecycle";
+import { getSeasonConfirmationVersion } from "../../../src/lib/seasons/confirmation";
+import { openSeasonRegistration, publishSeason } from "@/actions/seasons";
 import { planSeasonUpdate, seasonUpdatePayloadSchema } from "../../../src/lib/seasons/edit";
 import { toCSTDateTimeInput } from "../../../src/lib/utils/date";
 import { createLocalPool } from "./harness/database";
+
+vi.mock("@/lib/auth/session", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/auth/session")>(),
+  requireSuperAdmin: async () => ({ userId: "fixture-admin" }),
+}));
+vi.mock("next/cache", async (importOriginal) => ({
+  ...await importOriginal<typeof import("next/cache")>(),
+  revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
+}));
 
 const CUSTOM_TEMPLATE = createCustomTournamentTemplate();
 
@@ -63,12 +75,13 @@ describe("season registration correctness PostgreSQL", () => {
 
       const unscheduledId = randomUUID();
       seasonIds.push(unscheduledId);
-      await database.insert(schema.seasons).values(seasonValues(unscheduledId));
+      const [unscheduled] = await database.insert(schema.seasons).values(seasonValues(unscheduledId)).returning();
       const immediateResult = await database.transaction((tx) => openSeasonRegistrationInTx(tx, {
         seasonId: unscheduledId,
         actorId: "issue-638-test",
         now: transition,
         mode: "explicit_immediate",
+        expectedVersion: getSeasonConfirmationVersion(unscheduled),
       }));
       expect(immediateResult.opened).toBe(true);
       const immediateRow = await database.query.seasons.findFirst({ where: eq(schema.seasons.id, unscheduledId) });
@@ -76,12 +89,13 @@ describe("season registration correctness PostgreSQL", () => {
 
       const futureId = randomUUID();
       seasonIds.push(futureId);
-      await database.insert(schema.seasons).values(seasonValues(futureId, { registrationOpensAt: future }));
+      const [scheduled] = await database.insert(schema.seasons).values(seasonValues(futureId, { registrationOpensAt: future })).returning();
       await expect(database.transaction((tx) => openSeasonRegistrationInTx(tx, {
         seasonId: futureId,
         actorId: "issue-638-test",
         now: transition,
         mode: "explicit_immediate",
+        expectedVersion: getSeasonConfirmationVersion(scheduled),
       }))).rejects.toThrow("如需提前开放");
       const untouchedFuture = await database.query.seasons.findFirst({ where: eq(schema.seasons.id, futureId) });
       expect(untouchedFuture).toMatchObject({ registrationOpensAt: future, registrationOpenedAt: null });
@@ -91,12 +105,85 @@ describe("season registration correctness PostgreSQL", () => {
         actorId: "issue-638-test",
         now: transition,
         mode: "explicit_early_force",
+        expectedVersion: getSeasonConfirmationVersion(scheduled),
       }));
       expect(earlyResult.opened).toBe(true);
       const earlyRow = await database.query.seasons.findFirst({ where: eq(schema.seasons.id, futureId) });
       expect(earlyRow).toMatchObject({ registrationOpensAt: transition, registrationOpenedAt: transition });
     } finally {
       await pool.query("DELETE FROM seasons WHERE id = ANY($1::uuid[])", [seasonIds]);
+      await pool.end();
+    }
+  });
+
+  it("rejects saved configuration changes under the publication and manual opening locks", async () => {
+    const pool = createLocalPool();
+    const database = drizzle(pool, { schema });
+    const seasonId = randomUUID();
+    const schedule = new Date(Date.now() + 86_400_000);
+    const nextSchedule = new Date(schedule.getTime() + 86_400_000);
+    const readSeason = () => database.query.seasons.findFirst({ where: eq(schema.seasons.id, seasonId) });
+    const readActions = async () => (await pool.query<{ action: string }>(
+      "SELECT action FROM audit_logs WHERE season_id=$1 ORDER BY created_at", [seasonId],
+    )).rows.map(({ action }) => action);
+
+    try {
+      await database.insert(schema.seasons).values(seasonValues(seasonId, {
+        name: "Saved draft",
+        status: "draft",
+        competitionTemplate: "rivals",
+        kind: "Rivals",
+        registrationOpensAt: schedule,
+      }));
+      const preview = getSeasonConfirmationVersion((await readSeason())!);
+      const writer = await pool.connect();
+      try {
+        await writer.query("BEGIN");
+        await writer.query("UPDATE seasons SET name='Changed draft' WHERE id=$1", [seasonId]);
+        const [{ pid }] = (await writer.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows;
+        const publishing = publishSeason({ seasonId, expectedVersion: preview });
+        await expect.poll(async () => {
+          const waiting = await pool.query("SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))", [pid]);
+          return waiting.rowCount;
+        }, { timeout: 2000, interval: 10 }).toBe(1);
+        await writer.query("COMMIT");
+        await expect(publishing).resolves.toMatchObject({
+          success: false,
+          error: { code: "SEASON_CONFIGURATION_CHANGED" },
+        });
+      } finally {
+        await writer.query("ROLLBACK");
+        writer.release();
+      }
+      expect(await readSeason()).toMatchObject({ status: "draft", name: "Changed draft" });
+      expect(await readActions()).toEqual([]);
+
+      const savedDraft = (await readSeason())!;
+      await expect(publishSeason({
+        seasonId,
+        expectedVersion: getSeasonConfirmationVersion(savedDraft),
+      })).resolves.toMatchObject({ success: true });
+      const openPreview = getSeasonConfirmationVersion((await readSeason())!);
+      // These changes leave updated_at unchanged to check the saved facts themselves.
+      await database.update(schema.seasons).set({ registrationOpensAt: nextSchedule }).where(eq(schema.seasons.id, seasonId));
+      await expect(openSeasonRegistration({
+        seasonId, expectedVersion: openPreview, mode: "early_force",
+      })).resolves.toMatchObject({ success: false, error: { code: "SEASON_CONFIGURATION_CHANGED" } });
+      const beforeOpen = (await readSeason())!;
+      expect(beforeOpen).toMatchObject({
+        status: "registration", registrationOpensAt: nextSchedule, registrationOpenedAt: null,
+      });
+      expect(await readActions()).toEqual(["season.publish"]);
+
+      await expect(openSeasonRegistration({
+        seasonId, expectedVersion: getSeasonConfirmationVersion(beforeOpen), mode: "early_force",
+      })).resolves.toMatchObject({ success: true });
+      const opened = (await readSeason())!;
+      expect(opened.registrationOpenedAt).toBeInstanceOf(Date);
+      expect(opened.registrationOpensAt).toEqual(opened.registrationOpenedAt);
+      expect(await readActions()).toEqual(["season.publish", "season.registration_open"]);
+    } finally {
+      await pool.query("DELETE FROM seasons WHERE id=$1", [seasonId]);
       await pool.end();
     }
   });

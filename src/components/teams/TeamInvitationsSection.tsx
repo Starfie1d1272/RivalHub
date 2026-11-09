@@ -92,6 +92,8 @@ export function TeamInvitationsSection({
           <div className="space-y-4">
             <div className="flex gap-2">
               <Input
+                type="email"
+                aria-label="受邀者的已注册邮箱"
                 value={email}
                 onChange={(event) => onEmailChange(event.target.value)}
                 placeholder="已注册邮箱"

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CAPTAIN_TEAM_COUNT } from "@/lib/captains/rules";
 
 export const castVoteSchema = z.object({
   voterRegistrationId: z.guid(),
@@ -12,6 +13,9 @@ export const retractVoteSchema = z.object({
 
 export const confirmCaptainsSchema = z.object({
   seasonId: z.guid(),
+  expectedCaptains: z
+    .array(z.object({ registrationId: z.guid(), userId: z.guid() }))
+    .length(CAPTAIN_TEAM_COUNT),
 });
 
 export type CastVoteInput = z.infer<typeof castVoteSchema>;

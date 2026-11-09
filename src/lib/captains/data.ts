@@ -1,5 +1,5 @@
 import { and, asc, count, eq, inArray } from "drizzle-orm";
-import { db } from "@/db/client";
+import { db, type TxDb } from "@/db/client";
 import {
   captainVotes,
   seasonRegistrations,
@@ -81,8 +81,9 @@ export function serializePublicCaptainCandidate(
 async function readCaptainVotingData(
   seasonId: string,
   includeVoters: boolean,
+  database: Pick<TxDb, "select"> = db,
 ): Promise<PublicCaptainVotingData> {
-  const registrations = await db
+  const registrations = await database
     .select({
       id: seasonRegistrations.id,
       userId: users.id,
@@ -112,7 +113,7 @@ async function readCaptainVotingData(
   const voteRows =
     registrationIds.length === 0
       ? []
-      : await db
+      : await database
           .select({
             candidateRegistrationId: captainVotes.candidateRegistrationId,
             voteCount: count(),
@@ -188,13 +189,22 @@ export async function getPublicCaptainVotingData(
 
 export type AdminCaptainSeed = Omit<PublicCaptainCandidate, "peakRank">;
 
-/** Confirmation still rechecks canonical ranking; the panel displays only eight seeds. */
 export async function getAdminCaptainRanking(
   seasonId: string,
-): Promise<{ seeds: AdminCaptainSeed[]; candidateCount: number }> {
-  const { candidates } = await readCaptainVotingData(seasonId, false);
+  database: Pick<TxDb, "select"> = db,
+): Promise<{ seeds: AdminCaptainSeed[]; candidateCount: number; totalVotes: number }> {
+  const { candidates } = await readCaptainVotingData(seasonId, false, database);
+  const [participation] = await database
+    .select({ count: count() })
+    .from(captainVotes)
+    .innerJoin(
+      seasonRegistrations,
+      eq(captainVotes.candidateRegistrationId, seasonRegistrations.id),
+    )
+    .where(eq(seasonRegistrations.seasonId, seasonId));
   return {
     candidateCount: candidates.length,
+    totalVotes: Number(participation?.count ?? 0),
     seeds: candidates
       .slice(0, CAPTAIN_TEAM_COUNT)
       .map(
@@ -211,8 +221,11 @@ export async function getAdminCaptainRanking(
   };
 }
 
-export async function getSeasonTeamCount(seasonId: string): Promise<number> {
-  const [row] = await db
+export async function getSeasonTeamCount(
+  seasonId: string,
+  database: Pick<TxDb, "select"> = db,
+): Promise<number> {
+  const [row] = await database
     .select({ count: count() })
     .from(competitionEntries)
     .where(eq(competitionEntries.competitionId, seasonId));

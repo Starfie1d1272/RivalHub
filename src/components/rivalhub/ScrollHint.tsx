@@ -2,22 +2,51 @@
 
 import React from "react";
 import { cn } from "@/lib/utils/cn";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 
 const SCROLL_EPSILON = 2;
+
+/** Scroll only the horizontal track, preserving the page's vertical position. */
+export function useRevealCurrentItem(
+  ref: RefObject<HTMLElement | null>,
+  activeKey: string | undefined,
+) {
+  React.useEffect(() => {
+    const frame = ref.current;
+    if (!frame || activeKey === undefined) return;
+    function reveal() {
+      if (!frame || frame.scrollWidth <= frame.clientWidth) return;
+      const current = frame.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!current) return;
+      const bounds = frame.getBoundingClientRect();
+      const item = current.getBoundingClientRect();
+      if (item.left < bounds.left || item.right > bounds.right) {
+        frame.scrollLeft += item.left - bounds.left - (frame.clientWidth - item.width) / 2;
+      }
+    }
+    reveal();
+    if (typeof ResizeObserver === "undefined") return;
+    const resize = new ResizeObserver(reveal);
+    resize.observe(frame);
+    return () => resize.disconnect();
+  }, [ref, activeKey]);
+}
 
 interface ScrollHintProps {
   children: ReactNode;
   className?: string;
   fromColor?: string;
+  currentItemKey?: string;
 }
 
 export function ScrollHint({
   children,
   className,
   fromColor = "var(--color-bg)",
+  currentItemKey,
 }: ScrollHintProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  useRevealCurrentItem(scrollRef, currentItemKey);
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(false);
 

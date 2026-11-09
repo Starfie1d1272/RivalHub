@@ -18,7 +18,7 @@ Supabase Auth 负责登录身份；成功确认/登录后同步身份到对应�
 
 教育认证保持三条有明确优先级的路径：已验证且命中唯一学生邮箱 registry 的 identity 即时认证在读身份；CHSI 在线验证报告由 super admin 人工核验；暂时无法取得 CHSI 材料的新生可从 canonical 高校目录选择学校并提交一张录取通知书图片，由 super admin 人工核验。录取通知书路径固定写入 `enrolled + manual_other + pending`，不证明毕业身份，也不接受自由文本学校。
 
-提交者必须是当前 canonical user、拥有 verified email ownership fact，并选择存在的 canonical institution。人工审核 claim 使用事务 advisory lock：pending/approved claim 返回既有结果，rejected 后再次提交会创建新的 immutable claim，旧审核历史不改写；CHSI 同一规范化验证码的并发重提也只会产生一条新的 pending claim。图片只供审核使用，审核完成七天后由既有 cleanup scheduler 删除；cleanup 失败时保留 object key 供下一次重试，不改变认证或审核历史。
+提交者必须是当前 canonical user、拥有 verified email ownership fact，并选择存在的 canonical institution。人工审核 claim 使用事务 advisory lock：pending/approved claim 返回既有结果，rejected 后再次提交会创建新的 immutable claim，旧审核历史不改写；CHSI 同一规范化验证码的并发重提也只会产生一条新的 pending claim。超管核对申请人和学校后确认审核结果，通过时可填写管理员备注，驳回时须填写申请人可见的原因。图片只供审核使用，审核完成七天后由既有 cleanup scheduler 删除；cleanup 失败时保留 object key 供下一次重试，不改变认证或审核历史。
 
 ## Season lifecycle
 
@@ -31,8 +31,8 @@ Major:  draft → registration → playing → finished → archived
 
 关键边界：
 
-- **publish ≠ registration open**：发布让赛事公开；实际开放报名才记录 `registrationOpenedAt` 并冻结需要的竞技/资格上下文。
-- `registrationOpensAt` 是计划开放时间，`registrationOpenedAt` 是实际 transition fact。scheduler 或参与者 recovery 的到期补开保留原计划时间；无计划赛事的明确立即开放同时写入当前时间；未来计划的提前开放必须由管理员明确确认，使用独立的 force-open 语义并将有效计划时间改为当前时间。
+- 发布让赛事公开。超管在发布和手动开放报名之前核对已保存的配置，事务锁定赛事后复核同一版本。已保存的配置变化时须刷新并重新核对。
+- `registrationOpensAt` 是计划开放时间。`registrationOpenedAt` 记录实际开放，赛事在该时点冻结需要的竞技与资格上下文。已到期的计划时间在补开时保留。无计划赛事的手动开放同时记录计划与实际时间，未来计划的提前开放将计划改为实际开放时间。
 - 报名开放后，已经冻结的 policy/context 不随全局目录变化；运营 deadline 只在其允许的生命周期内调整。
 - draft 撤回/删除必须通过无既有业务事实的 guard；不能靠 UI 隐藏按钮代替 server validation。
 - 后台生命周期分组和首页 featured season 是 presentation projection，不创建全局 `currentSeason` 事实。
@@ -70,7 +70,11 @@ Rivals 的主要链路：
 → final results / archive
 ```
 
-选秀 pick 使用锁和 `clientRequestId` 保证并发与幂等：成功请求推进轮次后，同一请求重试仍返回原结果。直播视图只读取已提交状态，不以客户端乐观状态成为选秀真相。
+队长确认使用与预览相同的排序和参与条件。投票、撤票及报名审核与确认按赛事串行；服务端在创建队伍前复核管理员确认的八人及顺位。名单或顺位变化时须重新核对。
+
+队长选人携带当前队伍、轮次、截止时间和 `clientRequestId`，在选秀状态行锁内核对。选秀进行期间，已成功的同一请求返回原 pick。队长在开选前等待状态更新，提交后读取已提交的轮次和阵容。
+
+轮次到期时调度按位置名额自动选人。没有合资格候选时，本届管理员可以确认跳过当前选人顺位。事务在同一选秀状态行锁内重新检查轮次、截止时间和候选资格，并记录审计。跳过的名额保留空缺。最后一个顺位结束后，现有阵容锁定，赛事进入比赛阶段。
 
 ## Major registration and review
 
@@ -170,7 +174,7 @@ forfeit 是赛事比赛 `finished` 的结果形态，不是额外比赛状态。
 
 赛事比赛的在线 Veto Session 在 Match 通过共享 status transition 从 `scheduled` 进入 `in_progress` 时开始；计划开赛时间只用于开放协调窗口，不单独启动比赛。BP 步骤完成仅表示地图计划完成，不推进或结束 Match。进入 Veto 前，本场首发取队伍已提交的合法阵容；若未提交，则在计划开赛前两小时从 EventRoster 的五名当前主力生成默认阵容，提前开始 Veto 时同事务生成。实际开赛时再次核对并定格双方首发，不要求管理员单独确认。Qualification run 的 BP privileged entry 从该 run 的冻结 `competition_qualification_entrants.preliminary_seed` 推导，数字较小者为 higher seed；Major StageRun 使用冻结阶段种子。只有 `majorStageRunId` 与 `qualificationRunId` 都为空的 manual Match 才由赛季管理员显式指定 privileged entry。 BP 公开 projection 按观众、首发、负责人和管理员权限呈现，管理员可返回工作台，由工作台按当前阶段展示建房等赛务任务。完成页消费正式 match_maps 汇总地图顺序与起始阵营，内部 participant/system 来源保持审计事实，页面只说明超时自动选择及管理员调整。取消后停止操作倒计时和自动边界推进，保留历史记录和既有技术申诉权限，申诉表单按需展开；恢复先手选择后为实际操作方重新生成完整操作时限。
 
-Qualification-owned Play-in 比赛不允许进入 `cancelled`，以免冻结资格赛轮次；需要裁决时使用正式弃赛判负，写入可投影的胜者结果。资格赛比赛也不能通过通用 delete 路径单独删除。
+管理员工作台的取消操作适用于待赛比赛。确认时展示当前对阵和适用影响，提交在比赛锁内核对仍处于 `scheduled`，取消移除本场解说认领并记录审计。托管阶段依赖正式赛果推进，已有竞猜盘口跟随比赛取消锁定，由结算流程按作废规则处理。Qualification-owned Play-in 比赛使用正式弃赛判负记录胜者，服务端禁止通用取消或单场删除。
 
 正常比赛：
 
@@ -221,7 +225,7 @@ final result confirmation│
 honor grant/revoke ─────┘
 ```
 
-任何处罚或撤销都不隐式递补、改比分或改荣誉。Major final result 先进入待确认状态，确认后才成为长期可引用事实；归档不会把历史 snapshot 重新解释为当前 profile。
+赛事管理员从当前搜索结果选择处罚对象，核对对象、处罚效果、有效期和公开说明后签发。处罚从签发时生效，未填写结束时间时长期有效。任何处罚或撤销都不隐式递补、改比分或改荣誉。Major final result 先进入待确认状态，确认后才成为长期可引用事实；归档不会把历史 snapshot 重新解释为当前 profile。
 
 ## Community awards
 

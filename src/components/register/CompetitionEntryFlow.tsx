@@ -42,6 +42,7 @@ import {
   type Cs2Position,
 } from "@/lib/config/cs2-positions";
 import type { QualificationFinding } from "@/lib/qualification/service";
+import { withRegistrationReturnPath } from "@/lib/registrations/return-path";
 
 import { recruitmentHref } from "@/lib/recruitment/contract";
 
@@ -244,10 +245,7 @@ export function CompetitionEntryFlow(props: Props) {
     ) : null;
 
   if (!props.entry) {
-    if (!props.capabilities.canStartRegistration)
-      return (
-        <StatusBanner tone="info" title={props.capabilities.readOnlyReason ?? "报名尚未开放"} />
-      );
+    if (!props.capabilities.canStartRegistration) return null;
     if (props.captainedTeams.length === 0)
       return (
         <Panel contentClassName="p-6">
@@ -356,8 +354,7 @@ export function CompetitionEntryFlow(props: Props) {
       : (!representative || props.capabilities.canReleaseEliminatedParticipation) &&
           props.capabilities.canWithdrawParticipation
         ? `你目前已确认代表「${entry.name}」参加本届赛事。若要更换队伍，请先在“我的参赛确认”中退出当前本届赛事；这不会退出你当前的队伍。退出后页面会显示待处理的新邀请。`
-        : (props.capabilities.readOnlyReason ??
-          "当前名单不能自行调整；如需更换参赛队伍，请联系赛事管理员处理。");
+        : "如需更换本届参赛队伍，请联系赛事管理员。";
   const unsaved =
     selected.length !== entry.roster.length ||
     selected.some((id) => !entry.roster.some((member) => member.userId === id)) ||
@@ -440,9 +437,7 @@ export function CompetitionEntryFlow(props: Props) {
             : "/settings"
           : null;
       const target = competitiveTarget ?? educationTarget ?? identityTarget;
-      const href = target
-        ? `${target}${target.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(registrationHref)}`
-        : null;
+      const href = target ? withRegistrationReturnPath(target, registrationHref) : null;
       const label = competitiveTarget
         ? seasonKey === "historical"
           ? `${member.label} · 需要本人补充 · ${platformLabel(platform!)} 历史最高`
@@ -576,9 +571,6 @@ export function CompetitionEntryFlow(props: Props) {
 
   return (
     <div className="space-y-5">
-      {props.capabilities.readOnlyReason && (
-        <StatusBanner tone="info" title={props.capabilities.readOnlyReason ?? "报名尚未开放"} />
-      )}
       <StatusBanner
         tone={
           entry.status === "approved"

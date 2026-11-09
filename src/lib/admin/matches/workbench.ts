@@ -104,6 +104,7 @@ export async function loadAdminMatchWorkbench({
 }: AdminMatchWorkbenchInput): Promise<AdminMatchWorkbenchData | null> {
   const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) return null;
+  const admin = await requireSeasonAdmin(season.id);
 
   // Scope the lookup itself so a guessed match id can never cross seasons.
   const match = await db.query.matches.findFirst({
@@ -111,7 +112,6 @@ export async function loadAdminMatchWorkbench({
   });
   if (!match || match.seasonId !== season.id) return null;
   assertCompetitionMatch(match);
-  const admin = await requireSeasonAdmin(season.id);
 
   const entryIds = [match.entryAId, match.entryBId];
   const entries = await db.query.competitionEntries.findMany({
@@ -354,7 +354,12 @@ export async function loadAdminMatchWorkbench({
       reopened: rosterReopened,
       hasVideo: hasMatchRecording(match),
     }),
-    season: { id: season.id, slug: season.slug, name: season.name },
+    season: {
+      id: season.id,
+      slug: season.slug,
+      name: season.name,
+      competitionTemplate: season.competitionTemplate,
+    },
     stageName: match.testConfig ? "测试赛" : (stage?.name ?? null),
     match,
     teamAName,

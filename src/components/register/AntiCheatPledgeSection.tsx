@@ -1,17 +1,18 @@
-import React, { type ReactNode } from "react";
+import React from "react";
+import type { UseFormRegisterReturn } from "react-hook-form";
 import { Label } from "@/components/ui/label";
+import type { RegistrationFieldFeedback } from "./registration-form-utils";
 
-interface AntiCheatPledgeSectionProps {
-  defaultChecked: boolean;
-  error?: ReactNode;
-  onCheckedChange: (checked: boolean) => void;
+interface AntiCheatPledgeSectionProps extends RegistrationFieldFeedback {
+  registration: UseFormRegisterReturn<"antiCheatPledge">;
 }
 
 export function AntiCheatPledgeSection({
-  defaultChecked,
-  error,
-  onCheckedChange,
+  registration,
+  renderError,
+  errorAttributes,
 }: AntiCheatPledgeSectionProps) {
+  const error = errorAttributes("antiCheatPledge");
   return (
     <section
       className="rounded-lg border p-4"
@@ -21,9 +22,13 @@ export function AntiCheatPledgeSection({
         <input
           id="antiCheatPledge"
           type="checkbox"
-          defaultChecked={defaultChecked}
-          className="mt-0.5 h-4 w-4 accent-amber-400"
-          onChange={(event) => onCheckedChange(event.target.checked)}
+          className="mt-0.5 size-4 accent-[var(--color-accent)]"
+          {...registration}
+          aria-required="true"
+          aria-invalid={error["aria-invalid"]}
+          aria-describedby={["antiCheatPledge-help", error["aria-describedby"]]
+            .filter(Boolean)
+            .join(" ")}
         />
         <div>
           <Label
@@ -32,12 +37,12 @@ export function AntiCheatPledgeSection({
           >
             反作弊承诺 <span className="text-[var(--color-danger)]">*</span>
           </Label>
-          <p className="text-sm text-[var(--color-fg-mid)] mt-1">
+          <p id="antiCheatPledge-help" className="mt-1 text-sm text-[var(--color-fg-secondary)]">
             我承诺在参赛期间不使用任何作弊软件或外挂。一经发现，接受取消资格处理。
           </p>
         </div>
       </div>
-      {error}
+      {renderError("antiCheatPledge")}
     </section>
   );
 }

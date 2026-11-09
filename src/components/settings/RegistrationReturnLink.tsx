@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { safeLocalRedirect } from "@/lib/auth/redirect";
+import { safeRegistrationReturnPath } from "@/lib/registrations/return-path";
 import { Button } from "@/components/ui/button";
 
-export function RegistrationReturnLink({ href }: { href: string | string[] | undefined }) {
-  const target = safeLocalRedirect(typeof href === "string" ? href : undefined, "");
-  if (!/^\/[^/?#]+\/register(?:\?|$)/.test(target)) return null;
+export function RegistrationReturnLink({ href }: { href: string | string[] | null | undefined }) {
+  const target = safeRegistrationReturnPath(href);
+  if (!target) return null;
   return (
     <div className="mb-4">
       <p className="mb-2 text-sm text-[var(--color-fg-mid)]">

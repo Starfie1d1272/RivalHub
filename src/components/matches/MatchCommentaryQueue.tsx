@@ -13,6 +13,7 @@ import type {
 } from "@/lib/admin/matches/commentary";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { presentMatchStatus } from "@/lib/matches/presentation";
+import { matchWorkbenchHref } from "@/lib/admin/matches/return-context";
 
 export function MatchCommentaryStatus({
   matchId,
@@ -79,7 +80,7 @@ export function CommentaryMatchLink({
       </TeamProfileLink>
       <Link
         sourceAnchor={sourceAnchor}
-        href={`/admin/${seasonSlug}/matches/${match.id}`}
+        href={matchWorkbenchHref(seasonSlug, match.id, { task: "commentary" })}
         className="break-words font-medium text-[var(--color-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
       >
         {match.scheduledAt ? formatCSTDateTime(match.scheduledAt) : "尚未排期"} · 进入比赛工作台

@@ -21,7 +21,7 @@ export default async function VetoRoomPage({ params }: VetoRoomPageProps) {
 
   const room = await getVetoRoomView(matchId);
   return (
-    <PageLayout as="main" variant="standard" className="py-0">
+    <PageLayout variant="standard" className="py-0">
       <VetoRoom initialRoom={room} />
     </PageLayout>
   );

@@ -12,6 +12,7 @@ import {
   userIdentities,
 } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
+import { EDUCATION_REVIEW_NOTE_MAX_LENGTH } from "@/lib/education/admin-review-contract";
 import { educationAppError } from "@/lib/education/errors";
 import { auditActorId, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
 import {
@@ -189,7 +190,7 @@ export async function reviewEducationVerification(input: {
     .object({
       id: z.guid(),
       decision: z.enum(["approved", "rejected"]),
-      reviewNote: z.string().trim().max(1000).optional(),
+      reviewNote: z.string().trim().max(EDUCATION_REVIEW_NOTE_MAX_LENGTH).optional(),
     })
     .superRefine((value, ctx) => {
       if (value.decision === "rejected" && !value.reviewNote) {

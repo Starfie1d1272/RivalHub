@@ -16,7 +16,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 后台恢复与影响清单同样遵循这条边界：domain/service 只返回结构化事实，server action 只下发 presentation-safe projection；比赛托管 key、原始状态、阶段 key、确认游标和诊断字段留在服务端，不进入普通 operator UI。
 
-中英混排按视觉层级处理：mono/uppercase tactical chrome 可以保留简短、约定俗成的英文（如 `TBD`、`BO3`、`STAGE2`）；操作指引与异常处理使用自然中文；常见专业标签保留简短英文，必要的中文解释放入共享 HelpTooltip，支持悬停、键盘与触屏。同一视觉层的标签保持同一语言语义，不把生命周期结果、回顾或阵容等说明塞进 destination 名称。
+中英混排按视觉层级处理：mono/uppercase tactical chrome 可以保留简短、约定俗成的英文（如 `TBD`、`BO3`、`STAGE2`）；操作指引与异常处理使用自然中文；常见专业标签保留简短英文，必要的中文解释放入共享 HelpTooltip，支持悬停、键盘与触屏。帮助按钮保留 24px 命中区，指针可进入浮层阅读，Escape 可关闭且不移动键盘焦点。同一视觉层的标签保持同一语言语义，不把生命周期结果、回顾或阵容等说明塞进 destination 名称。
 
 账号入口稳定区分「我的参赛」（私有任务）、「个人主页」（公开资料）与「账号设置」。CS2 canonical position key 保持 `igl`、`awper`、`opener`、`closer`、`anchor`。
 
@@ -28,7 +28,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 ## Tokens and primitives
 
-视觉 token 的唯一数值来源是 `src/app/globals.css`；Tailwind/shadcn 名称只做 bridge，不为单页建立第二套色板、圆角或 spacing scale。
+视觉 token 的唯一数值来源是 `src/app/globals.css`；Tailwind/shadcn 名称只做 bridge。分隔线与控件边界各自使用 `border-static`、`border-control`，可读次级信息用 `fg-secondary` 或 `fg-essential`。危险填色使用成对的危险色和前景。根页面与通知共享当前颜色模式。
 
 稳定 shared contract：
 
@@ -41,7 +41,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 | `DialogContent/Body/Footer` | viewport、滚动、focus、操作区与尺寸 contract |
 | `StatusBanner` / `StatusPill` / `Checklist` | 状态解释、紧凑状态与 readiness |
 | `EmptyState` / `ErrorState` / `Skeleton` | empty/error/loading 的明确三态 |
-| `InlineConfirm` | 高影响 mutation 的影响说明与二次确认；可用宽度不足时操作区换到说明下方，不挤窄说明列 |
+| `InlineConfirm` | 高影响 mutation 的影响说明与二次确认；打开后先聚焦取消；Escape 或取消恢复触发焦点，条件替换按钮时传入触发器 ref。窄屏操作区换到说明下方 |
 
 首页备案信息位于共享页脚的最下方，独立一行相对页面居中，使用 12px 常规中文字体与次要灰色文字，链接支持悬停和键盘聚焦。仅首页展示已确认适用的备案信息，其他路由不占用该行空间。
 
@@ -49,7 +49,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 `PageLayout` 是 page width、horizontal gutter 和 base vertical padding 的唯一 owner。route page、loading、error、fallback 应复用同一个 route-level `PageLayout` variant；已经由父级 `PageLayout` 包裹的子页面只声明 section、grid、spacing、`min-w-0`、局部 overflow，以及真实阅读/表单所需的 inner `max-w-*`。
 
-赛事 layout 的共享 shell 在异步读取前后保留一个 small viewport 的最小内容高度；该槽位位于 Suspense 外，fallback 不单独估算半屏高度。短内容保留同一槽位，长内容自然撑高，footer 始终保留在正常文档流并可滚动到达。该取舍让 footer 在初始内容读取期间位于首屏之外，短页因此增加一个 header 与 footer 合计高度的滚动距离；它不保证 footer 的文档坐标不变，也不代表全页布局位移已消除。不隐藏 footer，不继续加大预留高度；验收同时检查总 CLS、真实主内容 ready 和长短页 footer 可达性。页面内部仍由各自 `PageLayout` 管理宽度与留白。
+根布局拥有唯一主要地标。赛事 layout 的共享 shell 在异步读取前后保留一个 small viewport 的最小内容高度，并显示简短的赛事读取状态；该槽位位于 Suspense 外，fallback 不单独估算半屏高度。短内容保留同一槽位，长内容自然撑高，footer 始终保留在正常文档流并可滚动到达。该取舍让 footer 在初始内容读取期间位于首屏之外，短页因此增加一个 header 与 footer 合计高度的滚动距离；它不保证 footer 的文档坐标不变，也不代表全页布局位移已消除。不隐藏 footer，不继续加大预留高度；验收同时检查总 CLS、真实主内容 ready 和长短页 footer 可达性。页面内部仍由各自 `PageLayout` 管理宽度与留白。
 
 不要在页面级重新组合 `container`、`mx-auto`、`max-w-*`、`px-*`、`py-*`。局部表单或长文的 inner width 可以保留，但不能再次拥有整页 gutter。赛事导航条和 breadcrumb 等 full-bleed/navigation surface 内部的 alignment frame 是例外：它只对齐导航内容，不负责 page body 的宽度或垂直几何。
 
@@ -62,7 +62,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 选择 variant 时先看页面的信息架构和交互密度，不按历史 max-w-* 机械套用。inner max-w-* 只服务真实的阅读或表单 measure；如果它包住整个 list、grid、operator workspace 或多区块 detail page，它实际上又在决定 page sizing，应回到 PageLayout 语义重新审查。
 
-全站沿用深色橙色竞技品牌。首页采用单一赛事主视觉与有主次的内容编排；分析、表单和操作背景保持安静，网格只进入展示层。控件、普通 surface 和展示面的圆角由共享语义 token 拥有。赛事主题覆盖 accent / rgb / soft / edge / focus / on-accent 完整色族，按钮文字按颜色亮度选择可读前景。导航 alignment frame 复用 `pageAlignmentFrame`。
+全站沿用深色橙色竞技品牌。首页采用单一赛事主视觉与有主次的内容编排；分析、表单和操作背景保持安静，网格只进入展示层。控件、普通 surface 和展示面的圆角由共享语义 token 拥有。保存的赛事色用于识别；深色主题按常规及高亮面板推导可读 accent、配对前景、soft/edge、选中边界和聚焦。Tailwind 别名在控件所在作用域求值；挂载到 body 的浮层沿 React 上下文继承赛事语义色，遮罩和面板使用根级中性色。导航 alignment frame 复用 `pageAlignmentFrame`。
 
 赛事入口由 `src/lib/seasons/entries.ts` 维护轻量 presentation metadata；能力门禁继续消费实际配置与既有 read model，入口不承担授权或 transition。Rivals 投票和选秀在历史中保持原目的地；Major 的预测与竞猜、赛事推演保持分别可发现。
 
@@ -160,7 +160,9 @@ Maps tab 只展示队伍自身正式地图表现。阵容成员历史正式地�
 
 ### Single-match operator workbench
 
-赛事后台赛后资料视图提供赛后缺口清单：本人负责场次优先，其它有权限的场次次级展示，未认领不隐藏计分板和 Demo 缺口。清单复用单场完成投影，链接直达对应地图或赛后资料；已齐备项不重复，处理中的 Demo 与待上传、失败、待审核分开显示。比赛总览同时提供个人当前场、下一场和解说认领；单场工作台以当前任务为视觉主体，只保留一个任务标题和可执行入口，不重复说明与下一步。比分记录方式、个人下一场及设备入口放在紧凑辅助栏；没有下一场时不占位。待进行与进行中的解说认领和管理员名单编辑整合在紧凑的「解说管理」入口，只展示一份名单；完赛后沿用「解说与录像」及名单冻结、更正流程。
+赛事总览的首发告警按同一查询定位本届已排期、待进行且至少一方首发未确认的正式比赛。单场直达首发核对，多场进入跨阶段队列。比赛执行的赛务待办处理排期、解说和同刻冲突，入口指向对应单场任务。赛后资料按本人负责场次优先，未认领也保留计分板和 Demo 缺口，链接直达对应地图或赛后资料。处理中的 Demo 与待上传、失败、待审核分开显示。工作台及 BP 往返保留本届来源、筛选和行位置。BET 历史盘口缺少正式比赛时提供历史入口。
+
+单场工作台以当前任务为视觉主体。比分记录方式、个人下一场及设备入口留在紧凑辅助栏。待进行场次在 BP 房间入口旁显示双方首发状态及核对操作，完整名单按需查看。解说认领沿用独立的「解说管理」入口，完赛后使用「解说与录像」。待进行可修改开赛时间，待进行及进行中可修改最晚完成时间，完赛后可在结果恢复区更正实际完成时间。每个时间字段明确标注北京时间，失败反馈就地呈现并保留原值。
 
 工作台按赛前、BP、建房、比赛中、图间与赛后组织内容；手动确认开局与采集到的开局事实共用公开页的阶段判定，已开图后转入录分，不继续提示建房。赛前首发缺口只提示一次；建房值与录分按当前阶段展示，赛后复用完成投影只列缺项，解说录像待办置于地图历史之前。已完成数据、固定配置、上传器帮助和数据质量详情按需展开；异常处理及危险操作的影响和确认不可省略。赛前主入口为「进入 BP」，赛中及赛后为「查看 BP」；沿用既有 BP 页面，当前禁选、地图和倒计时居主位，首发详情与更换负责人按需展开。赛前摘要读取正式名单与 BP 状态，首发在开赛事务中核验确认；Perfect 建房以正式赛程及 BP 结果提供六项复制和配置指引。
 
@@ -251,12 +253,13 @@ shared layer **不拥有** allowed query、validation、SQL `WHERE/ORDER BY`、q
 
 ## Forms and mutations
 
-- 使用既有 labeled controls；字段级 validation 靠近字段，服务端错误保留给用户。
+- 使用既有 labeled controls。Field 默认生成稳定 ID 关联可见标签；筛选器提供当前范围的名称，互斥按钮公开选择态。字段错误靠近对应控件，保留服务端反馈。
 - pending/success/failure 状态明确，避免重复 mutation。
 - 长期 profile、赛事报名和单场 roster 等不同事实不混成同一表单。
 - 已通过的队伍报名默认展示当前本届只读名单，将主力／替补和确认状态合并到成员行；不展示禁用的编辑复选框或未入选候选队员。当前资料检查可展开查看，并明确其不改变已通过结果；可用的名单变更及负责人交接入口继续保留。名单调整提示区分时间截止、赛事阶段限制和名单锁定。
 - 文件上传客户端提示、服务端再次验证；敏感材料只呈现任务最小信息。教育认证 fallback 是学信网材料不可得时的新生兜底，使用 canonical 高校 selector、单张非空 JPG/PNG/WebP 图片（最大 5 MiB），界面必须直接说明必要页面、遮挡身份证号/考生号/条形码或二维码、审核完成七天后自动删除且不会公开展示；不得让用户理解或操作 Storage key、signed URL 或内部 evidence enum。
 - qualification、seed、lineup、start 等关键判断展示最新服务端事实，不让乐观 UI 成为最终结论。
+- 从本届名单进入参赛资料后，设置导航、教育身份、账号与安全及邮箱验证结果保留同一个报名返回入口。返回上下文只携带赛事报名路径与可选的名单 ID，名单访问仍由赛事报名页校验。
 
 高影响操作（比分更正、纪律、裁决/荣誉撤销、归档、名单冻结、开赛等）使用 `InlineConfirm` 或等价明确确认，并继续由服务端授权、审计和 fail-closed validation 保护；浏览器原生 `confirm()` 不替代任务语义。
 

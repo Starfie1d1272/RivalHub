@@ -51,18 +51,23 @@ export async function reviewRegistration(input: ReviewInput) {
     let advancedSlug: string | null = null;
     // 事务内完成状态校验 + 位置检查 + 更新 + audit_log
     await db.transaction(async (tx) => {
+      const [season] = await tx
+        .select()
+        .from(seasons)
+        .where(eq(seasons.id, existingReg.seasonId))
+        .for("update");
+      if (!season) {
+        throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+      }
+
       const reg = await tx.query.seasonRegistrations.findFirst({
-        where: eq(seasonRegistrations.id, registrationId),
+        where: and(
+          eq(seasonRegistrations.id, registrationId),
+          eq(seasonRegistrations.seasonId, season.id),
+        ),
       });
       if (!reg) {
         throw new AppError(ErrorCode.NOT_FOUND, "报名记录不存在");
-      }
-
-      const season = await tx.query.seasons.findFirst({
-        where: eq(seasons.id, reg.seasonId),
-      });
-      if (!season) {
-        throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       }
 
       validateTransition(reg.status as RegistrationStatus, targetStatus, season.status);

@@ -9,6 +9,7 @@ import type { AdminMatchSummary } from "@/lib/admin/matches/types";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import type { AdminMatchCommentaryAssignment } from "@/lib/admin/matches/commentary";
 import { MatchCommentaryStatus } from "./MatchCommentaryQueue";
+import { matchWorkbenchHref } from "@/lib/admin/matches/return-context";
 
 export interface AdminMatchRowProps {
   match: AdminMatchSummary;
@@ -101,7 +102,7 @@ export function AdminMatchRow({
         <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-3">
           <div className="flex items-center gap-3">
             <Link
-              href={`/admin/${seasonSlug}/matches/${match.id}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`}
+              href={matchWorkbenchHref(seasonSlug, match.id, { returnTo }) as never}
               className="text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
             >
               进入比赛工作台 →

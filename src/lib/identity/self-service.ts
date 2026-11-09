@@ -1,6 +1,7 @@
 import "server-only";
 
 import { and, eq, gt, inArray, isNotNull, isNull } from "drizzle-orm";
+import { z } from "zod";
 import type { DB, TxDb } from "@/db/client";
 import {
   steamProfiles,
@@ -33,6 +34,12 @@ export async function loadSelfServiceMergeAuthorization(
   reader: IdentityReader,
   input: { authorizationId: string; actorUserId: string },
 ): Promise<SelfServiceMergeAuthorization> {
+  if (!z.uuid().safeParse(input.authorizationId).success) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "账号归并授权无效，请重新验证另一个账号的邮箱。",
+    );
+  }
   const [authorization] = await reader
     .select({
       id: userMergeAuthorizations.id,

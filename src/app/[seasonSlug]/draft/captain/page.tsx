@@ -1,5 +1,5 @@
 import { connection } from "next/server";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Route } from "next";
@@ -7,7 +7,7 @@ import type { Metadata } from "next";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries } from "@/db/schema";
-import { CaptainDraftPanel } from "@/components/draft/CaptainDraftPanel";
+import { CaptainDraftPanel, DraftCaptainWaiting } from "@/components/draft/CaptainDraftPanel";
 import { PageLayout, Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { getUserSession } from "@/lib/auth/session";
@@ -98,7 +98,16 @@ async function CaptainContent({ params }: DraftCaptainPageProps) {
 
   const data = await getCaptainDraftData(season.id);
   if (!data.state) {
-    return <UnavailablePanel title={`队长选人 · ${season.name}`} message="等待选秀开启。" />;
+    return (
+      <UnavailablePanel
+        title={`队长选人 · ${season.name}`}
+        message="等待选秀开启。本页会自动更新状态。"
+        href={`/${seasonSlug}/draft` as Route}
+        action="观看公开选秀"
+      >
+        <DraftCaptainWaiting />
+      </UnavailablePanel>
+    );
   }
 
   const currentTeamName =
@@ -139,21 +148,28 @@ function UnavailablePanel({
   message,
   href,
   action,
+  children,
 }: {
   title: string;
   message: string;
   href?: Route;
   action?: string;
+  children?: ReactNode;
 }) {
   return (
-    <PageLayout variant="standard">
+    <PageLayout variant="workbench">
       <Panel contentClassName="p-8">
         <h1 className="text-2xl font-bold">{title}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{message}</p>
-        {href && action && (
-          <Button variant="ghost" asChild className="mt-4">
-            <Link href={href}>{action}</Link>
-          </Button>
+        {(children || (href && action)) && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {children}
+            {href && action && (
+              <Button variant="ghost" asChild>
+                <Link href={href}>{action}</Link>
+              </Button>
+            )}
+          </div>
         )}
       </Panel>
     </PageLayout>

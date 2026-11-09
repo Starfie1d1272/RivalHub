@@ -19,6 +19,7 @@ import { loadAdminMatchCommentary } from "@/lib/admin/matches/commentary";
 import { loadSeasonWorkspaceOverview } from "@/lib/admin/season-workspace/overview";
 import { loadAdminMatchOverview, loadAdminCommentaryEffectiveness } from "@/lib/admin/matches/overview";
 import { loadAdminMatchWorkbench } from "@/lib/admin/matches/workbench";
+import { loadAdminLineupReviewQueue } from "@/lib/admin/matches/lineup-review";
 
 describe("admin match read models PostgreSQL integration", () => {
   it("keeps match detail season-scoped and preserves lightweight overview facts", async () => {
@@ -44,6 +45,7 @@ describe("admin match read models PostgreSQL integration", () => {
       matchA: randomUUID(),
       matchB: randomUUID(),
       operationMatch: randomUUID(),
+      secondLineupMatch: randomUUID(),
       testMatch: randomUUID(),
       rosterA: randomUUID(),
       rosterB: randomUUID(),
@@ -335,6 +337,36 @@ describe("admin match read models PostgreSQL integration", () => {
       await pool.query("UPDATE matches SET scheduled_at=$2 WHERE id=$1",[ids.operationMatch,start]);
       await pool.query(`INSERT INTO matches (id,season_id,entry_a_id,entry_b_id,stage,format,status,scheduled_at,test_config)
         VALUES ($1,$2,$3,$4,'test','bo1','scheduled',$5,$6::json)`,[ids.testMatch,ids.seasonA,ids.entryA,ids.entryB,start,JSON.stringify({mapPool:['de_inferno','de_mirage','de_nuke','de_ancient','de_anubis','de_dust2','de_train'],operatorAId:ids.playerA,operatorBId:ids.playerB})]);
+      await pool.query("UPDATE matches SET scheduled_at=$2 WHERE id=$1", [ids.matchB, start]);
+      expect((await loadSeasonWorkspaceOverview(seasonASlug))?.summary.lineupReview).toEqual({
+        total: 1, onlyMatchId: ids.operationMatch,
+      });
+      expect(await loadAdminLineupReviewQueue(seasonASlug)).toMatchObject({
+        total: 1, rows: [{ id: ids.operationMatch, stage: "play-in", statusA: null, statusB: null }],
+      });
+      await pool.query(`INSERT INTO matches (id, season_id, entry_a_id, entry_b_id, stage, format, status, scheduled_at)
+        VALUES ($1,$2,$3,$4,'round_robin','bo1','scheduled',$5)`, [ids.secondLineupMatch, ids.seasonA, ids.entryA, ids.entryB, new Date(start.getTime() + 60_000)]);
+      await pool.query(`INSERT INTO match_rosters (match_id, entry_id, source, status)
+        VALUES ($1,$2,'admin_select','submitted')`, [ids.secondLineupMatch, ids.entryA]);
+      expect((await loadSeasonWorkspaceOverview(seasonASlug))?.summary.lineupReview).toEqual({
+        total: 2, onlyMatchId: null,
+      });
+      expect(await loadAdminLineupReviewQueue(seasonASlug, "99")).toMatchObject({
+        total: 2, page: 1, rows: [
+          { id: ids.operationMatch, stage: "play-in", statusA: null, statusB: null },
+          { id: ids.secondLineupMatch, stage: "round_robin", nameA: "Alpha", nameB: "Beta", statusA: "submitted", statusB: null },
+        ],
+      });
+      await pool.query(`UPDATE match_rosters SET status='confirmed', confirmed_at=now(), confirmed_by='fixture' WHERE match_id=$1`, [ids.secondLineupMatch]);
+      await pool.query(`INSERT INTO match_rosters (match_id, entry_id, source, status, confirmed_at, confirmed_by)
+        VALUES ($1,$2,'admin_select','confirmed',now(),'fixture')`, [ids.secondLineupMatch, ids.entryB]);
+      expect(await loadAdminLineupReviewQueue(seasonASlug)).toMatchObject({
+        total: 1, rows: [{ id: ids.operationMatch }],
+      });
+      requireSeasonAdminMock.mockRejectedValueOnce(new Error("forbidden"));
+      await expect(loadAdminLineupReviewQueue(seasonBSlug)).rejects.toThrow("forbidden");
+      await pool.query("DELETE FROM match_rosters WHERE match_id=$1", [ids.secondLineupMatch]);
+      await pool.query("DELETE FROM matches WHERE id=$1", [ids.secondLineupMatch]);
       await pool.query("INSERT INTO match_commentators (match_id,user_id,added_by_user_id) VALUES ($1,$3,$3),($2,$3,$3)",[ids.operationMatch,ids.testMatch,ids.admin]);
       ops = await loadAdminMatchOperations(ids.seasonA, await loadAdminMatchCommentary(ids.seasonA));
       expect(ops).toHaveLength(1);
@@ -449,12 +481,13 @@ describe("admin match read models PostgreSQL integration", () => {
         await cleanupClient.query("DELETE FROM match_commentators WHERE match_id IN ($1, $2)", [ids.matchA, ids.matchB]);
         await cleanupClient.query("DELETE FROM match_roster_players WHERE roster_id IN ($1, $2)", [ids.rosterA, ids.rosterB]);
         await cleanupClient.query("DELETE FROM match_rosters WHERE id IN ($1, $2)", [ids.rosterA, ids.rosterB]);
+        await cleanupClient.query("DELETE FROM match_rosters WHERE match_id=$1", [ids.secondLineupMatch]);
         await cleanupClient.query("DELETE FROM match_player_stats WHERE match_id IN ($1, $2)", [ids.matchA, ids.matchB]);
         await cleanupClient.query("DELETE FROM match_maps WHERE id = $1", [ids.mapA]);
         await cleanupClient.query("DELETE FROM match_time_proposals WHERE match_id=$1", [ids.operationMatch]);
         await cleanupClient.query("DELETE FROM match_commentators WHERE match_id IN ($1,$2)", [ids.operationMatch,ids.testMatch]);
         await cleanupClient.query("DELETE FROM matches WHERE id=ANY($1::uuid[])", [scaleMatchIds]);
-        await cleanupClient.query("DELETE FROM matches WHERE id IN ($1, $2, $3, $4)", [ids.matchA, ids.matchB,ids.operationMatch,ids.testMatch]);
+        await cleanupClient.query("DELETE FROM matches WHERE id IN ($1, $2, $3, $4, $5)", [ids.matchA, ids.matchB,ids.operationMatch,ids.testMatch,ids.secondLineupMatch]);
         await cleanupClient.query("DELETE FROM event_roster_members WHERE id IN ($1, $2)", [ids.memberA, ids.memberB]);
         await cleanupClient.query("DELETE FROM event_rosters WHERE id IN ($1, $2)", [ids.eventRosterA, ids.eventRosterB]);
         await cleanupClient.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN ($1, $2, $3, $4)", [ids.entryA, ids.entryB, ids.entryC, ids.entryD]);

@@ -1,0 +1,506 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-09T08:08:51.393Z",
+  "title": "Design System: RivalHub",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "主色",
+        "tonalRamp": [
+          "oklch(15% 0.1979 43.4)",
+          "oklch(26% 0.1979 43.4)",
+          "oklch(38% 0.1979 43.4)",
+          "oklch(49% 0.1979 43.4)",
+          "oklch(61% 0.1979 43.4)",
+          "oklch(72% 0.1979 43.4)",
+          "oklch(84% 0.1979 43.4)",
+          "oklch(95% 0.1979 43.4)"
+        ]
+      },
+      "primary-foreground": {
+        "role": "primary",
+        "displayName": "主色前景",
+        "tonalRamp": [
+          "oklch(15% 0.0092 264.3)",
+          "oklch(26% 0.0092 264.3)",
+          "oklch(38% 0.0092 264.3)",
+          "oklch(49% 0.0092 264.3)",
+          "oklch(61% 0.0092 264.3)",
+          "oklch(72% 0.0092 264.3)",
+          "oklch(84% 0.0092 264.3)",
+          "oklch(95% 0.0092 264.3)"
+        ]
+      },
+      "primary-soft": {
+        "role": "primary",
+        "displayName": "淡主色底",
+        "tonalRamp": [
+          "oklch(15% 0.1979 43.4 / 0.12)",
+          "oklch(26% 0.1979 43.4 / 0.12)",
+          "oklch(38% 0.1979 43.4 / 0.12)",
+          "oklch(49% 0.1979 43.4 / 0.12)",
+          "oklch(61% 0.1979 43.4 / 0.12)",
+          "oklch(72% 0.1979 43.4 / 0.12)",
+          "oklch(84% 0.1979 43.4 / 0.12)",
+          "oklch(95% 0.1979 43.4 / 0.12)"
+        ]
+      },
+      "accent-b": {
+        "role": "secondary",
+        "displayName": "对阵色",
+        "tonalRamp": [
+          "oklch(15% 0.1667 250.0)",
+          "oklch(26% 0.1667 250.0)",
+          "oklch(38% 0.1667 250.0)",
+          "oklch(49% 0.1667 250.0)",
+          "oklch(61% 0.1667 250.0)",
+          "oklch(72% 0.1667 250.0)",
+          "oklch(84% 0.1667 250.0)",
+          "oklch(95% 0.1667 250.0)"
+        ]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "背景色",
+        "tonalRamp": [
+          "oklch(15% 0.0092 264.3)",
+          "oklch(26% 0.0092 264.3)",
+          "oklch(38% 0.0092 264.3)",
+          "oklch(49% 0.0092 264.3)",
+          "oklch(61% 0.0092 264.3)",
+          "oklch(72% 0.0092 264.3)",
+          "oklch(84% 0.0092 264.3)",
+          "oklch(95% 0.0092 264.3)"
+        ]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "面板色",
+        "tonalRamp": [
+          "oklch(15% 0.0151 266.8)",
+          "oklch(26% 0.0151 266.8)",
+          "oklch(38% 0.0151 266.8)",
+          "oklch(49% 0.0151 266.8)",
+          "oklch(61% 0.0151 266.8)",
+          "oklch(72% 0.0151 266.8)",
+          "oklch(84% 0.0151 266.8)",
+          "oklch(95% 0.0151 266.8)"
+        ]
+      },
+      "panel-low": {
+        "role": "neutral",
+        "displayName": "内嵌面板色",
+        "tonalRamp": [
+          "oklch(15% 0.0134 264.1)",
+          "oklch(26% 0.0134 264.1)",
+          "oklch(38% 0.0134 264.1)",
+          "oklch(49% 0.0134 264.1)",
+          "oklch(61% 0.0134 264.1)",
+          "oklch(72% 0.0134 264.1)",
+          "oklch(84% 0.0134 264.1)",
+          "oklch(95% 0.0134 264.1)"
+        ]
+      },
+      "panel-hi": {
+        "role": "neutral",
+        "displayName": "高亮面板色",
+        "tonalRamp": [
+          "oklch(15% 0.0206 267.7)",
+          "oklch(26% 0.0206 267.7)",
+          "oklch(38% 0.0206 267.7)",
+          "oklch(49% 0.0206 267.7)",
+          "oklch(61% 0.0206 267.7)",
+          "oklch(72% 0.0206 267.7)",
+          "oklch(84% 0.0206 267.7)",
+          "oklch(95% 0.0206 267.7)"
+        ]
+      },
+      "scrim": {
+        "role": "neutral",
+        "displayName": "遮罩色",
+        "tonalRamp": [
+          "oklch(15% 0.0134 247.6 / 0.84)",
+          "oklch(26% 0.0134 247.6 / 0.84)",
+          "oklch(38% 0.0134 247.6 / 0.84)",
+          "oklch(49% 0.0134 247.6 / 0.84)",
+          "oklch(61% 0.0134 247.6 / 0.84)",
+          "oklch(72% 0.0134 247.6 / 0.84)",
+          "oklch(84% 0.0134 247.6 / 0.84)",
+          "oklch(95% 0.0134 247.6 / 0.84)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "边框色",
+        "tonalRamp": [
+          "oklch(15% 0.0225 262.5)",
+          "oklch(26% 0.0225 262.5)",
+          "oklch(38% 0.0225 262.5)",
+          "oklch(49% 0.0225 262.5)",
+          "oklch(61% 0.0225 262.5)",
+          "oklch(72% 0.0225 262.5)",
+          "oklch(84% 0.0225 262.5)",
+          "oklch(95% 0.0225 262.5)"
+        ]
+      },
+      "border-hi": {
+        "role": "neutral",
+        "displayName": "悬停边框色",
+        "tonalRamp": [
+          "oklch(15% 0.0252 262.7)",
+          "oklch(26% 0.0252 262.7)",
+          "oklch(38% 0.0252 262.7)",
+          "oklch(49% 0.0252 262.7)",
+          "oklch(61% 0.0252 262.7)",
+          "oklch(72% 0.0252 262.7)",
+          "oklch(84% 0.0252 262.7)",
+          "oklch(95% 0.0252 262.7)"
+        ]
+      },
+      "fg": {
+        "role": "neutral",
+        "displayName": "正文色",
+        "tonalRamp": [
+          "oklch(15% 0.0109 256.7)",
+          "oklch(26% 0.0109 256.7)",
+          "oklch(38% 0.0109 256.7)",
+          "oklch(49% 0.0109 256.7)",
+          "oklch(61% 0.0109 256.7)",
+          "oklch(72% 0.0109 256.7)",
+          "oklch(84% 0.0109 256.7)",
+          "oklch(95% 0.0109 256.7)"
+        ]
+      },
+      "fg-mid": {
+        "role": "neutral",
+        "displayName": "次要文字色",
+        "tonalRamp": [
+          "oklch(15% 0.0213 260.2)",
+          "oklch(26% 0.0213 260.2)",
+          "oklch(38% 0.0213 260.2)",
+          "oklch(49% 0.0213 260.2)",
+          "oklch(61% 0.0213 260.2)",
+          "oklch(72% 0.0213 260.2)",
+          "oklch(84% 0.0213 260.2)",
+          "oklch(95% 0.0213 260.2)"
+        ]
+      },
+      "fg-essential": {
+        "role": "neutral",
+        "displayName": "关键次级文字色",
+        "tonalRamp": [
+          "oklch(15% 0.0191 258.4)",
+          "oklch(26% 0.0191 258.4)",
+          "oklch(38% 0.0191 258.4)",
+          "oklch(49% 0.0191 258.4)",
+          "oklch(61% 0.0191 258.4)",
+          "oklch(72% 0.0191 258.4)",
+          "oklch(84% 0.0191 258.4)",
+          "oklch(95% 0.0191 258.4)"
+        ]
+      },
+      "fg-dim": {
+        "role": "neutral",
+        "displayName": "装饰与禁用色",
+        "tonalRamp": [
+          "oklch(15% 0.0279 264.3)",
+          "oklch(26% 0.0279 264.3)",
+          "oklch(38% 0.0279 264.3)",
+          "oklch(49% 0.0279 264.3)",
+          "oklch(61% 0.0279 264.3)",
+          "oklch(72% 0.0279 264.3)",
+          "oklch(84% 0.0279 264.3)",
+          "oklch(95% 0.0279 264.3)"
+        ]
+      },
+      "ok": {
+        "role": "semantic",
+        "displayName": "成功色",
+        "tonalRamp": [
+          "oklch(15% 0.1733 151.0)",
+          "oklch(26% 0.1733 151.0)",
+          "oklch(38% 0.1733 151.0)",
+          "oklch(49% 0.1733 151.0)",
+          "oklch(61% 0.1733 151.0)",
+          "oklch(72% 0.1733 151.0)",
+          "oklch(84% 0.1733 151.0)",
+          "oklch(95% 0.1733 151.0)"
+        ]
+      },
+      "warn": {
+        "role": "semantic",
+        "displayName": "警告色",
+        "tonalRamp": [
+          "oklch(15% 0.1477 81.7)",
+          "oklch(26% 0.1477 81.7)",
+          "oklch(38% 0.1477 81.7)",
+          "oklch(49% 0.1477 81.7)",
+          "oklch(61% 0.1477 81.7)",
+          "oklch(72% 0.1477 81.7)",
+          "oklch(84% 0.1477 81.7)",
+          "oklch(95% 0.1477 81.7)"
+        ]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "危险色",
+        "tonalRamp": [
+          "oklch(15% 0.2061 15.0)",
+          "oklch(26% 0.2061 15.0)",
+          "oklch(38% 0.2061 15.0)",
+          "oklch(49% 0.2061 15.0)",
+          "oklch(61% 0.2061 15.0)",
+          "oklch(72% 0.2061 15.0)",
+          "oklch(84% 0.2061 15.0)",
+          "oklch(95% 0.2061 15.0)"
+        ]
+      },
+      "info": {
+        "role": "semantic",
+        "displayName": "信息色",
+        "tonalRamp": [
+          "oklch(15% 0.1647 254.0)",
+          "oklch(26% 0.1647 254.0)",
+          "oklch(38% 0.1647 254.0)",
+          "oklch(49% 0.1647 254.0)",
+          "oklch(61% 0.1647 254.0)",
+          "oklch(72% 0.1647 254.0)",
+          "oklch(84% 0.1647 254.0)",
+          "oklch(95% 0.1647 254.0)"
+        ]
+      },
+      "border-control": {
+        "role": "neutral",
+        "displayName": "控件边界色",
+        "tonalRamp": [
+          "oklch(15% 0.0402 258.8)",
+          "oklch(26% 0.0402 258.8)",
+          "oklch(38% 0.0402 258.8)",
+          "oklch(49% 0.0402 258.8)",
+          "oklch(61% 0.0402 258.8)",
+          "oklch(72% 0.0402 258.8)",
+          "oklch(84% 0.0402 258.8)",
+          "oklch(95% 0.0402 258.8)"
+        ]
+      },
+      "danger-fg": {
+        "role": "neutral",
+        "displayName": "危险填色前景",
+        "tonalRamp": [
+          "oklch(15% 0.0092 264.3)",
+          "oklch(26% 0.0092 264.3)",
+          "oklch(38% 0.0092 264.3)",
+          "oklch(49% 0.0092 264.3)",
+          "oklch(61% 0.0092 264.3)",
+          "oklch(72% 0.0092 264.3)",
+          "oklch(84% 0.0092 264.3)",
+          "oklch(95% 0.0092 264.3)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "event-display": {
+        "displayName": "赛事主标题",
+        "purpose": "随视口伸缩的赛事主视觉标题。"
+      },
+      "page-title": {
+        "displayName": "页面标题",
+        "purpose": "常规页面在标准宽度下的标题。"
+      },
+      "section-title": {
+        "displayName": "区块标题",
+        "purpose": "语义区块的主标题。"
+      },
+      "body": {
+        "displayName": "正文",
+        "purpose": "页面默认正文。"
+      },
+      "control": {
+        "displayName": "操作标签",
+        "purpose": "标准按钮文字。"
+      },
+      "nav-label": {
+        "displayName": "导航文字",
+        "purpose": "桌面顶栏入口。"
+      },
+      "nav-current": {
+        "displayName": "当前导航文字",
+        "purpose": "以较高字重标示当前位置。"
+      },
+      "panel-label": {
+        "displayName": "面板标签",
+        "purpose": "面板标题栏的 11 px 等宽标签。"
+      },
+      "badge-mono": {
+        "displayName": "等宽标签",
+        "purpose": "阶段与简短赛事标签。"
+      },
+      "dense-metadata": {
+        "displayName": "紧凑赛事元数据",
+        "purpose": "10 px 等宽字，用于编号、阶段和紧凑元数据。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "card",
+        "value": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+        "purpose": "常规卡片的轻微层次。"
+      },
+      {
+        "name": "menu",
+        "value": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+        "purpose": "下拉菜单的浮层阴影。"
+      },
+      {
+        "name": "dialog",
+        "value": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+        "purpose": "对话框与提示浮层的阴影。"
+      },
+      {
+        "name": "panel-hover",
+        "value": "0 4px 20px color-mix(in srgb, var(--color-accent) 3%, transparent)",
+        "purpose": "可交互面板悬停时的轻微主色阴影。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "duration-fast",
+        "value": "120ms",
+        "purpose": "按钮及快速状态反馈。"
+      },
+      {
+        "name": "duration-normal",
+        "value": "180ms",
+        "purpose": "面板悬停与对话框。"
+      },
+      {
+        "name": "ease-tactical",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "共享控件过渡曲线。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "40rem"
+      },
+      {
+        "name": "md",
+        "value": "48rem"
+      },
+      {
+        "name": "lg",
+        "value": "64rem"
+      },
+      {
+        "name": "xl",
+        "value": "80rem"
+      },
+      {
+        "name": "2xl",
+        "value": "96rem"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "主按钮",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "以赛事主色强调当前流程的主要操作。",
+      "html": "<button class=\"ds-button ds-button-primary\" type=\"button\">确认名单</button>",
+      "css": ".ds-button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; height: 2.5rem; padding: 0.5rem 1rem; border: 0; border-radius: var(--radius-sm, 4px); background-color: transparent; color: var(--color-fg, #e7ecf3); font-family: inherit; font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; white-space: nowrap; text-decoration: none; transition-property: color, background-color, border-color; transition-duration: var(--duration-fast, 120ms); transition-timing-function: var(--ease-tactical, cubic-bezier(0.22, 1, 0.36, 1)); }\n.ds-button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0a0c10), 0 0 0 4px var(--color-border-focus, var(--color-accent, #ff6b1a)); }\n.ds-button:disabled { opacity: 0.5; pointer-events: none; }\n.ds-button[data-pending=\"true\"] { opacity: 0.7; pointer-events: none; }\n@media (prefers-reduced-motion: reduce) { .ds-button { transition-duration: 1ms; } }\n.ds-button-primary { background-color: var(--color-accent, #ff6b1a); color: var(--color-accent-fg, #0a0c10); }\n@media (hover: hover) { .ds-button-primary:hover { background-color: color-mix(in oklab, var(--color-accent, #ff6b1a) 90%, transparent); } }"
+    },
+    {
+      "name": "次级按钮",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "用较亮的面板色提供次级操作。",
+      "html": "<button class=\"ds-button ds-button-secondary\" type=\"button\">查看规则</button>",
+      "css": ".ds-button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; height: 2.5rem; padding: 0.5rem 1rem; border: 0; border-radius: var(--radius-sm, 4px); background-color: transparent; color: var(--color-fg, #e7ecf3); font-family: inherit; font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; white-space: nowrap; text-decoration: none; transition-property: color, background-color, border-color; transition-duration: var(--duration-fast, 120ms); transition-timing-function: var(--ease-tactical, cubic-bezier(0.22, 1, 0.36, 1)); }\n.ds-button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0a0c10), 0 0 0 4px var(--color-border-focus, var(--color-accent, #ff6b1a)); }\n.ds-button:disabled { opacity: 0.5; pointer-events: none; }\n.ds-button[data-pending=\"true\"] { opacity: 0.7; pointer-events: none; }\n@media (prefers-reduced-motion: reduce) { .ds-button { transition-duration: 1ms; } }\n.ds-button-secondary { background-color: var(--color-panel-hi, #161a24); }\n@media (hover: hover) { .ds-button-secondary:hover { background-color: color-mix(in oklab, var(--color-panel-hi, #161a24) 80%, transparent); } }"
+    },
+    {
+      "name": "描边按钮",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "页面底色与细描边用于并列入口。",
+      "html": "<button class=\"ds-button ds-button-outline\" type=\"button\">赛事总览</button>",
+      "css": ".ds-button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; height: 2.5rem; padding: 0.5rem 1rem; border: 0; border-radius: var(--radius-sm, 4px); background-color: transparent; color: var(--color-fg, #e7ecf3); font-family: inherit; font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; white-space: nowrap; text-decoration: none; transition-property: color, background-color, border-color; transition-duration: var(--duration-fast, 120ms); transition-timing-function: var(--ease-tactical, cubic-bezier(0.22, 1, 0.36, 1)); }\n.ds-button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0a0c10), 0 0 0 4px var(--color-border-focus, var(--color-accent, #ff6b1a)); }\n.ds-button:disabled { opacity: 0.5; pointer-events: none; }\n.ds-button[data-pending=\"true\"] { opacity: 0.7; pointer-events: none; }\n@media (prefers-reduced-motion: reduce) { .ds-button { transition-duration: 1ms; } }\n.ds-button-outline { border: 1px solid var(--color-border, #1f2530); background-color: var(--color-bg, #0a0c10); }\n@media (hover: hover) { .ds-button-outline:hover { border-color: var(--color-border-hi, #2c3340); background-color: var(--color-panel-hi, #161a24); } }"
+    },
+    {
+      "name": "透明底按钮",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "静止时保持透明，悬停显示淡主色底。",
+      "html": "<button class=\"ds-button ds-button-ghost\" type=\"button\">清除筛选</button>",
+      "css": ".ds-button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; height: 2.5rem; padding: 0.5rem 1rem; border: 0; border-radius: var(--radius-sm, 4px); background-color: transparent; color: var(--color-fg, #e7ecf3); font-family: inherit; font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; white-space: nowrap; text-decoration: none; transition-property: color, background-color, border-color; transition-duration: var(--duration-fast, 120ms); transition-timing-function: var(--ease-tactical, cubic-bezier(0.22, 1, 0.36, 1)); }\n.ds-button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0a0c10), 0 0 0 4px var(--color-border-focus, var(--color-accent, #ff6b1a)); }\n.ds-button:disabled { opacity: 0.5; pointer-events: none; }\n.ds-button[data-pending=\"true\"] { opacity: 0.7; pointer-events: none; }\n@media (prefers-reduced-motion: reduce) { .ds-button { transition-duration: 1ms; } }\n@media (hover: hover) { .ds-button-ghost:hover { background-color: var(--color-accent-soft, rgba(255, 107, 26, 0.12)); color: var(--color-accent, #ff6b1a); } }"
+    },
+    {
+      "name": "危险操作按钮",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "危险操作使用对应的语义色。",
+      "html": "<button class=\"ds-button ds-button-destructive\" type=\"button\">撤销</button>",
+      "css": ".ds-button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; height: 2.5rem; padding: 0.5rem 1rem; border: 0; border-radius: var(--radius-sm, 4px); background-color: transparent; color: var(--color-danger-fg, #0a0c10); font-family: inherit; font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; white-space: nowrap; text-decoration: none; transition-property: color, background-color, border-color; transition-duration: var(--duration-fast, 120ms); transition-timing-function: var(--ease-tactical, cubic-bezier(0.22, 1, 0.36, 1)); }\n.ds-button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0a0c10), 0 0 0 4px var(--color-border-focus, var(--color-accent, #ff6b1a)); }\n.ds-button:disabled { opacity: 0.5; pointer-events: none; }\n.ds-button[data-pending=\"true\"] { opacity: 0.7; pointer-events: none; }\n@media (prefers-reduced-motion: reduce) { .ds-button { transition-duration: 1ms; } }\n.ds-button-destructive { background-color: var(--color-danger, #ff5470); }\n@media (hover: hover) { .ds-button-destructive:hover { background-color: color-mix(in oklab, var(--color-danger, #ff5470) 90%, transparent); } }"
+    },
+    {
+      "name": "文字按钮",
+      "kind": "button",
+      "refersTo": "button-link",
+      "description": "使用主色文字，悬停显示下划线。",
+      "html": "<a class=\"ds-button ds-button-link\" href=\"/seasons\">查看赛事</a>",
+      "css": ".ds-button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; height: 2.5rem; padding: 0.5rem 1rem; border: 0; border-radius: var(--radius-sm, 4px); background-color: transparent; color: var(--color-fg, #e7ecf3); font-family: inherit; font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; white-space: nowrap; text-decoration: none; transition-property: color, background-color, border-color; transition-duration: var(--duration-fast, 120ms); transition-timing-function: var(--ease-tactical, cubic-bezier(0.22, 1, 0.36, 1)); }\n.ds-button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0a0c10), 0 0 0 4px var(--color-border-focus, var(--color-accent, #ff6b1a)); }\n.ds-button:disabled { opacity: 0.5; pointer-events: none; }\n.ds-button[data-pending=\"true\"] { opacity: 0.7; pointer-events: none; }\n@media (prefers-reduced-motion: reduce) { .ds-button { transition-duration: 1ms; } }\n.ds-button-link { color: var(--color-accent, #ff6b1a); text-underline-offset: 0.25rem; }\n@media (hover: hover) { .ds-button-link:hover { text-decoration-line: underline; } }"
+    },
+    {
+      "name": "输入框",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "内嵌表面与细边框承载可编辑内容。",
+      "html": "<input class=\"ds-input\" type=\"text\" aria-label=\"搜索选手\" placeholder=\"搜索选手\">",
+      "css": ".ds-input { box-sizing: border-box; width: 100%; height: 2.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border-control, #64738a); border-radius: var(--radius-sm, 4px); background-color: var(--color-panel-low, #0d1016); color: var(--color-fg, #e7ecf3); font-family: inherit; font-size: 1rem; line-height: 1.5rem; }\n.ds-input::placeholder { color: var(--color-fg-mid, #8e96a3); opacity: 1; }\n.ds-input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0a0c10), 0 0 0 4px var(--color-border-focus, var(--color-accent, #ff6b1a)); }\n.ds-input:disabled { cursor: not-allowed; opacity: 0.5; }\n@media (width >= 48rem) { .ds-input { font-size: 0.875rem; line-height: 1.25rem; } }"
+    },
+    {
+      "name": "等宽标签",
+      "kind": "chip",
+      "refersTo": "badge-mono",
+      "description": "为阶段和短标签提供淡主色底与细描边。",
+      "html": "<span class=\"ds-badge\">STAGE 1</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; padding: 0.125rem 0.625rem; border: 1px solid var(--color-accent-edge, rgba(255, 107, 26, 0.34)); border-radius: var(--radius-sm, 4px); background-color: var(--color-accent-soft, rgba(255, 107, 26, 0.12)); color: var(--color-accent, #ff6b1a); font-family: var(--font-mono, \"JetBrains Mono\", \"JetBrains Mono Fallback\", ui-monospace, monospace); font-size: 0.75rem; font-weight: 600; line-height: 1rem; text-transform: uppercase; letter-spacing: var(--tracking-label, 0.12em); }"
+    },
+    {
+      "name": "内容面板",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "用带分隔线的等宽标题栏组织同一业务区块。",
+      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-label\">MATCH DETAILS</div><div class=\"ds-panel-content\">首发与 BP</div></section>",
+      "css": ".ds-panel { border: 1px solid var(--color-border, #1f2530); border-radius: var(--radius-sm, 4px); background-color: var(--color-panel, #10131a); color: var(--color-fg, #e7ecf3); box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); }\n.ds-panel-label { display: flex; align-items: center; justify-content: space-between; padding: 0.625rem 1rem; border-bottom: 1px solid var(--color-border, #1f2530); color: var(--color-fg-mid, #8e96a3); font-family: var(--font-mono, \"JetBrains Mono\", \"JetBrains Mono Fallback\", ui-monospace, monospace); font-size: 11px; font-weight: 700; line-height: 1.5; letter-spacing: var(--tracking-label, 0.12em); text-transform: uppercase; }\n.ds-panel-content { padding: 1rem; }"
+    },
+    {
+      "name": "全站导航",
+      "kind": "nav",
+      "refersTo": "nav-current",
+      "description": "当前入口以面板底、亮文字和主色下边标示。",
+      "html": "<nav class=\"ds-nav\" aria-label=\"全站导航\"><a class=\"ds-nav-link\" href=\"/seasons\">赛事</a><a class=\"ds-nav-link\" href=\"/teams\">队伍</a><a class=\"ds-nav-link\" href=\"/stats\" aria-current=\"page\">数据中心</a></nav>",
+      "css": ".ds-nav { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 0.125rem; }\n.ds-nav-link { display: flex; align-items: center; gap: 0.375rem; padding: 0.375rem 0.75rem; border-bottom: 1px solid transparent; border-radius: var(--radius-sm, 4px); color: var(--color-fg-mid, #8e96a3); font-family: inherit; font-size: 0.75rem; font-weight: 500; line-height: 1rem; text-decoration: none; transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }\n@media (hover: hover) { .ds-nav-link:hover { color: var(--color-fg, #e7ecf3); } }\n.ds-nav-link[aria-current=\"page\"] { background-color: var(--color-panel, #10131a); border-bottom-color: var(--color-accent, #ff6b1a); color: var(--color-fg, #e7ecf3); font-weight: 600; }\n.ds-nav-link:focus-visible { outline: 2px solid var(--color-border-focus, var(--color-accent, #ff6b1a)); outline-offset: 2px; }\n@media (prefers-reduced-motion: reduce) { .ds-nav-link { transition-duration: 1ms; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "赛事控制台",
+    "overview": "公开页让观众快速找到赛况与对阵，赛事主视觉用大标题和主色建立焦点。\n\n数据和赛务工作区用安静的背景、紧凑的文字层级和对齐的数字支撑连续阅读与操作。",
+    "keyCharacteristics": [
+      "深色背景上用面板明度和细边框划分内容。",
+      "主色标示操作与焦点，对阵色区分双方，赛况与状态保留文字标记。",
+      "标题与正文使用无衬线字，比分、阶段标签和紧凑指标用等宽字。"
+    ],
+    "rules": [],
+    "dos": [
+      "**Do** 从共享组件选择页面宽度、控件和状态样式。新增赛事主色时同时使用该主题对应的按钮前景和焦点色。",
+      "**Do** 保持键盘焦点可见，并为状态提供颜色以外的可读信息。交互动效随 `prefers-reduced-motion` 降低。"
+    ],
+    "donts": [
+      "**Don't** 用 10–11 px 等宽标签或装饰弱色承载正文、操作指引和关键状态。",
+      "**Don't** 给数据、表单和赛务工作区铺赛事展示面的网格或色晕。"
+    ]
+  }
+}

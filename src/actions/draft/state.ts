@@ -49,7 +49,7 @@ export async function startDraft(
         );
       }
       if (season.status !== "drafting") {
-        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 drafting 状态的赛季可以启动选秀");
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事阶段无法启动选秀。");
       }
 
       const existing = await tx.query.draftState.findFirst({
@@ -85,7 +85,7 @@ export async function startDraft(
       if (!hasSequentialDraftOrder(seasonTeams)) {
         throw new AppError(
           ErrorCode.VALIDATION_FAILED,
-          `队伍 draft order 必须为 1-${DRAFT_TEAMS} 且不能重复`,
+          `队伍的选秀顺位必须为 1–${DRAFT_TEAMS}，且不能重复。`,
         );
       }
 

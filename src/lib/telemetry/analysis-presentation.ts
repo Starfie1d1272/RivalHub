@@ -315,6 +315,7 @@ const errorLabels = {
   SEASON_NOT_FOUND: "赛事不存在",
   SEASON_INVALID_STATUS: "赛事状态不允许此操作",
   SEASON_CAPABILITY_DISABLED: "赛事未启用此功能",
+  SEASON_CONFIGURATION_CHANGED: "已保存的赛事配置已变化",
   REGISTRATION_CLOSED: "报名已关闭",
   REGISTRATION_DUPLICATE: "重复报名",
   POSITION_FULL: "位置名额已满",

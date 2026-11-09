@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { matches, matchCommentators, type Match } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
+import { AppError, ErrorCode } from "@/lib/errors";
 import { transitionMatchExecution } from "./execution";
 import { lockMatchInTx } from "./locking";
 import { prepareCompetitionMatchTransitionInTx } from "./competition-policy";
@@ -21,9 +22,18 @@ export interface MatchTransitionOutcome {
  */
 export async function applyMatchStatusTransitionInTx(
   tx: TxDb,
-  args: { matchId: string; nextStatus: "in_progress" | "cancelled"; actorId: string; now?: Date },
+  args: {
+    matchId: string;
+    nextStatus: "in_progress" | "cancelled";
+    actorId: string;
+    expectedStatus?: Match["status"];
+    now?: Date;
+  },
 ): Promise<MatchTransitionOutcome> {
   const locked = await lockMatchInTx(tx, args.matchId);
+  if (args.expectedStatus && locked.status !== args.expectedStatus) {
+    throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态已变化，请刷新后核对。");
+  }
   const now = args.now ?? new Date();
   const patch = transitionMatchExecution(locked, args.nextStatus, now);
   const lineups = await prepareCompetitionMatchTransitionInTx(
