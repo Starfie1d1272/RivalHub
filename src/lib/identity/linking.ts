@@ -5,7 +5,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import { createHash, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, inArray, or } from "drizzle-orm";
-import type { TxDb } from "@/db/client";
+import type { DB, TxDb } from "@/db/client";
 import { users, identityLinkRequests, userIdentities, userMergeAuthorizations } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { resolveCanonicalUserId, upsertActiveIdentityInTx } from "@/lib/identity/canonical";
@@ -21,12 +21,57 @@ export function hashIdentityLinkState(token: string): string {
 export type CompleteIdentityLinkOutcome =
   { kind: "linked" } | { kind: "merge_required"; authorizationId: string };
 
+type SecondaryEmailLinkActor = {
+  requestId: string;
+  stateToken: string;
+  currentUserId: string;
+};
+
+type LinkRequestState = Pick<
+  typeof identityLinkRequests.$inferSelect,
+  "userId" | "stateTokenHash" | "status" | "expiresAt"
+>;
+
+export async function assertSecondaryEmailLinkReady(
+  database: Pick<DB, "select">,
+  input: SecondaryEmailLinkActor,
+): Promise<void> {
+  const [request] = await database
+    .select({
+      userId: identityLinkRequests.userId,
+      stateTokenHash: identityLinkRequests.stateTokenHash,
+      status: identityLinkRequests.status,
+      expiresAt: identityLinkRequests.expiresAt,
+    })
+    .from(identityLinkRequests)
+    .where(eq(identityLinkRequests.id, input.requestId))
+    .limit(1);
+  assertPendingLinkRequest(request, input);
+}
+
+function assertPendingLinkRequest(
+  request: LinkRequestState | undefined,
+  { currentUserId, stateToken }: Pick<SecondaryEmailLinkActor, "currentUserId" | "stateToken">,
+): asserts request is LinkRequestState {
+  if (
+    !request ||
+    !safeHashEqual(request.stateTokenHash, hashIdentityLinkState(stateToken)) ||
+    request.status !== "pending" ||
+    request.expiresAt <= new Date()
+  ) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "邮箱绑定链接已失效，请在账号与安全中重新发起。");
+  }
+  if (request.userId !== currentUserId) {
+    throw new AppError(
+      ErrorCode.FORBIDDEN,
+      "请退出当前账号，登录发起绑定的 RivalHub 账号，再从邮件重新打开此链接。",
+    );
+  }
+}
+
 export async function completeSecondaryIdentityLinkInTx(
   tx: TxDb,
-  input: {
-    requestId: string;
-    stateToken: string;
-    currentUserId: string;
+  input: SecondaryEmailLinkActor & {
     authId: string;
     email: string;
     verifiedAt: Date;
@@ -66,19 +111,9 @@ export async function completeSecondaryIdentityLinkInTx(
     .from(identityLinkRequests)
     .where(eq(identityLinkRequests.id, input.requestId))
     .for("update");
-  const stateMatches = request
-    ? safeHashEqual(request.stateTokenHash, hashIdentityLinkState(input.stateToken))
-    : false;
-  if (
-    !request ||
-    !stateMatches ||
-    !canonicalCurrentId ||
-    request.userId !== canonicalCurrentId ||
-    request.status !== "pending" ||
-    request.expiresAt <= new Date() ||
-    request.normalizedEmail !== normalizedEmail
-  ) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "邮箱绑定请求已失效，请重新发起。");
+  assertPendingLinkRequest(request, { ...input, currentUserId: canonicalCurrentId });
+  if (request.normalizedEmail !== normalizedEmail) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "验证邮箱与绑定申请不一致，请从原邮件重新打开链接。");
   }
 
   const matchingIdentities = await tx.select().from(userIdentities).where(matchingCredential);
