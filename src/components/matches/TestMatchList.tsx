@@ -2,6 +2,7 @@ import { CopyMatchLink } from "./CopyMatchLink";
 import Link from "next/link";
 import { presentMatchStatus } from "@/lib/matches/presentation";
 import { MATCH_FORMAT_LABELS } from "@/types/match";
+import { matchWorkbenchHref } from "@/lib/admin/matches/return-context";
 
 export function TestMatchList({
   matches,
@@ -24,7 +25,8 @@ export function TestMatchList({
       {matches.map((match) => (
         <li
           key={match.id}
-          className="flex min-w-0 flex-wrap items-center justify-between gap-3 py-3"
+          id={admin ? `test-match-${match.id}` : undefined}
+          className="flex min-w-0 scroll-mt-4 flex-wrap items-center justify-between gap-3 py-3"
         >
           <div className="min-w-0">
             <Link
@@ -42,7 +44,11 @@ export function TestMatchList({
             {admin && (
               <Link
                 className="text-sm text-[var(--color-accent)] hover:underline"
-                href={`/admin/${match.seasonSlug}/matches/${match.id}`}
+                href={
+                  matchWorkbenchHref(match.seasonSlug, match.id, {
+                    returnTo: `/admin/${match.seasonSlug}/test-matches#test-match-${match.id}`,
+                  }) as never
+                }
               >
                 比赛工作台
               </Link>

@@ -1,5 +1,8 @@
 import { ContentReady } from "@/components/telemetry/ContentReady";
-import { resolveMatchReturnContext } from "@/lib/admin/matches/return-context";
+import {
+  parseMatchWorkbenchTask,
+  resolveMatchReturnContext,
+} from "@/lib/admin/matches/return-context";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminMatchWorkbench } from "@/components/matches/AdminMatchWorkbench";
@@ -8,7 +11,7 @@ import { TestMatchConclusion } from "@/components/matches/TestMatchConclusion";
 
 interface AdminMatchWorkbenchPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
-  searchParams: Promise<{ returnTo?: string }>;
+  searchParams: Promise<{ returnTo?: string | string[]; task?: string | string[] }>;
 }
 
 export default async function AdminMatchWorkbenchPage({
@@ -18,9 +21,10 @@ export default async function AdminMatchWorkbenchPage({
   const { seasonSlug, matchId } = await params;
   const data = await loadAdminMatchWorkbench({ seasonSlug, matchId });
   if (!data) notFound();
+  const query = await searchParams;
   const returnContext = resolveMatchReturnContext(
     seasonSlug,
-    (await searchParams).returnTo,
+    query.returnTo,
     Boolean(data.match.testConfig),
   );
 
@@ -42,7 +46,11 @@ export default async function AdminMatchWorkbenchPage({
           ← {returnContext.label}
         </Link>
       </header>
-      <AdminMatchWorkbench {...data} />
+      <AdminMatchWorkbench
+        {...data}
+        task={parseMatchWorkbenchTask(query.task)}
+        returnTo={returnContext.href}
+      />
       {data.match.testConfig &&
         (data.match.status === "in_progress" || data.match.status === "finished") && (
           <TestMatchConclusion

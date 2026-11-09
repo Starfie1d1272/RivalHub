@@ -41,6 +41,7 @@ import {
 import type { BetBoardDTO, BetMarketDTO, BetState } from "@/lib/bet/types";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { observeAction } from "@/lib/telemetry/client";
+import { matchWorkbenchHref } from "@/lib/admin/matches/return-context";
 
 const operateBet = observeAction("bet.operateBet", telemetry_operateBet);
 
@@ -72,6 +73,8 @@ export function BetOperations({
   const [busy, startTransition] = useTransition();
   const [action, setAction] = useState<{ operation: Operation; marketId?: string } | null>(null);
   const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState(false);
+  const reasonInput = useRef<HTMLInputElement>(null);
   const search = useRef<ListSearchFieldHandle>(null);
   const { searchParams, update } = useListQueryParams({ preserveScroll: true });
   const list = betOperationsList(data, query);
@@ -82,7 +85,12 @@ export function BetOperations({
     : "";
 
   function run() {
-    if (!action || busy || (action.operation === "void" && !reason.trim())) return;
+    if (!action || busy) return;
+    if (action.operation === "void" && !reason.trim()) {
+      setReasonError(true);
+      reasonInput.current?.focus();
+      return;
+    }
     startTransition(async () => {
       const result = await operateBet({
         seasonId: data.seasonId,
@@ -103,6 +111,7 @@ export function BetOperations({
   }
   function request(operation: "close" | "void", market: BetMarketDTO) {
     setReason("");
+    setReasonError(false);
     setAction({ operation, marketId: market.id });
   }
   const fields = [
@@ -133,14 +142,30 @@ export function BetOperations({
       {target && <p className="text-sm font-semibold">{targetLabel}</p>}
       {action.operation === "void" && (
         <div className="space-y-2">
-          <Label htmlFor="bet-refund-reason">退款原因</Label>
+          <Label htmlFor="bet-refund-reason">退款原因（必填）</Label>
           <Input
             id="bet-refund-reason"
+            ref={reasonInput}
             placeholder="填写退款原因"
             value={reason}
             disabled={busy}
-            onChange={(e) => setReason(e.target.value)}
+            required
+            aria-invalid={reasonError ? true : undefined}
+            aria-describedby={reasonError ? "bet-refund-reason-error" : undefined}
+            onChange={(event) => {
+              setReason(event.target.value);
+              setReasonError(false);
+            }}
           />
+          {reasonError && (
+            <p
+              id="bet-refund-reason-error"
+              role="alert"
+              className="text-sm text-[var(--color-danger)]"
+            >
+              请填写退款原因。
+            </p>
+          )}
         </div>
       )}
       <InlineConfirm
@@ -275,6 +300,8 @@ export function BetOperations({
         {list.groups.map((group) => (
           <details
             key={group.id}
+            id={`bet-group-${group.id}`}
+            open={searchParams.get("focusMatch") === group.id || undefined}
             className="group border border-[var(--color-border)] bg-[var(--color-panel)]"
             aria-label={group.title}
           >
@@ -343,17 +370,27 @@ export function BetOperations({
             <div className="border-t border-[var(--color-border)]">
               {group.match && (
                 <div className="flex flex-wrap gap-4 px-4 py-3 text-xs">
-                  <Link
-                    className="text-[var(--color-accent)]"
-                    href={`/admin/${slug}/matches/${group.match.id}` as never}
-                  >
-                    打开比赛工作台 →
-                  </Link>
+                  {group.match.status ? (
+                    <Link
+                      className="text-[var(--color-accent)]"
+                      href={
+                        matchWorkbenchHref(slug, group.match.id, {
+                          returnTo: `/admin/${slug}/bet?${new URLSearchParams({ ...Object.fromEntries(searchParams), focusMatch: group.id })}#bet-group-${group.id}`,
+                        }) as never
+                      }
+                    >
+                      打开比赛工作台 →
+                    </Link>
+                  ) : (
+                    <span className="text-[var(--color-fg-secondary)]">比赛工作台已不可用</span>
+                  )}
                   <Link
                     className="text-[var(--color-fg-mid)]"
-                    href={`/${slug}/bet?match=${group.match.id}` as never}
+                    href={
+                      `/${slug}/bet?match=${group.match.id}${!group.match.status && group.markets.some((market) => market.state === "settled" || market.state === "refunded") ? "&view=settled" : ""}` as never
+                    }
                   >
-                    查看公开盘口 →
+                    {group.match.status ? "查看公开盘口 →" : "查看历史盘口 →"}
                   </Link>
                 </div>
               )}

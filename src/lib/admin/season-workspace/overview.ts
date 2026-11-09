@@ -6,10 +6,10 @@ import {
 import { deriveMajorPrestartPhase, MAJOR_PRESTART_PHASES } from "./prestart-phase";
 import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
 import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
-import { officialMatchCondition } from "@/lib/matches/scope";
+import { readAdminLineupReviewSummary } from "@/lib/admin/matches/lineup-review";
 import "server-only";
 
-import { and, count, eq, isNotNull, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -21,8 +21,6 @@ import {
   majorSeedRecommendationSnapshots,
   majorTournamentEntrants,
   majorTournamentSeeds,
-  matchRosters,
-  matches,
   postEventAdjudications,
   seasonRegistrations,
   steamProfiles,
@@ -241,41 +239,14 @@ export async function loadSeasonWorkspaceOverview(
   const [
     registrationRows,
     matchCountRows,
-    scheduledMatchRows,
-    matchRosterRows,
+    lineupReview,
     activeAdjudicationRows,
     formedTeamCount,
     majorFacts,
   ] = await Promise.all([
     loadRegistrationCounts(season),
     getOfficialSeasonMatchSummary(season.id).then((summary) => [{ count: summary.total }]),
-    db
-      .select({ id: matches.id })
-      .from(matches)
-      .where(
-        and(
-          officialMatchCondition(),
-          and(
-            eq(matches.seasonId, season.id),
-            eq(matches.status, "scheduled"),
-            isNotNull(matches.scheduledAt),
-          ),
-        ),
-      ),
-    db
-      .select({ matchId: matchRosters.matchId, status: matchRosters.status })
-      .from(matchRosters)
-      .innerJoin(matches, eq(matchRosters.matchId, matches.id))
-      .where(
-        and(
-          officialMatchCondition(),
-          and(
-            eq(matches.seasonId, season.id),
-            eq(matches.status, "scheduled"),
-            isNotNull(matches.scheduledAt),
-          ),
-        ),
-      ),
+    readAdminLineupReviewSummary(season.id),
     db
       .select({ count: count() })
       .from(postEventAdjudications)
@@ -306,20 +277,12 @@ export async function loadSeasonWorkspaceOverview(
           },
         )
       : null;
-  const confirmedLineupsByMatch = new Map<string, number>();
-  for (const row of matchRosterRows) {
-    if (row.status === "confirmed")
-      confirmedLineupsByMatch.set(row.matchId, (confirmedLineupsByMatch.get(row.matchId) ?? 0) + 1);
-  }
-
   const summary: SeasonWorkspaceOverviewSummary = {
     ...registrationSummary,
     entrantCount: majorFacts?.entrantCount ?? 0,
     frozenEntrantCount: majorFacts?.frozenEntrantCount ?? 0,
     matchCount: Number(matchCountRows[0]?.count ?? 0),
-    scheduledMatchesWithoutConfirmedLineups: scheduledMatchRows.filter(
-      (match) => (confirmedLineupsByMatch.get(match.id) ?? 0) < 2,
-    ).length,
+    lineupReview,
     finalResultPendingConfirmation: majorFacts?.finalResultStatus === "pending_confirmation",
     activeAdjudications: Number(activeAdjudicationRows[0]?.count ?? 0),
   };

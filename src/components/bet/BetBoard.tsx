@@ -231,6 +231,7 @@ export function BetBoard({
       (match) => !data.matches.some((row) => row.id === match.id),
     ),
   ];
+  const historicalMatch = matches.some((match) => match.id === matchFilter && !match.status);
   const active = filters.some((f) => f.key === view) ? view : "open";
   const predictionMatches =
     predictions && predictionControls
@@ -535,14 +536,16 @@ export function BetBoard({
           aria-label="单场竞猜位置"
           className="flex flex-wrap gap-4 text-sm text-[var(--color-fg-mid)]"
         >
-          <Link
-            href={
-              `/${slug}/matches/${matchFilter}?returnTo=${encodeURIComponent(contextHref)}` as never
-            }
-            className="hover:text-[var(--color-accent)]"
-          >
-            ← 返回比赛详情
-          </Link>
+          {!historicalMatch && (
+            <Link
+              href={
+                `/${slug}/matches/${matchFilter}?returnTo=${encodeURIComponent(contextHref)}` as never
+              }
+              className="hover:text-[var(--color-accent)]"
+            >
+              ← 返回比赛详情
+            </Link>
+          )}
           <Link href={listHref as never} className="hover:text-[var(--color-accent)]">
             全部竞猜 →
           </Link>
@@ -1161,13 +1164,15 @@ function MatchCard({
         <span className="ml-auto">
           {match.scheduledAt ? formatCSTDateTime(match.scheduledAt) : "待排期"}
         </span>
-        <Link
-          aria-label={`查看 ${match.a} 对 ${match.b} 比赛`}
-          className="text-[var(--color-fg-dim)] hover:text-[var(--color-accent)]"
-          href={`/${slug}/matches/${match.id}?returnTo=${encodeURIComponent(returnTo)}` as never}
-        >
-          <ArrowUpRight size={16} />
-        </Link>
+        {match.status && (
+          <Link
+            aria-label={`查看 ${match.a} 对 ${match.b} 比赛`}
+            className="text-[var(--color-fg-dim)] hover:text-[var(--color-accent)]"
+            href={`/${slug}/matches/${match.id}?returnTo=${encodeURIComponent(returnTo)}` as never}
+          >
+            <ArrowUpRight size={16} />
+          </Link>
+        )}
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 p-5">
         <TeamProfileLink

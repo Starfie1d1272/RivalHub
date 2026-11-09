@@ -8,6 +8,7 @@ import {
   type AdminOperationsFilter,
 } from "@/lib/admin/matches/workspace-filters";
 import { MatchWorkbenchLink as Link } from "./MatchWorkbenchLink";
+import { matchWorkbenchHref } from "@/lib/admin/matches/return-context";
 import { toast } from "sonner";
 import { AdminPlayerContact } from "@/components/admin/AdminPlayerContact";
 import { Panel } from "@/components/rivalhub";
@@ -81,7 +82,7 @@ export function AdminMatchOperations({
         <div>
           <h2 className="text-lg font-semibold tracking-tight">赛务待办</h2>
           <p className="mt-1 text-xs text-[var(--color-fg-mid)]">
-            当前范围 · {scoped.length} 场进行中或待进行的比赛
+            排期、解说与同刻冲突 · 当前范围 {scoped.length} 场
           </p>
         </div>
         <div className="flex items-baseline gap-1.5 text-[var(--color-fg-mid)]">
@@ -142,6 +143,11 @@ export function AdminMatchOperations({
             const attention =
               awaiting.length > 0 || row.conflicts.length > 0 || row.commentators.length === 0;
             const displayedTime = row.scheduling.pending?.proposedTime ?? row.scheduledAt;
+            const task = awaiting
+              ? "scheduling"
+              : row.conflicts.length > 0 || row.commentators.length === 0
+                ? "commentary"
+                : undefined;
             return (
               <li
                 key={row.id}
@@ -199,7 +205,7 @@ export function AdminMatchOperations({
                     <Link
                       sourceAnchor={`operation-${row.id}`}
                       className="text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline focus-visible:ring-2"
-                      href={`/admin/${seasonSlug}/matches/${row.id}`}
+                      href={matchWorkbenchHref(seasonSlug, row.id, { task })}
                     >
                       进入比赛工作台 <span aria-hidden="true">↗</span>
                     </Link>
@@ -274,7 +280,7 @@ export function AdminMatchOperations({
                     <Link
                       sourceAnchor={`operation-${row.id}`}
                       className="underline"
-                      href={`/admin/${seasonSlug}/matches/${c.matchId}`}
+                      href={matchWorkbenchHref(seasonSlug, c.matchId, { task: "commentary" })}
                     >
                       {c.isTest ? "测试赛" : "另一场正式赛"}
                     </Link>
