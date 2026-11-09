@@ -21,7 +21,7 @@ test("报名审核的 Flight 只向本届管理员和超级管理员返回私有
   }
 
   async function readFlight() {
-    const response = await request.get(`/admin/${slug}/registrations?status=all`, {
+    const response = await request.get(`/admin/${slug}/registrations?status=all&_rsc`, {
       headers: { RSC: "1" },
       maxRedirects: 0,
     });
