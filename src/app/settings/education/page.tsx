@@ -9,6 +9,7 @@ import { educationVerifications, institutionEmailDomains, institutions, users } 
 import { getUserSession } from "@/lib/auth/session";
 import { emailDomain } from "@/lib/education/validation";
 import { listVerifiedEmailIdentities } from "@/lib/identity/linking";
+import { safeRegistrationReturnPath, withRegistrationReturnPath } from "@/lib/registrations/return-path";
 
 export default function EducationSettingsPage(props: {
   searchParams?: Promise<{ returnTo?: string | string[] }>;
@@ -32,7 +33,11 @@ async function EducationSettingsContent({
   searchParams?: Promise<{ returnTo?: string | string[] }>;
 }) {
   const session = await getUserSession();
-  if (!session) redirect("/login?next=/settings/education");
+  const returnTo = safeRegistrationReturnPath((await searchParams)?.returnTo);
+  if (!session) {
+    const next = withRegistrationReturnPath("/settings/education", returnTo);
+    redirect(`/login?${new URLSearchParams({ next })}`);
+  }
   const [user] = await db
     .select({ id: users.id, email: users.email, emailVerifiedAt: users.emailVerifiedAt })
     .from(users)
@@ -94,13 +99,14 @@ async function EducationSettingsContent({
   });
   return (
     <div>
-      <RegistrationReturnLink href={(await searchParams)?.returnTo} />
+      <RegistrationReturnLink href={returnTo} />
       <h1 className="mb-2 text-3xl font-semibold">教育身份认证</h1>
       <p className="mb-6 text-sm text-[var(--color-fg-mid)]">
         教育认证只用于赛事资格审核；公开页面不会展示你的学信网在线验证码或审核备注。
       </p>
       <ContentReady module="account" phase="form" />
       <EducationVerificationPanel
+        returnTo={returnTo}
         email={user.email}
         emailVerified={Boolean(user.emailVerifiedAt)}
         institutionalIdentities={institutionalIdentities}

@@ -19,6 +19,7 @@ import { normalizeEmail } from "@/lib/utils/email";
 import { resolveOrCreateCanonicalUserInTx } from "@/lib/identity/canonical";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { createPasswordRecoveryUrl } from "@/lib/auth/password-recovery-intent";
+import { withRegistrationReturnPath } from "@/lib/registrations/return-path";
 import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
 import { requireAuth, createUserSession, destroyUserSession } from "@/lib/auth/session";
 import { claimAdminInviteInTx } from "@/lib/auth/admin-invites";
@@ -205,7 +206,7 @@ export async function resendSignupConfirmation(
 }
 
 /** Existing accounts prove control of their already-bound email without account creation. */
-export async function resendCurrentEmailVerification(): Promise<ActionResult<void>> {
+export async function resendCurrentEmailVerification(returnTo?: string | null): Promise<ActionResult<void>> {
   try {
     const session = await requireAuth();
     const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
@@ -213,7 +214,10 @@ export async function resendCurrentEmailVerification(): Promise<ActionResult<voi
     if (user.emailVerifiedAt) return ok(undefined);
     const { error } = await createServiceClient().auth.signInWithOtp({
       email: user.email,
-      options: { shouldCreateUser: false, emailRedirectTo: confirmationUrl("reverify") },
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: confirmationUrl("reverify", returnTo ? withRegistrationReturnPath("/settings/education", returnTo) : undefined),
+      },
     });
     if (error) return emailSendFailure(error, "验证邮件");
     return ok(undefined);

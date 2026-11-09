@@ -36,7 +36,9 @@ const revokeSecondaryEmailIdentity = observeAction(
 
 type Identity = { id: string; email: string; primary: boolean; verifiedAt: string };
 
-export function IdentityManager({ identities }: { identities: Identity[] }) {
+export function IdentityManager({
+  identities, returnTo,
+}: { identities: Identity[]; returnTo?: string | null }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [sendGuidance, setSendGuidance] = useState<string | null>(null);
@@ -54,7 +56,7 @@ export function IdentityManager({ identities }: { identities: Identity[] }) {
   function requestLink() {
     startSending(async () => {
       try {
-        const result = await requestSecondaryEmailIdentity(email);
+        const result = await requestSecondaryEmailIdentity(email, returnTo);
         if (!result.success) {
           if (result.error.meta?.outcome === "unknown") setSendGuidance(result.error.message);
           toast.error(result.error.message);

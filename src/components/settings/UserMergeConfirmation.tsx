@@ -17,11 +17,13 @@ export function UserMergeConfirmation({
   canonicalUserId,
   fingerprint,
   executable,
+  returnTo,
 }: {
   authorizationId: string;
   canonicalUserId: string;
   fingerprint: string;
   executable: boolean;
+  returnTo?: string | null;
 }) {
   const router = useRouter();
   const [confirmed, setConfirmed] = useState(false);
@@ -34,6 +36,7 @@ export function UserMergeConfirmation({
         canonicalUserId,
         expectedFingerprint: fingerprint,
         confirmed,
+        returnTo,
       });
       if (!result.success) {
         setConfirmed(false);

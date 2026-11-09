@@ -44,7 +44,7 @@ test("报名审核的 Flight 只向本届管理员和超级管理员返回私有
     );
 
     const anonymous = await readFlight();
-    expect(anonymous).toContain("NEXT_REDIRECT;replace;/login;");
+    expect(anonymous).toContain("NEXT_REDIRECT;replace;/login?next=/admin;");
     expectPrivateDataAbsent(anonymous);
 
     await signIn(actor.email);
