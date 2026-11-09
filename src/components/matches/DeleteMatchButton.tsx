@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { InlineConfirm } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
@@ -15,22 +15,21 @@ interface DeleteMatchButtonProps {
 
 export function DeleteMatchButton({ matchId }: DeleteMatchButtonProps) {
   const [showConfirm, setShowConfirm] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
-  function handleDelete() {
-    startTransition(async () => {
-      const result = await deleteMatch(matchId);
-      if (result.success) {
-        toast.success("比赛已删除");
-      } else {
-        toast.error(result.error.message);
-      }
-    });
+  async function handleDelete() {
+    const result = await deleteMatch(matchId);
+    if (result.success) {
+      setShowConfirm(false);
+      toast.success("比赛已删除");
+    } else {
+      toast.error(result.error.message);
+    }
   }
 
   if (!showConfirm) {
     return (
-      <Button size="sm" variant="outline" onClick={() => setShowConfirm(true)} disabled={isPending}>
+      <Button ref={triggerRef} size="sm" variant="outline" onClick={() => setShowConfirm(true)}>
         删除
       </Button>
     );
@@ -43,6 +42,7 @@ export function DeleteMatchButton({ matchId }: DeleteMatchButtonProps) {
       danger
       onConfirm={handleDelete}
       onCancel={() => setShowConfirm(false)}
+      returnFocusRef={triggerRef}
     />
   );
 }

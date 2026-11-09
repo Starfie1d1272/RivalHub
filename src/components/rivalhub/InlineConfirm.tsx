@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 
 interface InlineConfirmProps {
@@ -8,7 +8,7 @@ interface InlineConfirmProps {
   sub?: string;
   danger?: boolean;
   confirmLabel?: string;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
   pending?: boolean;
@@ -26,26 +26,59 @@ export function InlineConfirm({
 }: InlineConfirmProps) {
   const titleId = useId();
   const descriptionId = useId();
+  const groupRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const opener = useRef<HTMLElement>(null);
+  const inFlight = useRef(false);
+  const [submission, setSubmission] = useState<"pending" | "unconfirmed" | null>(null);
+  const busy = pending || submission === "pending";
 
   useEffect(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== cancelRef.current) opener.current = active;
     cancelRef.current?.focus();
   }, []);
 
   function cancel() {
+    if (busy || inFlight.current) return;
     onCancel();
-    if (returnFocusRef) requestAnimationFrame(() => returnFocusRef.current?.focus());
+    requestAnimationFrame(() => {
+      const trigger = returnFocusRef?.current;
+      const target = trigger?.isConnected ? trigger : opener.current;
+      if (target?.isConnected) target.focus();
+    });
+  }
+
+  function confirm() {
+    if (pending || submission || inFlight.current) return;
+    const result = onConfirm();
+    if (!result) return;
+
+    inFlight.current = true;
+    groupRef.current?.focus();
+    setSubmission("pending");
+    void result
+      .then(
+        () => setSubmission(null),
+        () => setSubmission("unconfirmed"),
+      )
+      .finally(() => {
+        inFlight.current = false;
+      });
   }
 
   const c = danger ? "var(--color-danger)" : "var(--color-warn)";
   return (
     <div
+      ref={groupRef}
+      tabIndex={-1}
       role="group"
+      data-inline-confirm=""
       aria-labelledby={titleId}
       aria-describedby={sub ? descriptionId : undefined}
-      aria-busy={pending || undefined}
+      aria-busy={busy || undefined}
       onKeyDown={(event) => {
-        if (event.key !== "Escape" || pending) return;
+        if (event.key !== "Escape") return;
         event.stopPropagation();
         cancel();
       }}
@@ -76,6 +109,11 @@ export function InlineConfirm({
             {sub}
           </p>
         )}
+        {submission === "unconfirmed" && (
+          <p role="alert" className="mt-1 text-sm leading-6 text-[var(--color-warn)]">
+            操作结果暂未确认。请刷新页面核对后再决定是否重试。
+          </p>
+        )}
       </div>
       <div className="ml-auto flex flex-wrap gap-1.5">
         <Button
@@ -83,7 +121,7 @@ export function InlineConfirm({
           type="button"
           variant="ghost"
           size="sm"
-          disabled={pending}
+          disabled={busy}
           onClick={cancel}
         >
           取消
@@ -92,10 +130,10 @@ export function InlineConfirm({
           type="button"
           size="sm"
           variant={danger ? "destructive" : "default"}
-          disabled={pending}
-          onClick={onConfirm}
+          disabled={busy || submission === "unconfirmed"}
+          onClick={confirm}
         >
-          {pending ? "处理中…" : (confirmLabel ?? "确认")}
+          {busy ? "处理中…" : (confirmLabel ?? "确认")}
         </Button>
       </div>
     </div>

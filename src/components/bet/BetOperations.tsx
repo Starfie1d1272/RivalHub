@@ -38,7 +38,7 @@ import {
   betOperationsList,
   type BetOperationsQuery,
 } from "@/lib/bet/operations";
-import type { BetBoardDTO, BetMarketDTO, BetState } from "@/lib/bet/types";
+import type { BetBoardDTO, BetState } from "@/lib/bet/types";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { observeAction } from "@/lib/telemetry/client";
 import { matchWorkbenchHref } from "@/lib/admin/matches/return-context";
@@ -75,6 +75,7 @@ export function BetOperations({
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
   const reasonInput = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const search = useRef<ListSearchFieldHandle>(null);
   const { searchParams, update } = useListQueryParams({ preserveScroll: true });
   const list = betOperationsList(data, query);
@@ -96,7 +97,13 @@ export function BetOperations({
         seasonId: data.seasonId,
         ...action,
         ...(action.operation === "void" ? { reason } : {}),
-      });
+      }).catch(() => null);
+      if (!result) {
+        setAction(null);
+        toast.error("盘口操作结果暂未确认，请先核对刷新后的状态。");
+        router.refresh();
+        return;
+      }
       if (!result.success) toast.error(result.error.message);
       else {
         setAction(null);
@@ -109,10 +116,11 @@ export function BetOperations({
     search.current?.cancelPending();
     update({ [key]: value === "all" ? "" : value }, { history: "push" });
   }
-  function request(operation: "close" | "void", market: BetMarketDTO) {
+  function request(trigger: HTMLButtonElement, operation: Operation, marketId?: string) {
+    triggerRef.current = trigger;
     setReason("");
     setReasonError(false);
-    setAction({ operation, marketId: market.id });
+    setAction({ operation, marketId });
   }
   const fields = [
     {
@@ -169,6 +177,7 @@ export function BetOperations({
         </div>
       )}
       <InlineConfirm
+        key={action.operation}
         title={`确认${labels[action.operation]}？`}
         sub={
           action.operation === "close"
@@ -182,11 +191,11 @@ export function BetOperations({
                   : "盘口生命周期与结算由赛事官方事实驱动。"
         }
         danger={action.operation === "void"}
-        onCancel={() => {
-          if (!busy) setAction(null);
-        }}
+        returnFocusRef={triggerRef}
+        onCancel={() => setAction(null)}
         onConfirm={run}
-        confirmLabel={busy ? "处理中…" : labels[action.operation]}
+        pending={busy}
+        confirmLabel={labels[action.operation]}
       />
     </section>
   );
@@ -211,10 +220,11 @@ export function BetOperations({
             </Button>
             <Button
               disabled={!interactive || busy}
-              onClick={() =>
-                setAction({
-                  operation: !data.enabled ? "enable" : data.paused ? "resume" : "pause",
-                })
+              onClick={(event) =>
+                request(
+                  event.currentTarget,
+                  !data.enabled ? "enable" : data.paused ? "resume" : "pause",
+                )
               }
             >
               {!data.enabled ? "启用 BET" : data.paused ? "恢复投入" : "暂停投入"}
@@ -223,7 +233,7 @@ export function BetOperations({
               <Button
                 variant="outline"
                 disabled={!interactive || busy}
-                onClick={() => setAction({ operation: "retry" })}
+                onClick={(event) => request(event.currentTarget, "retry")}
               >
                 重试结算
               </Button>
@@ -420,7 +430,7 @@ export function BetOperations({
                           size="sm"
                           variant="outline"
                           disabled={!interactive || busy}
-                          onClick={() => request("close", m)}
+                          onClick={(event) => request(event.currentTarget, "close", m.id)}
                         >
                           锁盘
                         </Button>
@@ -430,7 +440,7 @@ export function BetOperations({
                           size="sm"
                           variant="ghost"
                           disabled={!interactive || busy}
-                          onClick={() => request("void", m)}
+                          onClick={(event) => request(event.currentTarget, "void", m.id)}
                         >
                           退款
                         </Button>

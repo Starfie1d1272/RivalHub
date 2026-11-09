@@ -1,7 +1,7 @@
 "use client";
 
 import { SeasonLogoEditor } from "@/components/admin/SeasonLogoEditor";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -201,6 +201,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   const [kind, setKind] = useState(initial?.kind ?? "Major");
   const [themeColor, setThemeColor] = useState(initial?.themeColor ?? "");
   const [pendingTemplate, setPendingTemplate] = useState<CompetitionTemplate | null>(null);
+  const templateTrigger = useRef<HTMLButtonElement>(null);
   const [preview, setPreview] = useState<LifecyclePreview | null>(null);
   const [lifecycleError, setLifecycleError] = useState<string | null>(null);
   const [dangerAction, setDangerAction] = useState<
@@ -535,6 +536,40 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         </Button>
       </div>
     ) : null;
+  const templatePicker = (
+    <>
+      <Select
+        disabled={!editCapabilities.canEditTemplate}
+        value={template}
+        onValueChange={(value) => requestTemplate(value as CompetitionTemplate)}
+      >
+        <SelectTrigger
+          id="season-template"
+          ref={templateTrigger}
+          className={mode === "create" ? "w-56" : undefined}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="rivals">Rivals</SelectItem>
+          <SelectItem value="major">Major</SelectItem>
+          <SelectItem value="custom">自定义赛事</SelectItem>
+        </SelectContent>
+      </Select>
+      {pendingTemplate && (
+        <InlineConfirm
+          title="切换赛事体系会覆盖当前赛制配置"
+          sub="请确认后应用新的内置模板。"
+          returnFocusRef={templateTrigger}
+          onCancel={() => setPendingTemplate(null)}
+          onConfirm={() => {
+            applyTemplate(pendingTemplate);
+            setPendingTemplate(null);
+          }}
+        />
+      )}
+    </>
+  );
 
   if (mode === "create") {
     return (
@@ -550,32 +585,8 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         </div>
 
         <section className="space-y-2">
-          <Label>赛事体系</Label>
-          <Select
-            disabled={!editCapabilities.canEditTemplate}
-            value={template}
-            onValueChange={(v) => requestTemplate(v as CompetitionTemplate)}
-          >
-            <SelectTrigger className="w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="rivals">Rivals</SelectItem>
-              <SelectItem value="major">Major</SelectItem>
-              <SelectItem value="custom">自定义赛事</SelectItem>
-            </SelectContent>
-          </Select>
-          {pendingTemplate && (
-            <InlineConfirm
-              title="切换赛事体系会覆盖当前赛制配置"
-              sub="请确认后应用新的内置模板。"
-              onCancel={() => setPendingTemplate(null)}
-              onConfirm={() => {
-                applyTemplate(pendingTemplate);
-                setPendingTemplate(null);
-              }}
-            />
-          )}
+          <Label htmlFor="season-template">赛事体系</Label>
+          {templatePicker}
         </section>
 
         {isMajorDisplayContext && (
@@ -1036,36 +1047,11 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             </p>
           </div>
           <div>
-            <Label>赛事体系</Label>
+            <Label htmlFor="season-template">赛事体系</Label>
             {editCapabilities.canEditTemplate ? (
-              <>
-                <Select
-                  value={template}
-                  onValueChange={(v) => requestTemplate(v as CompetitionTemplate)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="rivals">Rivals</SelectItem>
-                    <SelectItem value="major">Major</SelectItem>
-                    <SelectItem value="custom">自定义赛事</SelectItem>
-                  </SelectContent>
-                </Select>
-                {pendingTemplate && (
-                  <InlineConfirm
-                    title="切换赛事体系会覆盖当前赛制配置"
-                    sub="请确认后应用新的内置模板。"
-                    onCancel={() => setPendingTemplate(null)}
-                    onConfirm={() => {
-                      applyTemplate(pendingTemplate);
-                      setPendingTemplate(null);
-                    }}
-                  />
-                )}
-              </>
+              templatePicker
             ) : (
-              <Input value={templateLabel(template)} disabled />
+              <Input id="season-template" value={templateLabel(template)} disabled />
             )}
             {!editCapabilities.canEditTemplate && (
               <div className="mt-3">
