@@ -31,7 +31,7 @@ import {
   normalizeTeamRegistrationConfig,
 } from "@/lib/seasons/compatibility";
 import { resolveManagedMajorProfile } from "@/lib/competition/definition";
-import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
+import { REGISTRATION_STATUS_LABELS, type RegistrationStatus } from "@/types/registration";
 import { PageLayout, Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
 import { getRegistrationWindowState, getWindowTone } from "@/lib/registration/window";
@@ -60,6 +60,45 @@ import { canReleaseEliminatedParticipationInTx } from "@/lib/major/eliminated-en
 import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
 import { isMajorRosterAdjustmentPhaseOpen } from "@/lib/major/roster-window";
 import { loadCompetitionEntryParticipantContext } from "@/lib/competition-entries/participant-context";
+
+function SoloRegistrationStatus({
+  status,
+  canEdit,
+}: {
+  status: RegistrationStatus;
+  canEdit: boolean;
+}) {
+  return (
+    <div id="registration-status" tabIndex={-1} className="scroll-mt-24">
+      <StatusBanner
+        tone={status === "approved" ? "success" : status === "rejected" ? "warn" : "info"}
+        title={`你的报名状态：${REGISTRATION_STATUS_LABELS[status]}`}
+        sub={
+          status === "approved"
+            ? "审核已通过，报名信息已锁定。如需调整，请联系赛事管理员。"
+            : canEdit
+              ? "你可以更新报名资料。重新提交后将进入待审核状态。"
+              : "本届报名已截止。"
+        }
+      />
+    </div>
+  );
+}
+
+async function ClosedSoloRegistrationStatus({ seasonId }: { seasonId: string }) {
+  const session = await getUserSession();
+  if (!session) return null;
+  const registration = await db.query.seasonRegistrations.findFirst({
+    columns: { status: true },
+    where: and(
+      eq(seasonRegistrations.seasonId, seasonId),
+      eq(seasonRegistrations.userId, session.userId),
+    ),
+  });
+  return registration ? (
+    <SoloRegistrationStatus status={registration.status} canEdit={false} />
+  ) : null;
+}
 
 interface RegisterPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -123,7 +162,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
     };
     return (
       <PageLayout variant="standard">
-        <div className="mx-auto w-full max-w-2xl">
+        <div className="mx-auto w-full max-w-2xl space-y-4">
           <Panel contentClassName="p-10">
             <div className="text-center">
               <StatusBanner
@@ -133,6 +172,11 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
               />
             </div>
           </Panel>
+          {isSoloRegistration(season) && season.status !== "draft" && (
+            <Suspense fallback={null}>
+              <ClosedSoloRegistrationStatus seasonId={season.id} />
+            </Suspense>
+          )}
         </div>
       </PageLayout>
     );
@@ -604,9 +648,6 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
     ]);
   const regConfig = normalizeRegistrationConfig(season.registrationConfig);
   const maxPerPos = regConfig.maxPerPosition;
-  const existingStatus = currentRegistration?.status ?? null;
-  const existingStatusLabel = existingStatus ? REGISTRATION_STATUS_LABELS[existingStatus] : null;
-  const canEditExisting = !!currentRegistration && currentRegistration.status !== "approved";
   const longTermMapPreferences = mapPreferences[0]?.mapPreferences;
   const initialValues = {
     email: userSession.email,
@@ -745,54 +786,30 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         </div>
 
         {currentRegistration && (
-          <div>
-            <StatusBanner
-              tone={
-                currentRegistration.status === "approved"
-                  ? "success"
-                  : currentRegistration.status === "rejected"
-                    ? "warn"
-                    : "info"
-              }
-              title={`你的报名状态：${existingStatusLabel}`}
-              sub={
-                currentRegistration.status === "approved"
-                  ? "审核已通过，报名信息已锁定。如确需调整请联系管理员。"
-                  : "你可以在下方修改已提交的信息；重新提交后状态会回到待审核。"
-              }
-            />
-          </div>
+          <SoloRegistrationStatus
+            status={currentRegistration.status}
+            canEdit={registrationWindow.canSubmit}
+          />
         )}
 
-        <Panel contentClassName="p-6">
-          {currentRegistration?.status === "approved" ? (
-            <div className="py-10 text-center">
-              <h2 className="text-xl font-bold text-[var(--color-fg)]">报名已通过</h2>
-              <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-                你已经进入本赛季名单，审核通过后暂不支持自行修改报名信息。
-              </p>
-            </div>
-          ) : (
-            <>
-              <ContentReady module="account" phase="form" />
+        {currentRegistration?.status !== "approved" &&
+          (registrationWindow.canSubmit || currentRegistration) && (
+            <Panel contentClassName="p-6">
               <RegistrationForm
+                key={`${season.id}:${userSession.userId}`}
                 seasonId={season.id}
+                seasonSlug={seasonSlug}
                 seasonName={season.name}
                 positionCounts={positionCounts}
                 positions={season.positions}
                 registrationConfig={regConfig}
                 windowState={registrationWindow}
-                currentUserEmail={userSession?.email ?? null}
+                currentUserEmail={userSession.email}
                 initialValues={initialValues}
-                submitLabel={canEditExisting ? "更新报名" : undefined}
+                submitLabel={currentRegistration ? "更新报名" : undefined}
               />
-            </>
+            </Panel>
           )}
-        </Panel>
-
-        <p className="text-xs text-[var(--color-fg-dim)] text-center mt-6">
-          提交即视为同意参赛规则。审核通过前可自行修改；审核通过后如需更改请联系管理员。
-        </p>
       </div>
     </PageLayout>
   );

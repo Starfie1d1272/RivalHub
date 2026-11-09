@@ -1,26 +1,34 @@
-import React from "react";
+import { useEffect, useRef } from "react";
+import Link from "next/link";
+import type { Route } from "next";
 import { CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface RegistrationSuccessProps {
   seasonName: string;
-  submittedEmail: string;
+  statusHref: Route;
 }
 
-export function RegistrationSuccess({ seasonName, submittedEmail }: RegistrationSuccessProps) {
+export function RegistrationSuccess({ seasonName, statusHref }: RegistrationSuccessProps) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
   return (
-    <div className="flex flex-col items-center text-center py-16 gap-4">
-      <CheckCircle2 size={48} className="text-[var(--color-ok)]" />
-      <h2 className="text-2xl font-bold text-[var(--color-fg)]">报名成功！</h2>
-      <p className="text-[var(--color-fg-mid)] max-w-sm">
-        已收到你的 <span className="font-medium text-[var(--color-fg)]">{seasonName}</span> 报名。
-        报名邮箱：
-      </p>
-      <p className="font-mono text-sm px-3 py-1.5 rounded-md bg-[var(--color-panel-hi)] text-[var(--color-fg)]">
-        {submittedEmail}
-      </p>
-      <p className="text-sm text-[var(--color-fg-dim)] max-w-xs">
-        管理员审核通过后会另行通知，届时可使用邮箱和密码登录查看进度。
-      </p>
+    <div className="flex flex-col items-center gap-4 py-10 text-center sm:py-16">
+      <CheckCircle2 size={40} className="text-[var(--color-ok)]" aria-hidden="true" />
+      <div role="status" className="space-y-2">
+        <h2 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold">
+          报名已提交
+        </h2>
+        <p className="text-sm text-[var(--color-fg-secondary)]">
+          {seasonName}已收到你的报名。请等待审核，可随时查看本届报名进度。
+        </p>
+      </div>
+      <Button asChild variant="outline">
+        <Link href={statusHref}>查看报名进度</Link>
+      </Button>
     </div>
   );
 }
