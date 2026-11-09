@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 
 export interface GitHubWorkflowRun {
@@ -241,7 +242,7 @@ async function cliMain(): Promise<void> {
     : DEFAULT_POLL_TIMEOUT_MS;
 
   try {
-    await verifyExactShaCiPrerequisite({
+    const evidence = await verifyExactShaCiPrerequisite({
       repository,
       releaseSha,
       releaseTag,
@@ -249,6 +250,9 @@ async function cliMain(): Promise<void> {
       pollIntervalMs,
       pollTimeoutMs,
     });
+    if (process.env.GITHUB_OUTPUT) {
+      appendFileSync(process.env.GITHUB_OUTPUT, `ci_run_id=${evidence.runId}\nci_head_sha=${evidence.headSha}\n`);
+    }
     process.exit(0);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

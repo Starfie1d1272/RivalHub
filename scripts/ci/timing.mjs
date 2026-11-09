@@ -57,8 +57,9 @@ function parseTestCounts(output, kind) {
 
 async function runCommand(label, command, args, { timeoutMs } = {}) {
   const started = performance.now();
-  // Bound CI commands locally without requiring remote timing metadata.
-  if (env.GITHUB_ACTIONS === "true" && timeoutMs === undefined) timeoutMs = 180_000;
+  if (timeoutMs === undefined && env.RIVALHUB_CI_COMMAND_TIMEOUT_MS) {
+    timeoutMs = Number(env.RIVALHUB_CI_COMMAND_TIMEOUT_MS);
+  }
   try {
     const result = await runOwnedCommand(command, args, { timeoutMs,
       ownershipToken: env.RIVALHUB_CI_WATCHDOG_OWNER === "1" ? env.RIVALHUB_CI_COMMAND_TOKEN : undefined,

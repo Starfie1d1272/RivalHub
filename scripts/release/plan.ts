@@ -17,13 +17,10 @@ export interface ReleasePlan {
   releaseSha: string;
   previousReleaseCommit: string;
   changedPaths: string[];
-  applicationChanged: boolean;
   migrationChanged: boolean;
   migrationRisk: ReleasePlanMigrationRisk;
   storageMutationChanged: boolean;
   schedulerChanged: boolean;
-  recoveryInfraChanged: boolean;
-  releaseInfraChanged: boolean;
   requiresMigrationRehearsal: boolean;
   requiresProductionMigration: boolean;
   requiresSteamProfileBackfill: boolean;
@@ -42,8 +39,6 @@ export interface BuildReleasePlanOptions {
   migrationContents?: Readonly<Record<string, string | undefined>>;
 }
 
-const METADATA_PATHS = new Set(["CHANGELOG.md", "package.json"]);
-const SOURCE_ROOTS = ["src/", "public/", "styles/"];
 const RELEASE_TIME_CAPABILITIES_PATH = "scripts/release/release-time-capabilities.json";
 const RELEASE_SCHEDULER_PATHS = new Set([
   "src/lib/matches/veto-room/lifecycle-contract.json",
@@ -117,28 +112,14 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
       const text = migrationText(cwd, releaseSha, path, options.migrationContents);
       return text === undefined || isSchedulerMigration(text);
     });
-  const recoveryInfraChanged = changedPaths.some((path) =>
-    path.startsWith("scripts/db/recovery/") || path.startsWith(".github/workflows/recovery-"),
-  );
-  const releaseInfraChanged = changedPaths.some((path) =>
-    path.startsWith("scripts/release/")
-    || path.startsWith("scripts/standby/")
-    || path === "scripts/vercel-build.ts"
-    || path === "vercel.json"
-    || path === ".github/workflows/release.yml",
-  );
-
   return {
     releaseSha,
     previousReleaseCommit,
     changedPaths,
-    applicationChanged: changedPaths.some((path) => isApplicationPath(path, options, cwd, releaseSha, previousReleaseCommit, entries)),
     migrationChanged,
     migrationRisk,
     storageMutationChanged,
     schedulerChanged,
-    recoveryInfraChanged,
-    releaseInfraChanged,
     requiresMigrationRehearsal: migrationChanged,
     requiresProductionMigration: migrationChanged || requiresStatsProjectionBackfill || requiresCompetitiveProfileRepair,
     requiresSteamProfileBackfill,
@@ -227,62 +208,6 @@ function migrationText(
   }
 }
 
-function isApplicationPath(
-  path: string,
-  options: BuildReleasePlanOptions,
-  cwd: string,
-  releaseSha: string,
-  previousReleaseCommit: string,
-  entries: readonly ReleaseChangeEntry[],
-): boolean {
-  if (path.startsWith("drizzle/migrations/") || path.startsWith("scripts/db/recovery/")) return false;
-  if (path.startsWith("scripts/release/")
-    || path.startsWith("scripts/standby/") || path === "scripts/vercel-build.ts") return false;
-  if (path.startsWith(".github/workflows/recovery-") || path === ".github/workflows/release.yml") return false;
-  if (path.startsWith("docs/") || path.endsWith(".md") || path.endsWith(".mdx") || path.startsWith(".changeset/")) return false;
-  if (METADATA_PATHS.has(path)) {
-    return !isPackageVersionOnlyChange(options, cwd, releaseSha, previousReleaseCommit, entries);
-  }
-  if (path.startsWith("scripts/db/")) return false;
-  if (path.startsWith("scripts/ci/")) return false;
-  return SOURCE_ROOTS.some((root) => path.startsWith(root))
-    || path === "vercel.json"
-    || path.startsWith("package.")
-    || path.startsWith("pnpm-")
-    || path.startsWith("next.config.")
-    || path.startsWith("supabase/")
-    || (!path.startsWith(".github/") && !path.startsWith("drizzle/"));
-}
-
-function isPackageVersionOnlyChange(
-  options: BuildReleasePlanOptions,
-  cwd: string,
-  releaseSha: string,
-  previousReleaseCommit: string,
-  entries: readonly ReleaseChangeEntry[],
-): boolean {
-  if (!entries.some((entry) => entry.paths.includes("package.json"))) return false;
-  let before: string;
-  let after: string;
-  try {
-    before = readGitFile(cwd, previousReleaseCommit, "package.json");
-    after = readGitFile(cwd, releaseSha, "package.json");
-  } catch {
-    return false;
-  }
-  if (!before || !after) return false;
-  try {
-    const beforeJson = JSON.parse(before) as Record<string, unknown>;
-    const afterJson = JSON.parse(after) as Record<string, unknown>;
-    if (beforeJson.version === afterJson.version || typeof beforeJson.version !== "string" || typeof afterJson.version !== "string") return false;
-    delete beforeJson.version;
-    delete afterJson.version;
-    return JSON.stringify(sortJson(beforeJson)) === JSON.stringify(sortJson(afterJson));
-  } catch {
-    return false;
-  }
-}
-
 function readChangedEntries(cwd: string, previousReleaseCommit: string, releaseSha: string): ReleaseChangeEntry[] {
   const raw = execFileSync("git", ["diff", "--name-status", "--find-renames=50%", `${previousReleaseCommit}...${releaseSha}`], {
     cwd,
@@ -329,12 +254,6 @@ function isAncestor(cwd: string, ancestor: string, descendant: string): boolean 
   } catch {
     return false;
   }
-}
-
-function sortJson(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortJson);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, entry]) => [key, sortJson(entry)]));
 }
 
 function unique(values: readonly string[]): string[] {

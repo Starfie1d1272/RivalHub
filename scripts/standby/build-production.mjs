@@ -23,10 +23,19 @@ git("merge-base", "--is-ancestor", sourceCommit, "origin/main");
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 if (`v${pkg.version}` !== releaseTag) throw new Error("Package version differs from release tag.");
 const config = publicConfiguration(JSON.parse(process.env.RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION ?? "{}"));
-const evidence = await verifyExactShaCiPrerequisite({
-  repository: process.env.GITHUB_REPOSITORY, releaseSha: sourceCommit, releaseTag,
-  githubToken: process.env.GITHUB_TOKEN, pollIntervalMs: 60_000, pollTimeoutMs: 120_000,
-});
+const repository = process.env.GITHUB_REPOSITORY;
+const verifiedByRelease = process.env.GITHUB_ACTIONS === "true" &&
+  process.env.GITHUB_WORKFLOW_REF?.startsWith(`${repository}/.github/workflows/release.yml@`);
+const ciRunId = verifiedByRelease
+  ? Number(process.env.RIVALHUB_RELEASE_CI_RUN_ID)
+  : (await verifyExactShaCiPrerequisite({
+    repository, releaseSha: sourceCommit, releaseTag,
+    githubToken: process.env.GITHUB_TOKEN, pollIntervalMs: 60_000, pollTimeoutMs: 120_000,
+  })).runId;
+if (!Number.isSafeInteger(ciRunId) || ciRunId <= 0 ||
+  (verifiedByRelease && process.env.RIVALHUB_RELEASE_CI_HEAD_SHA !== sourceCommit)) {
+  throw new Error("Exact source CI evidence is missing or mismatched.");
+}
 const operatorCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: tooling, encoding: "utf8" }).trim();
 if (execFileSync("git", ["status", "--porcelain"], { cwd: tooling, encoding: "utf8" }).trim()) throw new Error("Clean committed operator tooling required.");
 const env = Object.fromEntries(["PATH", "HOME", "TMPDIR", "CI"].filter(key => process.env[key]).map(key => [key, process.env[key]]));
@@ -53,7 +62,7 @@ const manifest = {
   environment: "production", projectRef: PRODUCTION_PROJECT_REF, sourceCommit, releaseTag,
   operatorCommit, publicConfiguration: config, configurationSha256: configurationHash(config),
   nodeVersion: process.version, platform: process.platform, architecture: process.arch,
-  ciRunId: evidence.runId,
+  ciRunId,
 };
 writeFileSync(`${bundle}/standby.json`, JSON.stringify(manifest, null, 2) + "\n");
 for (const name of [".env", ".env.local", ".env.production", ".env.production.local"]) rmSync(`${bundle}/${name}`, { force: true });
