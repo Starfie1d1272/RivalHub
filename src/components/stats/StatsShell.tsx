@@ -1,5 +1,6 @@
 "use client";
-import React, { useEffect, useRef } from "react";
+import { useRef } from "react";
+import { useRevealCurrentItem } from "@/components/rivalhub/ScrollHint";
 
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -29,24 +30,7 @@ export function StatsShell({
   directoryLabel?: string;
 }) {
   const navigationRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const navigation = navigationRef.current;
-    if (!navigation) return;
-    const revealActiveTab = () => {
-      const active = navigation.querySelector<HTMLElement>('[aria-current="page"]');
-      if (!active) return;
-      const frame = navigation.getBoundingClientRect(),
-        tab = active.getBoundingClientRect();
-      if (tab.left < frame.left || tab.right > frame.right) {
-        navigation.scrollLeft +=
-          tab.left - frame.left - (navigation.clientWidth - active.offsetWidth) / 2;
-      }
-    };
-    revealActiveTab();
-    const resize = new ResizeObserver(revealActiveTab);
-    resize.observe(navigation);
-    return () => resize.disconnect();
-  }, [query.tab]);
+  useRevealCurrentItem(navigationRef, query.tab);
   const partialCoverage =
     coverage.completedMaps > 0 && coverage.detailedMaps < coverage.completedMaps;
   return (

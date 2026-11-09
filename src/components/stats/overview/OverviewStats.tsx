@@ -312,7 +312,7 @@ export function OverviewStats({
                 scroll={false}
                 className="text-xs text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]"
               >
-                View all →
+                View all players →
               </Link>
             </div>
             <div className="border-y border-[var(--color-border)] bg-[var(--color-panel)]">
@@ -336,7 +336,7 @@ export function OverviewStats({
                 scroll={false}
                 className="text-xs text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]"
               >
-                View all →
+                View all teams →
               </Link>
             </div>
             <div className="border-y border-[var(--color-border)] bg-[var(--color-panel)]">
@@ -360,7 +360,7 @@ export function OverviewStats({
                 scroll={false}
                 className="text-xs text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]"
               >
-                View all →
+                View all weapons →
               </Link>
             </div>
             <div className="border-y border-[var(--color-border)] bg-[var(--color-panel)]">

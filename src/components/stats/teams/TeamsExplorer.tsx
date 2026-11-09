@@ -485,54 +485,55 @@ export function TeamsExplorer({
           value={family}
           options={families}
           onChange={setFamily}
-        />
-
-        <div className="flex min-w-0 flex-wrap items-end gap-3">
-          <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
-            {partialCoverage && (
+          panelClassName="mt-4 space-y-4"
+        >
+          <div className="flex min-w-0 flex-wrap items-end gap-3">
+            <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
+              {partialCoverage && (
+                <span>
+                  Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}
+                </span>
+              )}
               <span>
-                Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}
+                {rows.length} team{rows.length === 1 ? "" : "s"}
               </span>
-            )}
-            <span>
-              {rows.length} team{rows.length === 1 ? "" : "s"}
-            </span>
-            {query.mapFilter && (
-              <button
-                type="button"
-                onClick={() => navigateStatsScope(router, seasonSlug, query, { mapFilter: "" })}
-                className="text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]"
-              >
-                Clear filters
-              </button>
-            )}
+              {query.mapFilter && (
+                <button
+                  type="button"
+                  onClick={() => navigateStatsScope(router, seasonSlug, query, { mapFilter: "" })}
+                  className="text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
           </div>
-        </div>
 
-        <StatsExplorerTable
-          key={family}
-          rows={rows}
-          rankingBaselineRows={rows}
-          columns={teamColumns(family, seasonSlug, data.teamLinks)}
-          rowKey={(row) => row.entryId}
-          initialSortKey={
-            family === "results"
-              ? "match"
-              : family === "rounds"
-                ? "rw"
+          <StatsExplorerTable
+            key={family}
+            rows={rows}
+            rankingBaselineRows={rows}
+            columns={teamColumns(family, seasonSlug, data.teamLinks)}
+            rowKey={(row) => row.entryId}
+            initialSortKey={
+              family === "results"
+                ? "match"
+                : family === "rounds"
+                  ? "rw"
+                  : family === "conversion"
+                    ? "r2"
+                    : "opening"
+            }
+            tableClassName={
+              family === "results"
+                ? "min-w-[440px] sm:min-w-[700px] table-fixed"
                 : family === "conversion"
-                  ? "r2"
-                  : "opening"
-          }
-          tableClassName={
-            family === "results"
-              ? "min-w-[440px] sm:min-w-[700px] table-fixed"
-              : family === "conversion"
-                ? "min-w-[560px] sm:min-w-[1120px] table-fixed"
-                : "min-w-[520px] sm:min-w-[940px] table-fixed"
-          }
-          emptyLabel="暂无赛果"
-        />
+                  ? "min-w-[560px] sm:min-w-[1120px] table-fixed"
+                  : "min-w-[520px] sm:min-w-[940px] table-fixed"
+            }
+            emptyLabel="暂无赛果"
+          />
+        </MetricFamilyTabs>
       </section>
       <ContentReady module="statistics" phase="primary" />
     </>

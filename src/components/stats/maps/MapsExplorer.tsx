@@ -449,66 +449,67 @@ export function MapsExplorer({
           value={query.mapsView}
           options={views}
           onChange={(value) => navigateStatsScope(router, seasonSlug, query, { mapsView: value })}
-        />
-
-        {query.mapsView === "pool" ? (
-          <>
-            <div className="flex items-center justify-end gap-3 text-xs text-[var(--color-fg-dim)]">
-              {partialCoverage && (
-                <span>
-                  Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}
-                </span>
-              )}
-              <span>
-                {rows.length} map{rows.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <StatsExplorerTable
-              rows={rows}
-              columns={poolColumns}
-              rowKey={(row) => row.mapName}
-              initialSortKey="played"
-              tableClassName="min-w-[320px] sm:min-w-[860px] table-fixed"
-              emptyLabel="暂无赛果或 BP 数据"
-            />
-          </>
-        ) : (
-          <>
-            <div className="flex min-w-0 flex-wrap items-end gap-3">
-              <label className="grid w-full gap-1 sm:w-64">
-                <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
-                  Search team
-                </span>
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  type="search"
-                  className="min-h-8 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm"
-                  placeholder="Team"
-                />
-              </label>
-              <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
-                {data.veto.sample.missingMatches > 0 && (
+          panelClassName="mt-4 space-y-4"
+        >
+          {query.mapsView === "pool" ? (
+            <>
+              <div className="flex items-center justify-end gap-3 text-xs text-[var(--color-fg-dim)]">
+                {partialCoverage && (
                   <span>
-                    BP {data.veto.sample.recordedMatches}/{data.veto.sample.applicableMatches}{" "}
-                    matches
+                    Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}
                   </span>
                 )}
                 <span>
-                  {vetoRows.length} team{vetoRows.length === 1 ? "" : "s"} · {mapNames.length} map
-                  {mapNames.length === 1 ? "" : "s"}
+                  {rows.length} map{rows.length === 1 ? "" : "s"}
                 </span>
               </div>
-            </div>
-            <VetoMatrix
-              rows={vetoRows}
-              teamLinks={data.teamLinks ?? {}}
-              maps={mapNames}
-              seasonSlug={seasonSlug}
-              query={query}
-            />
-          </>
-        )}
+              <StatsExplorerTable
+                rows={rows}
+                columns={poolColumns}
+                rowKey={(row) => row.mapName}
+                initialSortKey="played"
+                tableClassName="min-w-[320px] sm:min-w-[860px] table-fixed"
+                emptyLabel="暂无赛果或 BP 数据"
+              />
+            </>
+          ) : (
+            <>
+              <div className="flex min-w-0 flex-wrap items-end gap-3">
+                <label className="grid w-full gap-1 sm:w-64">
+                  <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
+                    Search team
+                  </span>
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    type="search"
+                    className="min-h-8 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm"
+                    placeholder="Team"
+                  />
+                </label>
+                <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
+                  {data.veto.sample.missingMatches > 0 && (
+                    <span>
+                      BP {data.veto.sample.recordedMatches}/{data.veto.sample.applicableMatches}{" "}
+                      matches
+                    </span>
+                  )}
+                  <span>
+                    {vetoRows.length} team{vetoRows.length === 1 ? "" : "s"} · {mapNames.length} map
+                    {mapNames.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+              </div>
+              <VetoMatrix
+                rows={vetoRows}
+                teamLinks={data.teamLinks ?? {}}
+                maps={mapNames}
+                seasonSlug={seasonSlug}
+                query={query}
+              />
+            </>
+          )}
+        </MetricFamilyTabs>
       </section>
       <ContentReady module="statistics" phase="primary" />
     </>
