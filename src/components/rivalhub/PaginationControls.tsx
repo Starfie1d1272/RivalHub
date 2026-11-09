@@ -32,7 +32,7 @@ export function PaginationControls({
       >
         上一页
       </Button>
-      <span aria-current="page" className="text-xs tabular-nums text-[var(--color-fg-dim)]">
+      <span aria-current="page" className="text-xs tabular-nums text-[var(--color-fg-secondary)]">
         第 {currentPage} / {totalPages} 页
       </span>
       <Button

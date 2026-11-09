@@ -78,8 +78,8 @@ export function MatchLiveViewing({
                 onClick={() => setSelectedUserId(commentator.userId)}
                 className={`rounded px-2 py-1 transition-colors ${
                   commentator.userId === activeCommentator?.userId
-                    ? "bg-[var(--color-accent)] font-semibold text-white"
-                    : "bg-[var(--color-panel-lo)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
+                    ? "bg-[var(--color-accent)] font-semibold text-[var(--color-accent-fg)]"
+                    : "bg-[var(--color-panel-low)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
                 }`}
               >
                 {getPublicDisplayName(commentator)}

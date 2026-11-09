@@ -20,6 +20,7 @@ interface TeamOption {
 }
 
 interface AdminMatchFilterProps {
+  scope: string;
   stages: StageOption[];
   teams?: TeamOption[];
   showStatus?: boolean;
@@ -35,6 +36,7 @@ const STATUS_OPTIONS = [
 ];
 
 export function AdminMatchFilter({
+  scope,
   stages,
   teams,
   showStatus = true,
@@ -63,7 +65,7 @@ export function AdminMatchFilter({
     <div className="flex items-center gap-3 flex-wrap">
       {showStage && (
         <Select value={currentStage} onValueChange={(v) => updateFilter("stage", v)}>
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger aria-label={`${scope}：阶段`} className="w-[140px]">
             <SelectValue placeholder="阶段筛选" />
           </SelectTrigger>
           <SelectContent>
@@ -79,7 +81,7 @@ export function AdminMatchFilter({
 
       {showStatus && (
         <Select value={currentStatus} onValueChange={(v) => updateFilter("status", v)}>
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger aria-label={`${scope}：比赛状态`} className="w-[140px]">
             <SelectValue placeholder="状态筛选" />
           </SelectTrigger>
           <SelectContent>
@@ -94,7 +96,7 @@ export function AdminMatchFilter({
 
       {teams && teams.length > 0 && (
         <Select value={currentTeam} onValueChange={(v) => updateFilter("team", v)}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger aria-label={`${scope}：队伍`} className="w-[160px]">
             <SelectValue placeholder="队伍筛选" />
           </SelectTrigger>
           <SelectContent>

@@ -1,6 +1,6 @@
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import Link from "next/link";
-import { Marker, Panel } from "@/components/rivalhub";
+import { PageHeader, Panel } from "@/components/rivalhub";
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
 import {
   deriveMajorPrestartPhase,
@@ -133,20 +133,14 @@ export function MajorPrestartConsole({
   ];
   return (
     <div className="space-y-5">
-      <div>
-        <Marker
-          sub={
-            started
-              ? `${readiness.openingPlan?.stage1.name ?? "首阶段"}已创建`
-              : `当前：${MAJOR_PRESTART_PHASES[phase - 1]}`
-          }
-        >
-          开赛筹备 · {seasonName}
-        </Marker>
-        <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-          按阶段确认候选、资格赛、最终名单和种子；实际开赛只在最后一步由管理员确认。
-        </p>
-      </div>
+      <PageHeader
+        title={`开赛筹备 · ${seasonName}`}
+        description={
+          started
+            ? `${readiness.openingPlan?.stage1.name ?? "首阶段"}已创建。`
+            : `当前：${MAJOR_PRESTART_PHASES[phase - 1]}。按阶段核对名单和种子，最后由管理员确认开赛。`
+        }
+      />
       <ol
         className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6"
         aria-label="Major 赛前阶段"

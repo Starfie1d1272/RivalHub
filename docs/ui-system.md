@@ -16,7 +16,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 后台恢复与影响清单同样遵循这条边界：domain/service 只返回结构化事实，server action 只下发 presentation-safe projection；比赛托管 key、原始状态、阶段 key、确认游标和诊断字段留在服务端，不进入普通 operator UI。
 
-中英混排按视觉层级处理：mono/uppercase tactical chrome 可以保留简短、约定俗成的英文（如 `TBD`、`BO3`、`STAGE2`）；操作指引与异常处理使用自然中文；常见专业标签保留简短英文，必要的中文解释放入共享 HelpTooltip，支持悬停、键盘与触屏。同一视觉层的标签保持同一语言语义，不把生命周期结果、回顾或阵容等说明塞进 destination 名称。
+中英混排按视觉层级处理：mono/uppercase tactical chrome 可以保留简短、约定俗成的英文（如 `TBD`、`BO3`、`STAGE2`）；操作指引与异常处理使用自然中文；常见专业标签保留简短英文，必要的中文解释放入共享 HelpTooltip，支持悬停、键盘与触屏。帮助按钮保留 24px 命中区，指针可进入浮层阅读，Escape 可关闭且不移动键盘焦点。同一视觉层的标签保持同一语言语义，不把生命周期结果、回顾或阵容等说明塞进 destination 名称。
 
 账号入口稳定区分「我的参赛」（私有任务）、「个人主页」（公开资料）与「账号设置」。CS2 canonical position key 保持 `igl`、`awper`、`opener`、`closer`、`anchor`。
 
@@ -28,7 +28,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 ## Tokens and primitives
 
-视觉 token 的唯一数值来源是 `src/app/globals.css`；Tailwind/shadcn 名称只做 bridge，不为单页建立第二套色板、圆角或 spacing scale。
+视觉 token 的唯一数值来源是 `src/app/globals.css`；Tailwind/shadcn 名称只做 bridge。分隔线与控件边界各自使用 `border-static`、`border-control`，可读次级信息用 `fg-secondary` 或 `fg-essential`。危险填色使用成对的危险色和前景。根页面与通知共享当前颜色模式。
 
 稳定 shared contract：
 
@@ -41,7 +41,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 | `DialogContent/Body/Footer` | viewport、滚动、focus、操作区与尺寸 contract |
 | `StatusBanner` / `StatusPill` / `Checklist` | 状态解释、紧凑状态与 readiness |
 | `EmptyState` / `ErrorState` / `Skeleton` | empty/error/loading 的明确三态 |
-| `InlineConfirm` | 高影响 mutation 的影响说明与二次确认；可用宽度不足时操作区换到说明下方，不挤窄说明列 |
+| `InlineConfirm` | 高影响 mutation 的影响说明与二次确认；打开后先聚焦取消；Escape 或取消恢复触发焦点，条件替换按钮时传入触发器 ref。窄屏操作区换到说明下方 |
 
 首页备案信息位于共享页脚的最下方，独立一行相对页面居中，使用 12px 常规中文字体与次要灰色文字，链接支持悬停和键盘聚焦。仅首页展示已确认适用的备案信息，其他路由不占用该行空间。
 
@@ -49,7 +49,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 `PageLayout` 是 page width、horizontal gutter 和 base vertical padding 的唯一 owner。route page、loading、error、fallback 应复用同一个 route-level `PageLayout` variant；已经由父级 `PageLayout` 包裹的子页面只声明 section、grid、spacing、`min-w-0`、局部 overflow，以及真实阅读/表单所需的 inner `max-w-*`。
 
-赛事 layout 的共享 shell 在异步读取前后保留一个 small viewport 的最小内容高度；该槽位位于 Suspense 外，fallback 不单独估算半屏高度。短内容保留同一槽位，长内容自然撑高，footer 始终保留在正常文档流并可滚动到达。该取舍让 footer 在初始内容读取期间位于首屏之外，短页因此增加一个 header 与 footer 合计高度的滚动距离；它不保证 footer 的文档坐标不变，也不代表全页布局位移已消除。不隐藏 footer，不继续加大预留高度；验收同时检查总 CLS、真实主内容 ready 和长短页 footer 可达性。页面内部仍由各自 `PageLayout` 管理宽度与留白。
+根布局拥有唯一主要地标。赛事 layout 的共享 shell 在异步读取前后保留一个 small viewport 的最小内容高度，并显示简短的赛事读取状态；该槽位位于 Suspense 外，fallback 不单独估算半屏高度。短内容保留同一槽位，长内容自然撑高，footer 始终保留在正常文档流并可滚动到达。该取舍让 footer 在初始内容读取期间位于首屏之外，短页因此增加一个 header 与 footer 合计高度的滚动距离；它不保证 footer 的文档坐标不变，也不代表全页布局位移已消除。不隐藏 footer，不继续加大预留高度；验收同时检查总 CLS、真实主内容 ready 和长短页 footer 可达性。页面内部仍由各自 `PageLayout` 管理宽度与留白。
 
 不要在页面级重新组合 `container`、`mx-auto`、`max-w-*`、`px-*`、`py-*`。局部表单或长文的 inner width 可以保留，但不能再次拥有整页 gutter。赛事导航条和 breadcrumb 等 full-bleed/navigation surface 内部的 alignment frame 是例外：它只对齐导航内容，不负责 page body 的宽度或垂直几何。
 
@@ -62,7 +62,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 选择 variant 时先看页面的信息架构和交互密度，不按历史 max-w-* 机械套用。inner max-w-* 只服务真实的阅读或表单 measure；如果它包住整个 list、grid、operator workspace 或多区块 detail page，它实际上又在决定 page sizing，应回到 PageLayout 语义重新审查。
 
-全站沿用深色橙色竞技品牌。首页采用单一赛事主视觉与有主次的内容编排；分析、表单和操作背景保持安静，网格只进入展示层。控件、普通 surface 和展示面的圆角由共享语义 token 拥有。赛事主题覆盖 accent / rgb / soft / edge / focus / on-accent 完整色族，按钮文字按颜色亮度选择可读前景。导航 alignment frame 复用 `pageAlignmentFrame`。
+全站沿用深色橙色竞技品牌。首页采用单一赛事主视觉与有主次的内容编排；分析、表单和操作背景保持安静，网格只进入展示层。控件、普通 surface 和展示面的圆角由共享语义 token 拥有。保存的赛事色用于识别；深色主题按常规及高亮面板推导可读 accent、配对前景、soft/edge、选中边界和聚焦。Tailwind 别名在控件所在作用域求值；挂载到 body 的浮层沿 React 上下文继承赛事语义色，遮罩和面板使用根级中性色。导航 alignment frame 复用 `pageAlignmentFrame`。
 
 赛事入口由 `src/lib/seasons/entries.ts` 维护轻量 presentation metadata；能力门禁继续消费实际配置与既有 read model，入口不承担授权或 transition。Rivals 投票和选秀在历史中保持原目的地；Major 的预测与竞猜、赛事推演保持分别可发现。
 
@@ -253,7 +253,7 @@ shared layer **不拥有** allowed query、validation、SQL `WHERE/ORDER BY`、q
 
 ## Forms and mutations
 
-- 使用既有 labeled controls；字段级 validation 靠近字段，服务端错误保留给用户。
+- 使用既有 labeled controls。Field 默认生成稳定 ID 关联可见标签；筛选器提供当前范围的名称，互斥按钮公开选择态。字段错误靠近对应控件，保留服务端反馈。
 - pending/success/failure 状态明确，避免重复 mutation。
 - 长期 profile、赛事报名和单场 roster 等不同事实不混成同一表单。
 - 已通过的队伍报名默认展示当前本届只读名单，将主力／替补和确认状态合并到成员行；不展示禁用的编辑复选框或未入选候选队员。当前资料检查可展开查看，并明确其不改变已通过结果；可用的名单变更及负责人交接入口继续保留。名单调整提示区分时间截止、赛事阶段限制和名单锁定。

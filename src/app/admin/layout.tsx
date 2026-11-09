@@ -22,7 +22,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         email={session.email}
         role={session.role === "super_admin" ? "super_admin" : "season_admin"}
       />
-      <main className="min-w-0">{children}</main>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

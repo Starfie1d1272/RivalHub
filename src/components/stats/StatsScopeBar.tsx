@@ -1,4 +1,5 @@
 "use client";
+import { mapLabel } from "@/lib/maps";
 import React from "react";
 
 import { useRouter } from "next/navigation";
@@ -69,7 +70,7 @@ export function StatsScopeBar({
             <option value="">全部地图</option>
             {maps.map((map) => (
               <option key={map} value={map}>
-                {map}
+                {mapLabel(map)}
               </option>
             ))}
           </select>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { saveCompetitiveProfile as telemetry_saveCompetitiveProfile } from "@/actions/competitive-profile";
 import { Button } from "@/components/ui/button";
@@ -76,6 +76,7 @@ export function CompetitiveProfileForm({
   contexts: CompetitiveSeasonContext[];
   initialTarget?: { platform?: string | null; season?: string | null };
 }) {
+  const formId = useId();
   const task = useTelemetryTask("profile", "competitive");
   const [pending, startTransition] = useTransition();
   const requestedContext = initialTarget?.platform
@@ -208,17 +209,21 @@ export function CompetitiveProfileForm({
     allowUnrecorded: boolean,
     options: { after?: React.ReactNode; onCollapse?: () => void } = {},
   ) {
+    const fieldId = `${formId}-${key}`;
     const selected = context!.ladder.find((entry) => entry.rankKey === fact.rank);
     const hasStars = selected?.starMin !== null && selected?.starMin !== undefined;
     return (
       <section
         key={key}
         id={`competitive-season-${key}`}
+        aria-labelledby={`${fieldId}-title`}
         tabIndex={-1}
         className="scroll-mt-6 space-y-3 border-l-2 border-[var(--color-border-hi)] pl-4 outline-none"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">{title}</h3>
+          <h3 id={`${fieldId}-title`} className="text-sm font-semibold">
+            {title}
+          </h3>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="font-mono text-xs text-[var(--color-fg-mid)]">
               {summary(fact, context!)}
@@ -239,7 +244,7 @@ export function CompetitiveProfileForm({
         </div>
         {allowUnrecorded && (
           <div className="max-w-56 space-y-1.5">
-            <Label>资料状态</Label>
+            <Label htmlFor={`${fieldId}-status`}>资料状态</Label>
             <Select
               value={fact.status}
               onValueChange={(status) => {
@@ -256,7 +261,7 @@ export function CompetitiveProfileForm({
                 );
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger id={`${fieldId}-status`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -274,8 +279,9 @@ export function CompetitiveProfileForm({
         )}
         {fact.status === "unranked" && (
           <div className="max-w-sm space-y-1.5">
-            <Label>对应 {context!.ratingLabel}（可选）</Label>
+            <Label htmlFor={`${fieldId}-rating`}>对应 {context!.ratingLabel}（可选）</Label>
             <Input
+              id={`${fieldId}-rating`}
               value={fact.rating}
               onChange={(event) => {
                 setSaved(false);
@@ -289,7 +295,7 @@ export function CompetitiveProfileForm({
         {fact.status === "ranked" && (
           <div className={`grid gap-3 ${hasStars ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
             <div className="space-y-1.5">
-              <Label>段位</Label>
+              <Label htmlFor={`${fieldId}-rank`}>段位</Label>
               <Select
                 value={fact.rank || undefined}
                 onValueChange={(rank) => {
@@ -297,7 +303,7 @@ export function CompetitiveProfileForm({
                   setFact({ ...fact, rank, stars: "" });
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id={`${fieldId}-rank`}>
                   <SelectValue placeholder="选择段位" />
                 </SelectTrigger>
                 <SelectContent>
@@ -311,8 +317,9 @@ export function CompetitiveProfileForm({
             </div>
             {hasStars && (
               <div className="space-y-1.5">
-                <Label>星数</Label>
+                <Label htmlFor={`${fieldId}-stars`}>星数</Label>
                 <Input
+                  id={`${fieldId}-stars`}
                   required
                   value={fact.stars}
                   onChange={(event) => {
@@ -329,8 +336,9 @@ export function CompetitiveProfileForm({
               </div>
             )}
             <div className="space-y-1.5">
-              <Label>对应 {context!.ratingLabel}</Label>
+              <Label htmlFor={`${fieldId}-rating`}>对应 {context!.ratingLabel}</Label>
               <Input
+                id={`${fieldId}-rating`}
                 value={fact.rating}
                 onChange={(event) => {
                   setSaved(false);

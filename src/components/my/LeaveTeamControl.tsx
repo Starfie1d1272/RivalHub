@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { leaveTeam as telemetry_leaveTeam } from "@/actions/teams";
@@ -13,6 +13,7 @@ const leaveTeam = observeAction("teams.leaveTeam", telemetry_leaveTeam);
 export function LeaveTeamControl({ teamId }: { teamId: string }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [pending, startTransition] = useTransition();
 
   function confirmLeave() {
@@ -35,12 +36,15 @@ export function LeaveTeamControl({ teamId }: { teamId: string }) {
           title="退出队伍？"
           sub="确认后将结束你与这支队伍的当前成员关系。"
           danger
+          pending={pending}
           confirmLabel="确认退出"
           onConfirm={confirmLeave}
+          returnFocusRef={triggerRef}
           onCancel={() => setConfirming(false)}
         />
       ) : (
         <Button
+          ref={triggerRef}
           type="button"
           variant="outline"
           disabled={pending}

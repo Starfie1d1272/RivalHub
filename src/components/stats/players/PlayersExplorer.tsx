@@ -5,7 +5,7 @@ import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import React from "react";
 import { TeamIdentityLinks } from "../TeamIdentityLinks";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
@@ -426,6 +426,7 @@ export function PlayersExplorer({
   const family = (families.find((row) => row.key === params.get("family"))?.key ??
     "overall") as Family;
   const setFamily = (value: Family) => setReadingState("family", value);
+  const searchRef = useRef<HTMLInputElement>(null);
   const search = String(params.get("q") ?? "").slice(0, 128);
   const setSearch = (value: string) => setReadingState("q", value);
   const normalizedSearch = search.trim().toLocaleLowerCase();
@@ -548,9 +549,17 @@ export function PlayersExplorer({
   const hasFilters = Boolean(query.mapFilter || query.teamFilter || search.trim());
 
   function clearFilters() {
-    setSearch("");
-    if (query.mapFilter || query.teamFilter)
-      navigateStatsScope(router, seasonSlug, query, { mapFilter: "", teamFilter: "" });
+    searchRef.current?.focus({ preventScroll: true });
+    if (query.mapFilter || query.teamFilter) {
+      navigateStatsScope(router, seasonSlug, query, {
+        mapFilter: "",
+        teamFilter: "",
+        family,
+        q: "",
+      });
+    } else {
+      setSearch("");
+    }
   }
 
   let table: React.ReactNode;
@@ -598,64 +607,72 @@ export function PlayersExplorer({
           value={family}
           options={families}
           onChange={setFamily}
-        />
-
-        <div className="flex min-w-0 flex-wrap items-end gap-3">
-          {seasonSlug && (
-            <label className="grid gap-1">
+          panelClassName="mt-3 space-y-3"
+        >
+          <div className="flex min-w-0 flex-wrap items-end gap-3">
+            {seasonSlug && (
+              <label className="grid gap-1">
+                <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
+                  Team
+                </span>
+                <select
+                  value={query.teamFilter}
+                  onChange={(event) =>
+                    navigateStatsScope(router, seasonSlug, query, {
+                      teamFilter: event.target.value,
+                    })
+                  }
+                  className="min-h-8 min-w-40 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm"
+                >
+                  <option value="">All teams</option>
+                  {data.options.teams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="grid min-w-56 flex-1 gap-1 sm:max-w-sm">
               <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
-                Team
+                Search
               </span>
-              <select
-                value={query.teamFilter}
-                onChange={(event) =>
-                  navigateStatsScope(router, seasonSlug, query, { teamFilter: event.target.value })
-                }
-                className="min-h-8 min-w-40 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm"
-              >
-                <option value="">All teams</option>
-                {data.options.teams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
+              <input
+                ref={searchRef}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                type="search"
+                className="min-h-8 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm"
+                placeholder="Player or team"
+              />
             </label>
-          )}
-          <label className="grid min-w-56 flex-1 gap-1 sm:max-w-sm">
-            <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
-              Search
-            </span>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              type="search"
-              className="min-h-8 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm"
-              placeholder="Player or team"
-            />
-          </label>
-          <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
-            {partialCoverage && (
-              <span>
-                Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}
+            <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
+              {partialCoverage && (
+                <span>
+                  Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}
+                </span>
+              )}
+              <span role="status" aria-atomic="true">
+                {visibleRows.length
+                  ? `${visibleRows.length} player${visibleRows.length === 1 ? "" : "s"}`
+                  : hasFilters
+                    ? "No players match these filters."
+                    : "暂无选手统计"}
               </span>
-            )}
-            <span>
-              {visibleRows.length} player{visibleRows.length === 1 ? "" : "s"}
-            </span>
-            {hasFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]"
-              >
-                Clear filters
-              </button>
-            )}
+              {hasFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
           </div>
-        </div>
 
-        {table}
+          {visibleRows.length > 0 && table}
+        </MetricFamilyTabs>
       </section>
       <ContentReady module="statistics" phase="primary" />
     </>

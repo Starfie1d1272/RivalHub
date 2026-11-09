@@ -67,10 +67,10 @@ export function SeasonNav({
           />
         </div>
       )}
-      <nav className="border-b border-[var(--color-border)]">
+      <nav aria-label="本届赛事导航" className="border-b border-[var(--color-border)]">
         <div className={`${frame} flex min-w-0 items-center gap-4`}>
           <div className="min-w-0 flex-1">
-            <ScrollHint>
+            <ScrollHint currentItemKey={pathname}>
               <ul className="flex gap-1">
                 {items.map(({ label, href, matches }) => {
                   const isActive = matches(pathname);

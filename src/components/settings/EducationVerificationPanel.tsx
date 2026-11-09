@@ -2,7 +2,7 @@
 
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@/actions/education-verifications";
 import { resendCurrentEmailVerification as telemetry_resendCurrentEmailVerification } from "@/actions/auth";
 import { Checklist, Panel, StatusBanner } from "@/components/rivalhub";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -87,6 +87,7 @@ export function EducationVerificationPanel({
 }) {
   const task = useTelemetryTask("education");
   const [pending, startTransition] = useTransition();
+  const academicStatusGroup = useId();
   const [academicStatus, setAcademicStatus] = useState<"enrolled" | "graduated">("enrolled");
   const [chsiInstitution, setChsiInstitution] = useState<EducationInstitutionOption | null>(null);
   const [evidenceCode, setEvidenceCode] = useState("");
@@ -147,10 +148,11 @@ export function EducationVerificationPanel({
     });
     setAcademicStatus(item.academicStatus);
     setEvidenceCode("");
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     document
       .getElementById("chsi-verification-form")
-      ?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-    document.getElementById("chsi-evidence-code")?.focus();
+      ?.scrollIntoView?.({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    document.getElementById("chsi-evidence-code")?.focus({ preventScroll: true });
   }
 
   const fastPathLabel =
@@ -298,31 +300,46 @@ export function EducationVerificationPanel({
                 onChange={setChsiInstitution}
                 disabled={pending}
               />
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant={academicStatus === "enrolled" ? "default" : "outline"}
-                  onClick={() => setAcademicStatus("enrolled")}
-                >
-                  在读
-                </Button>
-                <Button
-                  type="button"
-                  variant={academicStatus === "graduated" ? "default" : "outline"}
-                  onClick={() => setAcademicStatus("graduated")}
-                >
-                  已毕业
-                </Button>
+              <fieldset className="flex flex-wrap gap-2" disabled={pending}>
+                <legend className="sr-only">学籍状态</legend>
+                {(
+                  [
+                    ["enrolled", "在读"],
+                    ["graduated", "已毕业"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <label key={value} className="relative cursor-pointer">
+                    <input
+                      type="radio"
+                      name={academicStatusGroup}
+                      value={value}
+                      checked={academicStatus === value}
+                      onChange={() => setAcademicStatus(value)}
+                      className="peer sr-only"
+                    />
+                    <span
+                      className={buttonVariants({
+                        variant: academicStatus === value ? "default" : "outline",
+                        className:
+                          "peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--color-border-focus)] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background peer-disabled:opacity-50",
+                      })}
+                    >
+                      {label}
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+              <div role="status" aria-atomic="true">
+                <StatusBanner
+                  tone="info"
+                  title={
+                    academicStatus === "enrolled"
+                      ? "需要《教育部学籍在线验证报告》"
+                      : "需要《教育部学历证书电子注册备案表》"
+                  }
+                  sub="复制报告中的在线验证码（通常为 16 位）；管理员会在学信网官方验证系统人工核验。"
+                />
               </div>
-              <StatusBanner
-                tone="info"
-                title={
-                  academicStatus === "enrolled"
-                    ? "需要《教育部学籍在线验证报告》"
-                    : "需要《教育部学历证书电子注册备案表》"
-                }
-                sub="复制报告中的在线验证码（通常为 16 位）；管理员会在学信网官方验证系统人工核验。"
-              />
               <div className="space-y-1.5">
                 <Label htmlFor="chsi-evidence-code">学信网在线验证码</Label>
                 <Input

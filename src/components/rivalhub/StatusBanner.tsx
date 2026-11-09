@@ -1,4 +1,5 @@
 import React from "react";
+import { cn } from "@/lib/utils/cn";
 
 type Tone = "info" | "success" | "warn" | "error" | "live";
 
@@ -22,55 +23,66 @@ export function StatusBanner({ tone = "info", title, sub, action, onDismiss }: S
   const c = TONE_CONFIG[tone].color;
   return (
     <div
-      className="grid gap-3.5 items-center rounded-sm border px-4 py-2.5"
+      className={cn(
+        "relative flex flex-wrap items-center gap-x-3.5 gap-y-2 rounded-sm border px-4 py-2.5",
+        onDismiss && "pr-12",
+      )}
       style={{
-        gridTemplateColumns: "auto 1fr auto auto",
         background: `color-mix(in srgb, ${c} 6%, transparent)`,
         borderColor: `color-mix(in srgb, ${c} 33%, transparent)`,
         borderLeft: `3px solid ${c}`,
       }}
     >
-      <div
-        className="flex items-center justify-center font-bold rounded-sm"
-        style={{
-          width: 22,
-          height: 22,
-          color: c,
-          borderColor: `color-mix(in srgb, ${c} 33%, transparent)`,
-          border: `1px solid color-mix(in srgb, ${c} 33%, transparent)`,
-          background: `color-mix(in srgb, ${c} 12%, transparent)`,
-          fontFamily: "var(--font-mono)",
-          fontSize: 11,
-        }}
-      >
-        {TONE_CONFIG[tone].glyph}
-      </div>
-      <div className="min-w-0">
+      <div className="flex min-w-0 flex-[1_1_16rem] items-start gap-3.5">
         <div
-          className="font-semibold"
+          aria-hidden="true"
+          className="flex shrink-0 items-center justify-center rounded-sm font-bold"
           style={{
-            fontFamily: "var(--font-sans)",
-            fontSize: 13,
-            color: "var(--color-fg)",
+            width: 22,
+            height: 22,
+            color: c,
+            borderColor: `color-mix(in srgb, ${c} 33%, transparent)`,
+            border: `1px solid color-mix(in srgb, ${c} 33%, transparent)`,
+            background: `color-mix(in srgb, ${c} 12%, transparent)`,
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
           }}
         >
-          {title}
+          {TONE_CONFIG[tone].glyph}
         </div>
-        {sub && (
-          <p className="mt-1 font-sans text-sm leading-6 text-[var(--color-fg-secondary)]">{sub}</p>
-        )}
+        <div className="min-w-0 break-words">
+          <div
+            className="font-semibold"
+            style={{
+              fontFamily: "var(--font-sans)",
+              fontSize: 13,
+              color: "var(--color-fg)",
+            }}
+          >
+            {title}
+          </div>
+          {sub && (
+            <p className="mt-1 font-sans text-sm leading-6 text-[var(--color-fg-secondary)]">
+              {sub}
+            </p>
+          )}
+        </div>
       </div>
-      {action && <div>{action}</div>}
+      {action && (
+        <div className="ml-9 min-w-0 max-w-[calc(100%-2.25rem)] [&>*]:h-auto [&>*]:min-h-9 [&>*]:max-w-full [&>*]:whitespace-normal [&>*]:[overflow-wrap:anywhere]">
+          {action}
+        </div>
+      )}
       {onDismiss && (
         <button
           type="button"
           onClick={onDismiss}
           aria-label="关闭"
-          className="px-1"
+          className="absolute top-2.5 right-3 inline-grid size-6 place-items-center rounded-sm"
           style={{
             background: "transparent",
             border: "none",
-            color: "var(--color-fg-dim)",
+            color: "var(--color-fg-secondary)",
             fontFamily: "var(--font-mono)",
             fontSize: 14,
             cursor: "pointer",
