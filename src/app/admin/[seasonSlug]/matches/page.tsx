@@ -5,6 +5,10 @@ import { notFound } from "next/navigation";
 import { loadAdminPostMatchTaskPage } from "@/lib/admin/matches/postmatch-tasks";
 import { loadAdminMatchPanels } from "@/lib/admin/matches/panels";
 import { loadAdminMatchOverview, loadAdminMatchWorkspace } from "@/lib/admin/matches/overview";
+import { loadAdminLineupReviewQueue } from "@/lib/admin/matches/lineup-review";
+import { matchLineupQueueHref, matchWorkbenchHref } from "@/lib/admin/matches/return-context";
+import { matchLineupStatusLabel } from "@/lib/admin/matches/start-blockers";
+import { formatCSTDateTime } from "@/lib/utils/date";
 import { AdminPostMatchTasks } from "@/components/matches/AdminPostMatchTasks";
 import { AdminMatchOperations } from "@/components/matches/AdminMatchOperations";
 import { MatchResources } from "@/components/matches/MatchResources";
@@ -35,6 +39,7 @@ interface AdminMatchesPageProps {
     team?: string;
     view?: string;
     ops?: string;
+    task?: string;
     page?: string;
   }>;
 }
@@ -42,6 +47,7 @@ interface AdminMatchesPageProps {
 export default async function AdminMatchesPage({ params, searchParams }: AdminMatchesPageProps) {
   const { seasonSlug } = await params;
   const filters = await searchParams;
+  if (filters.task === "lineups") return renderLineupReviewQueue(seasonSlug, filters.page);
   const view =
     filters.view === "schedule" || filters.view === "materials" ? filters.view : "execution";
   const scheduling = view === "schedule";
@@ -308,6 +314,91 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       {!materials && matchCount === 0 && (
         <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">暂无比赛记录</Panel>
       )}
+      <ContentReady module="admin" phase="primary" />
+    </div>
+  );
+}
+
+async function renderLineupReviewQueue(seasonSlug: string, page?: string) {
+  const queue = await loadAdminLineupReviewQueue(seasonSlug, page);
+  if (!queue) notFound();
+  const returnTo = matchLineupQueueHref(seasonSlug, queue.page);
+  const stageNames = new Map(queue.season.stagePlan.map((stage) => [stage.key, stage.name]));
+
+  return (
+    <div className="min-w-0 space-y-6">
+      <PageHeader
+        title={`待核对首发 · ${queue.season.name}`}
+        description="列出本届所有阶段中已排期、至少一方首发待确认的正式比赛。"
+        actions={
+          <>
+            <Link
+              className="text-sm underline underline-offset-4"
+              href={`/admin/${seasonSlug}#workspace-alerts`}
+            >
+              回到赛事总览
+            </Link>
+            <Link
+              className="text-sm underline underline-offset-4"
+              href={`/admin/${seasonSlug}/matches`}
+            >
+              查看比赛执行
+            </Link>
+          </>
+        }
+      />
+      {queue.rows.length ? (
+        <ul className="space-y-3">
+          {queue.rows.map((row) => {
+            const anchor = `lineup-review-${row.id}`;
+            const stageName = row.stage === "play-in" ? "PLAY-IN" : stageNames.get(row.stage ?? "");
+            return (
+              <li key={row.id} id={anchor} className="scroll-mt-4">
+                <Panel contentClassName="space-y-3 p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h2 className="font-semibold [overflow-wrap:anywhere]">
+                      {row.nameA} vs {row.nameB}
+                    </h2>
+                    <p className="text-sm text-[var(--color-fg-secondary)]">
+                      {stageName ? `${stageName} · ` : ""}
+                      {row.scheduledAt && formatCSTDateTime(row.scheduledAt)}
+                    </p>
+                  </div>
+                  <ul className="grid gap-1 text-sm [overflow-wrap:anywhere] sm:grid-cols-2">
+                    <li>
+                      {row.nameA} · {matchLineupStatusLabel(row.statusA)}
+                    </li>
+                    <li>
+                      {row.nameB} · {matchLineupStatusLabel(row.statusB)}
+                    </li>
+                  </ul>
+                  <Link
+                    href={
+                      matchWorkbenchHref(seasonSlug, row.id, {
+                        returnTo: `${returnTo}#${anchor}`,
+                        task: "lineups",
+                      }) as never
+                    }
+                    className="inline-flex min-h-9 items-center text-sm text-[var(--color-accent)] underline underline-offset-4"
+                  >
+                    核对本场首发
+                  </Link>
+                </Panel>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <Panel contentClassName="p-5 text-sm text-[var(--color-fg-secondary)]">
+          当前没有已排期且首发待确认的正式比赛。
+        </Panel>
+      )}
+      <AdminMatchPagination
+        total={queue.total}
+        page={queue.page}
+        pageSize={queue.pageSize}
+        totalPages={queue.totalPages}
+      />
       <ContentReady module="admin" phase="primary" />
     </div>
   );
