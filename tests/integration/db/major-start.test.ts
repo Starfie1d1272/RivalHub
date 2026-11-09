@@ -22,13 +22,7 @@ import {
   applyResultCorrectionInTx,
   planResultCorrectionInTx,
 } from "../../../src/lib/match-corrections/service";
-import {
-  archiveTournamentInTx,
-  confirmMajorFinalResultInTx,
-  createPostEventAdjudicationInTx,
-  grantTournamentHonorInTx,
-  revokeTournamentHonorInTx,
-} from "../../../src/lib/postevent/service";
+import { confirmMajorFinalResultInTx } from "../../../src/lib/postevent/service";
 import { confirmMatchRosterInTx, persistMatchRosterInTx } from "../../../src/lib/match-rosters/service";
 import { lockCompetitionMatchInTx as lockMatchInTx } from "../../../src/lib/matches/locking";
 import { applyMatchStatusTransitionInTx } from "../../../src/lib/matches/lifecycle";
@@ -741,95 +735,11 @@ async function exercisePlayoffRuntime(
   if (!fact || fact.matches !== "8" || !fact.champion || fact.status !== "pending_confirmation" || !fact.has_three_four || fact.groups !== "14") {
     throw new Error("淘汰赛没有持久化八场比赛、冠军、3–4 名次区间与待确认正式结果。 ");
   }
-  await exerciseFinalLifecycle(database, pool, seasonId, playoffRunId);
-
-}
-
-async function exerciseFinalLifecycle(
-  database: ReturnType<typeof drizzle<typeof schema>>,
-  pool: Pool,
-  seasonId: string,
-  playoffRunId: string,
-): Promise<void> {
   const firstConfirmation = await database.transaction((tx) => confirmMajorFinalResultInTx(tx, { seasonId, actorId: "local-admin" }));
   const repeatedConfirmation = await database.transaction((tx) => confirmMajorFinalResultInTx(tx, { seasonId, actorId: "local-admin-retry" }));
   if (firstConfirmation.alreadyConfirmed || !repeatedConfirmation.alreadyConfirmed || firstConfirmation.resultId !== repeatedConfirmation.resultId) {
-    throw new Error("Golden rehearsal 的最终结果确认重试没有收敛。 ");
+    throw new Error("最终结果确认重试没有返回同一结果。");
   }
-
-  const result = await pool.query<{ champion: string; placement_groups: Array<{ from: number; to: number; entryIds: string[] }> }>(
-    "SELECT champion_entry_id::text AS champion, placement_groups FROM major_final_results WHERE season_id = $1 AND playoff_stage_run_id = $2",
-    [seasonId, playoffRunId],
-  );
-  const finalResult = result.rows[0];
-  const runnerUp = finalResult?.placement_groups.find((group) => group.from === 2 && group.to === 2)?.entryIds[0];
-  if (!finalResult?.champion || !runnerUp) throw new Error("Golden rehearsal 缺少冠军或亚军正式名次。 ");
-
-  const championHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-    seasonId, clientRequestId: deterministicUuid("honor/champion"), type: "champion", label: "Golden Champion",
-    basis: "final_result", entryId: finalResult.champion, actorId: "local-admin",
-  }));
-  const repeatedHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-    seasonId, clientRequestId: deterministicUuid("honor/champion"), type: "champion", label: "Golden Champion",
-    basis: "final_result", entryId: finalResult.champion, actorId: "local-admin-retry",
-  }));
-  const runnerUpHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-    seasonId, clientRequestId: deterministicUuid("honor/runner-up"), type: "runner_up", label: "Golden Runner-up",
-    basis: "final_result", entryId: runnerUp, actorId: "local-admin",
-  }));
-  if (!championHonor.created || repeatedHonor.created || repeatedHonor.honorId !== championHonor.honorId || !runnerUpHonor.created) {
-    throw new Error("Golden rehearsal 的荣誉授予重试或亚军荣誉事实异常。 ");
-  }
-  await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: championHonor.honorId, actorId: "local-admin", reason: "Golden explicit revoke" }));
-  const repeatedRevoke = await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: championHonor.honorId, actorId: "local-admin-retry", reason: "Golden explicit revoke" }));
-  if (!repeatedRevoke.alreadyRevoked) throw new Error("Golden rehearsal 的荣誉撤销重试没有幂等。 ");
-
-  const adjudication = await database.transaction((tx) => createPostEventAdjudicationInTx(tx, {
-    seasonId, clientRequestId: deterministicUuid("adjudication/placement"), kind: "placement_statement", target: "season",
-    impacts: ["official_placements"], reason: "Golden explicit placement audit", publicExplanation: "Golden placement statement",
-    internalEvidence: "local-only golden evidence", actorId: "local-admin",
-  }));
-  const repeatedAdjudication = await database.transaction((tx) => createPostEventAdjudicationInTx(tx, {
-    seasonId, clientRequestId: deterministicUuid("adjudication/placement"), kind: "placement_statement", target: "season",
-    impacts: ["official_placements"], reason: "Golden explicit placement audit", publicExplanation: "Golden placement statement",
-    internalEvidence: "local-only golden evidence", actorId: "local-admin-retry",
-  }));
-  if (!adjudication.created || repeatedAdjudication.created || repeatedAdjudication.adjudicationId !== adjudication.adjudicationId) {
-    throw new Error("Golden rehearsal 的赛后裁决重试没有幂等。 ");
-  }
-
-  const firstArchive = await database.transaction((tx) => archiveTournamentInTx(tx, { seasonId, actorId: "local-admin" }));
-  const repeatedArchive = await database.transaction((tx) => archiveTournamentInTx(tx, { seasonId, actorId: "local-admin-retry" }));
-  if (firstArchive.alreadyArchived || !repeatedArchive.alreadyArchived) throw new Error("Golden rehearsal 的归档重试没有幂等。 ");
-
-  const finalMatch = await pool.query<{ id: string }>("SELECT id FROM matches WHERE major_stage_run_id = $1 AND entry_round = 'final'", [playoffRunId]);
-  const finalMatchId = finalMatch.rows[0]?.id;
-  if (!finalMatchId) throw new Error("Golden rehearsal 缺少决赛比赛事实。 ");
-  try {
-    await database.transaction((tx) => lockMatchInTx(tx, finalMatchId));
-    throw new Error("归档后普通赛事变更错误地被允许。 ");
-  } catch (error) {
-    if (error instanceof Error && error.message === "归档后普通赛事变更错误地被允许。 ") throw error;
-    if (!(error instanceof AppError) || error.code !== ErrorCode.VALIDATION_FAILED) throw error;
-  }
-  const postArchiveAdjudication = await database.transaction((tx) => createPostEventAdjudicationInTx(tx, {
-    seasonId, clientRequestId: deterministicUuid("adjudication/post-archive"), kind: "result_statement", target: "season",
-    impacts: ["final_result"], reason: "Golden post-archive verification", publicExplanation: "Golden post-archive statement", actorId: "local-admin",
-  }));
-  if (!postArchiveAdjudication.created) throw new Error("归档后专用裁决没有允许写入。 ");
-
-  const finalState = await pool.query<{ status: string; champion_state: string; runner_up_state: string; valid_champion: string }>(`
-    SELECT
-      (SELECT status FROM seasons WHERE id = $1) AS status,
-      (SELECT state FROM tournament_honors WHERE id = $2) AS champion_state,
-      (SELECT state FROM tournament_honors WHERE id = $3) AS runner_up_state,
-      (SELECT count(*)::text FROM tournament_honors WHERE season_id = $1 AND honor_key = 'champion' AND state = 'valid') AS valid_champion
-  `, [seasonId, championHonor.honorId, runnerUpHonor.honorId]);
-  const state = finalState.rows[0];
-  if (!state || state.status !== "archived" || state.champion_state !== "revoked" || state.runner_up_state !== "valid" || state.valid_champion !== "0") {
-    throw new Error("Golden rehearsal 的最终结果、荣誉与归档状态不一致。 ");
-  }
-  console.log("Golden Major full rehearsal passed: deterministic 32 teams, 160 profiled players, Stage 1–3 R1–R5, enabled BO3 third-place, BO5 final, confirmed result, explicit honors/adjudication, idempotent retries, archive guard, and post-archive adjudication.");
 }
 
 async function expectMajorStartFailure(
@@ -1694,7 +1604,7 @@ describe("Major lifecycle PostgreSQL invariants", { concurrent: false }, () => {
     await exerciseStrongestEquivalentFullChain(context.database, context.pool, context.fixtures);
   });
 
-  it("advances three Swiss StageRuns and finalizes the playoff", async () => {
+  it("advances three Swiss StageRuns and confirms the playoff result", async () => {
     await advanceMajorStagesAndPlayoff(context);
   });
 

@@ -14,7 +14,6 @@ import type { Baseline } from "@/lib/predictions/types";
 import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 export async function createPredictionBrowserFixture(
   userId: string,
-  adminSetup = false,
 ) {
   const pool = new Pool({
     connectionString: assertLocalDatabaseUrl(process.env.DATABASE_URL),
@@ -159,37 +158,33 @@ export async function createPredictionBrowserFixture(
       seasonId, stageKey: stage.key, kind: stage.kind,
       stageRunId: stage.stageRunId, entrants: stage.entrants, deadline,
     })));
-    if (adminSetup) {
-      await db.insert(schema.seasonAdminGrants).values({ userId, seasonId });
-    } else {
-      const match = requireCompetitionMatch(inserted[0]!);
-      const [market] = await db
-        .insert(schema.predictionMarkets)
-        .values({
-          seasonId,
-          matchId: match.id,
-          stageKey: "stage1",
-          title: "比赛胜者",
-          resolver: "match_winner",
-          subject: {
-            stageRunId: run!.id,
-            entryIds: [match.entryAId, match.entryBId],
-          },
-          deadline: new Date(deadline.getTime() - 300000),
-        })
-        .returning();
-      await db
-        .insert(schema.predictionMarketOptions)
-        .values(
-          [match.entryAId, match.entryBId].map((id, position) => ({
-            marketId: market!.id,
-            key: id,
-            entryId: id,
-            label: teams.find((team) => team.teamId === id)!.name,
-            position,
-          })),
-        );
-    }
+    const match = requireCompetitionMatch(inserted[0]!);
+    const [market] = await db
+      .insert(schema.predictionMarkets)
+      .values({
+        seasonId,
+        matchId: match.id,
+        stageKey: "stage1",
+        title: "比赛胜者",
+        resolver: "match_winner",
+        subject: {
+          stageRunId: run!.id,
+          entryIds: [match.entryAId, match.entryBId],
+        },
+        deadline: new Date(deadline.getTime() - 300000),
+      })
+      .returning();
+    await db
+      .insert(schema.predictionMarketOptions)
+      .values(
+        [match.entryAId, match.entryBId].map((id, position) => ({
+          marketId: market!.id,
+          key: id,
+          entryId: id,
+          label: teams.find((team) => team.teamId === id)!.name,
+          position,
+        })),
+      );
     return { slug, seasonId };
   } finally {
     await pool.end();

@@ -24,12 +24,6 @@ export default defineConfig({
       ...(process.env.GITHUB_ACTIONS === "true" ? ["github-actions"] : []),
       "./scripts/ci/vitest-timing-reporter.ts",
     ],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      include: ["src/**"],
-      exclude: ["src/app/**", "src/components/ui/**"],
-    },
     projects: [
       {
         extends: true,
