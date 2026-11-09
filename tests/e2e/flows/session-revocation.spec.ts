@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { Pool } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { expect, signInProgrammatically, test } from "../fixtures";
@@ -65,10 +66,29 @@ test("provider recovery through the real browser form revokes both prior applica
     const saved = await page.context().cookies();
     const apiUrl = assertLocalHttpUrl(process.env.NEXT_PUBLIC_SUPABASE_URL, "local auth URL");
     const admin = createClient(apiUrl, requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL), { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data, error } = await admin.auth.admin.generateLink({ type: "recovery", email: account.email, options: { redirectTo: new URL("/reset-password", page.url()).href } });
+    // Sign with the application owner in a server-only Node process. The
+    // disposable browser lane uses generateLink so it needs no SMTP service.
+    const generated = execFileSync(process.execPath, [
+      "--conditions=react-server", "--import", "tsx", "-e",
+      'const { createPasswordRecoveryUrl } = require("./src/lib/auth/password-recovery-intent"); createPasswordRecoveryUrl(process.argv[1]).then(url => process.stdout.write(url, () => process.exit(0)));',
+      account.email,
+    ], {
+      encoding: "utf8",
+      timeout: 10_000,
+      env: {
+        ...process.env,
+        DATABASE_URL: assertLocalDatabaseUrl(process.env.DATABASE_URL),
+        NEXT_PUBLIC_APP_URL: assertLocalHttpUrl(process.env.NEXT_PUBLIC_APP_URL, "local app URL"),
+      },
+    });
+    const redirectTo = generated.trim().split("\n").at(-1)!;
+    const { data, error } = await admin.auth.admin.generateLink({ type: "recovery", email: account.email, options: { redirectTo } });
     if (error) throw new Error("Local recovery link generation failed");
-    await page.goto(data.properties.action_link);
+    const link = new URL(assertLocalHttpUrl(data.properties.action_link, "local recovery link"));
+    if (link.pathname === "/verify") link.pathname = "/auth/v1/verify";
+    await page.goto(link.href);
     await expect(page).toHaveURL(/\/reset-password/);
+    await expect(page.getByRole("status").filter({ hasText: account.email })).toBeVisible();
     await page.getByLabel("新密码", { exact: true }).fill("Recovered-Session-Password-8!");
     await page.getByLabel("确认新密码", { exact: true }).fill("Recovered-Session-Password-8!");
     await page.getByRole("button", { name: "设置新密码", exact: true }).click();
