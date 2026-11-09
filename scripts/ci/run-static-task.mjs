@@ -1,27 +1,38 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { resolve } from "node:path";
 
 const FULL_CHECKS = ["format", "type-app", "type-tests", "type-scripts", "lint", "architecture", "dead-code", "deployment"];
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const task = process.env.STATIC_TASK;
 
-let failed = false;
-for (const check of checksFor(task)) {
-  try {
-    const args = commandFor(check);
-    const result = spawnSync(process.execPath, ["scripts/ci/timing.mjs", `static/${check.task}`, "--", pnpm, ...args], {
-      env: { ...process.env, RIVALHUB_TIMING_TEST_KIND: check.task.startsWith("unit") ? "unit" : "" },
-      stdio: "inherit",
-    });
-    if (result.error) throw result.error;
-    if (result.signal) throw new Error(`static/${check.task} 被信号 ${result.signal} 终止。`);
-    if (result.status !== 0) failed = true;
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
-    failed = true;
+const checks = checksFor(task);
+const isUnit = (check) => check.task.startsWith("unit");
+const groups = task === "affected"
+  ? [checks.filter(check => !isUnit(check)), checks.filter(isUnit)]
+  : [checks];
+
+if ((await Promise.all(groups.map(runChecks))).some(failed => failed)) process.exitCode = 1;
+
+async function runChecks(group) {
+  let failed = false;
+  for (const check of group) {
+    try {
+      const args = commandFor(check);
+      const child = spawn(process.execPath, ["scripts/ci/timing.mjs", `static/${check.task}`, "--", pnpm, ...args], {
+        env: { ...process.env, RIVALHUB_TIMING_TEST_KIND: isUnit(check) ? "unit" : "" },
+        stdio: "inherit",
+      });
+      const [status, signal] = await once(child, "exit");
+      if (signal) throw new Error(`static/${check.task} 被信号 ${signal} 终止。`);
+      if (status !== 0) failed = true;
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      failed = true;
+    }
   }
+  return failed;
 }
-if (failed) process.exitCode = 1;
 
 function checksFor(name) {
   if (name === "checks") return FULL_CHECKS.map(task => ({ task }));
@@ -35,6 +46,8 @@ function commandFor({ task, project, relatedSources, explicitTests, changedPaths
   switch (task) {
     case "format":
       return ["format:check"];
+    case "format-changed":
+      return ["exec", "prettier", "--check", "--ignore-unknown", ...changedPaths];
     case "type-app":
     case "type-tests":
     case "type-scripts":

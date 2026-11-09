@@ -27,7 +27,7 @@ plan ─→ static ─────┐
 - dead-code / dependency hygiene；
 - production build。
 
-普通 affected 任务在一个 runner 上安装一次依赖，逐项执行适用的格式、类型、lint、架构检查及相关 Vitest。跨 project 消费者由一次 `vitest related` 发现；变更的测试按所属 project 显式执行，未发现指定文件时阻断。FULL 并行执行静态检查、现有 unit suite 和 hermetic production build。安装／恢复工具变化时，在静态 runner 执行现有 Linux 安装器和流量状态测试。
+普通 affected 任务在一个 runner 上安装一次依赖。格式检查只读取改动的源码，格式、类型、lint 和架构检查与相关 Vitest 并行；FULL 保留全量源码格式检查。跨 project 消费者由一次 `vitest related` 发现；变更的测试按所属 project 显式执行，未发现指定文件时阻断。FULL 并行执行静态检查、现有 unit suite 和 hermetic production build。安装／恢复工具变化时，在静态 runner 执行现有 Linux 安装器和流量状态测试。
 
 普通门禁中 Vitest 和 Playwright 首次失败即失败。需要复现间歇性问题时可以定向重试。Vitest reporter 记录 project 测试结果和较慢文件，外层 wrapper 单独计量命令耗时。
 
