@@ -10,6 +10,7 @@ vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 import { createSeason, updateSeason, openSeasonRegistration, publishSeason, deleteSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason } from "@/actions/seasons";
 
 const SEASON_ID = "00000000-0000-0000-0000-000000000001";
+const CONFIRMATION = { seasonId: SEASON_ID, expectedVersion: "0".repeat(64) };
 
 const VALID_INPUT = {
   name: "Test Season 2026",
@@ -51,9 +52,9 @@ describe("season mutation authorization boundary", () => {
   it.each([
     ["create", () => createSeason(VALID_INPUT)],
     ["update", () => updateSeason({ ...VALID_INPUT, id: SEASON_ID })],
-    ["publish", () => publishSeason(SEASON_ID)],
+    ["publish", () => publishSeason(CONFIRMATION)],
     ["delete", () => deleteSeason(SEASON_ID)],
-    ["open registration", () => openSeasonRegistration(SEASON_ID)],
+    ["open registration", () => openSeasonRegistration({ ...CONFIRMATION, mode: "immediate" })],
     ["revert draft", () => revertSeasonToDraft(SEASON_ID)],
     ["revert registration", () => revertSeasonToRegistration(SEASON_ID)],
     ["finish", () => forceFinishSeason(SEASON_ID)],

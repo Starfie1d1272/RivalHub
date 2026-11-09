@@ -23,6 +23,7 @@ import {
   normalizeRegistrationConfig,
   normalizeTeamRegistrationConfig,
 } from "@/lib/seasons/compatibility";
+import { assertSeasonConfirmationVersion } from "@/lib/seasons/confirmation";
 import type { StagePlan, TeamRegistrationConfig } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
 import {
@@ -197,13 +198,31 @@ export async function updateSeason(
   }
 }
 
-export async function publishSeason(seasonId: string): Promise<ActionResult<{ slug: string }>> {
+const seasonConfirmationSchema = z.object({
+  seasonId: z.guid(),
+  expectedVersion: z.string().regex(/^[a-f0-9]{64}$/),
+});
+
+export async function publishSeason(
+  input: z.infer<typeof seasonConfirmationSchema>,
+): Promise<ActionResult<{ slug: string }>> {
   try {
     const admin = await requireSuperAdmin();
+    const parsed = seasonConfirmationSchema.safeParse(input);
+    if (!parsed.success)
+      return fail({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "请刷新后重新核对已保存的赛事配置。",
+      });
+    const { seasonId, expectedVersion } = parsed.data;
     const season = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT id FROM seasons WHERE id = ${seasonId} FOR UPDATE`);
-      const locked = await tx.query.seasons.findFirst({ where: eq(seasons.id, seasonId) });
+      const [locked] = await tx
+        .select()
+        .from(seasons)
+        .where(eq(seasons.id, seasonId))
+        .for("update");
       if (!locked) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+      assertSeasonConfirmationVersion(locked, expectedVersion);
       if (locked.status !== "draft")
         throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可发布");
       if (isReservedSeasonSlug(locked.slug))
@@ -283,23 +302,26 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
   }
 }
 
-const registrationOpeningModeSchema = z.enum(["immediate", "early_force"]);
+const openRegistrationConfirmationSchema = seasonConfirmationSchema.extend({
+  mode: z.enum(["immediate", "early_force"]),
+});
 
 /** Explicit operator action for a published event; future schedules require an explicit early force. */
 export async function openSeasonRegistration(
-  seasonId: string,
-  mode: "immediate" | "early_force" = "immediate",
+  input: z.infer<typeof openRegistrationConfirmationSchema>,
 ): Promise<ActionResult<{ slug: string }>> {
   try {
     const admin = await requireSuperAdmin();
-    const parsedMode = registrationOpeningModeSchema.safeParse(mode);
-    if (!parsedMode.success)
-      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "报名开放方式无效。" });
+    const parsed = openRegistrationConfirmationSchema.safeParse(input);
+    if (!parsed.success)
+      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请刷新后重新核对报名开放设置。" });
+    const { seasonId, expectedVersion, mode } = parsed.data;
     const result = await db.transaction((tx) =>
       openSeasonRegistrationInTx(tx, {
         seasonId,
+        expectedVersion,
         actorId: auditActorId(admin),
-        mode: parsedMode.data === "early_force" ? "explicit_early_force" : "explicit_immediate",
+        mode: mode === "early_force" ? "explicit_early_force" : "explicit_immediate",
       }),
     );
     if (!result.opened)

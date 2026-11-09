@@ -19,6 +19,7 @@ import {
 import { resolveCompetitiveContext } from "@/lib/qualification/service";
 import { createCompetitionTemplate } from "@/lib/competition/templates";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { assertSeasonConfirmationVersion } from "@/lib/seasons/confirmation";
 import type {
   CompetitiveFallbackConversion,
   SeasonStatus,
@@ -421,6 +422,15 @@ export async function freezeCompetitiveContext(
 
 export type RegistrationOpeningMode = "scheduled" | "explicit_immediate" | "explicit_early_force";
 
+type RegistrationOpeningInput = {
+  seasonId: string;
+  actorId: string;
+  now?: Date;
+} & (
+  | { mode: "scheduled" }
+  | { mode: Exclude<RegistrationOpeningMode, "scheduled">; expectedVersion: string }
+);
+
 /**
  * Canonical participation-open transition. It row-locks the published event,
  * freezes its competitive evidence exactly once, and records the audit fact in
@@ -430,18 +440,19 @@ export type RegistrationOpeningMode = "scheduled" | "explicit_immediate" | "expl
  */
 export async function openSeasonRegistrationInTx(
   tx: Transaction,
-  input: { seasonId: string; actorId: string; now?: Date; mode: RegistrationOpeningMode },
+  input: RegistrationOpeningInput,
 ): Promise<{ slug: string; opened: boolean }> {
-  const now = input.now ?? new Date();
   const [season] = await tx
     .select()
     .from(seasons)
     .where(eq(seasons.id, input.seasonId))
     .for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
+  if (input.mode !== "scheduled") assertSeasonConfirmationVersion(season, input.expectedVersion);
   if (season.status !== "registration")
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已发布赛事可以开放报名。");
   if (season.registrationOpenedAt) return { slug: season.slug, opened: false };
+  const now = input.now ?? new Date();
 
   let configuredOpenAt: Date | null;
   switch (input.mode) {
