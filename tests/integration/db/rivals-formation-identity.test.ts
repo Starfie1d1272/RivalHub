@@ -10,15 +10,17 @@ vi.mock("@/lib/auth/session", async (importOriginal) => ({
 }));
 vi.mock("@/lib/revalidation", () => ({ revalidateSeasonPaths: vi.fn() }));
 
-import { confirmCaptains } from "@/actions/captains";
+import { castVote, confirmCaptains, retractVote } from "@/actions/captains";
 import { pickPlayer } from "@/actions/draft/picks";
 import { getEntryIdForRepresentative } from "@/actions/matches/_shared";
+import { getAdminCaptainRanking } from "@/lib/captains/data";
 import { getPublicDraftData, getPublicDraftSummary } from "@/lib/draft/data";
 
 it("forms canonical captain Entries and commits a draft pick without losing identity provenance", async () => {
   const pool = createLocalPool();
   const seasonId = randomUUID();
-  const players = Array.from({ length: 9 }, (_, index) => ({ userId: randomUUID(), registrationId: randomUUID(), index }));
+  const players = Array.from({ length: 10 }, (_, index) => ({ userId: randomUUID(), registrationId: randomUUID(), index }));
+  const voter = players[9]!;
   auth.userId = players[0]!.userId;
   // The suite owns an isolated worker database; lifecycle rows intentionally
   // commit so real Server Actions observe them through their normal DB client.
@@ -30,12 +32,73 @@ it("forms canonical captain Entries and commits a draft pick without losing iden
       await pool.query(`INSERT INTO season_registrations
         (id, user_id, season_id, primary_position, secondary_position, peak_rank, peak_rank_season, peak_rating, current_season_peak_rank, current_rating, gameplay_style, status, willing_to_be_captain)
         VALUES ($1, $2, $3, 'opener', 'anchor', 'A', 'current', $4, 'A', 1, '', 'approved', $5)`,
-      [player.registrationId, player.userId, seasonId, 2 - player.index / 10, player.index < 8]);
+      [player.registrationId, player.userId, seasonId, 2 - player.index / 10, player.index < 9]);
     }
+    async function currentConfirmation() {
+      const ranking = await getAdminCaptainRanking(seasonId);
+      return {
+        seasonId,
+        expectedCaptains: ranking.seeds.map(({ id, userId }) => ({ registrationId: id, userId })),
+      };
+    }
+    await expect(confirmCaptains(await currentConfirmation())).resolves.toMatchObject({
+      success: false,
+      error: { code: "VOTING_MINIMUM_NOT_MET" },
+    });
     for (const candidate of players.slice(0, 3)) {
-      await pool.query("INSERT INTO captain_votes (voter_registration_id, candidate_registration_id) VALUES ($1, $2)", [players[8]!.registrationId, candidate.registrationId]);
+      await pool.query("INSERT INTO captain_votes (voter_registration_id, candidate_registration_id) VALUES ($1, $2)", [voter.registrationId, candidate.registrationId]);
     }
-    const formed = await confirmCaptains({ seasonId });
+
+    const preview = await currentConfirmation();
+    const voteChange = await pool.connect();
+    try {
+      await voteChange.query("BEGIN");
+      await voteChange.query("SELECT id FROM seasons WHERE id=$1 FOR SHARE", [seasonId]);
+      await voteChange.query(
+        "UPDATE captain_votes SET candidate_registration_id=$1 WHERE voter_registration_id=$2 AND candidate_registration_id=$3",
+        [players[8]!.registrationId, voter.registrationId, players[2]!.registrationId],
+      );
+      const [{ pid }] = (await voteChange.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows;
+      const confirming = confirmCaptains(preview);
+      await expect.poll(async () => {
+        const waiting = await pool.query("SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))", [pid]);
+        return waiting.rowCount;
+      }, { timeout: 2000, interval: 10 }).toBe(1);
+      await voteChange.query("COMMIT");
+      await expect(confirming).resolves.toMatchObject({
+        success: false,
+        error: { code: "VALIDATION_FAILED", message: expect.stringContaining("名单或选秀顺位已变化") },
+      });
+    } finally {
+      await voteChange.query("ROLLBACK");
+      voteChange.release();
+    }
+    expect((await pool.query(
+      `SELECT status,
+        (SELECT count(*)::int FROM competition_entries WHERE competition_id=$1) AS entries,
+        (SELECT count(*)::int FROM audit_logs WHERE season_id=$1 AND action='captain.confirm') AS confirmations
+       FROM seasons WHERE id=$1`,
+      [seasonId],
+    )).rows).toEqual([{ status: "voting", entries: 0, confirmations: 0 }]);
+
+    auth.userId = voter.userId;
+    await expect(retractVote({
+      voterRegistrationId: voter.registrationId,
+      candidateRegistrationId: players[8]!.registrationId,
+    })).resolves.toMatchObject({ success: true });
+    await expect(castVote({
+      voterRegistrationId: voter.registrationId,
+      candidateRegistrationId: players[2]!.registrationId,
+    })).resolves.toMatchObject({ success: true });
+    auth.userId = players[0]!.userId;
+    const reviewed = await currentConfirmation();
+    const [first, second, ...rest] = reviewed.expectedCaptains;
+    await expect(confirmCaptains({ seasonId, expectedCaptains: [second, first, ...rest] })).resolves.toMatchObject({
+      success: false,
+      error: { code: "VALIDATION_FAILED", message: expect.stringContaining("名单或选秀顺位已变化") },
+    });
+
+    const formed = await confirmCaptains(reviewed);
     expect(formed.success).toBe(true);
     if (!formed.success) throw new Error(formed.error.message);
     const entries = (await pool.query<{ id: string; representative_user_id: string; source_registration_id: string; formation_order: number }>(
