@@ -1,7 +1,7 @@
-import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
-import { notFound } from "next/navigation";
+import { resolveAdminSeasonPageAccess } from "@/lib/admin/season-context";
 import type { Metadata } from "next";
 
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { PageHeader } from "@/components/rivalhub";
 import { DraftAdminPanel } from "@/components/draft/DraftAdminPanel";
 import { getFormedCompetitionEntryCount } from "@/lib/competition-entries/counts";
@@ -18,8 +18,8 @@ export async function generateMetadata({ params }: AdminDraftPageProps): Promise
 
 export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
   const { seasonSlug } = await params;
-  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
-  if (!season) notFound();
+  const season = await resolveAdminSeasonPageAccess(seasonSlug);
+  if (!season) return <AdminAccessDenied />;
 
   const [teamCount, data] = await Promise.all([
     getFormedCompetitionEntryCount(season.id),

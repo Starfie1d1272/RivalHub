@@ -1,6 +1,6 @@
-import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
-import { notFound } from "next/navigation";
+import { resolveAdminSeasonPageAccess } from "@/lib/admin/season-context";
 
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { CaptainConfirmPanel } from "@/components/captains/CaptainConfirmPanel";
 import { PageHeader, Panel } from "@/components/rivalhub";
 import { getAdminCaptainRanking, getSeasonTeamCount } from "@/lib/captains/data";
@@ -11,8 +11,8 @@ interface AdminCaptainsPageProps {
 
 export default async function AdminCaptainsPage({ params }: AdminCaptainsPageProps) {
   const { seasonSlug } = await params;
-  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
-  if (!season) notFound();
+  const season = await resolveAdminSeasonPageAccess(seasonSlug);
+  if (!season) return <AdminAccessDenied />;
 
   if (!season.hasCaptainVoting) {
     return (
