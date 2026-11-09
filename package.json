@@ -149,7 +149,7 @@
     "pg": "^8.23.1",
     "postcss": "^8.5.32",
     "prettier": "^3.9.10",
-    "supabase": "2.122.0",
+    "supabase": "3.0.0",
     "tailwindcss": "^4.3.4",
     "tsx": "^4.23.15",
     "typescript": "npm:@typescript/typescript6@6.0.2",
