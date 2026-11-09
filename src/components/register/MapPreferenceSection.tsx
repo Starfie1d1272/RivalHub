@@ -1,4 +1,4 @@
-import React, { type ReactNode } from "react";
+import React, { useId, type ReactNode } from "react";
 import { MAP_PREFERENCE_LABELS, MAP_PREFERENCE_LEVELS, mapLabel } from "@/lib/maps";
 import type { MapPreferenceDraft, MapPreferenceLevel } from "@/types/season";
 import { RegistrationSectionTitle } from "./RegistrationSectionTitle";
@@ -24,6 +24,8 @@ export function MapPreferenceSection({
   title = "地图熟练度",
   showRequirements = true,
 }: MapPreferenceSectionProps) {
+  const mapGroupId = useId();
+
   return (
     <section>
       <RegistrationSectionTitle>{title}</RegistrationSectionTitle>
@@ -51,14 +53,20 @@ export function MapPreferenceSection({
 
       <div className="space-y-2">
         {mapPool.map((map) => {
+          const labelId = `${mapGroupId}-${map}`;
           const currentLevel =
             mapPreferences.find((preference) => preference.map === map)?.level ?? null;
           return (
             <div
               key={map}
+              role="group"
+              aria-labelledby={labelId}
               className="grid gap-2 rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 sm:grid-cols-[96px_1fr]"
             >
-              <div className="flex items-center text-sm font-semibold text-[var(--color-fg)]">
+              <div
+                id={labelId}
+                className="flex items-center text-sm font-semibold text-[var(--color-fg)]"
+              >
                 {mapLabel(map)}
               </div>
               <div className="grid grid-cols-3 gap-1 sm:grid-cols-6">

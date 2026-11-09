@@ -1,7 +1,10 @@
 import { interpretEntryRosterStatus } from "@/lib/competition-entries/status-read-model";
 import { Suspense } from "react";
 import { ContentReady } from "@/components/telemetry/ContentReady";
+import { PageHeader } from "@/components/rivalhub/PageHeader";
+import { Button } from "@/components/ui/button";
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { connection } from "next/server";
 import type { Metadata } from "next";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
@@ -130,16 +133,18 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
+  const registrationTitle = `${season.name} · 报名`;
 
   if (!isSoloRegistration(season) && !isTeamRegistration(season)) {
     return (
       <PageLayout variant="standard">
         <div className="mx-auto w-full max-w-2xl">
-          <Panel contentClassName="p-10">
+          <Panel contentClassName="space-y-4 p-4 sm:p-8">
+            <PageHeader title={registrationTitle} />
             <StatusBanner
               tone="info"
-              title={season.name}
-              sub="队伍报名尚未开放，请联系赛事管理员。"
+              title="报名通道尚未开放"
+              sub="如需了解报名安排，请联系赛事管理员。"
             />
           </Panel>
         </div>
@@ -164,11 +169,11 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
       <PageLayout variant="standard">
         <div className="mx-auto w-full max-w-2xl space-y-4">
           <Panel contentClassName="p-10">
-            <div className="text-center">
+            <div className="space-y-4">
+              <PageHeader title={registrationTitle} />
               <StatusBanner
                 tone="info"
-                title={season.name}
-                sub={statusMessages[season.status] ?? "报名通道当前不可用。"}
+                title={statusMessages[season.status] ?? "报名通道当前不可用。"}
               />
             </div>
           </Panel>
@@ -191,15 +196,12 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
     return (
       <PageLayout variant="standard">
         <div className="mx-auto w-full max-w-2xl">
-          <Panel contentClassName="p-10">
+          <Panel contentClassName="space-y-4 p-4 sm:p-8">
+            <PageHeader title={registrationTitle} />
             <StatusBanner
               tone="info"
-              title={season.name}
-              sub={[
-                registrationWindow.message,
-                registrationSchedule?.primary,
-                registrationSchedule?.secondary,
-              ]
+              title={registrationWindow.message}
+              sub={[registrationSchedule?.primary, registrationSchedule?.secondary]
                 .filter(Boolean)
                 .join(" · ")}
             />
@@ -540,50 +542,46 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
       };
     }
 
+    const canAdjustEntry = capabilities.canEditCurrentRoster || capabilities.canRequestRosterChange;
+    const canReleaseEntry = capabilities.canReleaseEliminatedParticipation;
+    const readOnlyReason = capabilities.readOnlyReason;
+    const entryWindowTitle = canReleaseEntry
+      ? "可处理参赛队伍变更"
+      : canAdjustEntry
+        ? "名单调整开放中"
+        : readOnlyReason ?? (entry?.registrationStatus === "submitted" ? "名单审核中" : null);
+
     return (
       <PageLayout variant="standard">
         <div className="mx-auto w-full max-w-2xl space-y-6">
-          <div>
-            <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent)]">
-              {season.name} · TEAM REGISTER
-            </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">
-              {entry ? "我的参赛" : "队伍报名"}
-            </h1>
+          <PageHeader title={`${season.name} · ${entry ? "本届报名" : "队伍报名"}`} />
+          <div className="space-y-2">
+            <StatusBanner
+              tone={
+                canAdjustEntry || canReleaseEntry
+                  ? "info"
+                  : getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)
+              }
+              title={entryWindowTitle ?? registrationWindow.message}
+              sub={[
+                registrationSchedule?.primary,
+                registrationSchedule?.secondary,
+                season.rosterChangeClosesAt
+                  ? `${season.competitionTemplate === "major" ? "最终名单调整截止" : "名单可自行调整至"} ${formatCST(season.rosterChangeClosesAt)}`
+                  : "名单调整截止时间与报名截止时间一致",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            />
+            {entry && readOnlyReason && (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/${seasonSlug}/info#contacts`}>查看本届联系方式</Link>
+              </Button>
+            )}
           </div>
-          <StatusBanner
-            tone={
-              entry &&
-              (capabilities.canEditCurrentRoster ||
-                capabilities.canRequestRosterChange ||
-                capabilities.canReleaseEliminatedParticipation)
-                ? "info"
-                : getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)
-            }
-            title={
-              entry
-                ? capabilities.canReleaseEliminatedParticipation
-                  ? "可处理参赛队伍变更"
-                  : capabilities.canRequestRosterChange || capabilities.canEditCurrentRoster
-                    ? "名单调整开放中"
-                    : entry.registrationStatus === "submitted"
-                      ? "名单变更审核中"
-                      : (capabilities.readOnlyReason ?? "本届名单已审核通过")
-                : registrationWindow.message
-            }
-            sub={[
-              registrationSchedule?.primary,
-              registrationSchedule?.secondary,
-              season.rosterChangeClosesAt
-                ? `${season.competitionTemplate === "major" ? "最终名单调整截止" : "名单可自行调整至"} ${formatCST(season.rosterChangeClosesAt)}`
-                : "名单调整截止时间与报名截止时间一致",
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          />
           <RegistrationScheduleCountdown
             target={
-              entry && (capabilities.canEditCurrentRoster || capabilities.canRequestRosterChange)
+              canAdjustEntry
                 ? (season.rosterChangeClosesAt?.toISOString() ?? null)
                 : (registrationSchedule?.countdownTarget ?? null)
             }

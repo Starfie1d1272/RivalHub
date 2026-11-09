@@ -115,9 +115,16 @@ export function SeasonPublicInfoView({ info }: { info: PublicSeasonInfo }) {
           )}
         </div>
       </section>
-      <section className="space-y-3">
+      <section
+        id="contacts"
+        aria-labelledby="season-contacts-heading"
+        tabIndex={-1}
+        className="scroll-mt-28 space-y-3"
+      >
         <div>
-          <h2 className="text-xl font-semibold text-[var(--color-fg)]">联系方式</h2>
+          <h2 id="season-contacts-heading" className="text-xl font-semibold text-[var(--color-fg)]">
+            联系方式
+          </h2>
           <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
             仅显示赛事方明确公开的联系渠道。
           </p>

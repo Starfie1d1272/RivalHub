@@ -32,7 +32,10 @@ export function MyCompetitionCard({ context }: { context: MyCompetitionContext }
               {ROLE_LABELS[context.viewerRole]}
             </p>
           </div>
-          <StatusPill label={seasonStatus.label} tone={seasonStatus.tone} />
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-fg-mid)]">
+            <span>赛事阶段</span>
+            <StatusPill label={seasonStatus.label} tone={seasonStatus.tone} />
+          </div>
         </div>
         <div className="grid gap-3 text-sm leading-6 text-[var(--color-fg-mid)] sm:grid-cols-2">
           <p>
