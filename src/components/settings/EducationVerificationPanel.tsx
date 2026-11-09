@@ -147,10 +147,11 @@ export function EducationVerificationPanel({
     });
     setAcademicStatus(item.academicStatus);
     setEvidenceCode("");
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     document
       .getElementById("chsi-verification-form")
-      ?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-    document.getElementById("chsi-evidence-code")?.focus();
+      ?.scrollIntoView?.({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    document.getElementById("chsi-evidence-code")?.focus({ preventScroll: true });
   }
 
   const fastPathLabel =
@@ -298,9 +299,10 @@ export function EducationVerificationPanel({
                 onChange={setChsiInstitution}
                 disabled={pending}
               />
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2" role="group" aria-label="学籍状态">
                 <Button
                   type="button"
+                  aria-pressed={academicStatus === "enrolled"}
                   variant={academicStatus === "enrolled" ? "default" : "outline"}
                   onClick={() => setAcademicStatus("enrolled")}
                 >
@@ -308,6 +310,7 @@ export function EducationVerificationPanel({
                 </Button>
                 <Button
                   type="button"
+                  aria-pressed={academicStatus === "graduated"}
                   variant={academicStatus === "graduated" ? "default" : "outline"}
                   onClick={() => setAcademicStatus("graduated")}
                 >

@@ -128,6 +128,7 @@ export function RecruitmentLobbyControls({
             <Button
               type="button"
               size="sm"
+              aria-pressed={!position}
               variant={!position ? "outline" : "ghost"}
               onClick={() => update({ position: undefined })}
             >
@@ -138,6 +139,7 @@ export function RecruitmentLobbyControls({
                 key={item}
                 type="button"
                 size="sm"
+                aria-pressed={position === item}
                 variant={position === item ? "outline" : "ghost"}
                 onClick={() => update({ position: item })}
               >

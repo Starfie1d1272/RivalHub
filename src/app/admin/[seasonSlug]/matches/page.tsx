@@ -143,7 +143,15 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
             <h2 id="execution-scope" className="text-base font-semibold">
               赛务与解说
             </h2>
-            <AdminMatchFilter stages={stages} teams={data.teams} showStatus={false} />
+            <p className="text-sm text-[var(--color-fg-secondary)]">
+              阶段与队伍筛选同时应用于赛务、解说和比赛列表。
+            </p>
+            <AdminMatchFilter
+              scope="赛务与解说"
+              stages={stages}
+              teams={data.teams}
+              showStatus={false}
+            />
             <AdminMatchOperations
               rows={operations}
               seasonSlug={seasonSlug}
@@ -167,7 +175,12 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
           <h2 id="materials-scope" className="text-base font-semibold">
             资料缺口
           </h2>
-          <AdminMatchFilter stages={stages} teams={data.teams} showStatus={false} />
+          <AdminMatchFilter
+            scope="资料缺口"
+            stages={stages}
+            teams={data.teams}
+            showStatus={false}
+          />
           <AdminPostMatchTasks
             rows={postMatchTasks?.rows ?? []}
             total={postMatchTasks?.total}
@@ -259,7 +272,12 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
               ))}
             </TabsList>
             <div className="mt-4">
-              <AdminMatchFilter stages={stages} teams={data.teams} showStage={false} />
+              <AdminMatchFilter
+                scope="比赛列表"
+                stages={stages}
+                teams={data.teams}
+                showStage={false}
+              />
             </div>
             {overview.stageViews
               .filter(({ stage }) => stage.key === overview.defaultStageKey)

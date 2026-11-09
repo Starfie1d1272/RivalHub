@@ -253,7 +253,7 @@ shared layer **不拥有** allowed query、validation、SQL `WHERE/ORDER BY`、q
 
 ## Forms and mutations
 
-- 使用既有 labeled controls；字段级 validation 靠近字段，服务端错误保留给用户。
+- 使用既有 labeled controls。Field 默认生成稳定 ID 关联可见标签；筛选器提供当前范围的名称，互斥按钮公开选择态。字段错误靠近对应控件，保留服务端反馈。
 - pending/success/failure 状态明确，避免重复 mutation。
 - 长期 profile、赛事报名和单场 roster 等不同事实不混成同一表单。
 - 已通过的队伍报名默认展示当前本届只读名单，将主力／替补和确认状态合并到成员行；不展示禁用的编辑复选框或未入选候选队员。当前资料检查可展开查看，并明确其不改变已通过结果；可用的名单变更及负责人交接入口继续保留。名单调整提示区分时间截止、赛事阶段限制和名单锁定。

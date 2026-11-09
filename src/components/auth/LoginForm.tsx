@@ -279,9 +279,14 @@ export function LoginForm({
     <TaskBoundary task={mode === "login" ? "login" : "account"}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {updatePrompt}
-        <div className="flex rounded-sm bg-[var(--color-panel-low)] p-0.5">
+        <div
+          className="flex rounded-sm bg-[var(--color-panel-low)] p-0.5"
+          role="group"
+          aria-label="账号操作"
+        >
           <button
             type="button"
+            aria-pressed={mode === "login"}
             onClick={() => switchMode("login")}
             className={`flex-1 rounded-sm py-1.5 text-sm font-medium transition-colors ${
               mode === "login"
@@ -293,6 +298,7 @@ export function LoginForm({
           </button>
           <button
             type="button"
+            aria-pressed={mode === "register"}
             onClick={() => switchMode("register")}
             className={`flex-1 rounded-sm py-1.5 text-sm font-medium transition-colors ${
               mode === "register"
