@@ -37,7 +37,7 @@ async function DraftContent({ params }: DraftPageProps) {
   const archive = access === "archive";
   if (!access) {
     return (
-      <PageLayout variant="standard">
+      <PageLayout variant="workbench">
         <PageHeader
           title="选秀"
           description={season.hasDraft ? "选秀尚未开放" : "本届赛事未启用选秀"}

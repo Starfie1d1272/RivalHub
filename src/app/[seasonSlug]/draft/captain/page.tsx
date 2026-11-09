@@ -157,7 +157,7 @@ function UnavailablePanel({
   children?: ReactNode;
 }) {
   return (
-    <PageLayout variant="standard">
+    <PageLayout variant="workbench">
       <Panel contentClassName="p-8">
         <h1 className="text-2xl font-bold">{title}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{message}</p>
