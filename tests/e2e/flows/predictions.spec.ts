@@ -34,7 +34,7 @@ test("观众完成选队提交、草稿隔离、图片导出", async ({
     await expect(medal).toBeVisible();
     await medal.getByRole("tab", { name: "排行榜", exact: true }).click();
     await expect(medal.getByText("完成任务", { exact: true })).toBeVisible();
-    await medal.getByRole("button", { name: "Close", exact: true }).click();
+    await medal.getByRole("button", { name: "关闭", exact: true }).click();
     await expect(achievement.getByRole("button", { name: "放大我的纪念币" })).toBeFocused();
     const hypothetical = page.locator('[data-testid^="sim-match-stage1-r2-"]').first();
     await expect(hypothetical.getByRole("link", { name: /队伍资料/ })).toHaveCount(2);
