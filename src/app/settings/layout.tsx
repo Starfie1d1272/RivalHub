@@ -7,7 +7,7 @@ export const instant = false;
 
 export default function SettingsLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <PageLayout as="main" variant="wide" className="sm:py-10">
+    <PageLayout variant="wide" className="sm:py-10">
       <div className="mb-5 lg:hidden">
         <SettingsNav />
       </div>

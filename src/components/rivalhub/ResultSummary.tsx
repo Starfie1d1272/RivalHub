@@ -18,7 +18,7 @@ export function ResultSummary({
   const pages = totalPages ?? Math.ceil(total / pageSize);
   return (
     <p
-      className={`text-xs tabular-nums text-[var(--color-fg-dim)]${className ? ` ${className}` : ""}`}
+      className={`text-xs tabular-nums text-[var(--color-fg-secondary)]${className ? ` ${className}` : ""}`}
     >
       共 {total} 条{pages > 1 ? ` · 第 ${page} / ${pages} 页` : ""}
     </p>

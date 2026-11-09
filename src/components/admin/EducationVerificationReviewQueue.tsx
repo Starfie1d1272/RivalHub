@@ -1,13 +1,26 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { type FormEvent, useId, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { reviewEducationVerification as telemetry_reviewEducationVerification } from "@/actions/education-verifications";
 import { EmptyState, Panel } from "@/components/rivalhub";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { formatCST } from "@/lib/utils/date";
-import type { EducationReviewRow } from "@/lib/education/admin-review-contract";
+import {
+  EDUCATION_REVIEW_NOTE_MAX_LENGTH,
+  type EducationReviewRow,
+} from "@/lib/education/admin-review-contract";
 import { observeAction } from "@/lib/telemetry/client";
 
 const reviewEducationVerification = observeAction(
@@ -26,29 +39,63 @@ interface EducationVerificationReviewQueueProps {
   emptyState: EducationReviewEmptyState;
 }
 
+interface ReviewSelection extends Pick<
+  EducationReviewRow,
+  "id" | "displayName" | "email" | "institution"
+> {
+  decision: "approved" | "rejected";
+}
+
 export function EducationVerificationReviewQueue({
   rows,
   emptyState,
 }: EducationVerificationReviewQueueProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [selection, setSelection] = useState<ReviewSelection | null>(null);
+  const [note, setNote] = useState("");
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const originRef = useRef<HTMLButtonElement>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+  const noteId = useId();
 
-  const review = (id: string, decision: "approved" | "rejected") => {
-    const reviewNote =
-      decision === "rejected"
-        ? (window.prompt("请输入驳回原因（将显示给申请人）") ?? "")
-        : (window.prompt("审核备注（可选，仅管理员可见）") ?? "");
-    if (decision === "rejected" && !reviewNote.trim()) return;
+  function openReview(
+    { id, displayName, email, institution }: EducationReviewRow,
+    decision: ReviewSelection["decision"],
+    origin: HTMLButtonElement,
+  ) {
+    originRef.current = origin;
+    setNote("");
+    setReviewError(null);
+    setSelection({ id, displayName, email, institution, decision });
+  }
+
+  function review(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selection || pending) return;
+    const { id, decision } = selection;
+    const reviewNote = note.trim();
+    if (decision === "rejected" && !reviewNote) {
+      setReviewError("请填写驳回原因。");
+      noteRef.current?.focus();
+      return;
+    }
+    setReviewError(null);
     startTransition(async () => {
-      const result = await reviewEducationVerification({ id, decision, reviewNote });
-      if (result.success) {
+      try {
+        const result = await reviewEducationVerification({ id, decision, reviewNote });
+        if (!result.success) {
+          setReviewError(result.error.message);
+          return;
+        }
+        setSelection(null);
         toast.success(decision === "approved" ? "认证已通过" : "认证已驳回");
         router.refresh();
-      } else {
-        toast.error(result.error.message);
+      } catch {
+        setReviewError("未能确认审核结果，请返回队列刷新后核对。");
       }
     });
-  };
+  }
 
   const copyEvidenceCode = (evidenceCode: string) =>
     startTransition(async () => {
@@ -155,13 +202,18 @@ export function EducationVerificationReviewQueue({
                 )}
                 {row.status === "pending" && (
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <Button disabled={pending} onClick={() => review(row.id, "approved")}>
+                    <Button
+                      disabled={pending}
+                      aria-haspopup="dialog"
+                      onClick={(event) => openReview(row, "approved", event.currentTarget)}
+                    >
                       通过
                     </Button>
                     <Button
                       disabled={pending}
                       variant="outline"
-                      onClick={() => review(row.id, "rejected")}
+                      aria-haspopup="dialog"
+                      onClick={(event) => openReview(row, "rejected", event.currentTarget)}
                     >
                       驳回
                     </Button>
@@ -172,6 +224,80 @@ export function EducationVerificationReviewQueue({
           ))}
         </div>
       )}
+      <AlertDialog
+        open={selection !== null}
+        onOpenChange={(open) => {
+          if (!open && !pending) setSelection(null);
+        }}
+      >
+        {selection && (
+          <AlertDialogContent
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              originRef.current?.focus();
+            }}
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {selection.decision === "approved" ? "通过这项教育认证？" : "驳回这项教育认证？"}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="[overflow-wrap:anywhere]">
+                {selection.displayName ?? "未知用户"}（{selection.email}） · {selection.institution}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <form className="space-y-4" onSubmit={review} noValidate>
+              <div className="space-y-2">
+                <label htmlFor={noteId} className="block text-sm font-medium">
+                  {selection.decision === "approved" ? "审核备注（可选）" : "驳回原因（必填）"}
+                </label>
+                <Textarea
+                  id={noteId}
+                  ref={noteRef}
+                  aria-describedby={`${noteId}-help`}
+                  aria-invalid={
+                    Boolean(reviewError) && selection.decision === "rejected" && !note.trim()
+                  }
+                  required={selection.decision === "rejected"}
+                  value={note}
+                  onChange={(event) => {
+                    setNote(event.target.value);
+                    setReviewError(null);
+                  }}
+                  maxLength={EDUCATION_REVIEW_NOTE_MAX_LENGTH}
+                  disabled={pending}
+                  rows={3}
+                />
+                <p id={`${noteId}-help`} className="text-sm text-[var(--color-fg-secondary)]">
+                  {selection.decision === "approved"
+                    ? "审核备注仅管理员可见。"
+                    : "驳回原因将显示给申请人。"}
+                </p>
+              </div>
+              {reviewError && (
+                <p role="alert" className="text-sm text-[var(--color-danger)]">
+                  {reviewError}
+                </p>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel type="button" disabled={pending}>
+                  返回审核队列
+                </AlertDialogCancel>
+                <Button
+                  type="submit"
+                  variant={selection.decision === "approved" ? "default" : "destructive"}
+                  disabled={pending}
+                >
+                  {pending
+                    ? "正在提交…"
+                    : selection.decision === "approved"
+                      ? "确认通过"
+                      : "确认驳回"}
+                </Button>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
     </div>
   );
 }

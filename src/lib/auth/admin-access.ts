@@ -11,7 +11,7 @@ export async function resolveAdminPageAccess<T>(guard: () => Promise<T>): Promis
     return await guard();
   } catch (error) {
     if (isAppErrorCode(error, ErrorCode.UNAUTHORIZED)) {
-      redirect("/login");
+      redirect("/login?next=/admin");
     }
     if (isAppErrorCode(error, ErrorCode.FORBIDDEN)) return null;
     throw error;

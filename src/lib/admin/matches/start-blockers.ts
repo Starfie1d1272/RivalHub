@@ -1,5 +1,10 @@
 import type { AdminMatchPreflight, RosterData } from "@/lib/admin/matches/types";
 
+export function matchLineupStatusLabel(status: RosterData["status"] | null): string {
+  if (status === "confirmed") return "首发已确认";
+  return status === "submitted" ? "首发已提交，待确认" : "尚未提交首发";
+}
+
 interface StartBlockerInput {
   requiresPreflight: boolean;
   teamAName: string;

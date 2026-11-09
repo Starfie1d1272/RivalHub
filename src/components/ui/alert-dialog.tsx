@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
+import { usePortalTheme } from "./portal-theme";
 
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
@@ -28,19 +29,23 @@ AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName;
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
->(({ className, ...props }, ref) => (
-  <AlertDialogPortal>
-    <AlertDialogOverlay />
-    <AlertDialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed left-1/2 top-1/2 z-[var(--z-overlay)] grid w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-sm border border-[var(--color-border-static)] bg-[var(--color-surface-floating)] p-4 text-[var(--color-fg-primary)] shadow-lg duration-[var(--duration-normal)] ease-[var(--ease-tactical)] motion-reduce:animate-none sm:w-full sm:max-w-lg sm:p-6",
-        className,
-      )}
-      {...props}
-    />
-  </AlertDialogPortal>
-));
+>(({ className, style, ...props }, ref) => {
+  const portalStyle = usePortalTheme(style);
+  return (
+    <AlertDialogPortal>
+      <AlertDialogOverlay />
+      <AlertDialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          "fixed left-1/2 top-1/2 z-[var(--z-overlay)] grid w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-sm border border-[var(--color-border-static)] bg-[var(--color-surface-floating)] p-4 text-[var(--color-fg-primary)] shadow-lg duration-[var(--duration-normal)] ease-[var(--ease-tactical)] motion-reduce:animate-none sm:w-full sm:max-w-lg sm:p-6",
+          className,
+        )}
+        style={portalStyle}
+        {...props}
+      />
+    </AlertDialogPortal>
+  );
+});
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName;
 
 const AlertDialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

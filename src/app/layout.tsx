@@ -10,6 +10,7 @@ import { APP_BRAND } from "@/lib/branding";
 import { GlobalInformationFeedbackLauncher } from "@/components/operations/GlobalInformationFeedbackLauncher";
 import { OperationsProvider } from "@/components/operations/OperationsContext";
 import { Suspense } from "react";
+import { ThemeProvider } from "next-themes";
 import { connection } from "next/server";
 import { isPreview } from "@/lib/runtime/preview";
 import { readPreviewMirrorIdentity } from "@/lib/preview/mirror-state";
@@ -20,9 +21,11 @@ const geist = Geist({
 });
 
 const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-mono",
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
+
+const siteTheme = "dark";
 
 export const metadata: Metadata = {
   title: {
@@ -51,28 +54,29 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" className="dark">
-      <head>
-        <link rel="stylesheet" href="/brackets-viewer.min.css" />
-      </head>
-      <body
-        className={`${geist.variable} ${jetbrainsMono.variable} antialiased min-h-screen flex flex-col`}
-      >
-        <OperationsProvider>
-          <Suspense fallback={null}>
-            <PreviewMirrorBanner />
-          </Suspense>
-          <Header />
-          <Suspense fallback={null}>
-            <DeploymentUpdateNotice />
-          </Suspense>
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <Suspense fallback={null}>
-            <GlobalInformationFeedbackLauncher />
-          </Suspense>
-        </OperationsProvider>
-        <Toaster richColors position="top-right" />
+    <html
+      lang="zh-CN"
+      className={`${siteTheme} ${geist.variable} ${jetbrainsMono.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="antialiased min-h-screen flex flex-col">
+        <ThemeProvider attribute="class" forcedTheme={siteTheme} enableSystem={false}>
+          <OperationsProvider>
+            <Suspense fallback={null}>
+              <PreviewMirrorBanner />
+            </Suspense>
+            <Header />
+            <Suspense fallback={null}>
+              <DeploymentUpdateNotice />
+            </Suspense>
+            <main className="flex-1">{children}</main>
+            <Footer />
+            <Suspense fallback={null}>
+              <GlobalInformationFeedbackLauncher />
+            </Suspense>
+          </OperationsProvider>
+          <Toaster richColors position="top-right" />
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,5 +1,7 @@
 .widget {
-  min-width: 218px;
+  width: 218px;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-panel);
@@ -25,6 +27,7 @@
 }
 .summaryText {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }

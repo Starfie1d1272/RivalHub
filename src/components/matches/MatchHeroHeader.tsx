@@ -51,6 +51,9 @@ export function MatchHeroHeader({
 }: MatchHeroHeaderProps) {
   return (
     <>
+      <h1 className="sr-only">
+        {teamA?.name ?? "未知队伍"} 对阵 {teamB?.name ?? "未知队伍"}
+      </h1>
       <div className="flex min-w-0 items-center gap-4">
         <Link
           href={`/${seasonSlug}/matches`}
@@ -180,7 +183,7 @@ export function MatchHeroHeader({
       {isFinished && match.resultDisposition === "omitted" && (
         <p className="text-center text-sm text-[var(--color-fg-mid)]">未提交结果</p>
       )}
-      <div className="text-center text-xs text-[var(--color-fg-dim)]">
+      <div className="text-center text-xs text-[var(--color-fg-secondary)]">
         {isFinished
           ? match.completedAt
             ? `完成于 ${formatCSTDateTime(match.completedAt)}`

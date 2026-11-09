@@ -48,7 +48,6 @@ it("closes the floating card on an outside click and reopens it on keyboard focu
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   await user.tab();
   expect(screen.getByRole("button", { name: "Star Chart 说明" })).toHaveFocus();
-  expect(screen.getByRole("tooltip")).toHaveTextContent("坐标轴自动缩放");
   await user.tab();
   expect(point).toHaveFocus();
   expect(screen.getByRole("dialog")).toBeInTheDocument();

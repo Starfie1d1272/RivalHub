@@ -1,4 +1,4 @@
-import React, { type ReactNode } from "react";
+import React from "react";
 import type { UseFormRegister, UseFormWatch } from "react-hook-form";
 import type { RegistrationInput } from "@/lib/validators/registration";
 import { Input } from "@/components/ui/input";
@@ -9,12 +9,12 @@ import {
   GAMEPLAY_STYLE_MAX_LENGTH,
 } from "@/lib/player-declared-profile";
 import { RegistrationSectionTitle } from "./RegistrationSectionTitle";
+import type { RegistrationFieldFeedback } from "./registration-form-utils";
 
-interface RegistrationExperienceSectionProps {
+interface RegistrationExperienceSectionProps extends RegistrationFieldFeedback {
   inputClassName: string;
   register: UseFormRegister<RegistrationInput>;
   watch: UseFormWatch<RegistrationInput>;
-  renderError: (name: string) => ReactNode;
 }
 
 export function RegistrationExperienceSection({
@@ -22,6 +22,7 @@ export function RegistrationExperienceSection({
   register,
   watch,
   renderError,
+  errorAttributes,
 }: RegistrationExperienceSectionProps) {
   return (
     <section>
@@ -37,6 +38,7 @@ export function RegistrationExperienceSection({
             placeholder={`简要描述你的游戏风格、擅长打法等（${GAMEPLAY_STYLE_MAX_LENGTH} 字以内）`}
             className={`${inputClassName} resize-none`}
             {...register("gameplayStyle")}
+            {...errorAttributes("gameplayStyle")}
           />
           <div className="flex justify-between mt-1">
             {renderError("gameplayStyle")}
@@ -56,6 +58,7 @@ export function RegistrationExperienceSection({
             placeholder="参加过的比赛、成绩等…"
             className={`${inputClassName} resize-none`}
             {...register("competitionHistory")}
+            {...errorAttributes("competitionHistory")}
           />
           <div className="flex justify-between mt-1">
             {renderError("competitionHistory")}
@@ -75,6 +78,7 @@ export function RegistrationExperienceSection({
             placeholder="njubox 或其他链接，命名格式：完美ID_主选位置.mp4（≤3 分钟）"
             className={inputClassName}
             {...register("highlightVideoUrl")}
+            {...errorAttributes("highlightVideoUrl")}
           />
           {renderError("highlightVideoUrl")}
         </div>

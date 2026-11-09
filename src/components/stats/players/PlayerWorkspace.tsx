@@ -337,115 +337,229 @@ export function PlayerWorkspace({
         value={tab}
         options={hideMaps ? tabs.filter((item) => item.key !== "maps") : tabs}
         onChange={setTab}
-      />
-      {tab === "maps" || tab === "weapons" ? (
-        <p className="text-right text-xs text-[var(--color-fg-mid)]">Overall · 不按阵营拆分</p>
-      ) : (
-        <ScopeSideTabs value={side} onChange={changeSide} sideHrefs={sideHrefs} />
-      )}
+        panelClassName="mt-5 space-y-5"
+      >
+        {tab === "maps" || tab === "weapons" ? (
+          <p className="text-right text-xs text-[var(--color-fg-mid)]">Overall · 不按阵营拆分</p>
+        ) : (
+          <ScopeSideTabs value={side} onChange={changeSide} sideHrefs={sideHrefs} />
+        )}
 
-      {tab === "overview" && (
-        <div className="space-y-6">
-          {!compact && side === "overall" && (
-            <StatsDataTable
-              embedded
-              rows={detail.scoreboard}
-              columns={teamColumns}
-              rowKey={(row) => row.teamId ?? row.perfectName}
-              pageSize={10}
-              emptyLabel="暂无 Scoreboard 数据"
-            />
-          )}
+        {tab === "overview" && (
+          <div className="space-y-6">
+            {!compact && side === "overall" && (
+              <StatsDataTable
+                embedded
+                rows={detail.scoreboard}
+                columns={teamColumns}
+                rowKey={(row) => row.teamId ?? row.perfectName}
+                pageSize={10}
+                emptyLabel="暂无 Scoreboard 数据"
+              />
+            )}
 
-          <MetricSection
-            title="Performance"
-            items={[
-              {
-                label: "Rating",
-                metric: "rating",
-                value: <MetricValue metric="rating" value={scoreboard?.avgRating} />,
-              },
-              {
-                label: "ADR",
-                metric: "adr",
-                value: (
-                  <MetricValue
-                    metric="adr"
-                    sampleLabel="rounds"
-                    value={side === "overall" ? scoreboard?.avgAdr : sideCombat?.damagePerRound}
-                  />
-                ),
-              },
-              {
-                label: "K/D",
-                metric: "kd",
-                value: (
-                  <MetricValue
-                    metric="kd"
-                    value={
-                      side === "overall"
-                        ? scoreboard?.kdRatio
-                        : sideCombat && sideCombat.deaths > 0
-                          ? sideCombat.kills / sideCombat.deaths
-                          : null
-                    }
-                  />
-                ),
-              },
-              {
-                label: "KPR",
-                metric: "kpr",
-                value: (
-                  <MetricValue
-                    metric="kpr"
-                    sampleLabel="rounds"
-                    value={side === "overall" ? scoreboard?.kpr : sideCombat?.killsPerRound}
-                  />
-                ),
-              },
-              {
-                label: "HS%",
-                metric: "hs",
-                value: (
-                  <MetricValue
-                    metric="hs"
-                    value={
-                      side === "overall"
-                        ? scoreboard?.avgHs == null
-                          ? null
-                          : scoreboard.avgHs / 100
-                        : sideCombat?.headshotRate
-                    }
-                  />
-                ),
-              },
-              {
-                label: "WE",
-                metric: "we",
-                value: <MetricValue metric="we" value={scoreboard?.avgWe} />,
-              },
-              {
-                label: "RWS",
-                metric: "rws",
-                value: <MetricValue metric="rws" value={scoreboard?.avgRws} />,
-              },
-              {
-                label: "MK/100r",
-                metric: "mk",
-                value: (
-                  <MetricValue
-                    metric="mk"
-                    sampleLabel="rounds"
-                    value={side === "overall" ? scoreboard?.mkpr : sideMultiKillsPerRound}
-                  />
-                ),
-              },
-            ]}
-          />
-
-          {slice && (
             <MetricSection
-              title="Advanced"
+              title="Performance"
+              items={[
+                {
+                  label: "Rating",
+                  metric: "rating",
+                  value: <MetricValue metric="rating" value={scoreboard?.avgRating} />,
+                },
+                {
+                  label: "ADR",
+                  metric: "adr",
+                  value: (
+                    <MetricValue
+                      metric="adr"
+                      sampleLabel="rounds"
+                      value={side === "overall" ? scoreboard?.avgAdr : sideCombat?.damagePerRound}
+                    />
+                  ),
+                },
+                {
+                  label: "K/D",
+                  metric: "kd",
+                  value: (
+                    <MetricValue
+                      metric="kd"
+                      value={
+                        side === "overall"
+                          ? scoreboard?.kdRatio
+                          : sideCombat && sideCombat.deaths > 0
+                            ? sideCombat.kills / sideCombat.deaths
+                            : null
+                      }
+                    />
+                  ),
+                },
+                {
+                  label: "KPR",
+                  metric: "kpr",
+                  value: (
+                    <MetricValue
+                      metric="kpr"
+                      sampleLabel="rounds"
+                      value={side === "overall" ? scoreboard?.kpr : sideCombat?.killsPerRound}
+                    />
+                  ),
+                },
+                {
+                  label: "HS%",
+                  metric: "hs",
+                  value: (
+                    <MetricValue
+                      metric="hs"
+                      value={
+                        side === "overall"
+                          ? scoreboard?.avgHs == null
+                            ? null
+                            : scoreboard.avgHs / 100
+                          : sideCombat?.headshotRate
+                      }
+                    />
+                  ),
+                },
+                {
+                  label: "WE",
+                  metric: "we",
+                  value: <MetricValue metric="we" value={scoreboard?.avgWe} />,
+                },
+                {
+                  label: "RWS",
+                  metric: "rws",
+                  value: <MetricValue metric="rws" value={scoreboard?.avgRws} />,
+                },
+                {
+                  label: "MK/100r",
+                  metric: "mk",
+                  value: (
+                    <MetricValue
+                      metric="mk"
+                      sampleLabel="rounds"
+                      value={side === "overall" ? scoreboard?.mkpr : sideMultiKillsPerRound}
+                    />
+                  ),
+                },
+              ]}
+            />
+
+            {slice && (
+              <MetricSection
+                title="Advanced"
+                items={[
+                  {
+                    label: "KAST",
+                    metric: "kast",
+                    value: <MetricValue metric="kast" value={slice.kast} />,
+                  },
+                  {
+                    label: "Opening",
+                    metric: "openingWin",
+                    value: <MetricValue metric="openingWin" value={slice.opening.successRate} />,
+                  },
+                  {
+                    label: "Trade/100r",
+                    metric: "trade",
+                    value: <MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} />,
+                  },
+                  {
+                    label: "A/100r",
+                    metric: "assist",
+                    value: <MetricValue metric="assist" value={slice.combat.assistsPerRound} />,
+                  },
+                  {
+                    label: "Util/r",
+                    metric: "utility",
+                    value: (
+                      <MetricValue metric="utility" value={slice.utility.utilityDamagePerRound} />
+                    ),
+                  },
+                  {
+                    label: "Clutch%",
+                    metric: "clutch",
+                    value: <MetricValue metric="clutch" value={slice.clutch.winRate} />,
+                  },
+                ]}
+                columns={3}
+              />
+            )}
+          </div>
+        )}
+
+        {tab === "opening" && slice && (
+          <div className="space-y-6">
+            <MetricSection
+              title="Duel frequency"
+              items={[
+                {
+                  label: "Attempts%",
+                  metric: "openingAttempt",
+                  value: <MetricValue metric="openingAttempt" value={slice.opening.attemptRate} />,
+                },
+                {
+                  label: "Attempts",
+                  metric: "openingAttempts",
+                  value: <MetricValue metric="openingAttempts" value={slice.opening.attempts} />,
+                },
+                {
+                  label: "FK/100r",
+                  metric: "firstKill",
+                  value: (
+                    <MetricValue metric="firstKill" value={slice.opening.firstKillsPerRound} />
+                  ),
+                },
+                {
+                  label: "FD/100r",
+                  metric: "firstDeath",
+                  value: (
+                    <MetricValue metric="firstDeath" value={slice.opening.firstDeathsPerRound} />
+                  ),
+                },
+              ]}
+            />
+            <MetricSection
+              title="Duel outcome"
+              items={[
+                {
+                  label: "Success%",
+                  metric: "openingWin",
+                  value: <MetricValue metric="openingWin" value={slice.opening.successRate} />,
+                },
+                {
+                  label: "Opening wins",
+                  metric: "openingWins",
+                  value: <MetricValue metric="openingWins" value={slice.opening.firstKills} />,
+                },
+                {
+                  label: "Win after FK",
+                  metric: "winAfterOpeningWin",
+                  value: (
+                    <MetricValue
+                      metric="winAfterOpeningWin"
+                      value={slice.opening.winRateAfterWinningOpeningDuel}
+                    />
+                  ),
+                },
+                {
+                  label: "Win after FD",
+                  metric: "winAfterOpeningLoss",
+                  value: (
+                    <MetricValue
+                      metric="winAfterOpeningLoss"
+                      value={slice.opening.comebackRateAfterLosingOpeningDuel}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </div>
+        )}
+
+        {tab === "teamplay" && slice && (
+          <div className="space-y-6">
+            <MetricSection
+              title="Round contribution"
               items={[
                 {
                   label: "KAST",
@@ -453,20 +567,103 @@ export function PlayerWorkspace({
                   value: <MetricValue metric="kast" value={slice.kast} />,
                 },
                 {
-                  label: "Opening",
-                  metric: "openingWin",
-                  value: <MetricValue metric="openingWin" value={slice.opening.successRate} />,
-                },
-                {
-                  label: "Trade/100r",
-                  metric: "trade",
-                  value: <MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} />,
+                  label: "Survival%",
+                  metric: "survival",
+                  value: <MetricValue metric="survival" value={slice.survival} />,
                 },
                 {
                   label: "A/100r",
                   metric: "assist",
                   value: <MetricValue metric="assist" value={slice.combat.assistsPerRound} />,
                 },
+              ]}
+              columns={3}
+            />
+            <MetricSection
+              title="Trading"
+              items={[
+                {
+                  label: "Trade/100r",
+                  metric: "trade",
+                  value: <MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} />,
+                },
+                {
+                  label: "Traded%",
+                  metric: "traded",
+                  value: <MetricValue metric="traded" value={slice.trade.tradedDeathsPerDeath} />,
+                },
+                {
+                  label: "Opening deaths traded",
+                  metric: "tradedOpening",
+                  value: (
+                    <MetricValue metric="tradedOpening" value={slice.trade.tradedOpeningDeaths} />
+                  ),
+                },
+              ]}
+              columns={3}
+            />
+          </div>
+        )}
+
+        {tab === "utility" && slice && (
+          <div className="space-y-6">
+            <MetricSection
+              title="Flash"
+              items={[
+                {
+                  label: "FA/100r",
+                  metric: "flashAssist",
+                  value: (
+                    <MetricValue metric="flashAssist" value={slice.utility.flashAssistsPerRound} />
+                  ),
+                },
+                {
+                  label: "Blind/Flash",
+                  metric: "blindPerFlash",
+                  value: (
+                    <MetricValue
+                      metric="blindPerFlash"
+                      value={slice.utility.enemyBlindSecondsPerFlash}
+                    />
+                  ),
+                },
+                {
+                  label: "Net Blind/Flash",
+                  metric: "netBlindPerFlash",
+                  value: (
+                    <MetricValue
+                      metric="netBlindPerFlash"
+                      value={slice.utility.netBlindSecondsPerFlash}
+                    />
+                  ),
+                },
+                {
+                  label: "Enemy Blind/r",
+                  metric: "enemyBlindPerRound",
+                  value: (
+                    <MetricValue
+                      metric="enemyBlindPerRound"
+                      value={slice.utility.enemyBlindSecondsPerRound}
+                    />
+                  ),
+                },
+                {
+                  label: "Team Blind/r",
+                  metric: "teamBlindPerRound",
+                  value: (
+                    <MetricValue
+                      metric="teamBlindPerRound"
+                      value={slice.utility.teamBlindSecondsPerRound}
+                    />
+                  ),
+                },
+              ]}
+              columns={5}
+            />
+
+            <MetricSection
+              title="Damage"
+              items={[
                 {
                   label: "Util/r",
                   metric: "utility",
@@ -475,360 +672,171 @@ export function PlayerWorkspace({
                   ),
                 },
                 {
-                  label: "Clutch%",
-                  metric: "clutch",
-                  value: <MetricValue metric="clutch" value={slice.clutch.winRate} />,
+                  label: STATS_METRICS.hePerRound.label,
+                  metric: "hePerRound",
+                  value: <MetricValue metric="hePerRound" value={slice.utility.heDamagePerRound} />,
+                },
+                {
+                  label: STATS_METRICS.hePerThrow.label,
+                  metric: "hePerThrow",
+                  value: (
+                    <MetricValue
+                      metric="hePerThrow"
+                      value={slice.utility.heDamagePerThrow}
+                      sampleLabel="HE throws"
+                    />
+                  ),
+                },
+                {
+                  label: STATS_METRICS.firePerRound.label,
+                  metric: "firePerRound",
+                  value: (
+                    <MetricValue metric="firePerRound" value={slice.utility.fireDamagePerRound} />
+                  ),
+                },
+                {
+                  label: STATS_METRICS.firePerThrow.label,
+                  metric: "firePerThrow",
+                  value: (
+                    <MetricValue
+                      metric="firePerThrow"
+                      value={slice.utility.fireDamagePerThrow}
+                      sampleLabel="fire throws"
+                    />
+                  ),
+                },
+              ]}
+              columns={5}
+            />
+
+            <MetricSection
+              title="Usage"
+              items={[
+                {
+                  label: "Flashes thrown",
+                  metric: "flashesThrown",
+                  value: <MetricValue metric="flashesThrown" value={slice.utility.flashesThrown} />,
+                },
+                {
+                  label: "HE thrown",
+                  metric: "heThrows",
+                  value: <MetricValue metric="heThrows" value={slice.utility.heThrows} />,
+                },
+                {
+                  label: "Fire thrown",
+                  metric: "fireThrows",
+                  value: <MetricValue metric="fireThrows" value={slice.utility.fireThrows} />,
+                },
+                {
+                  label: "Smokes thrown",
+                  metric: "smokesThrown",
+                  value: <MetricValue metric="smokesThrown" value={slice.utility.smokesThrown} />,
+                },
+                {
+                  label: "Smoke/r",
+                  metric: "smokePerRound",
+                  value: (
+                    <MetricValue metric="smokePerRound" value={slice.utility.smokesPerRound} />
+                  ),
+                },
+                {
+                  label: "Utility K/100r",
+                  metric: "utilityKills",
+                  value: (
+                    <MetricValue metric="utilityKills" value={slice.utility.utilityKillsPerRound} />
+                  ),
                 },
               ]}
               columns={3}
             />
-          )}
-        </div>
-      )}
-
-      {tab === "opening" && slice && (
-        <div className="space-y-6">
-          <MetricSection
-            title="Duel frequency"
-            items={[
-              {
-                label: "Attempts%",
-                metric: "openingAttempt",
-                value: <MetricValue metric="openingAttempt" value={slice.opening.attemptRate} />,
-              },
-              {
-                label: "Attempts",
-                metric: "openingAttempts",
-                value: <MetricValue metric="openingAttempts" value={slice.opening.attempts} />,
-              },
-              {
-                label: "FK/100r",
-                metric: "firstKill",
-                value: <MetricValue metric="firstKill" value={slice.opening.firstKillsPerRound} />,
-              },
-              {
-                label: "FD/100r",
-                metric: "firstDeath",
-                value: (
-                  <MetricValue metric="firstDeath" value={slice.opening.firstDeathsPerRound} />
-                ),
-              },
-            ]}
-          />
-          <MetricSection
-            title="Duel outcome"
-            items={[
-              {
-                label: "Success%",
-                metric: "openingWin",
-                value: <MetricValue metric="openingWin" value={slice.opening.successRate} />,
-              },
-              {
-                label: "Opening wins",
-                metric: "openingWins",
-                value: <MetricValue metric="openingWins" value={slice.opening.firstKills} />,
-              },
-              {
-                label: "Win after FK",
-                metric: "winAfterOpeningWin",
-                value: (
-                  <MetricValue
-                    metric="winAfterOpeningWin"
-                    value={slice.opening.winRateAfterWinningOpeningDuel}
-                  />
-                ),
-              },
-              {
-                label: "Win after FD",
-                metric: "winAfterOpeningLoss",
-                value: (
-                  <MetricValue
-                    metric="winAfterOpeningLoss"
-                    value={slice.opening.comebackRateAfterLosingOpeningDuel}
-                  />
-                ),
-              },
-            ]}
-          />
-        </div>
-      )}
-
-      {tab === "teamplay" && slice && (
-        <div className="space-y-6">
-          <MetricSection
-            title="Round contribution"
-            items={[
-              {
-                label: "KAST",
-                metric: "kast",
-                value: <MetricValue metric="kast" value={slice.kast} />,
-              },
-              {
-                label: "Survival%",
-                metric: "survival",
-                value: <MetricValue metric="survival" value={slice.survival} />,
-              },
-              {
-                label: "A/100r",
-                metric: "assist",
-                value: <MetricValue metric="assist" value={slice.combat.assistsPerRound} />,
-              },
-            ]}
-            columns={3}
-          />
-          <MetricSection
-            title="Trading"
-            items={[
-              {
-                label: "Trade/100r",
-                metric: "trade",
-                value: <MetricValue metric="trade" value={slice.trade.tradeKillsPerRound} />,
-              },
-              {
-                label: "Traded%",
-                metric: "traded",
-                value: <MetricValue metric="traded" value={slice.trade.tradedDeathsPerDeath} />,
-              },
-              {
-                label: "Opening deaths traded",
-                metric: "tradedOpening",
-                value: (
-                  <MetricValue metric="tradedOpening" value={slice.trade.tradedOpeningDeaths} />
-                ),
-              },
-            ]}
-            columns={3}
-          />
-        </div>
-      )}
-
-      {tab === "utility" && slice && (
-        <div className="space-y-6">
-          <MetricSection
-            title="Flash"
-            items={[
-              {
-                label: "FA/100r",
-                metric: "flashAssist",
-                value: (
-                  <MetricValue metric="flashAssist" value={slice.utility.flashAssistsPerRound} />
-                ),
-              },
-              {
-                label: "Blind/Flash",
-                metric: "blindPerFlash",
-                value: (
-                  <MetricValue
-                    metric="blindPerFlash"
-                    value={slice.utility.enemyBlindSecondsPerFlash}
-                  />
-                ),
-              },
-              {
-                label: "Net Blind/Flash",
-                metric: "netBlindPerFlash",
-                value: (
-                  <MetricValue
-                    metric="netBlindPerFlash"
-                    value={slice.utility.netBlindSecondsPerFlash}
-                  />
-                ),
-              },
-              {
-                label: "Enemy Blind/r",
-                metric: "enemyBlindPerRound",
-                value: (
-                  <MetricValue
-                    metric="enemyBlindPerRound"
-                    value={slice.utility.enemyBlindSecondsPerRound}
-                  />
-                ),
-              },
-              {
-                label: "Team Blind/r",
-                metric: "teamBlindPerRound",
-                value: (
-                  <MetricValue
-                    metric="teamBlindPerRound"
-                    value={slice.utility.teamBlindSecondsPerRound}
-                  />
-                ),
-              },
-            ]}
-            columns={5}
-          />
-
-          <MetricSection
-            title="Damage"
-            items={[
-              {
-                label: "Util/r",
-                metric: "utility",
-                value: <MetricValue metric="utility" value={slice.utility.utilityDamagePerRound} />,
-              },
-              {
-                label: STATS_METRICS.hePerRound.label,
-                metric: "hePerRound",
-                value: <MetricValue metric="hePerRound" value={slice.utility.heDamagePerRound} />,
-              },
-              {
-                label: STATS_METRICS.hePerThrow.label,
-                metric: "hePerThrow",
-                value: (
-                  <MetricValue
-                    metric="hePerThrow"
-                    value={slice.utility.heDamagePerThrow}
-                    sampleLabel="HE throws"
-                  />
-                ),
-              },
-              {
-                label: STATS_METRICS.firePerRound.label,
-                metric: "firePerRound",
-                value: (
-                  <MetricValue metric="firePerRound" value={slice.utility.fireDamagePerRound} />
-                ),
-              },
-              {
-                label: STATS_METRICS.firePerThrow.label,
-                metric: "firePerThrow",
-                value: (
-                  <MetricValue
-                    metric="firePerThrow"
-                    value={slice.utility.fireDamagePerThrow}
-                    sampleLabel="fire throws"
-                  />
-                ),
-              },
-            ]}
-            columns={5}
-          />
-
-          <MetricSection
-            title="Usage"
-            items={[
-              {
-                label: "Flashes thrown",
-                metric: "flashesThrown",
-                value: <MetricValue metric="flashesThrown" value={slice.utility.flashesThrown} />,
-              },
-              {
-                label: "HE thrown",
-                metric: "heThrows",
-                value: <MetricValue metric="heThrows" value={slice.utility.heThrows} />,
-              },
-              {
-                label: "Fire thrown",
-                metric: "fireThrows",
-                value: <MetricValue metric="fireThrows" value={slice.utility.fireThrows} />,
-              },
-              {
-                label: "Smokes thrown",
-                metric: "smokesThrown",
-                value: <MetricValue metric="smokesThrown" value={slice.utility.smokesThrown} />,
-              },
-              {
-                label: "Smoke/r",
-                metric: "smokePerRound",
-                value: <MetricValue metric="smokePerRound" value={slice.utility.smokesPerRound} />,
-              },
-              {
-                label: "Utility K/100r",
-                metric: "utilityKills",
-                value: (
-                  <MetricValue metric="utilityKills" value={slice.utility.utilityKillsPerRound} />
-                ),
-              },
-            ]}
-            columns={3}
-          />
-        </div>
-      )}
-
-      {tab === "clutch" && slice && (
-        <div className="space-y-6">
-          <MetricSection
-            title="Clutch"
-            items={[
-              {
-                label: "Attempts",
-                metric: "clutchAttempts",
-                value: <MetricValue metric="clutchAttempts" value={slice.clutch.attempts} />,
-              },
-              {
-                label: "Wins",
-                metric: "clutchWins",
-                value: <MetricValue metric="clutchWins" value={slice.clutch.wins} />,
-              },
-              {
-                label: "Clutch%",
-                metric: "clutch",
-                value: <MetricValue metric="clutch" value={slice.clutch.winRate} />,
-              },
-              {
-                label: "C/100r",
-                metric: "clutchFrequency",
-                value: <MetricValue metric="clutchFrequency" value={clutchWinsPerRound} />,
-              },
-            ]}
-          />
-          <MetricSection
-            title="By opponents"
-            items={(["1", "2", "3", "4", "5"] as const).map((count) => ({
-              label: `1v${count}`,
-              metric: "clutchSplit" as const,
-              value: (
-                <MetricValue
-                  metric="clutchSplit"
-                  value={slice.clutch.byOpponentCount[count]}
-                  sampleLabel={`1v${count} attempts`}
-                />
-              ),
-            }))}
-            columns={5}
-          />
-        </div>
-      )}
-
-      {tab === "maps" && (
-        <section className="space-y-3">
-          <h3 className="text-sm font-semibold">Map Performance</h3>
-          <StatsDataTable
-            embedded
-            rows={detail.scoreboardMaps}
-            columns={mapColumns}
-            rowKey={(row, index) => `${row.mapName ?? "map"}:${row.teamId ?? ""}:${index}`}
-            initialSortKey="rating"
-            tableClassName="min-w-[620px] table-fixed"
-            emptyLabel="暂无地图 Scoreboard 数据"
-          />
-        </section>
-      )}
-
-      {tab === "weapons" && (
-        <section className="space-y-3">
-          <h3 className="text-sm font-semibold">Weapons</h3>
-          <StatsDataTable
-            embedded
-            rows={player?.weapons ?? []}
-            columns={weaponColumns}
-            rowKey={(row) => row.weapon}
-            initialSortKey="kills"
-            tableClassName="min-w-[560px] table-fixed"
-            emptyLabel={detailUnavailable ? "高级统计暂时无法加载" : "暂无武器数据"}
-          />
-        </section>
-      )}
-
-      {!detailUnavailable &&
-        !slice &&
-        tab !== "overview" &&
-        tab !== "maps" &&
-        tab !== "weapons" && (
-          <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">
-            暂无详细统计。
-          </p>
+          </div>
         )}
+
+        {tab === "clutch" && slice && (
+          <div className="space-y-6">
+            <MetricSection
+              title="Clutch"
+              items={[
+                {
+                  label: "Attempts",
+                  metric: "clutchAttempts",
+                  value: <MetricValue metric="clutchAttempts" value={slice.clutch.attempts} />,
+                },
+                {
+                  label: "Wins",
+                  metric: "clutchWins",
+                  value: <MetricValue metric="clutchWins" value={slice.clutch.wins} />,
+                },
+                {
+                  label: "Clutch%",
+                  metric: "clutch",
+                  value: <MetricValue metric="clutch" value={slice.clutch.winRate} />,
+                },
+                {
+                  label: "C/100r",
+                  metric: "clutchFrequency",
+                  value: <MetricValue metric="clutchFrequency" value={clutchWinsPerRound} />,
+                },
+              ]}
+            />
+            <MetricSection
+              title="By opponents"
+              items={(["1", "2", "3", "4", "5"] as const).map((count) => ({
+                label: `1v${count}`,
+                metric: "clutchSplit" as const,
+                value: (
+                  <MetricValue
+                    metric="clutchSplit"
+                    value={slice.clutch.byOpponentCount[count]}
+                    sampleLabel={`1v${count} attempts`}
+                  />
+                ),
+              }))}
+              columns={5}
+            />
+          </div>
+        )}
+
+        {tab === "maps" && (
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Map Performance</h3>
+            <StatsDataTable
+              embedded
+              rows={detail.scoreboardMaps}
+              columns={mapColumns}
+              rowKey={(row, index) => `${row.mapName ?? "map"}:${row.teamId ?? ""}:${index}`}
+              initialSortKey="rating"
+              tableClassName="min-w-[620px] table-fixed"
+              emptyLabel="暂无地图 Scoreboard 数据"
+            />
+          </section>
+        )}
+
+        {tab === "weapons" && (
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Weapons</h3>
+            <StatsDataTable
+              embedded
+              rows={player?.weapons ?? []}
+              columns={weaponColumns}
+              rowKey={(row) => row.weapon}
+              initialSortKey="kills"
+              tableClassName="min-w-[560px] table-fixed"
+              emptyLabel={detailUnavailable ? "高级统计暂时无法加载" : "暂无武器数据"}
+            />
+          </section>
+        )}
+
+        {!detailUnavailable &&
+          !slice &&
+          tab !== "overview" &&
+          tab !== "maps" &&
+          tab !== "weapons" && (
+            <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">
+              暂无详细统计。
+            </p>
+          )}
+      </MetricFamilyTabs>
     </section>
   );
 }

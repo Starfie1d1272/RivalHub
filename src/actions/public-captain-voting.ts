@@ -13,12 +13,13 @@ import {
 import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { ok, type ActionResult } from "@/types/action";
+import type { SeasonStatus } from "@/types/season";
 
 export type CaptainVotingSnapshot = {
   candidates: PublicCaptainCandidate[];
   currentVoter: PublicCaptainVoter | null;
   votes: CaptainVoteRecord[];
-  seasonStatus: string;
+  seasonStatus: SeasonStatus;
 };
 
 export async function readPublicCaptainVoting(

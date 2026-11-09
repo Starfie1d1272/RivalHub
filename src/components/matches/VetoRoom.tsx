@@ -4,6 +4,12 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import {
+  matchWorkbenchHref,
+  parseMatchWorkbenchTask,
+  resolveMatchReturnContext,
+} from "@/lib/admin/matches/return-context";
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,7 +20,7 @@ import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { VetoMapActions } from "./VetoMapActions";
 import { VETO_PHASE_LABELS, vetoActionHelp } from "@/lib/matches/veto-presentation";
 import { InlineConfirm } from "@/components/rivalhub/InlineConfirm";
-import { useVisiblePolling } from "@/components/use-visible-polling";
+import { useGuardedVisiblePolling, useVisiblePolling } from "@/components/use-visible-polling";
 import type { VetoRoomView } from "@/lib/matches/veto-room/read-model";
 import type { ActionResult } from "@/types/action";
 import {
@@ -140,6 +146,7 @@ function formatRemaining(milliseconds: number): string {
 }
 
 export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
+  const search = useSearchParams();
   const {
     begin: beginTask,
     complete: completeTask,
@@ -330,17 +337,20 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     pending ? null : quietRoom ? 60_000 : room.session.startedAt ? 2_000 : 5_000,
   );
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
+  // A quiet room only needs a clock while retrying durable invalidation.
+  // Restart the active cadence when a fresh snapshot changes the anchor.
+  useGuardedVisiblePolling(
+    () => {
       const now = clockAnchor.serverNowMs + (performance.now() - clockAnchor.performanceNowMs);
       setServerNowMs(now);
       const deadline = room.session.turnDeadlineAt
         ? new Date(room.session.turnDeadlineAt).getTime()
         : null;
       setRemainingMs(deadline === null ? 0 : deadline - now);
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [clockAnchor, room.session.turnDeadlineAt]);
+    },
+    !quietRoom || invalidationPending ? 250 : null,
+    `${clockAnchor.performanceNowMs}:${room.session.turnDeadlineAt}`,
+  );
 
   useEffect(() => {
     const retryNow = () => {
@@ -520,6 +530,12 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const controlsPending = pending || uncertainRevision !== null;
   const turn = room.session;
   const match = room.match;
+  const returnTo = search?.get("returnTo");
+  const verifiedReturnTo =
+    returnTo && resolveMatchReturnContext(room.seasonSlug, returnTo, false).href === returnTo
+      ? returnTo
+      : undefined;
+  const workbenchTask = verifiedReturnTo ? parseMatchWorkbenchTask(search?.get("task")) : undefined;
   const matchClosed = match.statusKey === "finished" || match.statusKey === "cancelled";
   const currentEntry = room.entries.find((entry) => entry.id === turn.currentTurnEntryId);
   const usedMaps = useMemo(() => new Set(room.steps.map((step) => step.mapName)), [room.steps]);
@@ -585,7 +601,10 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
         <Link
           href={
             room.permissions.isAdmin
-              ? `/admin/${room.seasonSlug}/matches/${match.id}`
+              ? (matchWorkbenchHref(room.seasonSlug, match.id, {
+                  returnTo: verifiedReturnTo,
+                  task: workbenchTask,
+                }) as never)
               : `/${room.seasonSlug}/matches/${match.id}`
           }
           className="text-sm text-[var(--color-accent)] hover:underline"

@@ -1,6 +1,6 @@
 "use client";
 import { recordFilter } from "@/lib/telemetry/client";
-import React, { useState, type ReactNode } from "react";
+import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowRight, Columns3, LayoutGrid, List } from "lucide-react";
 import styles from "./tournament.module.css";
 export type TournamentView = "flow" | "compact" | "list";
@@ -36,6 +36,17 @@ export function TournamentViewSwitch({
     </div>
   );
 }
+function revealRound(viewport: HTMLDivElement, round: number, focus = false) {
+  const heading = viewport.querySelector<HTMLElement>(`[data-round-heading="${round}"]`);
+  if (!heading) return;
+  const frame = viewport.getBoundingClientRect();
+  const item = heading.getBoundingClientRect();
+  if (item.left < frame.left || item.right > frame.right) {
+    viewport.scrollLeft += item.left - frame.left;
+  }
+  if (focus) heading.focus({ preventScroll: true });
+}
+
 /** Layout only: adapters retain ownership of official facts and simulation choices. */
 export function TournamentFlow({
   rounds,
@@ -61,11 +72,32 @@ export function TournamentFlow({
   const [mobileRound, setMobileRound] = useState<number | "results">(
     initialRound ?? rounds[0] ?? 1,
   );
+  const viewport = useRef<HTMLDivElement>(null);
+  const currentRound =
+    view !== "list" && rounds.includes(initialRound ?? -1) ? initialRound : undefined;
+  useEffect(() => {
+    const frame = viewport.current;
+    if (!frame || currentRound === undefined) return;
+    revealRound(frame, currentRound);
+  }, [currentRound]);
+
   return (
     <div className={styles.board} data-layout={view} data-fixed-view={!setView || undefined}>
-      {(setView || legend) && (
+      {(setView || legend || currentRound !== undefined) && (
         <div className={styles.toolbar}>
           {setView && <TournamentViewSwitch view={view} setView={setView} />}
+          {currentRound !== undefined && (
+            <div className={styles.viewSwitch}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (viewport.current) revealRound(viewport.current, currentRound, true);
+                }}
+              >
+                定位到当前第 {currentRound} 轮
+              </button>
+            </div>
+          )}
           {legend && <div className={styles.legend}>{legend}</div>}
         </div>
       )}
@@ -91,7 +123,7 @@ export function TournamentFlow({
           </button>
         </nav>
       )}
-      <div className={styles.viewport} tabIndex={0} role="region" aria-label={label}>
+      <div ref={viewport} className={styles.viewport} tabIndex={0} role="region" aria-label={label}>
         <div
           className={styles.rounds}
           style={{ "--round-count": rounds.length + 1 } as React.CSSProperties}
@@ -102,7 +134,13 @@ export function TournamentFlow({
               className={styles.round}
               data-mobile-active={mobileRound === round}
             >
-              <h3 className={styles.roundTitle} aria-label={`第 ${round} 轮`}>
+              <h3
+                className={styles.roundTitle}
+                aria-label={`第 ${round} 轮`}
+                data-round-heading={round}
+                aria-current={currentRound === round ? "step" : undefined}
+                tabIndex={currentRound === round ? -1 : undefined}
+              >
                 {view === "list" && <ArrowDown size={18} />}
                 <span>ROUND {round}</span>
                 {view === "list" && <ArrowDown size={18} />}

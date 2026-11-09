@@ -218,7 +218,7 @@ export function SeasonWorkspaceOverview({ data }: { data: SeasonWorkspaceOvervie
         data={{
           competitionTemplate: season.competitionTemplate,
           unconfirmedEntrants: summary.entrantCount - summary.frozenEntrantCount,
-          scheduledMatchesWithoutConfirmedLineups: summary.scheduledMatchesWithoutConfirmedLineups,
+          lineupReview: summary.lineupReview,
           finalResultPendingConfirmation: summary.finalResultPendingConfirmation,
           activeAdjudications: summary.activeAdjudications,
         }}

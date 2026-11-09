@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+import { Label } from "@/components/ui/label";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   Select,
@@ -19,6 +21,7 @@ interface MatchTeamFilterProps {
 }
 
 export function MatchTeamFilter({ teams }: MatchTeamFilterProps) {
+  const triggerId = useId();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -37,10 +40,12 @@ export function MatchTeamFilter({ teams }: MatchTeamFilterProps) {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm text-[var(--color-fg-mid)] shrink-0">按队伍筛选</span>
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <Label htmlFor={triggerId} className="shrink-0 text-sm text-[var(--color-fg-mid)]">
+        按队伍筛选
+      </Label>
       <Select value={currentTeam || "all"} onValueChange={handleChange}>
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger id={triggerId} className="w-[180px] max-w-full">
           <SelectValue placeholder="全部队伍" />
         </SelectTrigger>
         <SelectContent>

@@ -34,7 +34,7 @@
 
 | 组件 | 说明 |
 |---|---|
-| `ScoreInput` | 管理员控制 scheduled 比赛开始 / 取消（admin only） |
+| `ScoreInput` | 管理员核对对阵和影响后取消待赛比赛 |
 | `MapByMapInput` | 管理员逐图录入官方比分（admin only） |
 | `ResultCorrectionPanel` | 管理员赛后赛果更正面板 |
 | `AdminMatchRow` | 赛事管理页比赛行展示 |

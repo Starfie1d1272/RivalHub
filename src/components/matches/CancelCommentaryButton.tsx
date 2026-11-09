@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useRef, useState, useTransition } from "react";
 import { cancelMatchCommentary as telemetry_cancelMatchCommentary } from "@/actions/postmatch";
 import { InlineConfirm } from "@/components/rivalhub/InlineConfirm";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ const cancelMatchCommentary = observeAction(
 export function CancelCommentaryButton({ matchId }: { matchId: string }) {
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [cancelled, setCancelled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,10 +40,12 @@ export function CancelCommentaryButton({ matchId }: { matchId: string }) {
           sub="将释放你的名额，其他解说可继续认领。"
           confirmLabel="确认取消认领"
           onConfirm={cancel}
+          returnFocusRef={triggerRef}
           onCancel={() => setConfirming(false)}
         />
       ) : (
         <Button
+          ref={triggerRef}
           type="button"
           size="sm"
           variant="outline"

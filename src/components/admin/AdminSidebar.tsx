@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { useRevealCurrentItem } from "@/components/rivalhub/ScrollHint";
 import { logoutAndClearPreviousViews } from "@/components/auth/logout";
 import {
   getAdminNavigation,
@@ -29,6 +30,8 @@ export function AdminSidebar({
   const season = seasons.find((option) => option.slug === params.seasonSlug);
   const navigation = season ? getSeasonAdminNavigation(season, role) : getAdminNavigation(role);
   const activeHref = getActiveAdminNavigationHref(pathname, navigation);
+  const navigationRef = React.useRef<HTMLElement>(null);
+  useRevealCurrentItem(navigationRef, activeHref ?? undefined);
   const [isPending, startTransition] = useTransition();
 
   function handleLogout() {
@@ -87,11 +90,12 @@ export function AdminSidebar({
           {season && <Link href={`/${season.slug}`}>查看公开赛事 ↗</Link>}
         </div>
       </div>
-      <p className="px-4 pt-2 text-xs text-[var(--color-fg-dim)] md:hidden">
+      <p className="px-4 pt-2 text-xs text-[var(--color-fg-secondary)] md:hidden">
         左右滑动查看全部管理入口
       </p>
       {/* nav */}
       <nav
+        ref={navigationRef}
         aria-label="管理后台导航"
         className="flex min-w-0 flex-1 overflow-x-auto md:block md:overflow-y-auto"
       >

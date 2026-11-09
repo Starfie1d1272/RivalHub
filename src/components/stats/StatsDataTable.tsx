@@ -168,7 +168,7 @@ export function StatsDataTable<T>({
       }
     >
       {rankingState && rankingState.limitedCount > 0 && (
-        <div className="flex flex-wrap items-center justify-end gap-2 border-b border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-fg-dim)]">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-b border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-fg-secondary)]">
           <span>
             {rankingState.rankedCount} ranked · {rankingState.limitedCount} limited sample
             {rankingState.limitedCount === 1 ? "" : "s"}
@@ -189,7 +189,7 @@ export function StatsDataTable<T>({
           <thead className="text-xs uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
             <tr className="border-b border-[var(--color-border)]">
               {showRank && (
-                <th className="sticky top-0 left-0 z-30 w-12 min-w-12 max-w-12 whitespace-nowrap bg-[var(--color-panel)] px-3 py-3 text-left text-[var(--color-fg-dim)]">
+                <th className="sticky top-0 left-0 z-30 w-12 min-w-12 max-w-12 whitespace-nowrap bg-[var(--color-panel)] px-3 py-3 text-left text-[var(--color-fg-secondary)]">
                   #
                 </th>
               )}

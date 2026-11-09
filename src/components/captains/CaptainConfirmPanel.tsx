@@ -2,7 +2,7 @@
 
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useTransition, useState } from "react";
-import { CheckCircle2, ShieldCheck, AlertTriangle } from "lucide-react";
+import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { confirmCaptains as telemetry_confirmCaptains } from "@/actions/captains";
@@ -10,27 +10,32 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { CAPTAIN_TEAM_COUNT } from "@/lib/captains/rules";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { positionLabel } from "@/lib/validators/registration";
 import type { AdminCaptainSeed } from "@/lib/captains/data";
 import { observeAction } from "@/lib/telemetry/client";
+import type { SeasonStatus } from "@/types/season";
 
 const confirmCaptains = observeAction("captains.confirmCaptains", telemetry_confirmCaptains);
 
 interface CaptainConfirmPanelProps {
   seasonId: string;
-  seasonStatus: string;
+  seasonStatus: SeasonStatus;
   teamCount: number;
   candidates: AdminCaptainSeed[];
   candidateCount: number;
+  totalVotes: number;
+  confirmationBlockedReason: string | null;
 }
 
 export function CaptainConfirmPanel({
@@ -39,23 +44,32 @@ export function CaptainConfirmPanel({
   teamCount,
   candidates,
   candidateCount,
+  totalVotes,
+  confirmationBlockedReason,
 }: CaptainConfirmPanelProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const seeds = candidates.slice(0, CAPTAIN_TEAM_COUNT);
-  const canConfirm =
-    seasonStatus === "voting" && teamCount === 0 && seeds.length === CAPTAIN_TEAM_COUNT;
+  const [preview, setPreview] = useState<{ seasonId: string; seeds: AdminCaptainSeed[] } | null>(
+    null,
+  );
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const confirmation = preview?.seasonId === seasonId ? preview.seeds : null;
 
   function handleConfirm() {
+    if (!confirmation || isPending) return;
+    const expectedCaptains = confirmation.map(({ id, userId }) => ({ registrationId: id, userId }));
     startTransition(async () => {
-      const result = await confirmCaptains({ seasonId });
-      setShowConfirmDialog(false);
-      if (!result.success) {
-        toast.error(result.error.message);
-        return;
+      try {
+        const result = await confirmCaptains({ seasonId, expectedCaptains });
+        if (result.success) {
+          toast.success(`已生成 ${result.data.entryIds.length} 支队伍`);
+        } else {
+          setConfirmError(result.error.message);
+        }
+      } catch {
+        setConfirmError("未能确认是否已生成队伍，请刷新后核对队伍和赛事状态。");
       }
-      toast.success(`已生成 ${result.data.entryIds.length} 支队伍`);
+      setPreview(null);
       router.refresh();
     });
   }
@@ -70,13 +84,13 @@ export function CaptainConfirmPanel({
           </p>
         </div>
 
-        {seeds.length === 0 ? (
+        {candidates.length === 0 ? (
           <Card className="p-8 text-center text-sm text-[var(--color-fg-mid)]">
             暂无可确认的候选人
           </Card>
         ) : (
           <div className="space-y-3">
-            {seeds.map((candidate, index) => (
+            {candidates.map((candidate, index) => (
               <Card key={candidate.id} className="p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
@@ -113,18 +127,22 @@ export function CaptainConfirmPanel({
             <div>
               <h2 className="text-base font-semibold">确认操作</h2>
               <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-                确认后会生成队伍、写入队长成员，并将赛季推进到 drafting。
+                确认后将生成队伍，并进入选秀阶段。
               </p>
             </div>
 
             <div className="space-y-2 rounded-md border border-[var(--color-border)] p-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-[var(--color-fg-mid)]">赛季状态</span>
-                <span>{seasonStatus}</span>
+                <span>{presentSeasonStatus(seasonStatus).label}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--color-fg-mid)]">候选人数</span>
                 <span>{candidateCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--color-fg-mid)]">已投总票数</span>
+                <span>{totalVotes}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--color-fg-mid)]">已生成队伍</span>
@@ -132,79 +150,57 @@ export function CaptainConfirmPanel({
               </div>
             </div>
 
-            <Button
-              type="button"
-              className="w-full"
-              disabled={!canConfirm || isPending}
-              onClick={() => setShowConfirmDialog(true)}
+            <AlertDialog
+              open={confirmation !== null}
+              onOpenChange={(open) => {
+                if (isPending) return;
+                if (open) setConfirmError(null);
+                setPreview(open ? { seasonId, seeds: candidates } : null);
+              }}
             >
-              <CheckCircle2 />
-              确认前 {CAPTAIN_TEAM_COUNT}
-            </Button>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={Boolean(confirmationBlockedReason) || isPending}
+                >
+                  <CheckCircle2 />
+                  核对前 {CAPTAIN_TEAM_COUNT} 名队长
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>确认队长并生成队伍？</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    请核对以下队长及其选秀顺位。确认后按此顺序生成队伍，赛事进入选秀阶段。
+                    生成队伍后无法回到投票阶段。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <ol className="list-decimal space-y-1 pl-5 text-sm [overflow-wrap:anywhere]">
+                  {confirmation?.map((captain) => (
+                    <li key={captain.id}>{captain.displayName}</li>
+                  ))}
+                </ol>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isPending}>返回核对</AlertDialogCancel>
+                  <Button type="button" onClick={handleConfirm} disabled={isPending}>
+                    {isPending ? "正在生成…" : "确认生成队伍"}
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
-            {!canConfirm && (
-              <p className="text-xs text-[var(--color-fg-mid)]">
-                仅可在 voting 状态、尚未生成队伍且候选人不少于 {CAPTAIN_TEAM_COUNT} 人时确认。
+            {confirmationBlockedReason && (
+              <p className="text-xs text-[var(--color-fg-mid)]">{confirmationBlockedReason}</p>
+            )}
+            {confirmError && (
+              <p role="alert" className="text-sm text-[var(--color-danger)]">
+                {confirmError}
               </p>
             )}
           </div>
         </Card>
       </aside>
-
-      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-5 text-[var(--color-warn)]" />
-              确认队长
-            </DialogTitle>
-            <DialogDescription>请核对队长列表后确认生成队伍。</DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <div className="space-y-3 text-sm leading-6 text-[var(--color-fg-secondary)]">
-              <p>
-                即将确认前 <strong>{CAPTAIN_TEAM_COUNT}</strong> 名队长并生成队伍， 赛季将从{" "}
-                <strong>voting</strong> 推进到 <strong>drafting</strong>。
-              </p>
-              <div
-                className="rounded-sm border p-3 text-sm"
-                style={{
-                  borderColor: "var(--color-warn-edge)",
-                  background: "var(--color-warn-soft)",
-                }}
-              >
-                <p className="font-medium text-[var(--color-warn)]">此操作不可撤销</p>
-                <ul className="mt-1 list-inside list-disc space-y-0.5 text-[var(--color-fg-mid)]">
-                  <li>将生成 {CAPTAIN_TEAM_COUNT} 支队伍并写入队长成员</li>
-                  <li>生成后无法回退到投票阶段</li>
-                  <li>选秀顺位由当前票数决定</li>
-                </ul>
-              </div>
-              <p className="text-sm text-[var(--color-fg-mid)]">
-                队长列表：
-                {seeds.map((s, i) => (
-                  <span key={s.id}>
-                    {i > 0 && "、"}
-                    <PlayerProfileLink userId={s.userId}>{s.displayName}</PlayerProfileLink>
-                  </span>
-                ))}
-              </p>
-            </div>
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowConfirmDialog(false)}
-              disabled={isPending}
-            >
-              取消
-            </Button>
-            <Button onClick={handleConfirm} disabled={isPending}>
-              {isPending ? "确认中..." : "确认生成队伍"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

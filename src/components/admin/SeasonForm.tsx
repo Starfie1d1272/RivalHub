@@ -33,7 +33,8 @@ import {
   type CompetitionTemplate,
 } from "@/lib/competition/templates";
 import { getSeasonEditCapabilities, type SeasonEditPhase } from "@/lib/seasons/edit";
-import { parseCSTInput } from "@/lib/utils/date";
+import { formatCST } from "@/lib/utils/date";
+import { ErrorCode } from "@/lib/errors";
 import { PLAYER_TYPE_LABELS } from "@/lib/seasons/presentation";
 import { rankValues, RANK_LABELS } from "@/lib/validators/registration";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card } from "@/components/ui/card";
 import { InlineConfirm } from "@/components/rivalhub";
@@ -107,8 +109,35 @@ interface SeasonFormProps {
     logoUrl?: string | null;
     registrationOpenedAt?: Date | null;
     conversionPolicyProvenance?: ConversionPolicyProvenance | null;
+    confirmation?: { version: string; registrationOpensAt: string | null };
   };
   competitivePlatforms: CompetitivePlatformOption[];
+}
+
+const LIFECYCLE_CONFIRMATION = {
+  publish: {
+    title: "发布赛事？",
+    action: "确认发布",
+    effect: "发布后赛事将对外公开，核心赛制和资格规则将锁定。竞技参考会在实际开放报名时冻结。",
+  },
+  immediate: {
+    title: "开放报名？",
+    action: "确认开放报名",
+    effect: "确认后立即开放报名，并冻结适用的竞技参考。已有计划时间会保留。",
+  },
+  early_force: {
+    title: "提前开放报名？",
+    action: "确认提前开放",
+    effect: "确认后立即开放报名，原计划将改为实际开放时间，并冻结适用的竞技参考。",
+  },
+} as const;
+
+interface LifecyclePreview {
+  operation: keyof typeof LIFECYCLE_CONFIRMATION;
+  seasonId: string;
+  expectedVersion: string;
+  name: string;
+  registrationOpensAt: string | null;
 }
 
 function emptyToNull(value: string): string | null {
@@ -172,8 +201,8 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   const [kind, setKind] = useState(initial?.kind ?? "Major");
   const [themeColor, setThemeColor] = useState(initial?.themeColor ?? "");
   const [pendingTemplate, setPendingTemplate] = useState<CompetitionTemplate | null>(null);
-  const [publishConfirmationOpen, setPublishConfirmationOpen] = useState(false);
-  const [earlyOpenConfirmationOpen, setEarlyOpenConfirmationOpen] = useState(false);
+  const [preview, setPreview] = useState<LifecyclePreview | null>(null);
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null);
   const [dangerAction, setDangerAction] = useState<
     "delete" | "revert-draft" | "revert-registration" | "finish" | "archive" | null
   >(null);
@@ -369,41 +398,67 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
     });
   }
 
-  function handlePublish() {
-    if (!initial?.id) return;
-    startTransition(async () => {
-      const result = await publishSeason(initial.id!);
-      if (result.success) {
-        toast.success("赛季已发布");
-        router.push(`/admin/${result.data.slug}/settings` as never);
-        router.refresh();
-      } else {
-        toast.error(result.error.message);
-      }
+  const lifecyclePreview = preview?.seasonId === initial?.id ? preview : null;
+  const lifecycleCopy = lifecyclePreview
+    ? LIFECYCLE_CONFIRMATION[lifecyclePreview.operation]
+    : null;
+  const canOpenLifecycleConfirmation = Boolean(
+    initial?.confirmation &&
+    (initial.status === "draft" ||
+      (initial.status === "registration" && !initial.registrationOpenedAt)),
+  );
+
+  function requestLifecycleConfirmation() {
+    if (!initial?.id || !initial.confirmation || !canOpenLifecycleConfirmation) return;
+    const { version, registrationOpensAt } = initial.confirmation;
+    const futureSchedule =
+      registrationOpensAt && new Date(registrationOpensAt).getTime() > Date.now();
+    setLifecycleError(null);
+    setPreview({
+      operation:
+        initial.status === "draft" ? "publish" : futureSchedule ? "early_force" : "immediate",
+      seasonId: initial.id,
+      expectedVersion: version,
+      name: initial.name,
+      registrationOpensAt,
     });
   }
 
-  function handleOpenRegistration(mode: "immediate" | "early_force" = "immediate") {
-    if (!initial?.id) return;
-    const seasonId = initial.id;
+  function handleLifecycleConfirmation() {
+    if (!lifecyclePreview || isPending) return;
+    const { operation, seasonId, expectedVersion } = lifecyclePreview;
+    setLifecycleError(null);
     startTransition(async () => {
-      const result = await openSeasonRegistration(seasonId, mode);
-      if (result.success) {
-        toast.success("报名已开放，竞技参考策略已冻结");
+      try {
+        const result =
+          operation === "publish"
+            ? await publishSeason({ seasonId, expectedVersion })
+            : await openSeasonRegistration({ seasonId, expectedVersion, mode: operation });
+        if (!result.success) {
+          setLifecycleError(result.error.message);
+          if (
+            result.error.code === ErrorCode.SEASON_CONFIGURATION_CHANGED ||
+            result.error.code === ErrorCode.SEASON_INVALID_STATUS
+          ) {
+            setPreview(null);
+            router.refresh();
+          }
+          return;
+        }
+        setPreview(null);
+        if (operation === "publish") {
+          toast.success("赛季已发布");
+          router.push(`/admin/${result.data.slug}/settings` as never);
+        } else {
+          toast.success("报名已开放");
+        }
         router.refresh();
-      } else {
-        toast.error(result.error.message);
+      } catch {
+        setLifecycleError("未能确认操作结果，请刷新后核对赛事状态。");
+        setPreview(null);
+        router.refresh();
       }
     });
-  }
-
-  function requestOpenRegistration() {
-    const scheduledOpenAt = parseCSTInput(registrationOpensAt || null);
-    if (scheduledOpenAt && scheduledOpenAt.getTime() > Date.now()) {
-      setEarlyOpenConfirmationOpen(true);
-      return;
-    }
-    handleOpenRegistration();
   }
 
   function handleDelete() {
@@ -1122,22 +1177,72 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           </p>
         )}
         <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-4">
-          {initial?.status === "draft" && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isPending}
-              onClick={() => setPublishConfirmationOpen(true)}
+          {canOpenLifecycleConfirmation && (
+            <AlertDialog
+              open={lifecyclePreview !== null}
+              onOpenChange={(open) => {
+                if (isPending) return;
+                if (open) requestLifecycleConfirmation();
+                else setPreview(null);
+              }}
             >
-              发布赛季
-            </Button>
-          )}
-          {initial?.status === "registration" && !initial.registrationOpenedAt && (
-            <Button type="button" disabled={isPending} onClick={requestOpenRegistration}>
-              立即开放报名
-            </Button>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant={initial?.status === "draft" ? "outline" : "default"}
+                  disabled={isPending}
+                >
+                  {initial?.status === "draft" ? "发布赛季" : "开放报名"}
+                </Button>
+              </AlertDialogTrigger>
+              {lifecyclePreview && lifecycleCopy && (
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{lifecycleCopy.title}</AlertDialogTitle>
+                    <AlertDialogDescription>{lifecycleCopy.effect}</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <dl className="space-y-2 text-sm [overflow-wrap:anywhere]">
+                    <div>
+                      <dt className="font-medium">已保存的赛事名称</dt>
+                      <dd>{lifecyclePreview.name}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium">已保存的报名开放计划</dt>
+                      <dd>
+                        {lifecyclePreview.registrationOpensAt
+                          ? `${formatCST(lifecyclePreview.registrationOpensAt)}（北京时间）`
+                          : "待定"}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="text-sm text-[var(--color-fg-secondary)]">
+                    此操作使用已保存的设置。如需应用表单中的修改，请返回并先保存。
+                  </p>
+                  {lifecycleError && (
+                    <p role="alert" className="text-sm text-[var(--color-danger)]">
+                      {lifecycleError}
+                    </p>
+                  )}
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isPending}>返回设置</AlertDialogCancel>
+                    <Button
+                      type="button"
+                      disabled={isPending}
+                      onClick={handleLifecycleConfirmation}
+                    >
+                      {isPending ? "正在提交…" : lifecycleCopy.action}
+                    </Button>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              )}
+            </AlertDialog>
           )}
         </div>
+        {lifecycleError && !lifecyclePreview && (
+          <p role="alert" className="mt-2 text-sm text-[var(--color-danger)]">
+            {lifecycleError}
+          </p>
+        )}
         {saveButton}
       </SettingsPanel>
 
@@ -1548,53 +1653,6 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           }}
         />
       </SettingsPanel>
-
-      <AlertDialog open={publishConfirmationOpen} onOpenChange={setPublishConfirmationOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>发布 {name || "这个赛季"}？</AlertDialogTitle>
-            <AlertDialogDescription>
-              发布后赛事将对用户公开，核心赛制与资格规则将锁定。报名
-              {registrationOpensAt ? `计划于 ${registrationOpensAt} 开放` : "时间待定"}
-              ；竞技参考赛季会在实际开放报名时冻结。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setPublishConfirmationOpen(false);
-                handlePublish();
-              }}
-            >
-              确认发布
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={earlyOpenConfirmationOpen} onOpenChange={setEarlyOpenConfirmationOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>提前开放报名？</AlertDialogTitle>
-            <AlertDialogDescription>
-              当前报名计划时间为 {registrationOpensAt || "待定"}
-              。确认后会明确提前改变报名计划，并将实际开放时间记录为新的报名开放时间。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setEarlyOpenConfirmationOpen(false);
-                handleOpenRegistration("early_force");
-              }}
-            >
-              确认提前开放
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

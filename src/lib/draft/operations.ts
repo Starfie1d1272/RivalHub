@@ -3,7 +3,7 @@ import "server-only";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { and, asc, count, eq, isNotNull, lt, sql } from "drizzle-orm";
-import { db } from "@/db/client";
+import { db, type DB } from "@/db/client";
 import {
   seasons,
   competitionEntries,
@@ -19,6 +19,7 @@ import {
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { logEvent } from "@/lib/observability/server";
 import { DRAFT_ROUND_TIMEOUT_SECONDS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
+import type { DraftTurnInput } from "@/lib/validators/draft";
 import { canPickPosition, getNextEntryId, isStarterRound } from "@/lib/draft/rules";
 import {
   createAutoPickRequestId,
@@ -36,6 +37,7 @@ interface DraftPickCoreInput {
   autoPicked: boolean;
   deadlinePolicy: "before-deadline" | "after-deadline";
   captainUserId?: string;
+  expectedTurn?: DraftTurnInput;
   now?: Date;
   prefetchedSeason?: typeof seasons.$inferSelect;
   prefetchedDs?: typeof draftState.$inferSelect;
@@ -101,8 +103,6 @@ export async function executeDraftPick(
   tx: DraftTransaction,
   input: DraftPickCoreInput,
 ): Promise<DraftPickCoreResult> {
-  const now = input.now ?? new Date();
-
   const season =
     input.prefetchedSeason ??
     (await tx.query.seasons.findFirst({ where: eq(seasons.id, input.seasonId) }));
@@ -116,7 +116,7 @@ export async function executeDraftPick(
     );
   }
   if (season.status !== "drafting") {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 drafting 状态的赛季可以进行选秀");
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事阶段无法选人。");
   }
 
   const ds =
@@ -157,6 +157,8 @@ export async function executeDraftPick(
   if (ds.currentEntryId !== input.entryId) {
     throw new AppError(ErrorCode.DRAFT_NOT_YOUR_TURN, ERROR_MESSAGES.DRAFT_NOT_YOUR_TURN);
   }
+  if (input.expectedTurn) assertCurrentDraftTurn(ds, input.expectedTurn);
+  const now = input.now ?? new Date();
   assertDeadline(ds.roundDeadline, input.deadlinePolicy, now);
 
   const entry = await tx.query.competitionEntries.findFirst({
@@ -423,9 +425,7 @@ async function runAutoPickForSeason(
       return { picked: false, seasonId, slug: season.slug, reason: "not_timed_out" };
     }
 
-    const positionCounts = await getTeamPositionCounts(tx, ds.currentEntryId);
-    const candidates = await getAutoPickCandidates(tx, seasonId);
-    const selected = selectAutoPickCandidate(candidates, positionCounts);
+    const selected = await findDraftAutoPickCandidate(tx, seasonId, ds.currentEntryId);
     if (!selected) {
       return { picked: false, seasonId, slug: season.slug, reason: "no_eligible_player" };
     }
@@ -457,6 +457,19 @@ async function runAutoPickForSeason(
   });
 }
 
+export function assertCurrentDraftTurn(
+  state: Pick<typeof draftState.$inferSelect, "currentEntryId" | "currentRound" | "roundDeadline">,
+  expected: DraftTurnInput,
+) {
+  if (
+    state.currentEntryId !== expected.entryId ||
+    state.currentRound !== expected.round ||
+    state.roundDeadline?.toISOString() !== expected.deadline
+  ) {
+    throw new AppError(ErrorCode.DRAFT_NOT_YOUR_TURN, "选秀轮次或截止时间已变化，请刷新状态。");
+  }
+}
+
 function assertDeadline(
   deadline: Date | null,
   policy: DraftPickCoreInput["deadlinePolicy"],
@@ -473,8 +486,18 @@ function assertDeadline(
   }
 }
 
+export async function findDraftAutoPickCandidate(
+  executor: Pick<DB, "select">,
+  seasonId: string,
+  entryId: string,
+) {
+  const positionCounts = await getTeamPositionCounts(executor, entryId);
+  const candidates = await getAutoPickCandidates(executor, seasonId);
+  return selectAutoPickCandidate(candidates, positionCounts);
+}
+
 async function getTeamPositionCounts(
-  tx: DraftTransaction,
+  tx: Pick<DB, "select">,
   entryId: string,
 ): Promise<Record<string, number>> {
   const rows = await tx
@@ -505,7 +528,7 @@ async function getTeamPositionCounts(
 }
 
 async function getAutoPickCandidates(
-  tx: DraftTransaction,
+  tx: Pick<DB, "select">,
   seasonId: string,
 ): Promise<AutoPickCandidate[]> {
   const captainRows = await tx

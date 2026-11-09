@@ -1,6 +1,6 @@
-import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
-import { notFound } from "next/navigation";
+import { resolveAdminSeasonPageAccess } from "@/lib/admin/season-context";
 
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { PostEventManagement } from "@/components/admin/PostEventManagement";
 import { SeasonPostEventOverview } from "@/components/admin/SeasonPostEventOverview";
 import { PageHeader } from "@/components/rivalhub";
@@ -12,8 +12,8 @@ export default async function AdminSeasonPostEventPage({
   params: Promise<{ seasonSlug: string }>;
 }) {
   const { seasonSlug } = await params;
-  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
-  if (!season) notFound();
+  const season = await resolveAdminSeasonPageAccess(seasonSlug);
+  if (!season) return <AdminAccessDenied />;
 
   const { data, season: postEventSeason } = await loadPostEventPageData(season);
   if (postEventSeason.competitionTemplate !== "major") {

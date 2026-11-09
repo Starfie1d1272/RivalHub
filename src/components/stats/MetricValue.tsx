@@ -62,7 +62,9 @@ export function MetricValue({
     <span className="stats-metric-value inline-flex flex-col items-start gap-0.5 tabular-nums leading-5">
       <span>{main}</span>
       {sample && (
-        <span className="text-xs font-normal leading-4 text-[var(--color-fg-dim)]">{sample}</span>
+        <span className="text-xs font-normal leading-4 text-[var(--color-fg-secondary)]">
+          {sample}
+        </span>
       )}
     </span>
   );
