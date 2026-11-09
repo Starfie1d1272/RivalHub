@@ -4,7 +4,13 @@ import { db } from "@/db/client";
 import { PageHeader, Panel, StatusBanner } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { UserMergeConfirmation } from "@/components/settings/UserMergeConfirmation";
+import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
 import { getUserSession } from "@/lib/auth/session";
+import { ErrorCode, isAppErrorCode } from "@/lib/errors";
+import {
+  safeRegistrationReturnPath,
+  withRegistrationReturnPath,
+} from "@/lib/registrations/return-path";
 import { buildUserMergePreflight, type UserMergeCategory } from "@/lib/identity/merge";
 import {
   loadSelfServiceMergeAuthorization,
@@ -21,12 +27,18 @@ const CATEGORY_HELP: Record<UserMergeCategory, string> = {
 export default async function UserMergePage({
   searchParams,
 }: {
-  searchParams: Promise<{ authorization?: string; canonical?: string }>;
+  searchParams: Promise<{
+    authorization?: string;
+    canonical?: string;
+    returnTo?: string | string[];
+  }>;
 }) {
   const session = await getUserSession();
-  if (!session) redirect("/login?next=/settings/security");
   const params = await searchParams;
-  if (!params.authorization) redirect("/settings/security");
+  const returnTo = safeRegistrationReturnPath(params.returnTo);
+  const securityHref = withRegistrationReturnPath("/settings/security", returnTo);
+  if (!session) redirect(`/login?${new URLSearchParams({ next: securityHref })}`);
+  if (!params.authorization) redirect(securityHref as never);
 
   let authorization;
   try {
@@ -34,18 +46,21 @@ export default async function UserMergePage({
       authorizationId: params.authorization,
       actorUserId: session.userId,
     });
-  } catch {
+  } catch (error) {
+    if (
+      !isAppErrorCode(error, ErrorCode.FORBIDDEN) &&
+      !isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)
+    ) {
+      throw error;
+    }
     return (
       <div className="max-w-3xl space-y-5">
-        <PageHeader title="账号归并" description="这次双方身份控制授权不可用。" />
-        <StatusBanner
-          tone="warn"
-          title="授权已失效"
-          sub="请返回账号与安全，重新添加并验证属于另一个账号的邮箱。"
-        />
+        <PageHeader title="账号归并" />
+        <StatusBanner tone="warn" title="无法继续归并" sub={error.message} />
         <Button asChild variant="outline">
-          <Link href="/settings/security">返回账号与安全</Link>
+          <Link href={securityHref as never}>返回账号与安全</Link>
         </Button>
+        <RegistrationReturnLink href={returnTo} />
       </div>
     );
   }
@@ -65,6 +80,7 @@ export default async function UserMergePage({
         title="账号归并"
         description="你已经证明控制两个账号。请选择要长期保留的账号，并核对归并影响。"
       />
+      <RegistrationReturnLink href={returnTo} />
 
       <Panel label="选择要保留的账号" contentClassName="p-5">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -75,7 +91,11 @@ export default async function UserMergePage({
                 key={account.id}
                 href={{
                   pathname: "/settings/security/merge",
-                  query: { authorization: authorization.id, canonical: account.id },
+                  query: {
+                    authorization: authorization.id,
+                    canonical: account.id,
+                    ...(returnTo ? { returnTo } : {}),
+                  },
                 }}
                 aria-current={selected ? "true" : undefined}
                 className={`rounded-sm border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] ${selected ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)]" : "border-[var(--color-border)] hover:bg-[var(--color-panel-hi)]"}`}
@@ -164,6 +184,7 @@ export default async function UserMergePage({
           canonicalUserId={pair.canonicalUserId}
           fingerprint={preflight.fingerprint}
           executable={preflight.executable}
+          returnTo={returnTo}
         />
       </Panel>
     </div>

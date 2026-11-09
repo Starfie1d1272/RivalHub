@@ -13,12 +13,14 @@ import {
 } from "@/lib/identity/self-service";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
+import { safeRegistrationReturnPath } from "@/lib/registrations/return-path";
 
 const selfServiceMergeSchema = z.object({
   authorizationId: z.uuid(),
   canonicalUserId: z.uuid(),
   expectedFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   confirmed: z.literal(true),
+  returnTo: z.string().nullable().optional(),
 });
 
 export async function executeSelfServiceUserMerge(
@@ -51,7 +53,10 @@ export async function executeSelfServiceUserMerge(
     revalidatePath("/settings/security");
     revalidatePath("/settings/education");
     revalidatePath(`/players/${pair.canonicalUserId}`);
-    return ok({ redirectTo: "/login?merged=1" });
+    const query = new URLSearchParams({ merged: "1" });
+    const next = safeRegistrationReturnPath(parsed.data.returnTo);
+    if (next) query.set("next", next);
+    return ok({ redirectTo: `/login?${query}` });
   } catch (error) {
     return actionError("executeSelfServiceUserMerge", error);
   }

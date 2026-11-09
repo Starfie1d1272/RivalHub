@@ -10,6 +10,10 @@ import { Checklist, PageHeader, Panel, StatusBanner } from "@/components/rivalhu
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { loadSettingsProfileReadiness } from "@/lib/my/readiness";
 import type { ParticipantQualificationUserRow } from "@/lib/qualification/service";
+import {
+  safeRegistrationReturnPath,
+  withRegistrationReturnPath,
+} from "@/lib/registrations/return-path";
 
 export default async function SettingsPage({
   searchParams,
@@ -17,7 +21,12 @@ export default async function SettingsPage({
   searchParams?: Promise<{ returnTo?: string | string[] }>;
 }) {
   const session = await getUserSession();
-  if (!session) redirect("/login");
+  const returnTo = safeRegistrationReturnPath((await searchParams)?.returnTo);
+  if (!session) {
+    if (!returnTo) redirect("/login");
+    const next = withRegistrationReturnPath("/settings", returnTo);
+    redirect(`/login?${new URLSearchParams({ next })}`);
+  }
 
   const [user] = await db
     .select({
@@ -60,7 +69,7 @@ export default async function SettingsPage({
 
   return (
     <div className="space-y-6">
-      <RegistrationReturnLink href={(await searchParams)?.returnTo} />
+      <RegistrationReturnLink href={returnTo} />
       <PageHeader
         title="设置与参赛资料"
         description="这里维护个人资料；每届赛事会按本届规则检查报名和参赛资格。"

@@ -21,6 +21,7 @@ import {
   EDUCATION_EVIDENCE_MAX_BYTES,
 } from "@/lib/education/validation";
 import type { ActionResult } from "@/types/action";
+import { withRegistrationReturnPath } from "@/lib/registrations/return-path";
 import {
   EducationInstitutionSelector,
   type EducationInstitutionOption,
@@ -79,11 +80,13 @@ export function EducationVerificationPanel({
   emailVerified,
   institutionalIdentities,
   verifications,
+  returnTo,
 }: {
   email: string;
   emailVerified: boolean;
   institutionalIdentities: InstitutionalIdentity[];
   verifications: Verification[];
+  returnTo?: string | null;
 }) {
   const task = useTelemetryTask("education");
   const [pending, startTransition] = useTransition();
@@ -223,7 +226,11 @@ export function EducationVerificationPanel({
         <Button
           disabled={pending}
           onClick={() =>
-            run(resendCurrentEmailVerification, "验证邮件已发送，请打开邮件完成验证", false)
+            run(
+              () => resendCurrentEmailVerification(returnTo),
+              "验证邮件已发送，请打开邮件完成验证",
+              false,
+            )
           }
         >
           验证当前邮箱
@@ -237,7 +244,16 @@ export function EducationVerificationPanel({
           sub="如果学校提供已被平台支持的学生专属邮箱，可以先绑定并完成邮箱验证；未支持的邮箱不会自动完成教育认证。"
           action={
             <Button size="sm" asChild>
-              <Link href="/settings/security#secondary-email">绑定学校邮箱</Link>
+              <Link
+                href={
+                  withRegistrationReturnPath(
+                    "/settings/security#secondary-email",
+                    returnTo,
+                  ) as never
+                }
+              >
+                绑定学校邮箱
+              </Link>
             </Button>
           }
         />
