@@ -596,6 +596,12 @@ export function AdminMatchWorkbench({
                     matchId={match.id}
                     currentStatus={match.status}
                     allowCancel={match.qualificationRunId === null}
+                    matchLabel={`${teamAName} vs ${teamBName}`}
+                    impact={{
+                      test: Boolean(match.testConfig),
+                      managed: match.ownership === "major_stage",
+                      bet: season.competitionTemplate === "major" && !match.testConfig,
+                    }}
                   />
                 )}
               </section>
