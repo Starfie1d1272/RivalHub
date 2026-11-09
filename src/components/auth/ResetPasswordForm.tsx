@@ -41,7 +41,9 @@ function takeRecoveryProof(): PasswordRecoveryProof | null {
     url.hash = "";
     window.history.replaceState(window.history.state, "", url.toString());
   }
-  return token && accessToken && fragment.get("type") === "recovery" ? { token, accessToken } : null;
+  return token && accessToken && fragment.get("type") === "recovery"
+    ? { token, accessToken }
+    : null;
 }
 
 function verificationFailure(error: ActionError): RecoveryView {
@@ -77,7 +79,11 @@ export function ResetPasswordForm() {
         const result = await (proof ? verifyPasswordRecovery(proof) : null);
         if (cancelled) return;
         if (!result) {
-          setVerification({ kind: "blocked", message: "请从找回邮件打开有效链接，或重新请求邮件。", next: "request" });
+          setVerification({
+            kind: "blocked",
+            message: "请从找回邮件打开有效链接，或重新请求邮件。",
+            next: "request",
+          });
         } else if (!result.success) {
           setVerification(verificationFailure(result.error));
         } else {
@@ -85,12 +91,18 @@ export function ResetPasswordForm() {
         }
       } catch {
         if (!cancelled) {
-          setVerification({ kind: "blocked", message: "暂时无法核验找回链接，请稍后重试。", next: "retry" });
+          setVerification({
+            kind: "blocked",
+            message: "暂时无法核验找回链接，请稍后重试。",
+            next: "retry",
+          });
         }
       }
     }
     void checkLink();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [verificationAttempt]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -113,7 +125,10 @@ export function ResetPasswordForm() {
       try {
         const result = await resetUserPassword(proof, password);
         if (!result.success) {
-          if (result.error.code === ErrorCode.UNAUTHORIZED || result.error.code === ErrorCode.FORBIDDEN) {
+          if (
+            result.error.code === ErrorCode.UNAUTHORIZED ||
+            result.error.code === ErrorCode.FORBIDDEN
+          ) {
             setVerification(verificationFailure(result.error));
           } else if (result.error.code === ErrorCode.VALIDATION_FAILED) {
             toast.error(result.error.message);
@@ -139,26 +154,42 @@ export function ResetPasswordForm() {
   };
 
   if (verification.kind === "checking") {
-    return <p role="status" className="text-center text-sm text-[var(--color-fg-mid)]">正在核验找回链接…</p>;
+    return (
+      <p role="status" className="text-center text-sm text-[var(--color-fg-mid)]">
+        正在核验找回链接…
+      </p>
+    );
   }
 
   if (verification.kind === "blocked") {
     return (
       <div className="space-y-4">
-        <p role="alert" className="text-sm leading-6 text-[var(--color-fg-mid)]">{verification.message}</p>
+        <p role="alert" className="text-sm leading-6 text-[var(--color-fg-mid)]">
+          {verification.message}
+        </p>
         {verification.next === "retry" ? (
-          <Button type="button" size="lg" className="w-full" onClick={() => {
-            setVerification({ kind: "checking" });
-            setVerificationAttempt((attempt) => attempt + 1);
-          }}>
+          <Button
+            type="button"
+            size="lg"
+            className="w-full"
+            onClick={() => {
+              setVerification({ kind: "checking" });
+              setVerificationAttempt((attempt) => attempt + 1);
+            }}
+          >
             重新核验
           </Button>
-        ) : verification.next !== "support" && (
-          <Button asChild size="lg" className="w-full">
-            <Link href={verification.next === "account" ? "/settings/security" : "/forgot-password"} prefetch={false}>
-              {verification.next === "account" ? "查看当前账号" : "重新请求找回邮件"}
-            </Link>
-          </Button>
+        ) : (
+          verification.next !== "support" && (
+            <Button asChild size="lg" className="w-full">
+              <Link
+                href={verification.next === "account" ? "/settings/security" : "/forgot-password"}
+                prefetch={false}
+              >
+                {verification.next === "account" ? "查看当前账号" : "重新请求找回邮件"}
+              </Link>
+            </Button>
+          )
         )}
       </div>
     );
@@ -205,7 +236,12 @@ export function ResetPasswordForm() {
           {recoveryGuidance}
         </p>
       )}
-      <Button type="submit" size="lg" className="w-full" disabled={isPending || recoveryGuidance !== null}>
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={isPending || recoveryGuidance !== null}
+      >
         {isPending ? "设置中…" : "设置新密码"}
       </Button>
     </form>

@@ -29,11 +29,23 @@ async function resolvePasswordRecovery(input: PasswordRecoveryProof) {
 
   const intent = await readPasswordRecoveryIntent(proof.data.token);
   const { data, error } = await createPublicAuthClient().auth.getUser(proof.data.accessToken);
-  if (error && (error.status === undefined || error.status < 400 || error.status === 408 || error.status === 429 || error.status >= 500)) {
+  if (
+    error &&
+    (error.status === undefined ||
+      error.status < 400 ||
+      error.status === 408 ||
+      error.status === 429 ||
+      error.status >= 500)
+  ) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "账号服务暂时无法核验找回链接。");
   }
   const user = data.user;
-  if (error || !user?.email || !user.email_confirmed_at || normalizeEmail(user.email) !== intent.email)
+  if (
+    error ||
+    !user?.email ||
+    !user.email_confirmed_at ||
+    normalizeEmail(user.email) !== intent.email
+  )
     throw new AppError(ErrorCode.UNAUTHORIZED, invalidLink);
 
   const [identity] = await db
@@ -61,10 +73,19 @@ async function resolvePasswordRecovery(input: PasswordRecoveryProof) {
 
   const session = await getUserSession();
   if (session && session.userId !== userId) {
-    throw new AppError(ErrorCode.FORBIDDEN, "当前登录的账号与找回链接不一致。请退出当前账号，再申请新的找回邮件。");
+    throw new AppError(
+      ErrorCode.FORBIDDEN,
+      "当前登录的账号与找回链接不一致。请退出当前账号，再申请新的找回邮件。",
+    );
   }
   await assertAuthenticationFence(db, userId, intent.startedAt);
-  return { userId, authId: user.id, email: intent.email, startedAt: intent.startedAt, signedIn: Boolean(session) };
+  return {
+    userId,
+    authId: user.id,
+    email: intent.email,
+    startedAt: intent.startedAt,
+    signedIn: Boolean(session),
+  };
 }
 
 export async function verifyPasswordRecovery(

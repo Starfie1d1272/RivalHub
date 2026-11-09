@@ -10,7 +10,8 @@ type PasswordRecoveryIntent = { email: string; startedAt: string };
 
 function recoverySealOptions() {
   const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret || secret.length < 32) throw new Error("ADMIN_SESSION_SECRET must be at least 32 characters");
+  if (!secret || secret.length < 32)
+    throw new Error("ADMIN_SESSION_SECRET must be at least 32 characters");
   return {
     password: createHmac("sha256", secret).update("rivalhub:password-recovery:v1").digest("hex"),
     ttl: 60 * 60,
