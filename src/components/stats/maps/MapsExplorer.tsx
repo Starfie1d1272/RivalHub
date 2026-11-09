@@ -25,7 +25,11 @@ import {
   STATS_QUERY_VALUE_LIMIT,
   type StatsQuery,
 } from "@/lib/stats/view-state";
-import { replaceStatsReadingState, useStatsReadingState } from "../reading-state";
+import {
+  replaceStatsReadingState,
+  useStatsReadingState,
+  useStatsSearchField,
+} from "../reading-state";
 import { compareStatsValues, type StatsSortValue } from "@/lib/stats/sorting";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
@@ -341,7 +345,7 @@ export function MapsExplorer({
   seasonSlug: string;
 }) {
   const router = useRouter();
-  const { q: search } = useStatsReadingState();
+  const { q: search, searchRef } = useStatsSearchField();
   const rows = rowsFor(data);
   const mapNames = useMemo(() => orderedMaps(data.options.maps), [data.options.maps]);
   const normalizedSearch = search.trim().toLocaleLowerCase();
@@ -472,7 +476,8 @@ export function MapsExplorer({
                     Search team
                   </span>
                   <input
-                    value={search}
+                    ref={searchRef}
+                    defaultValue={search}
                     onChange={(event) => replaceStatsReadingState({ q: event.target.value })}
                     type="search"
                     maxLength={STATS_QUERY_VALUE_LIMIT}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { applyListQueryUpdates } from "@/lib/list-query";
 import {
   parseStatsReadingState,
@@ -11,6 +12,20 @@ import {
 export function useStatsReadingState() {
   const params = useSearchParams();
   return parseStatsReadingState((key) => params.get(key));
+}
+
+export function useStatsSearchField() {
+  const params = useSearchParams();
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const input = searchRef.current;
+    if (!input) return;
+    // The URL can be ahead of the router snapshot during rapid typing.
+    const value =
+      new URLSearchParams(window.location.search).get("q")?.slice(0, STATS_QUERY_VALUE_LIMIT) ?? "";
+    if (input.value !== value) input.value = value;
+  }, [params]);
+  return { searchRef, ...parseStatsReadingState((key) => params.get(key)) };
 }
 
 export function replaceStatsReadingState(

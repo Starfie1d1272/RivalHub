@@ -5,7 +5,7 @@ import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import React from "react";
 import { TeamIdentityLinks } from "../TeamIdentityLinks";
 
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
@@ -19,7 +19,7 @@ type ViewData = Pick<TournamentStats, "coverage" | "options" | "teamLinks" | "le
 };
 import type { StatsQuery } from "@/lib/stats/view-state";
 import { navigateStatsScope, STATS_QUERY_VALUE_LIMIT } from "@/lib/stats/view-state";
-import { replaceStatsReadingState, useStatsReadingState } from "../reading-state";
+import { replaceStatsReadingState, useStatsSearchField } from "../reading-state";
 
 type Family = "overall" | "opening" | "teamplay" | "utility" | "clutch";
 const families = [
@@ -412,9 +412,8 @@ export function PlayersExplorer({
   seasonSlug: string;
 }) {
   const router = useRouter();
-  const { family: requestedFamily, q: search } = useStatsReadingState();
+  const { family: requestedFamily, q: search, searchRef } = useStatsSearchField();
   const family = families.find((row) => row.key === requestedFamily)?.key ?? "overall";
-  const searchRef = useRef<HTMLInputElement>(null);
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const teamNames = useMemo(
     () =>
@@ -535,7 +534,11 @@ export function PlayersExplorer({
   const hasFilters = Boolean(query.mapFilter || query.teamFilter || search.trim());
 
   function clearFilters() {
-    searchRef.current?.focus({ preventScroll: true });
+    const input = searchRef.current;
+    if (input) {
+      input.value = "";
+      input.focus({ preventScroll: true });
+    }
     if (query.mapFilter || query.teamFilter) {
       navigateStatsScope(router, seasonSlug, query, {
         mapFilter: "",
@@ -625,7 +628,7 @@ export function PlayersExplorer({
               </span>
               <input
                 ref={searchRef}
-                value={search}
+                defaultValue={search}
                 onChange={(event) => replaceStatsReadingState({ q: event.target.value })}
                 type="search"
                 maxLength={STATS_QUERY_VALUE_LIMIT}
