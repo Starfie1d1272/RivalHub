@@ -143,13 +143,7 @@ function OfficialMatch({ match, slug }: { match: StageSwissMatchRow; slug: strin
               {team.name}
             </span>
           </TeamProfileLink>
-          <Link
-            href={`/${slug}/matches/${match.matchId}`}
-            aria-label={`${match.teamAName} 对 ${match.teamBName}${i === 0 ? "" : " · 比分"}`}
-            className={styles.rowScore}
-          >
-            {team.score ?? "—"}
-          </Link>
+          <span className={styles.rowScore}>{team.score ?? "—"}</span>
         </div>
       ))}
       <Link

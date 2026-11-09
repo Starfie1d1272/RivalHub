@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import { Suspense } from "react";
 import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
@@ -18,6 +19,8 @@ import { MapPreferencesForm } from "@/components/settings/MapPreferencesForm";
 import { getUserSession } from "@/lib/auth/session";
 import { getPublicCompetitiveCatalog } from "@/lib/competitive/public-catalog";
 import { resolveCatalogSeasonRoles } from "@/lib/competitive/catalog";
+
+export const metadata: Metadata = { title: "竞技档案" };
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

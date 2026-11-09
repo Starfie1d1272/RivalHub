@@ -16,21 +16,21 @@ export default async function DakConnectPage({
   const pairingId = params.pairingId?.trim() ?? "";
   if (!pairingId)
     return (
-      <main className="mx-auto max-w-xl p-8">
+      <div className="mx-auto max-w-xl p-8">
         <h1 className="text-2xl font-semibold">连接 DAK Studio</h1>
         <p className="mt-4 text-[var(--color-fg-mid)]">
           缺少连接请求，请回到 DAK Studio 重新发起连接。
         </p>
-      </main>
+      </div>
     );
   if (params.authorized === "1") {
     return (
-      <main className="mx-auto max-w-xl p-8">
+      <div className="mx-auto max-w-xl p-8">
         <h1 className="text-2xl font-semibold">DAK Studio 已授权</h1>
         <p className="mt-4 text-[var(--color-fg-mid)]">
           可以回到 DAK Studio；它会自动完成连接并读取已授权赛事。
         </p>
-      </main>
+      </div>
     );
   }
 
@@ -45,7 +45,7 @@ export default async function DakConnectPage({
     (authorization.role === "super_admin" || authorization.seasonIds.length > 0);
 
   return (
-    <main className="mx-auto max-w-xl p-8">
+    <div className="mx-auto max-w-xl p-8">
       <h1 className="text-2xl font-semibold">连接 DAK Studio</h1>
       <p className="mt-4 text-[var(--color-fg-mid)]">
         DAK Studio 将获得当前账号已授权赛事的最小集成权限：读取赛事、提交 Demo 证据、读取 Demo
@@ -73,6 +73,6 @@ export default async function DakConnectPage({
       <Link className="mt-6 inline-block text-sm underline" href="/settings">
         返回设置
       </Link>
-    </main>
+    </div>
   );
 }

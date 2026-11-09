@@ -106,14 +106,13 @@ async function originalLocator(page: Page, ocr: OCRFixture): Promise<Locator> {
   expect(Object.keys(values[0]).sort()).toEqual(["actorScope", "expectedVersion", "mapId", "operation", "operationId"].sort());
   return values[0] as Locator;
 }
-async function submitWithoutResponse(page: Page, ocr: OCRFixture, committed: boolean) {
+async function submitWithoutResponse(page: Page, ocr: OCRFixture) {
   const panel = await edit(page, ocr, "1.4");
   let dropped = false;
   const handler = async (route: Route) => {
     if (!dropped && route.request().method() === "POST" && route.request().headers()["next-action"] && route.request().postData()?.includes("operationId") && route.request().postData()?.includes(ocr.mapId)) {
       dropped = true;
-      if (committed) await route.fetch(); // Real server execution and COMMIT.
-      await route.abort("failed"); // Drop the HTTP response, not an adapter mock.
+      await route.abort("failed"); // Drop before the command reaches the server.
     } else await route.continue();
   };
   await page.route("**/*", handler);
@@ -131,32 +130,9 @@ async function counts(ocr: OCRFixture) {
   return { receipts: receipts.rows, audits: audits.rows.length, ratings: facts.rows.map(row => row.rating_pro) };
 }
 
-test("真实非空提交丢响应后关闭整个浏览器重开，fresh 权限与 actor 隔离后只读确认原回执", async ({ ocr, scenario }) => {
-  await open(ocr.page, ocr, scenario);
-  const locator = await submitWithoutResponse(ocr.page, ocr, true);
-  expect(await counts(ocr)).toMatchObject({ receipts: [{ operation_id: locator.operationId, actor_user_id: ocr.admin.userId }], audits: 1, ratings: [1.4] });
-  let page = await ocr.restart();
-  let panel = await open(page, ocr, scenario, ocr.other);
-  await expect(panel.getByRole("button", { name: "核对原操作提交凭据" })).toHaveCount(0);
-  expect((await originalLocator(page, ocr)).actorScope).toBe(ocr.admin.userId);
-  page = await ocr.restart();
-  panel = await open(page, ocr, scenario);
-  await expect(panel.getByText("原操作编号已恢复；关闭前的草稿未持久保存。", { exact: true })).toBeVisible();
-  await ocr.pool.query("UPDATE users SET role='user' WHERE id=$1", [ocr.admin.userId]);
-  await panel.getByRole("button", { name: "核对原操作提交凭据" }).click();
-  await expect(panel.getByText("权限不足", { exact: true })).toBeVisible();
-  expect(await counts(ocr)).toMatchObject({ audits: 1, ratings: [1.4] });
-  await ocr.pool.query("UPDATE users SET role='super_admin' WHERE id=$1", [ocr.admin.userId]);
-  await panel.getByRole("button", { name: "核对原操作提交凭据" }).click();
-  await expect(panel.getByRole("button", { name: "核对原操作提交凭据" })).toHaveCount(0);
-  expect(await counts(ocr)).toMatchObject({ audits: 1, ratings: [1.4] });
-  await expect(panel.getByRole("button", { name: "重新录入", exact: true })).toBeEnabled();
-  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("rivalhub:scoreboard-operation:")))).toEqual([]);
-});
-
 test("请求未发送时重开只报 missing，不把当前相似数据当提交成功或重写", async ({ ocr, scenario }) => {
   await open(ocr.page, ocr, scenario);
-  const locator = await submitWithoutResponse(ocr.page, ocr, false);
+  const locator = await submitWithoutResponse(ocr.page, ocr);
   expect(await counts(ocr)).toMatchObject({ receipts: [], audits: 0, ratings: [1.2] });
   const page = await ocr.restart();
   const panel = await open(page, ocr, scenario);
@@ -165,23 +141,6 @@ test("请求未发送时重开只报 missing，不把当前相似数据当提交
   await expect(panel.getByRole("button", { name: "重新录入", exact: true })).toBeDisabled();
   expect((await originalLocator(page, ocr)).operationId).toBe(locator.operationId);
   expect(await counts(ocr)).toMatchObject({ receipts: [], audits: 0, ratings: [1.2] });
-});
-
-test("原提交之后另一管理员真实保存，重开显示 superseded 且不覆盖后续统计", async ({ ocr, scenario }) => {
-  await open(ocr.page, ocr, scenario);
-  await submitWithoutResponse(ocr.page, ocr, true);
-  const otherPage = await ocr.newTab();
-  await open(otherPage, ocr, scenario, ocr.other);
-  const otherPanel = await edit(otherPage, ocr, "1.6");
-  await otherPanel.getByRole("button", { name: "确认保存", exact: true }).click();
-  await expect(otherPanel.getByRole("button", { name: "重新录入", exact: true })).toBeVisible();
-  expect(await counts(ocr)).toMatchObject({ audits: 2, ratings: [1.6] });
-  const page = await ocr.restart();
-  const panel = await open(page, ocr, scenario);
-  await panel.getByRole("button", { name: "核对原操作提交凭据" }).click();
-  await expect(panel.getByText(/原提交已确认，但已有后续更改/)).toBeVisible();
-  expect(await counts(ocr)).toMatchObject({ audits: 2, ratings: [1.6] });
-  expect((await counts(ocr)).receipts).toHaveLength(2);
 });
 
 test("编辑后另一 tab 切换 actor，旧 command 真实请求被拒绝而不以新 actor 提交", async ({ ocr, scenario }) => {

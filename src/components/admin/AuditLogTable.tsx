@@ -81,7 +81,7 @@ export function AuditLogTable({
           <label
             htmlFor="audit-action-filter"
             className="mb-1 block text-xs"
-            style={{ color: "var(--color-fg-dim)" }}
+            style={{ color: "var(--color-fg-secondary)" }}
           >
             操作类型
           </label>
@@ -130,7 +130,7 @@ export function AuditLogTable({
           <label
             htmlFor="audit-season-filter"
             className="mb-1 block text-xs"
-            style={{ color: "var(--color-fg-dim)" }}
+            style={{ color: "var(--color-fg-secondary)" }}
           >
             赛季
           </label>
@@ -159,7 +159,7 @@ export function AuditLogTable({
             <label
               htmlFor="audit-date-from"
               className="mb-1 block text-xs"
-              style={{ color: "var(--color-fg-dim)" }}
+              style={{ color: "var(--color-fg-secondary)" }}
             >
               起始日期
             </label>
@@ -180,7 +180,7 @@ export function AuditLogTable({
             <label
               htmlFor="audit-date-to"
               className="mb-1 block text-xs"
-              style={{ color: "var(--color-fg-dim)" }}
+              style={{ color: "var(--color-fg-secondary)" }}
             >
               结束日期
             </label>

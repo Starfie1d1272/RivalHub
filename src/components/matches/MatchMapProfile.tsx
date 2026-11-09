@@ -45,7 +45,7 @@ export function MatchMapProfile({
             type="button"
             aria-pressed={metric === key}
             onClick={() => setMetric(key)}
-            className={`rounded px-3 py-1.5 text-xs font-medium ${metric === key ? "bg-[var(--color-accent)] text-black" : "border border-[var(--color-border)]"}`}
+            className={`rounded px-3 py-1.5 text-xs font-medium ${metric === key ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)]" : "border border-[var(--color-border)]"}`}
           >
             {label}
           </button>

@@ -469,370 +469,388 @@ export function TeamWorkspace({ detail }: { detail: TeamPerformanceDetail }) {
 
   return (
     <section className="space-y-5">
-      <MetricFamilyTabs label="Team performance" value={tab} options={tabs} onChange={setTab} />
-
-      {tab === "overview" && (
-        <div className="space-y-6">
-          {analytics ? (
-            <MetricSection
-              title="Round Profile"
-              items={[
-                { label: "Rounds", value: analytics.rounds },
-                {
-                  label: "CT%",
-                  metric: "roundWin",
-                  value: (
-                    <MetricValue metric="roundWin" value={analytics.ct} sampleDisplay="hidden" />
-                  ),
-                },
-                {
-                  label: "T%",
-                  metric: "roundWin",
-                  value: (
-                    <MetricValue metric="roundWin" value={analytics.t} sampleDisplay="hidden" />
-                  ),
-                },
-                {
-                  label: "Pistol",
-                  metric: "pistol",
-                  value: (
-                    <MetricValue metric="pistol" value={analytics.pistol} sampleDisplay="hidden" />
-                  ),
-                },
-              ]}
-            />
-          ) : (
-            <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">
-              暂无完整回合数据。
-            </p>
-          )}
-        </div>
-      )}
-
-      {tab === "rounds" && (
-        <div className="space-y-6">
-          {analytics ? (
-            <>
+      <MetricFamilyTabs
+        label="Team performance"
+        value={tab}
+        options={tabs}
+        onChange={setTab}
+        panelClassName="mt-5 space-y-5"
+      >
+        {tab === "overview" && (
+          <div className="space-y-6">
+            {analytics ? (
               <MetricSection
-                title="Round Conversion"
+                title="Round Profile"
                 items={[
+                  { label: "Rounds", value: analytics.rounds },
+                  {
+                    label: "CT%",
+                    metric: "roundWin",
+                    value: (
+                      <MetricValue metric="roundWin" value={analytics.ct} sampleDisplay="hidden" />
+                    ),
+                  },
+                  {
+                    label: "T%",
+                    metric: "roundWin",
+                    value: (
+                      <MetricValue metric="roundWin" value={analytics.t} sampleDisplay="hidden" />
+                    ),
+                  },
                   {
                     label: "Pistol",
                     metric: "pistol",
-                    value: <MetricValue metric="pistol" value={analytics.pistol} />,
+                    value: (
+                      <MetricValue
+                        metric="pistol"
+                        value={analytics.pistol}
+                        sampleDisplay="hidden"
+                      />
+                    ),
+                  },
+                ]}
+              />
+            ) : (
+              <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">
+                暂无完整回合数据。
+              </p>
+            )}
+          </div>
+        )}
+
+        {tab === "rounds" && (
+          <div className="space-y-6">
+            {analytics ? (
+              <>
+                <MetricSection
+                  title="Round Conversion"
+                  items={[
+                    {
+                      label: "Pistol",
+                      metric: "pistol",
+                      value: <MetricValue metric="pistol" value={analytics.pistol} />,
+                    },
+                    {
+                      label: STATS_METRICS.conversion.label,
+                      metric: "conversion",
+                      value: (
+                        <MetricValue metric="conversion" value={analytics.round2.conversion} />
+                      ),
+                    },
+                    {
+                      label: STATS_METRICS.break.label,
+                      metric: "break",
+                      value: <MetricValue metric="break" value={analytics.round2.break} />,
+                    },
+                  ]}
+                  columns={3}
+                />
+                <MetricSection
+                  title="Man Advantage"
+                  items={[
+                    {
+                      label: "5v4",
+                      metric: "fiveVFour",
+                      value: (
+                        <MetricValue metric="fiveVFour" value={analytics.manAdvantage["5v4"]} />
+                      ),
+                    },
+                    {
+                      label: "4v5",
+                      metric: "fourVFive",
+                      value: (
+                        <MetricValue metric="fourVFive" value={analytics.manAdvantage["4v5"]} />
+                      ),
+                    },
+                    {
+                      label: "5v3",
+                      metric: "fiveVThree",
+                      value: (
+                        <MetricValue metric="fiveVThree" value={analytics.manAdvantage["5v3"]} />
+                      ),
+                    },
+                    {
+                      label: "3v5",
+                      metric: "threeVFive",
+                      value: (
+                        <MetricValue metric="threeVFive" value={analytics.manAdvantage["3v5"]} />
+                      ),
+                    },
+                  ]}
+                />
+                <MetricSection
+                  title="Low Economy"
+                  items={[
+                    {
+                      label: "Eco/Semi Win%",
+                      metric: "ecoSemi",
+                      value: <MetricValue metric="ecoSemi" value={analytics.ecoSemiUpset} />,
+                    },
+                  ]}
+                  columns={3}
+                />
+              </>
+            ) : (
+              <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">
+                完整回合数据确认后展示。
+              </p>
+            )}
+            <section className="border-t border-[var(--color-border)] pt-4">
+              <h3 className="mb-1 text-sm font-semibold">Economy Matchups</h3>
+              <StatsDataTable
+                embedded
+                rows={detail.economyMatrix}
+                columns={economyColumns}
+                rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`}
+                emptyLabel="暂无经济样本"
+              />
+            </section>
+          </div>
+        )}
+
+        {tab === "teamplay" &&
+          (performance ? (
+            <div className="space-y-6">
+              <MetricSection
+                title="Opening"
+                items={[
+                  {
+                    label: "Success%",
+                    metric: "openingWin",
+                    value: (
+                      <MetricValue
+                        metric="openingWin"
+                        value={performance.slices.overall.opening.successRate}
+                      />
+                    ),
                   },
                   {
-                    label: STATS_METRICS.conversion.label,
-                    metric: "conversion",
-                    value: <MetricValue metric="conversion" value={analytics.round2.conversion} />,
+                    label: "Attempts%",
+                    metric: "openingAttempt",
+                    value: (
+                      <MetricValue
+                        metric="openingAttempt"
+                        value={performance.slices.overall.opening.attemptRate}
+                      />
+                    ),
                   },
                   {
-                    label: STATS_METRICS.break.label,
-                    metric: "break",
-                    value: <MetricValue metric="break" value={analytics.round2.break} />,
+                    label: "FK/100r",
+                    metric: "firstKill",
+                    value: (
+                      <MetricValue
+                        metric="firstKill"
+                        value={performance.slices.overall.opening.firstKillsPerRound}
+                      />
+                    ),
+                  },
+                  {
+                    label: "FD/100r",
+                    metric: "firstDeath",
+                    value: (
+                      <MetricValue
+                        metric="firstDeath"
+                        value={performance.slices.overall.opening.firstDeathsPerRound}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Win after FK",
+                    metric: "winAfterOpeningWin",
+                    value: (
+                      <MetricValue
+                        metric="winAfterOpeningWin"
+                        value={performance.slices.overall.opening.winRateAfterWinningOpeningDuel}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Win after FD",
+                    metric: "winAfterOpeningLoss",
+                    value: (
+                      <MetricValue
+                        metric="winAfterOpeningLoss"
+                        value={
+                          performance.slices.overall.opening.comebackRateAfterLosingOpeningDuel
+                        }
+                      />
+                    ),
                   },
                 ]}
                 columns={3}
               />
               <MetricSection
-                title="Man Advantage"
+                title="Trading"
                 items={[
                   {
-                    label: "5v4",
-                    metric: "fiveVFour",
-                    value: <MetricValue metric="fiveVFour" value={analytics.manAdvantage["5v4"]} />,
-                  },
-                  {
-                    label: "4v5",
-                    metric: "fourVFive",
-                    value: <MetricValue metric="fourVFive" value={analytics.manAdvantage["4v5"]} />,
-                  },
-                  {
-                    label: "5v3",
-                    metric: "fiveVThree",
+                    label: "Trade/100r",
+                    metric: "trade",
                     value: (
-                      <MetricValue metric="fiveVThree" value={analytics.manAdvantage["5v3"]} />
+                      <MetricValue
+                        metric="trade"
+                        value={performance.slices.overall.trade.tradeKillsPerRound}
+                      />
                     ),
                   },
                   {
-                    label: "3v5",
-                    metric: "threeVFive",
+                    label: "Traded%",
+                    metric: "traded",
                     value: (
-                      <MetricValue metric="threeVFive" value={analytics.manAdvantage["3v5"]} />
+                      <MetricValue
+                        metric="traded"
+                        value={performance.slices.overall.trade.tradedDeathsPerDeath}
+                      />
                     ),
                   },
-                ]}
-              />
-              <MetricSection
-                title="Low Economy"
-                items={[
                   {
-                    label: "Eco/Semi Win%",
-                    metric: "ecoSemi",
-                    value: <MetricValue metric="ecoSemi" value={analytics.ecoSemiUpset} />,
+                    label: "Opening deaths traded",
+                    metric: "tradedOpening",
+                    value: (
+                      <MetricValue
+                        metric="tradedOpening"
+                        value={performance.slices.overall.trade.tradedOpeningDeaths}
+                      />
+                    ),
                   },
                 ]}
                 columns={3}
               />
-            </>
+              <MetricSection
+                title="Utility"
+                items={[
+                  {
+                    label: "FA/100r",
+                    metric: "flashAssist",
+                    value: (
+                      <MetricValue
+                        metric="flashAssist"
+                        value={performance.slices.overall.utility.flashAssistsPerRound}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Blind/Flash",
+                    metric: "blindPerFlash",
+                    value: (
+                      <MetricValue
+                        metric="blindPerFlash"
+                        value={performance.slices.overall.utility.enemyBlindSecondsPerFlash}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Enemy Blind/r",
+                    metric: "enemyBlindPerRound",
+                    value: (
+                      <MetricValue
+                        metric="enemyBlindPerRound"
+                        value={performance.slices.overall.utility.enemyBlindSecondsPerRound}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Team Blind/r",
+                    metric: "teamBlindPerRound",
+                    value: (
+                      <MetricValue
+                        metric="teamBlindPerRound"
+                        value={performance.slices.overall.utility.teamBlindSecondsPerRound}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Util/r",
+                    metric: "utility",
+                    value: (
+                      <MetricValue
+                        metric="utility"
+                        value={performance.slices.overall.utility.utilityDamagePerRound}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Utility K/100r",
+                    metric: "utilityKills",
+                    value: (
+                      <MetricValue
+                        metric="utilityKills"
+                        value={performance.slices.overall.utility.utilityKillsPerRound}
+                      />
+                    ),
+                  },
+                ]}
+                columns={3}
+              />
+              <MetricSection
+                title="Objective"
+                items={[
+                  {
+                    label: STATS_METRICS.plantConversion.label,
+                    metric: "plantConversion",
+                    value: (
+                      <MetricValue
+                        metric="plantConversion"
+                        value={performance.slices.overall.objective.plantConversions}
+                      />
+                    ),
+                  },
+                ]}
+                columns={3}
+              />
+            </div>
           ) : (
             <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">
-              完整回合数据确认后展示。
+              暂无团队统计。
             </p>
-          )}
-          <section className="border-t border-[var(--color-border)] pt-4">
-            <h3 className="mb-1 text-sm font-semibold">Economy Matchups</h3>
-            <StatsDataTable
-              embedded
-              rows={detail.economyMatrix}
-              columns={economyColumns}
-              rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`}
-              emptyLabel="暂无经济样本"
-            />
-          </section>
-        </div>
-      )}
+          ))}
 
-      {tab === "teamplay" &&
-        (performance ? (
-          <div className="space-y-6">
-            <MetricSection
-              title="Opening"
-              items={[
-                {
-                  label: "Success%",
-                  metric: "openingWin",
-                  value: (
-                    <MetricValue
-                      metric="openingWin"
-                      value={performance.slices.overall.opening.successRate}
-                    />
-                  ),
-                },
-                {
-                  label: "Attempts%",
-                  metric: "openingAttempt",
-                  value: (
-                    <MetricValue
-                      metric="openingAttempt"
-                      value={performance.slices.overall.opening.attemptRate}
-                    />
-                  ),
-                },
-                {
-                  label: "FK/100r",
-                  metric: "firstKill",
-                  value: (
-                    <MetricValue
-                      metric="firstKill"
-                      value={performance.slices.overall.opening.firstKillsPerRound}
-                    />
-                  ),
-                },
-                {
-                  label: "FD/100r",
-                  metric: "firstDeath",
-                  value: (
-                    <MetricValue
-                      metric="firstDeath"
-                      value={performance.slices.overall.opening.firstDeathsPerRound}
-                    />
-                  ),
-                },
-                {
-                  label: "Win after FK",
-                  metric: "winAfterOpeningWin",
-                  value: (
-                    <MetricValue
-                      metric="winAfterOpeningWin"
-                      value={performance.slices.overall.opening.winRateAfterWinningOpeningDuel}
-                    />
-                  ),
-                },
-                {
-                  label: "Win after FD",
-                  metric: "winAfterOpeningLoss",
-                  value: (
-                    <MetricValue
-                      metric="winAfterOpeningLoss"
-                      value={performance.slices.overall.opening.comebackRateAfterLosingOpeningDuel}
-                    />
-                  ),
-                },
-              ]}
-              columns={3}
-            />
-            <MetricSection
-              title="Trading"
-              items={[
-                {
-                  label: "Trade/100r",
-                  metric: "trade",
-                  value: (
-                    <MetricValue
-                      metric="trade"
-                      value={performance.slices.overall.trade.tradeKillsPerRound}
-                    />
-                  ),
-                },
-                {
-                  label: "Traded%",
-                  metric: "traded",
-                  value: (
-                    <MetricValue
-                      metric="traded"
-                      value={performance.slices.overall.trade.tradedDeathsPerDeath}
-                    />
-                  ),
-                },
-                {
-                  label: "Opening deaths traded",
-                  metric: "tradedOpening",
-                  value: (
-                    <MetricValue
-                      metric="tradedOpening"
-                      value={performance.slices.overall.trade.tradedOpeningDeaths}
-                    />
-                  ),
-                },
-              ]}
-              columns={3}
-            />
-            <MetricSection
-              title="Utility"
-              items={[
-                {
-                  label: "FA/100r",
-                  metric: "flashAssist",
-                  value: (
-                    <MetricValue
-                      metric="flashAssist"
-                      value={performance.slices.overall.utility.flashAssistsPerRound}
-                    />
-                  ),
-                },
-                {
-                  label: "Blind/Flash",
-                  metric: "blindPerFlash",
-                  value: (
-                    <MetricValue
-                      metric="blindPerFlash"
-                      value={performance.slices.overall.utility.enemyBlindSecondsPerFlash}
-                    />
-                  ),
-                },
-                {
-                  label: "Enemy Blind/r",
-                  metric: "enemyBlindPerRound",
-                  value: (
-                    <MetricValue
-                      metric="enemyBlindPerRound"
-                      value={performance.slices.overall.utility.enemyBlindSecondsPerRound}
-                    />
-                  ),
-                },
-                {
-                  label: "Team Blind/r",
-                  metric: "teamBlindPerRound",
-                  value: (
-                    <MetricValue
-                      metric="teamBlindPerRound"
-                      value={performance.slices.overall.utility.teamBlindSecondsPerRound}
-                    />
-                  ),
-                },
-                {
-                  label: "Util/r",
-                  metric: "utility",
-                  value: (
-                    <MetricValue
-                      metric="utility"
-                      value={performance.slices.overall.utility.utilityDamagePerRound}
-                    />
-                  ),
-                },
-                {
-                  label: "Utility K/100r",
-                  metric: "utilityKills",
-                  value: (
-                    <MetricValue
-                      metric="utilityKills"
-                      value={performance.slices.overall.utility.utilityKillsPerRound}
-                    />
-                  ),
-                },
-              ]}
-              columns={3}
-            />
-            <MetricSection
-              title="Objective"
-              items={[
-                {
-                  label: STATS_METRICS.plantConversion.label,
-                  metric: "plantConversion",
-                  value: (
-                    <MetricValue
-                      metric="plantConversion"
-                      value={performance.slices.overall.objective.plantConversions}
-                    />
-                  ),
-                },
-              ]}
-              columns={3}
-            />
+        {tab === "maps" && (
+          <div className="space-y-5">
+            <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
+              <h3 className="text-sm font-semibold">正式地图表现</h3>
+              <StatsDataTable
+                embedded
+                rows={mapRows}
+                columns={mapColumns}
+                rowKey={(row) => row.mapName}
+                initialSortKey="played"
+                emptyLabel="暂无正式地图样本"
+              />
+            </section>
           </div>
-        ) : (
-          <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">
-            暂无团队统计。
-          </p>
-        ))}
+        )}
 
-      {tab === "maps" && (
-        <div className="space-y-5">
+        {tab === "players" && (
           <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
-            <h3 className="text-sm font-semibold">正式地图表现</h3>
+            <h3 className="text-sm font-semibold">Players</h3>
             <StatsDataTable
               embedded
-              rows={mapRows}
-              columns={mapColumns}
-              rowKey={(row) => row.mapName}
-              initialSortKey="played"
-              emptyLabel="暂无正式地图样本"
+              rows={playerRows}
+              rankingBaselineRows={playerRows}
+              columns={playerColumns}
+              rowKey={(row) => row.userId}
+              initialSortKey="rating"
+              tableClassName="min-w-[760px] table-fixed"
+              emptyLabel="暂无选手统计"
             />
           </section>
-        </div>
-      )}
+        )}
 
-      {tab === "players" && (
-        <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
-          <h3 className="text-sm font-semibold">Players</h3>
-          <StatsDataTable
-            embedded
-            rows={playerRows}
-            rankingBaselineRows={playerRows}
-            columns={playerColumns}
-            rowKey={(row) => row.userId}
-            initialSortKey="rating"
-            tableClassName="min-w-[760px] table-fixed"
-            emptyLabel="暂无选手统计"
-          />
-        </section>
-      )}
-
-      {tab === "weapons" && (
-        <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
-          <h3 className="text-sm font-semibold">Weapons</h3>
-          <StatsDataTable
-            embedded
-            rows={weaponRows}
-            columns={weaponColumns}
-            rowKey={(row) => row.weapon}
-            initialSortKey="kills"
-            tableClassName="min-w-[560px] table-fixed"
-            emptyLabel="暂无武器数据"
-          />
-        </section>
-      )}
+        {tab === "weapons" && (
+          <section className="space-y-3 border-t border-[var(--color-border)] pt-4">
+            <h3 className="text-sm font-semibold">Weapons</h3>
+            <StatsDataTable
+              embedded
+              rows={weaponRows}
+              columns={weaponColumns}
+              rowKey={(row) => row.weapon}
+              initialSortKey="kills"
+              tableClassName="min-w-[560px] table-fixed"
+              emptyLabel="暂无武器数据"
+            />
+          </section>
+        )}
+      </MetricFamilyTabs>
     </section>
   );
 }

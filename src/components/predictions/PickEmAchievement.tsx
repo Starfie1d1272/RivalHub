@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { usePortalTheme } from "@/components/ui/portal-theme";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchPickEmSummary as getPickEmSummary } from "@/lib/predictions/http-client";
 import { predictionChallengeCapacity } from "@/lib/predictions/rules";
@@ -49,6 +50,7 @@ export function PickEmAchievement({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [section, setSection] = useState<Section>("tasks");
+  const portalStyle = usePortalTheme();
   const [popover, setPopover] = useState<Section | null>(null);
   const [record, setRecord] = useState<{ epoch: string; value: PickEmSummary } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -234,6 +236,7 @@ export function PickEmAchievement({
               </Popover.Trigger>
               <Popover.Portal>
                 <Popover.Content
+                  style={portalStyle}
                   align="end"
                   sideOffset={8}
                   collisionPadding={12}

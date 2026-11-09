@@ -35,7 +35,7 @@ export function PhaseStep({ label, stepNumber, isDone, isCurrent, isLast }: Phas
             height: 24,
             border: `2px solid ${color}`,
             background: iconBg,
-            borderRadius: "var(--radius-sm, 2px)",
+            borderRadius: "var(--radius-sm)",
             fontFamily: "var(--font-mono)",
             fontSize: 11,
             fontWeight: 700,

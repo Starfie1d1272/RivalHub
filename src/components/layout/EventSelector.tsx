@@ -43,6 +43,8 @@ export function EventSelector({
     ...(allHref ? [{ slug: "", name: "全部公开赛事", status: "" }] : []),
     ...events,
   ].filter((e) => `${e.name} ${e.slug}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const currentLabel =
+    events.find((e) => e.slug === value)?.name ?? selectedName ?? (allHref ? "全部公开赛事" : "");
   const select = (slug: string) => {
     setOpen(false);
     router.push((slug ? hrefFor(slug) : allHref!) as Route);
@@ -59,13 +61,9 @@ export function EventSelector({
         <Button
           variant="outline"
           className="max-w-full min-w-0 justify-between sm:max-w-72"
-          aria-label="选择赛事"
+          aria-label={currentLabel ? `${currentLabel}，选择赛事` : "选择赛事"}
         >
-          <span className="truncate">
-            {events.find((e) => e.slug === value)?.name ??
-              selectedName ??
-              (allHref ? "全部公开赛事" : "选择赛事")}
-          </span>
+          <span className="truncate">{currentLabel || "选择赛事"}</span>
           <span aria-hidden> ▾</span>
         </Button>
       </DialogTrigger>

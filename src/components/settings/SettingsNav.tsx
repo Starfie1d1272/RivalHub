@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useRef } from "react";
+import { useRevealCurrentItem } from "@/components/rivalhub/ScrollHint";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { withRegistrationReturnPath } from "@/lib/registrations/return-path";
@@ -31,10 +32,13 @@ export function SettingsNav() {
 
 function SettingsNavLinks() {
   const pathname = usePathname();
+  const navigationRef = useRef<HTMLElement>(null);
+  useRevealCurrentItem(navigationRef, pathname);
   const returnValues = useSearchParams().getAll("returnTo");
   const returnTo = returnValues.length === 1 ? returnValues[0] : null;
   return (
     <nav
+      ref={navigationRef}
       aria-label="参赛资料导航"
       className="flex overflow-x-auto border border-[var(--color-border)] lg:block lg:overflow-visible"
     >
@@ -44,6 +48,7 @@ function SettingsNavLinks() {
           <Link
             key={item.href}
             href={withRegistrationReturnPath(item.href, returnTo) as never}
+            aria-current={active ? "page" : undefined}
             className={cn(
               "min-w-28 shrink-0 border-r border-[var(--color-border)] px-3 py-2.5 last:border-r-0 lg:block lg:min-w-0 lg:border-r-0 lg:border-b lg:last:border-b-0",
               active

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { usePortalTheme } from "@/components/ui/portal-theme";
 import { createPortal } from "react-dom";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
@@ -348,6 +349,7 @@ function PlayerCard({
   onChoose: (point: LineupStylePoint) => void;
 }) {
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const portalStyle = usePortalTheme(position ?? { visibility: "hidden" });
   useLayoutEffect(() => {
     const rect = trigger.getBoundingClientRect();
     const card = cardRef.current;
@@ -387,7 +389,7 @@ function PlayerCard({
         }
       }}
       className="fixed z-[200] w-72 max-w-[calc(100vw-24px)] border border-[var(--color-border-hi)] bg-[var(--color-panel-hi)] p-3 text-xs leading-5 text-[var(--color-fg-primary)] shadow-lg"
-      style={position ? { ...position } : { visibility: "hidden" }}
+      style={portalStyle}
     >
       <div className="flex items-start gap-2">
         <PlayerAvatar
