@@ -201,12 +201,13 @@ export function RegistrationForm({
   }, [canEdit, canSaveDraft, draftKey, draftRead?.key, email, interactive, seasonId]);
 
   useEffect(() => {
-    if (!feedback) return;
+    // React Hook Form publishes field errors when the submit attempt settles.
+    if (!feedback || isSubmitting) return;
     const firstInvalid = formRef.current?.querySelector<HTMLElement>(
       '[aria-invalid="true"]:not([type="hidden"]):not(:disabled)',
     );
     (firstInvalid ?? feedbackRef.current)?.focus();
-  }, [feedback]);
+  }, [feedback, isSubmitting]);
 
   function showFailure(error: ActionError) {
     if (error.code === ErrorCode.REGISTRATION_CLOSED) setClosedWindow(windowState);
