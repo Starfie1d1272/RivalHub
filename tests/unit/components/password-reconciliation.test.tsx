@@ -14,10 +14,16 @@ it("submits the loaded mutation and verified evidence only after an explicit rec
   await user.click(screen.getByRole("button", { name: "退出旧登录" }));
   await screen.findByText(`待核查更新：${mutationId}`);
   await user.click(screen.getByRole("checkbox"));
-  expect(screen.getByRole("button", { name: "确认恢复登录" })).toBeDisabled();
+  const submit = screen.getByRole("button", { name: "确认恢复登录" });
+  expect(submit).toBeDisabled();
   await user.type(screen.getByLabelText("证据编号"), "event-123");
+  expect(screen.getByLabelText("已核实结果")).toHaveValue("");
+  expect(screen.getByLabelText("核查来源")).toHaveValue("");
+  expect(submit).toBeDisabled();
   await user.selectOptions(screen.getByLabelText("已核实结果"), "rejected");
-  await user.click(screen.getByRole("button", { name: "确认恢复登录" }));
+  expect(submit).toBeDisabled();
+  await user.selectOptions(screen.getByLabelText("核查来源"), "supabase_auth_audit");
+  await user.click(submit);
   expect(mocks.revoke).toHaveBeenCalledWith({ userId: "fixture-user", reconciliation: { mutationId, outcome: "rejected", evidenceSource: "supabase_auth_audit", evidenceReference: "event-123", verified: true } });
 });
 it("ignores a state response after the dialog closes", async () => {
