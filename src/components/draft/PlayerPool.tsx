@@ -98,7 +98,9 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
       <p
         role="status"
         className={
-          sortedPlayers.length > 0 ? "sr-only" : "py-8 text-center text-sm text-[var(--color-fg-dim)]"
+          sortedPlayers.length > 0
+            ? "sr-only"
+            : "py-8 text-center text-sm text-[var(--color-fg-dim)]"
         }
       >
         {sortedPlayers.length > 0 ? `${sortedPlayers.length} 位待选选手` : "当前筛选下没有待选选手"}

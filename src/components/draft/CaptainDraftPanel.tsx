@@ -156,7 +156,11 @@ export function CaptainDraftPanel({
     !waitingForSnapshot;
 
   async function handlePick(player: CaptainDraftPlayer) {
-    if (!canSubmit || !expectedTurn || !canPickPosition(positionCounts[player.primaryPosition] ?? 0))
+    if (
+      !canSubmit ||
+      !expectedTurn ||
+      !canPickPosition(positionCounts[player.primaryPosition] ?? 0)
+    )
       return;
 
     setPendingRegistrationId(player.registrationId);

@@ -201,7 +201,9 @@ export function DraftAdminPanel({
             <p className="font-medium text-[var(--color-fg)] tabular">
               {isComplete
                 ? `共 ${DRAFT_TOTAL_ROUNDS} 轮`
-                : state ? `第 ${state.currentRound} / ${DRAFT_TOTAL_ROUNDS} 轮` : "—"}
+                : state
+                  ? `第 ${state.currentRound} / ${DRAFT_TOTAL_ROUNDS} 轮`
+                  : "—"}
             </p>
           </div>
         </div>
@@ -253,48 +255,51 @@ export function DraftAdminPanel({
         {canPause && data?.turnStatus === "timed_out" && (
           <p className="mt-3 text-sm text-[var(--color-fg-mid)]">本轮已超时，等待自动选人。</p>
         )}
-        {canPause && data?.turnStatus === "blocked" && state?.currentEntryId && state.roundDeadline && (
-          <div className="mt-4 space-y-3 rounded-md border border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)] p-3">
-            <p className="text-sm text-[var(--color-fg)]">
-              本轮已超时，当前队伍没有符合自动选人条件的选手。
-            </p>
-            <AlertDialog open={skipTurn !== null} onOpenChange={handleSkipDialog}>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" disabled={busy}>
-                  跳过本次选人
-                </Button>
-              </AlertDialogTrigger>
-              {skipTurn && (
-                <AlertDialogContent
-                  onCloseAutoFocus={(event) => {
-                    if (!didConfirmSkip.current) return;
-                    didConfirmSkip.current = false;
-                    event.preventDefault();
-                    feedback.current?.focus();
-                  }}
-                >
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      跳过「{skipTurn.teamName}」第 {skipTurn.expectedTurn.round} 轮的选人？
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      此名额将保留空缺。
-                      {skipTurn.completesDraft
-                        ? "现有阵容将锁定，赛事进入比赛阶段。"
-                        : "选秀将继续到下一个选人顺位。"}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>取消</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleSkip(skipTurn.expectedTurn)}>
-                      确认跳过
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              )}
-            </AlertDialog>
-          </div>
-        )}
+        {canPause &&
+          data?.turnStatus === "blocked" &&
+          state?.currentEntryId &&
+          state.roundDeadline && (
+            <div className="mt-4 space-y-3 rounded-md border border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)] p-3">
+              <p className="text-sm text-[var(--color-fg)]">
+                本轮已超时，当前队伍没有符合自动选人条件的选手。
+              </p>
+              <AlertDialog open={skipTurn !== null} onOpenChange={handleSkipDialog}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" disabled={busy}>
+                    跳过本次选人
+                  </Button>
+                </AlertDialogTrigger>
+                {skipTurn && (
+                  <AlertDialogContent
+                    onCloseAutoFocus={(event) => {
+                      if (!didConfirmSkip.current) return;
+                      didConfirmSkip.current = false;
+                      event.preventDefault();
+                      feedback.current?.focus();
+                    }}
+                  >
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        跳过「{skipTurn.teamName}」第 {skipTurn.expectedTurn.round} 轮的选人？
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        此名额将保留空缺。
+                        {skipTurn.completesDraft
+                          ? "现有阵容将锁定，赛事进入比赛阶段。"
+                          : "选秀将继续到下一个选人顺位。"}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleSkip(skipTurn.expectedTurn)}>
+                        确认跳过
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                )}
+              </AlertDialog>
+            </div>
+          )}
         <p
           ref={feedback}
           tabIndex={-1}
