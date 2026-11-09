@@ -1,11 +1,20 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { revokeUserAdminRole as telemetry_revokeUserAdminRole } from "@/actions/admin";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { formatCST } from "@/lib/utils/date";
 import { Panel } from "@/components/rivalhub";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { observeAction } from "@/lib/telemetry/client";
@@ -35,17 +44,26 @@ interface AdminUserListProps {
 }
 
 export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserListProps) {
-  const [, startTransition] = useTransition();
-  const [localUsers, setLocalUsers] = useState(users);
+  const [pending, startTransition] = useTransition();
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
+  const originRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const target = users.find((user) => user.id === targetId && user.id !== currentUserId);
 
   function handleRevoke(id: string) {
+    setRevokeError(null);
     startTransition(async () => {
-      const result = await revokeUserAdminRole(id);
-      if (!result.success) {
-        toast.error(result.error.message);
-      } else {
+      try {
+        const result = await revokeUserAdminRole(id);
+        if (!result.success) {
+          setRevokeError(result.error.message);
+          return;
+        }
         toast.success("已撤销管理员权限");
-        setLocalUsers((prev) => prev.filter((u) => u.id !== id));
+        setTargetId(null);
+      } catch {
+        setRevokeError("未能确认撤销结果，请返回名单刷新后核对。");
       }
     });
   }
@@ -60,15 +78,7 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
     }
   }
 
-  if (localUsers.length === 0) {
-    return (
-      <Panel contentClassName="p-8 text-center text-sm text-[var(--color-fg-mid)]">
-        暂无管理员用户
-      </Panel>
-    );
-  }
-
-  return (
+  const list = (
     <Panel contentClassName="p-0" className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] text-sm">
@@ -84,7 +94,7 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--color-border)]">
-            {localUsers.map((u) => (
+            {users.map((u) => (
               <tr key={u.id} className="hover:bg-[var(--color-surface-raised)] transition-colors">
                 <td className="px-4 py-3 font-medium text-[var(--color-fg)]">
                   <span className="flex items-center gap-2">
@@ -176,7 +186,13 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
                       type="button"
                       size="sm"
                       variant="ghost"
-                      onClick={() => handleRevoke(u.id)}
+                      disabled={pending}
+                      aria-haspopup="dialog"
+                      onClick={(event) => {
+                        originRef.current = event.currentTarget;
+                        setRevokeError(null);
+                        setTargetId(u.id);
+                      }}
                       className="text-[var(--color-danger)] hover:text-[var(--color-danger)]"
                     >
                       撤销
@@ -189,5 +205,75 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
         </table>
       </div>
     </Panel>
+  );
+
+  return (
+    <>
+      <div ref={listRef} role="region" aria-label="管理员名单" tabIndex={-1}>
+        {users.length > 0 ? (
+          list
+        ) : (
+          <Panel contentClassName="p-8 text-center text-sm text-[var(--color-fg-mid)]">
+            暂无管理员用户
+          </Panel>
+        )}
+      </div>
+      <AlertDialog
+        open={target !== undefined}
+        onOpenChange={(open) => {
+          if (!open && !pending) setTargetId(null);
+        }}
+      >
+        {target && (
+          <AlertDialogContent
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              const origin = originRef.current;
+              if (origin?.isConnected) origin.focus();
+              else listRef.current?.focus();
+            }}
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>撤销全部管理员权限？</AlertDialogTitle>
+              <AlertDialogDescription className="[overflow-wrap:anywhere]">
+                将撤销 {getDisplayName(target)}（{target.email}
+                ）的全部管理员权限。该账号将变为普通用户。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2 text-sm [overflow-wrap:anywhere]">
+              {target.role === "super_admin" && <p>将撤销全局超级管理员权限。</p>}
+              {target.seasonIds.length > 0 && (
+                <div className="space-y-1">
+                  <p className="font-medium">
+                    将撤销全部赛事授权（当前 {target.seasonIds.length} 届）
+                  </p>
+                  <ul className="list-disc space-y-1 pl-5">
+                    {target.seasonIds.map((id) => (
+                      <li key={id}>{seasonMap[id] ?? "未命名赛事"}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            {revokeError && (
+              <p role="alert" className="text-sm text-[var(--color-danger)]">
+                {revokeError}
+              </p>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={pending}>返回管理员名单</AlertDialogCancel>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={pending}
+                onClick={() => handleRevoke(target.id)}
+              >
+                {pending ? "正在撤销…" : "确认撤销全部权限"}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
+    </>
   );
 }

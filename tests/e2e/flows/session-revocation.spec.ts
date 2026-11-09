@@ -123,18 +123,27 @@ test("administrator reconciles the exact pending update and the user can log in 
     await signInProgrammatically(page, admin, scenario, "/admin/users");
     await page.goto(`/admin/users?tab=users&q=${encodeURIComponent(player.email)}`);
     const row = page.getByRole("row").filter({ hasText: player.email });
-    await row.getByRole("button", { name: "退出旧登录" }).click();
+    const trigger = row.getByRole("button", { name: "退出旧登录" });
+    await trigger.click();
+    await expect(page.getByText(`待核查更新：${mutationId}`)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(trigger).toBeFocused();
+    await trigger.press("Enter");
     await expect(page.getByText(`待核查更新：${mutationId}`)).toBeVisible();
     await page.getByRole("checkbox").check();
+    await page.getByLabel("证据编号").fill("isolated-fixture-rejected");
+    await expect(page.getByRole("button", { name: "确认恢复登录" })).toBeDisabled();
     await page.getByLabel("已核实结果").selectOption("rejected");
     await page.getByLabel("核查来源").selectOption("provider_response_log");
-    await page.getByLabel("证据编号").fill("isolated-fixture-rejected");
     await page.getByRole("button", { name: "确认恢复登录" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     const control = await pool.query("SELECT password_mutation_id FROM application_session_controls WHERE user_id=$1", [player.userId]);
     expect(control.rows[0].password_mutation_id).toBeNull();
     const audit = await pool.query("SELECT meta FROM audit_logs WHERE actor_id=$1 AND target_id=$2 AND meta->'reconciliation'->>'mutationId'=$3", [admin.userId, player.userId, mutationId]);
     expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0].meta.reconciliation).toMatchObject({
+      outcome: "rejected", evidenceSource: "provider_response_log", evidenceReference: "isolated-fixture-rejected",
+    });
     await signInProgrammatically(userPage, player, scenario, "/settings/security");
     await expect(userPage.getByLabel("原密码", { exact: true })).toBeVisible();
   } finally {

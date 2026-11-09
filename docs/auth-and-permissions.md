@@ -45,7 +45,7 @@ Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身�
 
 教育证据是敏感的 server-only 数据。CHSI 与录取通知书提交必须重新验证当前 canonical user、verified email ownership 和 canonical institution；学校邮箱即时认证还必须命中 exact、active、auto-verify 且 `credentialType=student` 的 registry mapping。录取通知书图片只能由提交者经 Server Action 写入 private Storage，普通用户、season admin 和浏览器 Data API 没有 direct Storage 读策略；只有 `super_admin` 能通过受保护的 GET Route Handler 获取 60 秒 signed URL 并重定向至材料。object key、signed URL、原始文件名、图片内容和 CHSI code 不进入 public/client DTO 或 runtime log。
 
-管理员邀请只给正常 Supabase 用户授予 `season_admin` scope 或 `super_admin`。invite usage、claim ledger、并发上限和重复领取由 transaction + DB constraint 保护；撤销授权读取当前数据库事实，不依赖客户端缓存。
+管理员邀请只给正常 Supabase 用户授予 `season_admin` scope 或 `super_admin`。invite usage、claim ledger、并发上限和重复领取由 transaction + DB constraint 保护。超级管理员核对目标账号、全局权限和赛事授权后确认撤销。服务端禁止撤销本人，并按事务内读取的当前授权将目标设为普通用户、清除全部赛事授权和记录审计。
 
 系统状态页中的 scheduler health 和“立即运行一次”属于 `requireSuperAdmin()` 保护的 break-glass 能力。人工运行通过 shared scheduler execution owner 调用 canonical runner，并写入 `scheduler.manual_trigger` audit；按钮不是授权边界，也不允许客户端直接调用数据库或 endpoint。
 
@@ -65,7 +65,7 @@ Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身�
 
 密码更新先提交全撤销与 durable issuance block，再调用 Auth，最后重新推进撤销边界并解除 block。明确的 provider 拒绝不会报告成功，旧登录仍保持撤销；网络异常、5xx、数据库最终提交失败或进程中断时保留 block，避免跨系统未知结果下继续颁发会话。找回页只在本次回跳包含恢复上下文及 provider access token 时核验，将两者保存在当前页内存并清除地址栏中的凭据。录入前及提交时，服务端解封用途隔离的恢复上下文，经 Supabase `getUser(token)` 核对邮箱、有效 credential 归属及当前应用账号，使用邮件签发时间校验撤销边界。密码更新推进该边界，旧恢复上下文无法再次授权写入。
 
-外部 Auth Dashboard/API 修改密码不会自动触发应用数据库撤销。受支持操作必须配套调用管理员 `revokeUserSessions`，且在 provider 修改前后各撤销一次；不能将 provider refresh token 撤销等同于应用会话撤销。若有中断的密码更新，先确认 provider 请求已终止、核实账号密码状态或完成受控重置，再由 super admin 显式调用 `revokeUserSessions({ userId, providerMutationSettled: true })` 解除阻断并再次全撤销；未核实结果不得解除。入口为管理员「所有用户 → 退出旧登录」；解除阻断必须显式勾选已核实声明。该操作有 audit，不提供设备列表 UI，不自动重试未知结果的密码写入。数据库备份可能携带历史注册记录；灾难恢复切换前必须轮换 `ADMIN_SESSION_SECRET`，避免恢复已撤销 cookie 的有效性。
+外部 Auth Dashboard/API 修改密码不会自动触发应用数据库撤销。受支持操作必须配套调用管理员 `revokeUserSessions`，且在 provider 修改前后各撤销一次；不能将 provider refresh token 撤销等同于应用会话撤销。若有中断的密码更新，先确认 provider 请求已终止并核实结果，再由 super admin 通过「所有用户 → 退出旧登录」对照待核查更新选择结果与核查来源、填写记录编号，并确认恢复登录。服务端核对待核查更新 ID，在同一事务内解除阻断、再次全撤销和写入审计。数据库备份可能携带历史注册记录；灾难恢复切换前必须轮换 `ADMIN_SESSION_SECRET`，避免恢复已撤销 cookie 的有效性。
 
 ## Data API baseline
 
