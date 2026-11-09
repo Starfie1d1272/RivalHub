@@ -18,10 +18,10 @@ export default async function MizarConnectPage({
   const pairingId = params.pairingId?.trim() ?? "";
   if (!/^[0-9a-f-]{36}$/i.test(pairingId))
     return (
-      <main className="mx-auto max-w-xl p-8">
+      <div className="mx-auto max-w-xl p-8">
         <h1 className="text-2xl font-semibold">连接 Mizar</h1>
         <p className="mt-4 text-[var(--color-fg-mid)]">连接请求无效，请回到 Mizar 重新发起连接。</p>
-      </main>
+      </div>
     );
   const session = await getUserSession();
   if (!session)
@@ -30,12 +30,12 @@ export default async function MizarConnectPage({
     );
   if (params.authorized === "1") {
     return (
-      <main className="mx-auto max-w-xl p-8">
+      <div className="mx-auto max-w-xl p-8">
         <h1 className="text-2xl font-semibold">Mizar 已授权</h1>
         <p className="mt-4 text-[var(--color-fg-mid)]">
           可以回到 Mizar；它会自动完成连接并读取该赛事赛程。
         </p>
-      </main>
+      </div>
     );
   }
   const [intent] = await db
@@ -47,17 +47,17 @@ export default async function MizarConnectPage({
     .where(eq(mizarPairingIntents.id, pairingId));
   if (!intent || intent.isExpired || intent.status === "expired")
     return (
-      <main className="mx-auto max-w-xl p-8">
+      <div className="mx-auto max-w-xl p-8">
         <h1 className="text-2xl font-semibold">连接请求已过期</h1>
         <p className="mt-4 text-[var(--color-fg-mid)]">请回到 Mizar 重新发起连接。</p>
-      </main>
+      </div>
     );
   if (intent.status === "authorized")
     return (
-      <main className="mx-auto max-w-xl p-8">
+      <div className="mx-auto max-w-xl p-8">
         <h1 className="text-2xl font-semibold">连接请求已处理</h1>
         <p className="mt-4 text-[var(--color-fg-mid)]">可以回到 Mizar；它会自动完成连接。</p>
-      </main>
+      </div>
     );
   const authorization = await getCurrentUserAuthorization();
   const allowedSeasons =
@@ -78,7 +78,7 @@ export default async function MizarConnectPage({
     .from(users)
     .where(eq(users.id, session.userId));
   return (
-    <main className="mx-auto max-w-xl p-8">
+    <div className="mx-auto max-w-xl p-8">
       <h1 className="text-2xl font-semibold">连接 Mizar</h1>
       <p className="mt-4 text-sm text-[var(--color-fg-mid)]">
         以 {user?.displayName?.trim() || "未设置显示名的管理员"} 的身份授权 Mizar
@@ -125,6 +125,6 @@ export default async function MizarConnectPage({
       <Link className="mt-6 inline-block text-sm underline" href="/">
         返回首页
       </Link>
-    </main>
+    </div>
   );
 }

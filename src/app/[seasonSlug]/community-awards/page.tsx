@@ -12,9 +12,11 @@ export default function CommunityAwardsPage(props: { params: Promise<{ seasonSlu
   return (
     <Suspense
       fallback={
-        <div role="status" className="p-4 text-sm">
-          正在加载社区奖…
-        </div>
+        <PageLayout variant="wide">
+          <p role="status" className="text-sm text-[var(--color-fg-secondary)]">
+            正在加载社区奖…
+          </p>
+        </PageLayout>
       }
     >
       <CommunityAwardsContent {...props} />

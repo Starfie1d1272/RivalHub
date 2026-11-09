@@ -12,10 +12,10 @@ export default function StatsError({
   reset: () => void;
 }) {
   return (
-    <PageLayout variant="wide" role="alert">
+    <PageLayout variant="workbench" role="alert">
       <ErrorState
         title="加载统计数据失败"
-        sub="请重新加载页面。若刚提交过操作，请先确认操作结果，再决定是否重新提交；仍无法加载时，请向管理员提供页面地址、出错时间和排查编号（如有）。"
+        sub="请重新加载统计。若问题持续，可向管理员提供下方的排查编号。"
         errorDigest={extractErrorDigest(error)}
         onRetry={reset}
         retryLabel="重新加载"

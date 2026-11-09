@@ -10,7 +10,7 @@ export default function SeasonInfoPage(props: { params: Promise<{ seasonSlug: st
   return (
     <Suspense
       fallback={
-        <PageLayout variant="narrow">
+        <PageLayout variant="wide">
           <p role="status">正在加载…</p>
         </PageLayout>
       }
