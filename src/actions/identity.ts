@@ -18,6 +18,10 @@ import {
   type CompleteIdentityLinkOutcome,
 } from "@/lib/identity/linking";
 import { normalizeEmail } from "@/lib/utils/email";
+import {
+  safeRegistrationReturnPath,
+  withRegistrationReturnPath,
+} from "@/lib/registrations/return-path";
 import { logEvent } from "@/lib/observability/server";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
@@ -27,6 +31,7 @@ const uuidSchema = z.uuid();
 
 export async function requestSecondaryEmailIdentity(
   emailInput: string,
+  returnTo?: string | null,
 ): Promise<ActionResult<void>> {
   const parsed = emailSchema.safeParse(emailInput.trim());
   if (!parsed.success)
@@ -97,7 +102,7 @@ export async function requestSecondaryEmailIdentity(
       email,
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: identityConfirmationUrl(request.id, stateToken),
+        emailRedirectTo: identityConfirmationUrl(request.id, stateToken, returnTo),
       },
     });
     if (error) {
@@ -152,6 +157,7 @@ export async function confirmSecondaryEmailIdentity(input: {
   stateToken: string;
   tokenHash: string;
   otpType: string;
+  returnTo?: string | null;
 }): Promise<ActionResult<CompleteIdentityLinkOutcome & { redirectTo: string }>> {
   const parsed = secondaryEmailLinkProofSchema.safeParse(input);
   if (!parsed.success)
@@ -187,10 +193,12 @@ export async function confirmSecondaryEmailIdentity(input: {
     revalidatePath("/settings/security");
     return ok({
       ...outcome,
-      redirectTo:
+      redirectTo: withRegistrationReturnPath(
         outcome.kind === "merge_required"
           ? `/settings/security/merge?authorization=${outcome.authorizationId}`
           : "/settings/education",
+        input.returnTo,
+      ),
     });
   } catch (error) {
     return actionError("confirmSecondaryEmailIdentity", error);
@@ -199,7 +207,7 @@ export async function confirmSecondaryEmailIdentity(input: {
 
 export async function revokeSecondaryEmailIdentity(
   identityId: string,
-): Promise<ActionResult<void>> {
+): Promise<ActionResult<{ localExitCompleted: boolean }>> {
   const parsed = uuidSchema.safeParse(identityId);
   if (!parsed.success)
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "credential id 无效。" });
@@ -208,21 +216,28 @@ export async function revokeSecondaryEmailIdentity(
     await db.transaction((tx) =>
       revokeSecondaryEmailIdentityInTx(tx, { userId: session.userId, identityId: parsed.data }),
     );
-    await destroyUserSession();
-    revalidatePath("/settings/security");
-    revalidatePath("/settings/education");
-    return ok(undefined);
   } catch (error) {
     return actionError("revokeSecondaryEmailIdentity", error);
   }
+  try {
+    await destroyUserSession();
+    revalidatePath("/settings/security");
+    revalidatePath("/settings/education");
+    return ok({ localExitCompleted: true });
+  } catch (error) {
+    actionError("revokeSecondaryEmailIdentity", error, "after_commit");
+    return ok({ localExitCompleted: false });
+  }
 }
 
-function identityConfirmationUrl(requestId: string, stateToken: string): string {
+function identityConfirmationUrl(requestId: string, stateToken: string, returnTo: unknown): string {
   const origin = process.env.NEXT_PUBLIC_APP_URL;
   if (!origin) throw new Error("NEXT_PUBLIC_APP_URL 未配置");
   const url = new URL("/auth/confirmation", origin);
   url.searchParams.set("flow", "link_identity");
   url.searchParams.set("request", requestId);
   url.searchParams.set("state", stateToken);
+  const target = safeRegistrationReturnPath(returnTo);
+  if (target) url.searchParams.set("returnTo", target);
   return url.toString();
 }

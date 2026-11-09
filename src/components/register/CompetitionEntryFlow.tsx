@@ -42,6 +42,7 @@ import {
   type Cs2Position,
 } from "@/lib/config/cs2-positions";
 import type { QualificationFinding } from "@/lib/qualification/service";
+import { withRegistrationReturnPath } from "@/lib/registrations/return-path";
 
 import { recruitmentHref } from "@/lib/recruitment/contract";
 
@@ -436,9 +437,7 @@ export function CompetitionEntryFlow(props: Props) {
             : "/settings"
           : null;
       const target = competitiveTarget ?? educationTarget ?? identityTarget;
-      const href = target
-        ? `${target}${target.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(registrationHref)}`
-        : null;
+      const href = target ? withRegistrationReturnPath(target, registrationHref) : null;
       const label = competitiveTarget
         ? seasonKey === "historical"
           ? `${member.label} · 需要本人补充 · ${platformLabel(platform!)} 历史最高`

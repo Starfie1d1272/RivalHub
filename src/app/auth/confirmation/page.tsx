@@ -8,6 +8,10 @@ import { secondaryEmailLinkProofSchema } from "@/lib/auth/secondary-email-otp";
 import { getUserSession } from "@/lib/auth/session";
 import { ErrorCode, isAppErrorCode } from "@/lib/errors";
 import { assertSecondaryEmailLinkReady } from "@/lib/identity/linking";
+import {
+  safeRegistrationReturnPath,
+  withRegistrationReturnPath,
+} from "@/lib/registrations/return-path";
 
 export const instant = false;
 
@@ -21,9 +25,10 @@ export default async function ConfirmationPage({
     request?: string;
     state?: string;
     type?: string;
+    returnTo?: string | string[];
   }>;
 }) {
-  const { flow, token_hash: tokenHash, next, request, state, type } = await searchParams;
+  const { flow, token_hash: tokenHash, next, request, state, type, returnTo } = await searchParams;
   const confirmationFlow = flow === "signup" || flow === "reverify" ? flow : null;
 
   return (
@@ -34,6 +39,7 @@ export default async function ConfirmationPage({
             <h1 className="text-xl font-semibold">确认绑定身份</h1>
             <SecondaryEmailLink
               proof={{ tokenHash, requestId: request, stateToken: state, otpType: type }}
+              returnTo={safeRegistrationReturnPath(returnTo)}
             />
           </>
         ) : confirmationFlow && tokenHash ? (
@@ -63,18 +69,31 @@ export default async function ConfirmationPage({
   );
 }
 
-async function SecondaryEmailLink({ proof }: { proof: unknown }) {
+async function SecondaryEmailLink({
+  proof,
+  returnTo,
+}: {
+  proof: unknown;
+  returnTo: string | null;
+}) {
   const session = await getUserSession();
   if (!session) {
     return (
-      <SecondaryEmailLinkMessage message="请登录发起绑定的 RivalHub 账号，再从邮件重新打开此链接。" />
+      <SecondaryEmailLinkMessage
+        returnTo={returnTo}
+        message="请登录发起绑定的 RivalHub 账号，再从邮件重新打开此链接。"
+      />
     );
   }
 
   const parsed = secondaryEmailLinkProofSchema.safeParse(proof);
   if (!parsed.success) {
     return (
-      <SecondaryEmailLinkMessage signedIn message="邮箱绑定链接无效，请在账号与安全中重新发起。" />
+      <SecondaryEmailLinkMessage
+        signedIn
+        returnTo={returnTo}
+        message="邮箱绑定链接无效，请在账号与安全中重新发起。"
+      />
     );
   }
 
@@ -90,7 +109,7 @@ async function SecondaryEmailLink({ proof }: { proof: unknown }) {
       isAppErrorCode(error, ErrorCode.FORBIDDEN) ||
       isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)
     ) {
-      return <SecondaryEmailLinkMessage signedIn message={error.message} />;
+      return <SecondaryEmailLinkMessage signedIn returnTo={returnTo} message={error.message} />;
     }
     throw error;
   }
@@ -100,7 +119,7 @@ async function SecondaryEmailLink({ proof }: { proof: unknown }) {
       <p className="text-sm text-[var(--color-fg-mid)]">
         点击后将验证这个邮箱。若它已属于另一个 RivalHub 账号，你可以先查看归并影响，再决定是否继续。
       </p>
-      <SecondaryIdentityConfirmationForm {...parsed.data} />
+      <SecondaryIdentityConfirmationForm {...parsed.data} returnTo={returnTo} />
     </>
   );
 }
@@ -108,17 +127,21 @@ async function SecondaryEmailLink({ proof }: { proof: unknown }) {
 function SecondaryEmailLinkMessage({
   message,
   signedIn = false,
+  returnTo,
 }: {
   message: string;
   signedIn?: boolean;
+  returnTo: string | null;
 }) {
+  const securityHref = withRegistrationReturnPath("/settings/security", returnTo);
+  const loginHref = returnTo ? `/login?${new URLSearchParams({ next: securityHref })}` : "/login";
   return (
     <>
       <p role="alert" className="text-sm text-[var(--color-fg-mid)]">
         {message}
       </p>
       <Button asChild variant="outline" className="w-full">
-        <Link href={signedIn ? "/settings/security" : "/login"} prefetch={false}>
+        <Link href={(signedIn ? securityHref : loginHref) as never} prefetch={false}>
           {signedIn ? "查看当前账号" : "去登录"}
         </Link>
       </Button>

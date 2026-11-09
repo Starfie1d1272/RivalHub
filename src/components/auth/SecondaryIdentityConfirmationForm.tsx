@@ -6,6 +6,7 @@ import { confirmSecondaryEmailIdentity as telemetry_confirmSecondaryEmailIdentit
 import { Button } from "@/components/ui/button";
 import type { SecondaryEmailOtpType } from "@/lib/auth/secondary-email-otp";
 import { ErrorCode } from "@/lib/errors";
+import { withRegistrationReturnPath } from "@/lib/registrations/return-path";
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 import type { ActionError } from "@/types/action";
@@ -20,11 +21,13 @@ export function SecondaryIdentityConfirmationForm({
   requestId,
   stateToken,
   otpType,
+  returnTo,
 }: {
   tokenHash: string;
   requestId: string;
   stateToken: string;
   otpType: SecondaryEmailOtpType;
+  returnTo?: string | null;
 }) {
   const task = useTelemetryTask("account", "confirm-secondary");
   const [pending, startTransition] = useTransition();
@@ -38,6 +41,7 @@ export function SecondaryIdentityConfirmationForm({
         requestId,
         stateToken,
         otpType,
+        returnTo,
       });
       if (!result.success) {
         setFailure(result.error);
@@ -50,6 +54,8 @@ export function SecondaryIdentityConfirmationForm({
 
   if (failure) {
     const needsLogin = failure.code === ErrorCode.UNAUTHORIZED;
+    const securityHref = withRegistrationReturnPath("/settings/security", returnTo);
+    const loginHref = returnTo ? `/login?${new URLSearchParams({ next: securityHref })}` : "/login";
     return (
       <div className="space-y-3">
         <p role="alert" className="text-sm text-[var(--color-fg-mid)]">
@@ -58,7 +64,7 @@ export function SecondaryIdentityConfirmationForm({
             : failure.message}
         </p>
         <Button asChild variant="outline" className="w-full">
-          <Link href={needsLogin ? "/login" : "/settings/security"} prefetch={false}>
+          <Link href={(needsLogin ? loginHref : securityHref) as never} prefetch={false}>
             {needsLogin ? "去登录" : "查看当前账号"}
           </Link>
         </Button>

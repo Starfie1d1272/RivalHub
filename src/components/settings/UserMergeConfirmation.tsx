@@ -17,11 +17,13 @@ export function UserMergeConfirmation({
   canonicalUserId,
   fingerprint,
   executable,
+  returnTo,
 }: {
   authorizationId: string;
   canonicalUserId: string;
   fingerprint: string;
   executable: boolean;
+  returnTo?: string | null;
 }) {
   const router = useRouter();
   const [confirmed, setConfirmed] = useState(false);
@@ -34,6 +36,7 @@ export function UserMergeConfirmation({
         canonicalUserId,
         expectedFingerprint: fingerprint,
         confirmed,
+        returnTo,
       });
       if (!result.success) {
         setConfirmed(false);
@@ -47,6 +50,9 @@ export function UserMergeConfirmation({
 
   return (
     <div className="space-y-4">
+      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">
+        归并完成后，两个账号在所有设备上的旧登录都会失效。请用保留账号的邮箱重新登录。
+      </p>
       <label className="flex cursor-pointer items-start gap-3 text-sm leading-6">
         <input
           type="checkbox"

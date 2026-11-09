@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { isSecondaryEmailOtpType } from "@/lib/auth/secondary-email-otp";
+import { safeRegistrationReturnPath } from "@/lib/registrations/return-path";
 import { withRouteObservability } from "@/lib/observability/route";
 
 export async function GET(request: NextRequest) {
@@ -26,6 +27,8 @@ export async function GET(request: NextRequest) {
       confirmationUrl.searchParams.set("request", requestId);
       confirmationUrl.searchParams.set("state", state);
       confirmationUrl.searchParams.set("type", otpType);
+      const returnTo = safeRegistrationReturnPath(url.searchParams.get("returnTo"));
+      if (returnTo) confirmationUrl.searchParams.set("returnTo", returnTo);
     }
     return NextResponse.redirect(confirmationUrl);
   });

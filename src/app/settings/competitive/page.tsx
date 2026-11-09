@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import { Suspense } from "react";
 import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
+import {
+  safeRegistrationReturnPath,
+  withRegistrationReturnPath,
+} from "@/lib/registrations/return-path";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
@@ -38,8 +42,12 @@ export default function CompetitiveProfileSettingsPage(props: PageProps) {
 
 async function CompetitiveProfileSettingsContent({ searchParams }: PageProps) {
   const session = await getUserSession();
-  if (!session) redirect("/login?next=/settings/competitive");
   const rawSearchParams = await searchParams;
+  const returnTo = safeRegistrationReturnPath(rawSearchParams.returnTo);
+  if (!session) {
+    const next = withRegistrationReturnPath("/settings/competitive", returnTo);
+    redirect(`/login?${new URLSearchParams({ next })}`);
+  }
   const requestedPlatform =
     typeof rawSearchParams.platform === "string" ? rawSearchParams.platform : null;
   const requestedSeason =
@@ -98,7 +106,7 @@ async function CompetitiveProfileSettingsContent({ searchParams }: PageProps) {
   });
   return (
     <div className="space-y-5">
-      <RegistrationReturnLink href={rawSearchParams.returnTo} />
+      <RegistrationReturnLink href={returnTo} />
       <div>
         <p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">
           PARTICIPANT PROFILE

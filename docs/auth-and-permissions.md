@@ -41,6 +41,8 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 
 客户端隐藏按钮不构成授权。所有 privileged mutation 必须在服务端重新鉴权，并在适用时写 audit。
 
+后台未登录时返回登录页，登录后进入后台赛事目录。参赛资料流程只携带校验后的本届报名返回路径及可选名单 ID；邮箱票据和归并授权由各自确认入口校验。
+
 Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身解析赛事公开状态或草稿授权，并确认目标资源属于该赛事；页面 Route 的访问检查不能替代 action 边界的校验。
 
 教育证据是敏感的 server-only 数据。CHSI 与录取通知书提交必须重新验证当前 canonical user、verified email ownership 和 canonical institution；学校邮箱即时认证还必须命中 exact、active、auto-verify 且 `credentialType=student` 的 registry mapping。录取通知书图片只能由提交者经 Server Action 写入 private Storage，普通用户、season admin 和浏览器 Data API 没有 direct Storage 读策略；只有 `super_admin` 能通过受保护的 GET Route Handler 获取 60 秒 signed URL 并重定向至材料。object key、signed URL、原始文件名、图片内容和 CHSI code 不进入 public/client DTO 或 runtime log。
@@ -60,6 +62,8 @@ Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身�
 | 账号归并 | 双方全部旧会话失效；重新证明凭据后才能登录保留账号 |
 | 管理员强制退出 | 经 `revokeUserSessions`、`requireSuperAdmin` 与 audit 撤销目标的全部应用会话 |
 | 修改角色、赛季授权、领取邀请码 | 后续请求读取最新权限，不补发登录会话 |
+
+撤销备用邮箱前，确认窗口展示所选邮箱及该账号的全设备退出影响。旧应用会话在下一次服务端校验时失效。事务已完成但当前页面尚未退出时，界面提示用保留的邮箱重新登录。撤销结果尚未确认时，先核对绑定状态再继续。
 
 `src/lib/auth/session-registry.ts` 是唯一注册/校验/撤销 owner。颁发与撤销按 user row lock 串行；provider 验证前从数据库获取 authentication start timestamp，注册时与持久化撤销边界比较，避免旧登录请求在撤销后补发会话。时间比较留在 PostgreSQL，不将微秒精度降为 JavaScript Date 毫秒。注册时按用户清理过期记录，退出和全撤销直接删除对应记录。`user_sessions` 仅是在线心跳表，不承担认证。
 
