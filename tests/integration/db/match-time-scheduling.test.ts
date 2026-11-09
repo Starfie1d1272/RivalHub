@@ -63,11 +63,14 @@ it("checks a deadline against the newly committed schedule and rejects edits in 
     await expect(updateMatchCompletedAt(fixture.matchId, "2026-10-01T20:30")).resolves.toMatchObject({ success: false });
     expect(await current()).toMatchObject({ completionDeadline: validDeadline, completedAt: null });
     await pool.query("UPDATE matches SET status='finished',score_a=2,score_b=0,completed_at=now() WHERE id=$1", [fixture.matchId]);
+    const completedAt = (await current())!.completedAt;
     await expect(updateMatchCompletionDeadline(fixture.matchId, null)).resolves.toMatchObject({
       success: false, error: { code: "MATCH_INVALID_TRANSITION" },
     });
-    await expect(updateMatchCompletedAt(fixture.matchId, "invalid")).resolves.toMatchObject({ success: false });
-    expect(await current()).toMatchObject({ completionDeadline: validDeadline, completedAt: expect.any(Date) });
+    for (const invalid of ["invalid", "2026-02-31T20:30", "2026-10-01T24:00"]) {
+      await expect(updateMatchCompletedAt(fixture.matchId, invalid)).resolves.toMatchObject({ success: false });
+    }
+    expect(await current()).toMatchObject({ completionDeadline: validDeadline, completedAt });
     await expect(updateMatchCompletedAt(fixture.matchId, "2026-10-01T20:30")).resolves.toMatchObject({ success: true });
     expect(await current()).toMatchObject({ completedAt: new Date("2026-10-01T12:30:00Z") });
   } finally {
