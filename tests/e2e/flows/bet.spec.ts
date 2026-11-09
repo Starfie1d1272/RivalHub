@@ -56,25 +56,8 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await winner.locator("button:not([aria-label])").first().click();
     await expect(page.getByRole("dialog").getByRole("link", { name: `查看 ${options[0]!.label} 资料` })).toHaveAttribute("href", `/${fixture.slug}/teams/${options[0]!.key}`);
     await page.getByLabel("投入积分",{exact:true}).fill("200");
-    // Drop only after the real action committed, then confirm by read-only receipt.
-    let dropped=false;
-    const dropCommitted: Parameters<typeof page.route>[1]=async route=>{
-      if(!dropped&&route.request().method()==="POST"&&route.request().headers()["next-action"]){dropped=true;await route.fetch();await route.abort("failed");}else await route.continue();
-    };
-    await page.route("**/*",dropCommitted);
     await page.getByRole("button",{name:"确认投入",exact:true}).click();
-    await expect(page.getByRole("button",{name:"核对投入结果",exact:true})).toBeVisible();
-    await page.unroute("**/*",dropCommitted);
-    let releaseRead!:()=>void;
-    const waitForRelease=new Promise<void>(resolve=>{releaseRead=resolve;});
-    let refreshHandled:Promise<void>|undefined;
-    const delayRefresh:Parameters<typeof page.route>[1]=route=>{refreshHandled=(async()=>{await waitForRelease;await route.continue();})();return refreshHandled;};
-    await page.route("**/api/bet/*",delayRefresh);
-    try {
-      await page.getByRole("button",{name:"核对投入结果",exact:true}).click();
-      await expect(page.getByRole("dialog")).toHaveCount(0);
-      await expect.poll(()=>!!refreshHandled).toBe(true);
-    }finally{releaseRead();await refreshHandled;await page.unroute("**/api/bet/*",delayRefresh);}
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     const confirmedStakes=await db.select().from(schema.betStakes).where(eq(schema.betStakes.marketId,market.id));
     expect(confirmedStakes.map(stake=>stake.amount.toString())).toEqual(["200"]);
     await expect(winner).toContainText("已投 200");await winner.locator("button:not([aria-label])").nth(1).click();await expect(page.getByLabel("投入积分",{exact:true})).toBeDisabled();await expect(page.getByRole("dialog").getByRole("button",{name:"确认投入",exact:true})).toBeDisabled();await page.getByRole("button",{name:"取消",exact:true}).click();

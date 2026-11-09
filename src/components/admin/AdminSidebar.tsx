@@ -90,7 +90,7 @@ export function AdminSidebar({
           {season && <Link href={`/${season.slug}`}>查看公开赛事 ↗</Link>}
         </div>
       </div>
-      <p className="px-4 pt-2 text-xs text-[var(--color-fg-dim)] md:hidden">
+      <p className="px-4 pt-2 text-xs text-[var(--color-fg-secondary)] md:hidden">
         左右滑动查看全部管理入口
       </p>
       {/* nav */}

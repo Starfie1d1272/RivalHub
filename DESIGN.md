@@ -13,6 +13,7 @@ colors:
   scrim: "rgba(3, 6, 10, 0.84)"
   border: "#1f2530"
   border-hi: "#2c3340"
+  border-control: "#64738a"
   fg: "#e7ecf3"
   fg-mid: "#8e96a3"
   fg-essential: "#b8c0cc"
@@ -20,6 +21,7 @@ colors:
   ok: "#4dd47a"
   warn: "#ffc44d"
   danger: "#ff5470"
+  danger-fg: "{colors.bg}"
   info: "#4a9eff"
 typography:
   event-display:
@@ -57,6 +59,11 @@ typography:
     fontFamily: '"JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, monospace'
     fontSize: "11px"
     fontWeight: 700
+    letterSpacing: "0.12em"
+  dense-metadata:
+    fontFamily: '"JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, monospace'
+    fontSize: "10px"
+    fontWeight: 600
     letterSpacing: "0.12em"
   badge-mono:
     fontFamily: '"JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, monospace'
@@ -107,7 +114,7 @@ components:
     height: "2.5rem"
   button-destructive:
     backgroundColor: "{colors.danger}"
-    textColor: "{colors.fg}"
+    textColor: "{colors.danger-fg}"
     typography: "{typography.control}"
     rounded: "{rounded.sm}"
     padding: "0.5rem 1rem"
@@ -169,7 +176,7 @@ components:
 
 ### Primary
 
-`primary` 是橙色主色，用于主操作、选中边与聚焦。填色按钮搭配 `primary-foreground`，淡主色底沿用 `primary-soft`。赛事主题在本届范围覆盖主色、透明色、边缘色、焦点色和按钮前景，前景随主色亮度选择。[赛事主题](src/lib/utils/color.ts)
+`primary` 是橙色主色，用于主操作、选中边与聚焦。填色按钮搭配 `primary-foreground`，淡主色底沿用 `primary-soft`。赛事保留原始选色；在当前深色面板上，使用同色相的可读主色、配对前景和焦点色。赛事内的菜单、对话框和帮助浮层沿用本届语义色，浮层背景仍用中性面板。[赛事主题](src/lib/utils/color.ts)
 
 ### Secondary
 
@@ -177,16 +184,16 @@ components:
 
 ### Neutral
 
-`bg` 是背景色。常规内容用 `panel`，内嵌字段和指标用 `panel-low`，浮层与高亮表面用 `panel-hi`。静态分隔用 `border`，可交互边框的悬停态用 `border-hi`。
+`bg` 是背景色。常规内容用 `panel`，内嵌字段和指标用 `panel-low`，浮层与高亮表面用 `panel-hi`。静态分隔用 `border`，输入和选择使用 `border-control`；聚焦使用独立焦点色。危险填色与 `danger-fg` 配对。
 
 正文使用 `fg`，次要描述用 `fg-mid`。关键次级信息使用 `fg-essential`，最弱的 `fg-dim` 留给装饰或禁用提示。绿、黄、红分别承载成功、警告和危险，配合文字、图标或结构表达状态。[配色与状态约定](docs/ui-system.md#tokens-and-primitives)
 
 ## Typography
 
-源码为标题和正文配置 Geist 与 Noto Sans SC，等宽字为 JetBrains Mono。2026-11-09 抽查线上首页和数据中心时，正文计算样式使用系统无衬线回退。[字体配置](src/app/layout.tsx) · [根样式](src/app/globals.css)
+源码为标题和正文配置 Geist 与 Noto Sans SC，等宽字为 JetBrains Mono。字体变量在根作用域定义，标题和正文先使用 Geist，中文使用本地 Noto Sans SC。[字体配置](src/app/layout.tsx) · [根样式](src/app/globals.css)
 
 - 赛事主标题随视口在 34–70 px 之间伸缩（`clamp(34px, 4.7vw, 70px)`）。普通页标题从窄屏 24 px 切换到 30 px，区块标题用 18 px。[赛事主视觉](src/components/home/HomeHero.tsx) · [共享页头](src/components/rivalhub/PageHeader.tsx)
-- 正文基准 16 px。紧凑描述与操作用 14 px，短导航和状态可用 12 px，10–11 px 等宽字用于编号、阶段和面板标签。
+- 正文基准 16 px。紧凑描述与操作用 14 px，短导航和状态可用 12 px，11 px 等宽字用于面板标签，10 px 等宽字限于紧凑编号与阶段元数据。草稿回执、错误、按钮与资格说明使用各自的正文或控件字号。
 - 比分和密集表格对齐数值，使用等宽数字；中文操作指引保持自然断行，专业短标签可以保留英文。[密集数据](docs/ui-system.md#dense-data) · [产品语言](docs/ui-system.md#product-language)
 
 ## Layout
@@ -201,7 +208,7 @@ components:
 
 ## Shapes
 
-按钮、字段、状态标记和普通面板以 4 px 小圆角为主。移动端导航和部分指标块用 8 px，赛事主视觉用 12 px。全圆形用于状态点和头像等标记。[根样式](src/app/globals.css) · [指标块](src/components/rivalhub/Stat.tsx)
+按钮、字段、状态标记和普通面板以 4 px 小圆角为主。移动端导航和部分指标块用 8 px，赛事主视觉用 12 px。阶段指示器与普通状态标记共用小圆角。全圆形用于状态点、徽记与头像；比分、地图序号和赛事主视觉按展示角色独立定尺寸。[根样式](src/app/globals.css) · [指标块](src/components/rivalhub/Stat.tsx)
 
 ## Components
 

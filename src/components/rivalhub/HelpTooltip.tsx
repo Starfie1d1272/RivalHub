@@ -2,6 +2,7 @@
 
 import * as Popover from "@radix-ui/react-popover";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { usePortalTheme } from "@/components/ui/portal-theme";
 import { cn } from "@/lib/utils/cn";
 
 const LEAVE_DELAY_MS = 160;
@@ -16,6 +17,7 @@ export function HelpTooltip({
   className?: string;
 }) {
   const id = useId();
+  const portalStyle = usePortalTheme();
   const trigger = useRef<HTMLButtonElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hovering = useRef(false);
@@ -91,7 +93,9 @@ export function HelpTooltip({
       <Popover.Portal>
         <Popover.Content
           id={id}
+          style={portalStyle}
           role="tooltip"
+          side="top"
           sideOffset={2}
           collisionPadding={12}
           hideWhenDetached

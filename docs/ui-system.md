@@ -28,7 +28,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 ## Tokens and primitives
 
-视觉 token 的唯一数值来源是 `src/app/globals.css`；Tailwind/shadcn 名称只做 bridge，不为单页建立第二套色板、圆角或 spacing scale。
+视觉 token 的唯一数值来源是 `src/app/globals.css`；Tailwind/shadcn 名称只做 bridge。分隔线与控件边界各自使用 `border-static`、`border-control`，可读次级信息用 `fg-secondary` 或 `fg-essential`。危险填色使用成对的危险色和前景。根页面与通知共享当前颜色模式。
 
 稳定 shared contract：
 
@@ -62,7 +62,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 选择 variant 时先看页面的信息架构和交互密度，不按历史 max-w-* 机械套用。inner max-w-* 只服务真实的阅读或表单 measure；如果它包住整个 list、grid、operator workspace 或多区块 detail page，它实际上又在决定 page sizing，应回到 PageLayout 语义重新审查。
 
-全站沿用深色橙色竞技品牌。首页采用单一赛事主视觉与有主次的内容编排；分析、表单和操作背景保持安静，网格只进入展示层。控件、普通 surface 和展示面的圆角由共享语义 token 拥有。赛事主题覆盖 accent / rgb / soft / edge / focus / on-accent 完整色族，按钮文字按颜色亮度选择可读前景。导航 alignment frame 复用 `pageAlignmentFrame`。
+全站沿用深色橙色竞技品牌。首页采用单一赛事主视觉与有主次的内容编排；分析、表单和操作背景保持安静，网格只进入展示层。控件、普通 surface 和展示面的圆角由共享语义 token 拥有。保存的赛事色用于识别；深色主题按常规及高亮面板推导可读 accent、配对前景、soft/edge、选中边界和聚焦。Tailwind 别名在控件所在作用域求值；挂载到 body 的浮层沿 React 上下文继承赛事语义色，遮罩和面板使用根级中性色。导航 alignment frame 复用 `pageAlignmentFrame`。
 
 赛事入口由 `src/lib/seasons/entries.ts` 维护轻量 presentation metadata；能力门禁继续消费实际配置与既有 read model，入口不承担授权或 transition。Rivals 投票和选秀在历史中保持原目的地；Major 的预测与竞猜、赛事推演保持分别可发现。
 

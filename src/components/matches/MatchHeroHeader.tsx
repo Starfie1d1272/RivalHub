@@ -183,7 +183,7 @@ export function MatchHeroHeader({
       {isFinished && match.resultDisposition === "omitted" && (
         <p className="text-center text-sm text-[var(--color-fg-mid)]">未提交结果</p>
       )}
-      <div className="text-center text-xs text-[var(--color-fg-dim)]">
+      <div className="text-center text-xs text-[var(--color-fg-secondary)]">
         {isFinished
           ? match.completedAt
             ? `完成于 ${formatCSTDateTime(match.completedAt)}`
