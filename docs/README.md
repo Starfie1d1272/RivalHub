@@ -23,6 +23,7 @@
 | Supabase 新组织迁库 | [`operations/supabase-relocation.md`](./operations/supabase-relocation.md) |
 | Production 灾难恢复、备份与 Restore 演练 | [`operations/disaster-recovery.md`](./operations/disaster-recovery.md) |
 | UI 与交互 contract | [`ui-system.md`](./ui-system.md) |
+| UI 技术审计、浅色评估与重构规划 | [2026-11-09 全站 UI 审计](ui-audit/2026-11-09-audit.md) |
 | 长期产品方向 | [`roadmap.md`](./roadmap.md) |
 | NJU Major 正式政策 | [`rules/nju-major.md`](./rules/nju-major.md) |
 | 重要决策及其理由 | [`decisions/`](./decisions/) |
