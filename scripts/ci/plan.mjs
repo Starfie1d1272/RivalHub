@@ -45,6 +45,7 @@ const LIVE_SURFACES = [
   "drizzle/migrations/0066_mizar_backend_contracts",
 ];
 const SYSTEM_FLOW_MAP = [
+  { prefixes: ["src/lib/admin/season-context.ts", "src/app/admin/layout.tsx", "src/app/admin/logs/"], specs: ["tests/e2e/flows/admin-immediate-boundaries.spec.ts"] },
   { prefixes: ["src/lib/registrations/admin-review", "src/app/admin/[seasonSlug]/registrations/"], specs: ["tests/e2e/flows/admin-season-private-reads.spec.ts"] },
 
   { prefixes: ["src/actions/test-matches.ts", "src/lib/matches/test-matches.ts", "src/components/matches/TestMatch", "src/app/admin/[seasonSlug]/test-matches/"], specs: ["tests/e2e/flows/test-matches.spec.ts"] },
@@ -95,11 +96,18 @@ const BROWSER_GROUPS = {
   teams: ["team-invitations", "test-matches"],
 };
 
-const PRODUCTION_SMOKE_PREFIXES = [
+const PRODUCTION_HARNESS_PREFIXES = [
   "playwright.production.config.",
   "tests/e2e/production/",
+  "tests/e2e/helpers/production-server",
+  "tests/e2e/helpers/bet-read-stages.ts",
+];
+
+const PRODUCTION_SMOKE_PREFIXES = [
+  ...PRODUCTION_HARNESS_PREFIXES,
   "tests/e2e/fixtures.ts",
   "tests/e2e/helpers/production-server",
+  "tests/e2e/helpers/bet-read-stages.ts",
   "scripts/db/local.ts",
   "scripts/db/local-environment.ts",
   "src/app/layout.tsx",
@@ -314,7 +322,7 @@ function classifyPath(path, existsAtHead) {
     return { capabilities: "full", reason: `removed executable surface: ${path}` };
   }
 
-  if (path.startsWith("playwright.production.config.") || path.startsWith("tests/e2e/helpers/production-server")) {
+  if (PRODUCTION_HARNESS_PREFIXES.some(prefix => path.startsWith(prefix))) {
     return { capabilities: ["static"], reason: `production browser smoke surface: ${path}` };
   }
   if (isDeploymentTool(path)) {
@@ -362,9 +370,6 @@ function classifyPath(path, existsAtHead) {
   }
   if (path.startsWith("tests/e2e/acceptance/") || path.startsWith("tests/e2e/visual/")) {
     return { capabilities: ["static"], reason: `opt-in visual/acceptance surface: ${path}` };
-  }
-  if (path.startsWith("tests/e2e/production/")) {
-    return { capabilities: ["static"], reason: `production browser smoke surface: ${path}` };
   }
   if (path.startsWith("tests/e2e/")) {
     return isE2ESpec(path)
