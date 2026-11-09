@@ -387,6 +387,14 @@ type SeasonDateInput = Pick<
   "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt" | "endAt"
 >;
 
+function parseSeasonDate(value: string | null): Date | null {
+  const date = parseCSTInput(value);
+  if (value && !date) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "请输入有效的北京时间，或留空以清除时间。");
+  }
+  return date;
+}
+
 function toDbDates(
   data: SeasonDateInput,
 ): Pick<
@@ -394,10 +402,10 @@ function toDbDates(
   "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt" | "endAt"
 > {
   return {
-    registrationOpensAt: parseCSTInput(data.registrationOpensAt),
-    registrationClosesAt: parseCSTInput(data.registrationClosesAt),
-    rosterChangeClosesAt: parseCSTInput(data.rosterChangeClosesAt),
-    endAt: parseCSTInput(data.endAt),
+    registrationOpensAt: parseSeasonDate(data.registrationOpensAt),
+    registrationClosesAt: parseSeasonDate(data.registrationClosesAt),
+    rosterChangeClosesAt: parseSeasonDate(data.rosterChangeClosesAt),
+    endAt: parseSeasonDate(data.endAt),
   };
 }
 
@@ -510,18 +518,17 @@ export function planSeasonUpdate(
     capabilities.canEditTemplate && template !== "custom",
   );
   assertUniqueStageKeys(data.stagePlan as StagePlan);
-  const submittedDates = toDbDates(data);
   const projectedDates: SeasonDateProjection = {
     registrationOpensAt: capabilities.canEditRegistrationOpenSchedule
-      ? submittedDates.registrationOpensAt
+      ? parseSeasonDate(data.registrationOpensAt)
       : existing.registrationOpensAt,
     registrationClosesAt:
       capabilities.canEditRegistrationDeadlines && template !== "major"
-        ? submittedDates.registrationClosesAt
+        ? parseSeasonDate(data.registrationClosesAt)
         : existing.registrationClosesAt,
     rosterChangeClosesAt:
       capabilities.canEditRegistrationDeadlines && template !== "major"
-        ? submittedDates.rosterChangeClosesAt
+        ? parseSeasonDate(data.rosterChangeClosesAt)
         : existing.rosterChangeClosesAt,
   };
   assertValidDateProjection(projectedDates);
@@ -570,15 +577,15 @@ export function planSeasonUpdate(
     kind: data.kind,
     competitionTemplate: template,
     themeColor: data.themeColor,
-    endAt: template === "major" ? existing.endAt : submittedDates.endAt,
+    endAt: template === "major" ? existing.endAt : parseSeasonDate(data.endAt),
     updatedAt: new Date(),
   };
   if (capabilities.canEditRegistrationOpenSchedule) {
-    metadata.registrationOpensAt = submittedDates.registrationOpensAt;
+    metadata.registrationOpensAt = projectedDates.registrationOpensAt;
   }
   if (capabilities.canEditRegistrationDeadlines && template !== "major") {
-    metadata.registrationClosesAt = submittedDates.registrationClosesAt;
-    metadata.rosterChangeClosesAt = submittedDates.rosterChangeClosesAt;
+    metadata.registrationClosesAt = projectedDates.registrationClosesAt;
+    metadata.rosterChangeClosesAt = projectedDates.rosterChangeClosesAt;
   }
 
   if (!capabilities.canEditPublicRules) {

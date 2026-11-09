@@ -45,7 +45,7 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 
 Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身解析赛事公开状态或草稿授权，并确认目标资源属于该赛事；页面 Route 的访问检查不能替代 action 边界的校验。
 
-教育证据是敏感的 server-only 数据。CHSI 与录取通知书提交必须重新验证当前 canonical user、verified email ownership 和 canonical institution；学校邮箱即时认证还必须命中 exact、active、auto-verify 且 `credentialType=student` 的 registry mapping。录取通知书图片只能由提交者经 Server Action 写入 private Storage，普通用户、season admin 和浏览器 Data API 没有 direct Storage 读策略；只有 `super_admin` 能通过受保护的 GET Route Handler 获取 60 秒 signed URL 并重定向至材料。object key、signed URL、原始文件名、图片内容和 CHSI code 不进入 public/client DTO 或 runtime log。
+教育证据是敏感的 server-only 数据。CHSI 与录取通知书提交必须重新验证当前 canonical user、verified email ownership 和 canonical institution；学校邮箱即时认证还必须命中 exact、active、auto-verify 且 `credentialType=student` 的 registry mapping。录取通知书图片只能由提交者经 Server Action 写入 private Storage，普通用户、season admin 和浏览器 Data API 没有 direct Storage 读策略；只有 `super_admin` 能通过受保护的 GET Route Handler 获取 60 秒 signed URL 并重定向至材料。object key、signed URL、原始文件名、图片内容和 CHSI code 不进入 public/client DTO 或 runtime log。人工审核在事务内锁定目标认证，再核对 pending 状态并提交结论与审计；并发审核只能产生一次有效结论。
 
 管理员邀请只给正常 Supabase 用户授予 `season_admin` scope 或 `super_admin`。invite usage、claim ledger、并发上限和重复领取由 transaction + DB constraint 保护。超级管理员核对目标账号、全局权限和赛事授权后确认撤销。服务端禁止撤销本人，并按事务内读取的当前授权将目标设为普通用户、清除全部赛事授权和记录审计。
 

@@ -110,7 +110,14 @@ export async function resetUserPassword(
     await mutatePassword(recovery.userId, recovery.startedAt, "user.reset_password", () =>
       createServiceClient().auth.admin.updateUserById(recovery.authId, { password }),
     );
-    if (recovery.signedIn) await destroyUserSession();
+    if (recovery.signedIn) {
+      try {
+        await destroyUserSession();
+      } catch (error) {
+        // All application sessions were already revoked by the completed mutation.
+        actionError("resetUserPassword", error, "after_commit");
+      }
+    }
     return ok(undefined);
   } catch (error) {
     return actionError("resetUserPassword", error);

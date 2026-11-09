@@ -38,8 +38,12 @@ export function formatCST(date: Date | string): string {
 /** datetime-local 输入不含时区信息，管理员在 CST 时区输入 → 解析为 UTC Date */
 export function parseCSTInput(value: string | null): Date | null {
   if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(value)) return null;
   const date = new Date(value + "+08:00");
-  return Number.isNaN(date.getTime()) ? null : date;
+  if (Number.isNaN(date.getTime())) return null;
+  // Date normalizes impossible calendar dates and 24:00 into another day.
+  const local = new Date(date.getTime() + CST_OFFSET_MS).toISOString();
+  return local.slice(0, value.length) === value ? date : null;
 }
 
 /** 将 UTC Date 转为 CST datetime-local 输入框显示值 */

@@ -211,9 +211,11 @@ export async function reviewEducationVerification(input: {
     // ordinary admin navigation.
     const admin = await requireSuperAdmin();
     await db.transaction(async (tx) => {
-      const verification = await tx.query.educationVerifications.findFirst({
-        where: eq(educationVerifications.id, parsed.data.id),
-      });
+      const [verification] = await tx
+        .select()
+        .from(educationVerifications)
+        .where(eq(educationVerifications.id, parsed.data.id))
+        .for("update");
       if (!verification) throw new AppError(ErrorCode.NOT_FOUND, "教育认证记录不存在。 ");
       if (verification.status !== "pending")
         throw new AppError(ErrorCode.VALIDATION_FAILED, "该认证已经处理，不能重复审核。 ");
