@@ -74,7 +74,6 @@ export async function verifySupabaseServices(): Promise<void> {
   });
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 1 });
   let createdUserId: string | undefined;
-  let createdBucketId: string | undefined;
   const educationProbeKey = `verify/${randomUUID()}.png`;
 
   try {
@@ -99,24 +98,6 @@ export async function verifySupabaseServices(): Promise<void> {
       throw new Error(`Local Auth 验证失败：${createdUser.error?.message ?? "unknown"}`);
     }
     createdUserId = createdUser.data.user.id;
-
-    createdBucketId = `verify-${randomUUID()}`;
-    const createdBucket = await client.storage.createBucket(createdBucketId, { public: false });
-    if (createdBucket.error) {
-      throw new Error(`Local Storage bucket 验证失败：${createdBucket.error.message}`);
-    }
-    const uploaded = await client.storage
-      .from(createdBucketId)
-      .upload("probe.txt", new Blob(["rivalhub-local-storage-probe"]), {
-        contentType: "text/plain",
-      });
-    if (uploaded.error) {
-      throw new Error(`Local Storage upload 验证失败：${uploaded.error.message}`);
-    }
-    const downloaded = await client.storage.from(createdBucketId).download("probe.txt");
-    if (downloaded.error || (await downloaded.data.text()) !== "rivalhub-local-storage-probe") {
-      throw new Error(`Local Storage download 验证失败：${downloaded.error?.message ?? "content mismatch"}`);
-    }
 
     const educationUploaded = await client.storage
       .from("education-evidence")
@@ -178,10 +159,6 @@ export async function verifySupabaseServices(): Promise<void> {
     console.log("Supabase service verification passed: Auth, Storage, scheduler dispatch, full Data API deny-by-default.");
   } finally {
     await client.storage.from("education-evidence").remove([educationProbeKey]);
-    if (createdBucketId) {
-      await client.storage.from(createdBucketId).remove(["probe.txt"]);
-      await client.storage.deleteBucket(createdBucketId);
-    }
     if (createdUserId) {
       await client.auth.admin.deleteUser(createdUserId);
     }

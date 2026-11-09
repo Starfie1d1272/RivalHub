@@ -25,7 +25,6 @@ const eslintConfig = [
       ".next/**",
       "out/**",
       "build/**",
-      "coverage/**",
       "public/**",
       ".local/**",
       "docs/archive/design-handoff/**",
