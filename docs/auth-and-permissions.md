@@ -13,7 +13,7 @@ login  → password authentication → application session
 forgot password → recovery email → /reset-password
 ```
 
-每个环境的 Supabase Auth redirect allowlist 必须包含该环境 `NEXT_PUBLIC_APP_URL` 下的 `/reset-password` 精确地址，否则恢复邮件可能回退到首页。本地配置同时覆盖 localhost 与 127.0.0.1；Hosted 配置在对应环境迁移/上线时核实。
+恢复邮件通过 Supabase `.ConfirmationURL` 回到该环境 `NEXT_PUBLIC_APP_URL` 下的 `/reset-password`，保留应用签发的 `token` 查询参数。每个环境的 Auth redirect 配置须允许这一回跳并保留查询参数。恢复上下文绑定邮箱与数据库签发时间，一小时内有效。存量缺少应用恢复上下文的邮件需要重新申请。
 
 注册不会直接根据 signup response 建立应用身份或 session；确认/登录成功后才同步 `public.users`。对外提示不得泄露账号是否已存在等可枚举状态。 Supabase 登录/注册返回的合法 HTTP 5xx 归类为账号服务暂时不可用，记录同一排查编号及安全 HTTP 状态；不将其当成邮箱/密码错误或用户注册输入错误；注册结果可能无法确认时先检查验证邮件，再按提示重试或联系管理员。预期凭据拒绝、邮箱未确认及注册防枚举结果继续使用各自产品提示。provider 原始 body、邮箱、密码与任意错误 message 不进入该诊断事件或浏览器。
 
@@ -63,13 +63,13 @@ Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身�
 
 `src/lib/auth/session-registry.ts` 是唯一注册/校验/撤销 owner。颁发与撤销按 user row lock 串行；provider 验证前从数据库获取 authentication start timestamp，注册时与持久化撤销边界比较，避免旧登录请求在撤销后补发会话。时间比较留在 PostgreSQL，不将微秒精度降为 JavaScript Date 毫秒。注册时按用户清理过期记录，退出和全撤销直接删除对应记录。`user_sessions` 仅是在线心跳表，不承担认证。
 
-密码更新先提交全撤销与 durable issuance block，再调用 Auth，最后重新推进撤销边界并解除 block。明确的 provider 拒绝不会报告成功，旧登录仍保持撤销；网络异常、5xx、数据库最终提交失败或进程中断时保留 block，避免跨系统未知结果下继续颁发会话。找回页面把 provider access token 交给 server boundary，通过 Supabase `getUser(token)` 远程验证 subject，再解析有效 credential 绑定；不相信客户端自报已改密，也不根据未经验证的 JWT claim 更新账号。
+密码更新先提交全撤销与 durable issuance block，再调用 Auth，最后重新推进撤销边界并解除 block。明确的 provider 拒绝不会报告成功，旧登录仍保持撤销；网络异常、5xx、数据库最终提交失败或进程中断时保留 block，避免跨系统未知结果下继续颁发会话。找回页只在本次回跳包含恢复上下文及 provider access token 时核验，将两者保存在当前页内存并清除地址栏中的凭据。录入前及提交时，服务端解封用途隔离的恢复上下文，经 Supabase `getUser(token)` 核对邮箱、有效 credential 归属及当前应用账号，使用邮件签发时间校验撤销边界。密码更新推进该边界，旧恢复上下文无法再次授权写入。
 
 外部 Auth Dashboard/API 修改密码不会自动触发应用数据库撤销。受支持操作必须配套调用管理员 `revokeUserSessions`，且在 provider 修改前后各撤销一次；不能将 provider refresh token 撤销等同于应用会话撤销。若有中断的密码更新，先确认 provider 请求已终止、核实账号密码状态或完成受控重置，再由 super admin 显式调用 `revokeUserSessions({ userId, providerMutationSettled: true })` 解除阻断并再次全撤销；未核实结果不得解除。入口为管理员「所有用户 → 退出旧登录」；解除阻断必须显式勾选已核实声明。该操作有 audit，不提供设备列表 UI，不自动重试未知结果的密码写入。数据库备份可能携带历史注册记录；灾难恢复切换前必须轮换 `ADMIN_SESSION_SECRET`，避免恢复已撤销 cookie 的有效性。
 
 ## Data API baseline
 
-业务数据库默认 **server-only**：`anon` / `authenticated` 对 application-owned public tables 无业务 grants，RLS 默认 deny。first-party browser Supabase client 用于 Auth；公开比赛另用独立 receive-only viewer client 订阅 private Broadcast，不旁路直连业务表。服务端对符合 `issueLiveViewerToken` 范围的 in_progress 比赛签发五分钟单场 viewer token：公开 playing 赛事比赛、registration 阶段关联本届已开始且未完成 Qualification run 的正式 Play-in，以及 registration/voting/drafting 阶段的测试赛。未进行、未公开或不满足对应运行范围的比赛不能取得凭据。独立客户端通过 accessToken callback 使用该 token，不持久化会话或覆盖登录身份。Realtime 仅允许匹配 topic 的 Broadcast SELECT，不授予 INSERT；详情页与可见赛程行复用同一 receive-only viewer contract；重连与续期等待下一份 heartbeat，不读取快照历史。
+业务数据库默认 **server-only**：`anon` / `authenticated` 对 application-owned public tables 无业务 grants，RLS 默认 deny。应用账号流程通过服务端调用 Supabase Auth。公开比赛用独立 receive-only viewer client 订阅 private Broadcast。服务端对符合 `issueLiveViewerToken` 范围的 in_progress 比赛签发五分钟单场 viewer token：公开 playing 赛事比赛、registration 阶段关联本届已开始且未完成 Qualification run 的正式 Play-in，以及 registration/voting/drafting 阶段的测试赛。未进行、未公开或不满足对应运行范围的比赛不能取得凭据。独立客户端通过 accessToken callback 使用该 token，不持久化会话或覆盖登录身份。Realtime 仅允许匹配 topic 的 Broadcast SELECT，不授予 INSERT；详情页与可见赛程行复用同一 receive-only viewer contract；重连与续期等待下一份 heartbeat，不读取快照历史。
 
 如果未来新增 direct Data API 或 Realtime surface，同一变更必须同时定义：
 
