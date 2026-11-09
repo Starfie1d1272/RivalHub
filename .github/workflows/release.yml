@@ -24,9 +24,13 @@ concurrency:
   queue: max
   cancel-in-progress: false
 
+env:
+  PNPM_CONFIG_STORE_DIR: ${{ github.workspace }}/.agent-tmp/pnpm-store
+
 jobs:
   preflight:
     runs-on: ubuntu-24.04
+    timeout-minutes: 38
     permissions:
       actions: read
       contents: read
@@ -48,19 +52,14 @@ jobs:
       previous_release_tag: ${{ steps.frozen_identity.outputs.previous_release_tag }}
       previous_release_commit: ${{ steps.frozen_identity.outputs.previous_release_commit }}
       release_mode: ${{ steps.frozen_identity.outputs.release_mode }}
-      migration_risk: ${{ steps.plan.outputs.migrationRisk }}
-      storage_mutation_changed: ${{ steps.plan.outputs.storageMutationChanged }}
-      scheduler_changed: ${{ steps.plan.outputs.schedulerChanged }}
+      ci_run_id: ${{ steps.candidate_ci.outputs.ci_run_id }}
+      ci_head_sha: ${{ steps.candidate_ci.outputs.ci_head_sha }}
       requires_scheduler_provision: ${{ steps.plan.outputs.requiresSchedulerProvision }}
-      recovery_infra_changed: ${{ steps.plan.outputs.recoveryInfraChanged }}
-      release_infra_changed: ${{ steps.plan.outputs.releaseInfraChanged }}
       requires_migration_rehearsal: ${{ steps.plan.outputs.requiresMigrationRehearsal }}
       requires_production_migration: ${{ steps.plan.outputs.requiresProductionMigration }}
       requires_steam_profile_backfill: ${{ steps.plan.outputs.requiresSteamProfileBackfill }}
       requires_competitive_profile_repair: ${{ steps.plan.outputs.requiresCompetitiveProfileRepair }}
       requires_stats_projection_backfill: ${{ steps.plan.outputs.requiresStatsProjectionBackfill }}
-      requires_db_checkpoint: ${{ steps.plan.outputs.requiresDbCheckpoint }}
-      requires_full_checkpoint: ${{ steps.plan.outputs.requiresFullCheckpoint }}
       checkpoint_kind: ${{ steps.checkpoint_kind.outputs.kind }}
       workflow_started_at: ${{ steps.workflow_start.outputs.started_at }}
     steps:
@@ -116,10 +115,18 @@ jobs:
       - name: 记录 bootstrap 耗时起点
         run: echo "RELEASE_BOOTSTRAP_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PNPM_CONFIG_STORE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
       - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
         with:
-          cache: true
+          cache: false
           require-lockfile: true
+
+      - name: 记录 bootstrap 耗时
+        run: node scripts/ci/timing.mjs record --label "Bootstrap" --start-ms "$RELEASE_BOOTSTRAP_START_MS"
 
       - name: 冻结 previous Production identity
         run: node scripts/ci/timing.mjs "Freeze previous Production identity" -- pnpm release:freeze-identity
@@ -160,23 +167,26 @@ jobs:
             echo "kind=none" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 记录 bootstrap 耗时
-        run: node scripts/ci/timing.mjs record --label "Bootstrap" --start-ms "$RELEASE_BOOTSTRAP_START_MS"
+      - name: 准备 frozen operator 的 CI 校验入口
+        env:
+          RELEASE_OPERATOR_SHA: ${{ steps.release_identity.outputs.release_operator_sha }}
+        run: git show "$RELEASE_OPERATOR_SHA:scripts/release/ci-prerequisite.ts" > "$RUNNER_TEMP/release-ci-prerequisite.mts"
 
       - name: 验证 exact-SHA CI prerequisite
+        id: candidate_ci
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node scripts/ci/timing.mjs "Wait exact-SHA CI prerequisite" -- pnpm release:ci-prerequisite
+        run: node scripts/ci/timing.mjs "Wait exact-SHA CI prerequisite" --timeout-ms 930000 -- pnpm exec tsx "$RUNNER_TEMP/release-ci-prerequisite.mts"
 
       - name: 验证 release operator exact-SHA CI prerequisite
-        if: github.event_name == 'workflow_dispatch'
+        if: steps.release_identity.outputs.release_operator_sha != steps.release_identity.outputs.release_sha
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           RELEASE_SHA: ${{ steps.release_identity.outputs.release_operator_sha }}
           RELEASE_TAG: ${{ steps.release_identity.outputs.release_tag }}
-        run: node scripts/ci/timing.mjs "Wait release operator exact-SHA CI prerequisite" -- pnpm release:ci-prerequisite
+        run: node scripts/ci/timing.mjs "Wait release operator exact-SHA CI prerequisite" --timeout-ms 930000 -- pnpm exec tsx "$RUNNER_TEMP/release-ci-prerequisite.mts"
 
       - name: Write timing summary
         if: always()
@@ -186,6 +196,7 @@ jobs:
     if: needs.preflight.result == 'success' && needs.preflight.outputs.release_mode == 'fresh' && needs.preflight.outputs.requires_migration_rehearsal == 'true'
     needs: preflight
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:17
@@ -213,13 +224,18 @@ jobs:
           ref: ${{ needs.preflight.outputs.release_tag }}
           fetch-depth: 0
 
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PNPM_CONFIG_STORE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
       - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
         with:
-          cache: true
+          cache: false
           require-lockfile: true
 
       - name: 回放 PG17 active migration chain
-        run: node scripts/ci/timing.mjs "PG17 migration rehearsal" -- pnpm db:release-rehearsal
+        run: node scripts/ci/timing.mjs "PG17 migration rehearsal" --timeout-ms 600000 -- pnpm db:release-rehearsal
 
       - name: Write timing summary
         if: always()
@@ -229,6 +245,7 @@ jobs:
     if: needs.preflight.result == 'success' && needs.preflight.outputs.release_mode == 'fresh' && needs.preflight.outputs.checkpoint_kind != 'none'
     needs: preflight
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     environment: production
     permissions:
       contents: read
@@ -249,9 +266,14 @@ jobs:
           ref: ${{ needs.preflight.outputs.release_tag }}
           fetch-depth: 0
 
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PNPM_CONFIG_STORE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
       - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
         with:
-          cache: true
+          cache: false
           require-lockfile: true
 
       - name: 安装 age
@@ -271,7 +293,7 @@ jobs:
           RIVALHUB_R2_BUCKET: ${{ vars.RIVALHUB_R2_BUCKET }}
           RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}
           RIVALHUB_R2_SECRET_ACCESS_KEY: ${{ secrets.RIVALHUB_R2_SECRET_ACCESS_KEY }}
-        run: node scripts/ci/timing.mjs "DB-only release checkpoint" -- pnpm db:recovery:checkpoint
+        run: node scripts/ci/timing.mjs "DB-only release checkpoint" --timeout-ms 2400000 -- pnpm db:recovery:checkpoint
 
       - name: 创建 full release checkpoint
         if: env.CHECKPOINT_KIND == 'full'
@@ -285,7 +307,7 @@ jobs:
           RIVALHUB_R2_BUCKET: ${{ vars.RIVALHUB_R2_BUCKET }}
           RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}
           RIVALHUB_R2_SECRET_ACCESS_KEY: ${{ secrets.RIVALHUB_R2_SECRET_ACCESS_KEY }}
-        run: node scripts/ci/timing.mjs "Full release checkpoint" -- pnpm db:recovery:backup pre-release
+        run: node scripts/ci/timing.mjs "Full release checkpoint" --timeout-ms 2400000 -- pnpm db:recovery:backup pre-release
 
       - name: Write timing summary
         if: always()
@@ -295,6 +317,7 @@ jobs:
     if: needs.preflight.result == 'success' && needs.preflight.outputs.release_mode == 'fresh'
     needs: preflight
     runs-on: ubuntu-24.04
+    timeout-minutes: 18
     environment: production
     permissions:
       actions: read
@@ -313,9 +336,14 @@ jobs:
           ref: ${{ needs.preflight.outputs.release_operator_sha }}
           fetch-depth: 0
 
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PNPM_CONFIG_STORE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
       - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
         with:
-          cache: true
+          cache: false
           require-lockfile: true
 
       - name: Verify Linux deployment credential presence
@@ -328,22 +356,20 @@ jobs:
 
       - name: Prepare immutable Linux application checkout
         run: |
-          git worktree add --detach "$RUNNER_TEMP/rivalhub-production-source" "$RELEASE_SHA"
-          cd "$RUNNER_TEMP/rivalhub-production-source"
-          pnpm install --frozen-lockfile
+          SOURCE="$GITHUB_WORKSPACE"
+          if [[ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]]; then
+            SOURCE="$RUNNER_TEMP/rivalhub-production-source"
+            git worktree add --detach "$SOURCE" "$RELEASE_SHA"
+            (cd "$SOURCE" && pnpm install --frozen-lockfile)
+          fi
+          echo "RIVALHUB_CANDIDATE_SOURCE=$SOURCE" >> "$GITHUB_ENV"
 
-      - name: Build Linux production package and verify recovery
+      - name: Build Linux production package
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          RIVALHUB_RELEASE_CI_RUN_ID: ${{ needs.preflight.outputs.ci_run_id }}
+          RIVALHUB_RELEASE_CI_HEAD_SHA: ${{ needs.preflight.outputs.ci_head_sha }}
           RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION: ${{ vars.RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION }}
-        run: |
-          env -u GITHUB_TOKEN -u RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION pnpm exec tsx --test scripts/standby/install-production.test.mjs scripts/standby/production-traffic-status.test.mjs &
-          recovery_pid=$!
-          build_status=0
-          node scripts/ci/timing.mjs "Linux production build" -- pnpm exec tsx scripts/standby/build-production.mjs "$RUNNER_TEMP/rivalhub-production-source" --layers || build_status=$?
-          recovery_status=0
-          wait "$recovery_pid" || recovery_status=$?
-          if (( build_status != 0 || recovery_status != 0 )); then exit 1; fi
+        run: node scripts/ci/timing.mjs "Linux production build" --timeout-ms 720000 -- pnpm exec tsx scripts/standby/build-production.mjs "$RIVALHUB_CANDIDATE_SOURCE" --layers
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
         with:
@@ -367,6 +393,7 @@ jobs:
       needs.preflight.outputs.requires_production_migration == 'true'
     needs: [preflight, candidate_build, migration_rehearsal, checkpoint]
     runs-on: ubuntu-24.04
+    timeout-minutes: 155
     environment: production
     concurrency:
       group: rivalhub-production-state-serialization
@@ -433,9 +460,14 @@ jobs:
             exit 1
           fi
 
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PNPM_CONFIG_STORE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
       - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
         with:
-          cache: true
+          cache: false
           require-lockfile: true
 
       - name: 运行 production migration 与验证
@@ -448,19 +480,17 @@ jobs:
             exit 1
           fi
           if [[ "${{ needs.preflight.outputs.requires_migration_rehearsal }}" == "true" ]]; then
-            node scripts/ci/timing.mjs "Production migration" -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
+            node scripts/ci/timing.mjs "Production migration" --timeout-ms 1800000 -- env RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
+          else
+            node scripts/ci/timing.mjs "Production DB verify" --timeout-ms 600000 -- pnpm db:production:verify
           fi
-          node scripts/ci/timing.mjs "Production DB verify" -- pnpm db:production:verify
 
       - name: 安全补齐 production 历史最高达成赛季
         if: needs.preflight.outputs.requires_competitive_profile_repair == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RIVALHUB_ALLOW_REMOTE_DB_WRITE: production
-        run: |
-          node scripts/ci/timing.mjs "Competitive profile repair dry-run" -- pnpm exec tsx scripts/db/production-competitive-profile-repair.ts
-          node scripts/ci/timing.mjs "Competitive profile repair apply" -- pnpm exec tsx scripts/db/production-competitive-profile-repair.ts --apply
-          node scripts/ci/timing.mjs "Competitive profile repair verify" -- pnpm exec tsx scripts/db/production-competitive-profile-repair.ts --verify
+        run: node scripts/ci/timing.mjs "Competitive profile repair" --timeout-ms 900000 -- pnpm exec tsx scripts/db/production-competitive-profile-repair.ts --apply
 
       - name: 回填 production Steam profile cache
         if: needs.preflight.outputs.requires_steam_profile_backfill == 'true'
@@ -475,13 +505,13 @@ jobs:
             echo "GitHub production Environment secret STEAM_API_KEY 未设置；拒绝在 app switch 前继续。" >&2
             exit 1
           fi
-          node scripts/ci/timing.mjs "Production Steam profile backfill" -- pnpm db:production:steam-profile:backfill --apply
+          node scripts/ci/timing.mjs "Production Steam profile backfill" --timeout-ms 1800000 -- pnpm db:production:steam-profile:backfill --apply
 
       - name: 验证 production Steam profile coverage
         if: needs.preflight.outputs.requires_steam_profile_backfill == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: node scripts/ci/timing.mjs "Production Steam profile coverage" -- pnpm db:production:steam-profile:coverage
+        run: node scripts/ci/timing.mjs "Production Steam profile coverage" --timeout-ms 600000 -- pnpm db:production:steam-profile:coverage
 
       - name: 回填 production 每图统计投影
         if: needs.preflight.outputs.requires_stats_projection_backfill == 'true'
@@ -489,13 +519,13 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RIVALHUB_ALLOW_REMOTE_DB_WRITE: production
           RIVALHUB_STATS_PROJECTION_WRITE_CONFIRM: I_UNDERSTAND_STATS_PROJECTION_WRITE
-        run: node scripts/ci/timing.mjs "Production statistics projection backfill" -- pnpm db:production:stats-projections:backfill --apply
+        run: node scripts/ci/timing.mjs "Production statistics projection backfill" --timeout-ms 2700000 -- pnpm db:production:stats-projections:backfill --apply
 
       - name: 验证 production 统计投影覆盖
         if: needs.preflight.outputs.requires_stats_projection_backfill == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: node scripts/ci/timing.mjs "Production statistics projection coverage" -- pnpm db:production:stats-projections:coverage
+        run: node scripts/ci/timing.mjs "Production statistics projection coverage" --timeout-ms 600000 -- pnpm db:production:stats-projections:coverage
 
       - name: Write timing summary
         if: always()
@@ -511,6 +541,7 @@ jobs:
       (needs.production_migration.result == 'success' || needs.production_migration.result == 'skipped')
     needs: [preflight, candidate_build, migration_rehearsal, checkpoint, production_migration]
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     environment: production
     concurrency:
       group: ${{ needs.preflight.outputs.requires_scheduler_provision == 'true' && 'rivalhub-production-state-serialization' || format('rivalhub-release-post-promotion-{0}', github.run_id) }}
@@ -543,9 +574,14 @@ jobs:
           ref: ${{ needs.preflight.outputs.release_operator_sha }}
           fetch-depth: 0
 
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PNPM_CONFIG_STORE_DIR }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
       - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
         with:
-          cache: true
+          cache: false
           require-lockfile: true
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -572,7 +608,7 @@ jobs:
       - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
         if: needs.preflight.outputs.release_operator_sha != needs.preflight.outputs.release_sha
         with:
-          cache: true
+          cache: false
           require-lockfile: true
 
       - name: 配置并验证 production scheduler
@@ -586,7 +622,7 @@ jobs:
             exit 1
           fi
           export RIVALHUB_SCHEDULER_BASE_URL="$(node --input-type=module -e 'import { OFFICIAL_PRODUCTION } from "./src/lib/runtime/official-deployment-profile.mjs"; process.stdout.write(OFFICIAL_PRODUCTION.origin)')"
-          node scripts/ci/timing.mjs "Production scheduler provision/verify" -- bash -c '
+          node scripts/ci/timing.mjs "Production scheduler provision/verify" --timeout-ms 600000 -- bash -c '
             set -euo pipefail
             RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision
             pnpm db:production:scheduler:verify
@@ -607,8 +643,8 @@ jobs:
             RELEASE_FLAGS=(--prerelease=false --latest)
           fi
 
-          if gh release view "$RELEASE_TAG" &>/dev/null; then
-            if [[ "$(gh release view "$RELEASE_TAG" --json isImmutable --jq .isImmutable)" == "true" ]]; then
+          if immutable="$(gh release view "$RELEASE_TAG" --json isImmutable --jq .isImmutable)"; then
+            if [[ "$immutable" == "true" ]]; then
               echo "GitHub Release $RELEASE_TAG 已 immutable；保留已发布 metadata。"
             else
               echo "GitHub Release $RELEASE_TAG 已存在，更新 notes…"

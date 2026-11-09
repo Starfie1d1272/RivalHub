@@ -146,7 +146,7 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm verify:services
 
 `execution-budget.mjs` 只读取当前 `run_id` / `run_attempt` 的分页 job/step 计时。每个 job 累计真实执行的 step 区间（重叠部分仅算一次），不把 job `started_at` 到第一条 step 之间的 runner 排队或 step 间调度空档当作执行。CI 图按 `max(plan + max(static, postgres, system), dependency-review) + gate` 计算实际关键路径；matrix 各片取最长执行耗时，保留并行语义。gate 的本地计时在计时 API 请求前冻结，截止到核验步骤开始，不包含该次 GitHub API 等待及核验后的报告/runner post-cleanup。
 
-`timing.mjs` 直接执行验证命令并记录本地耗时，不依赖 GitHub job/step 元数据才能启动。GitHub Actions 中没有显式截止的命令默认使用 180 秒上限；显式超时和 job 平台超时仍生效。最终 gate 另行核验执行预算，远端计时不可用时不得声称速度达标。
+`timing.mjs` 直接执行验证命令并记录本地耗时，不依赖 GitHub job/step 元数据才能启动。CI workflow 显式传入 180 秒命令上限；其他 workflow 按各自的命令或 job deadline 运行。最终 gate 另行核验执行预算，远端计时不可用时不得声称速度达标。
 
 wrapper 同时等待 leader 和 stdio 关闭，因此 leader 退出 0、测试打印通过但 detached 后代持有 stdout 时仍受截止约束。每次顶层命令生成独立环境 token，嵌套 timing 命令继承同一 owner；只扫描并终止该 token 的进程与原进程组，不按进程名或端口清理。截止或取消先写失败证据，再 TERM，最多 2 秒后 KILL 并关闭残留管道；超时返回 124，取消与清理错误也保留非零结果。Linux runner 通过 `/proc` 查归属，macOS 本地通过 `ps`；进程环境只在内存中匹配，不写入日志。
 
