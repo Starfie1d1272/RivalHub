@@ -3,7 +3,7 @@ import "server-only";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { and, asc, count, eq, isNotNull, lt, sql } from "drizzle-orm";
-import { db, type DB } from "@/db/client";
+import { db, type DB, type TxDb } from "@/db/client";
 import {
   seasons,
   competitionEntries,
@@ -19,15 +19,13 @@ import {
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { logEvent } from "@/lib/observability/server";
 import { DRAFT_ROUND_TIMEOUT_SECONDS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
-import type { DraftTurnInput } from "@/lib/validators/draft";
+import type { DraftTurnInput, PickPlayerInput, SkipDraftTurnInput } from "@/lib/validators/draft";
 import { canPickPosition, getNextEntryId, isStarterRound } from "@/lib/draft/rules";
 import {
   createAutoPickRequestId,
   selectAutoPickCandidate,
   type AutoPickCandidate,
 } from "@/lib/draft/auto-pick";
-
-type DraftTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 interface DraftPickCoreInput {
   seasonId: string;
@@ -99,10 +97,77 @@ export async function runDraftTimeoutCron(
   return { processed: timedOutStates.length, picked, skipped };
 }
 
-export async function executeDraftPick(
-  tx: DraftTransaction,
-  input: DraftPickCoreInput,
-): Promise<DraftPickCoreResult> {
+export function executeCaptainDraftPick(input: PickPlayerInput & { captainUserId: string }) {
+  return db.transaction((tx) =>
+    executeDraftPick(tx, {
+      ...input,
+      entryId: input.expectedTurn.entryId,
+      autoPicked: false,
+      deadlinePolicy: "before-deadline",
+    }),
+  );
+}
+
+export async function executeDraftSkip({
+  seasonId,
+  expectedTurn,
+  actorId,
+  actorEmail,
+}: SkipDraftTurnInput & { actorId: string; actorEmail: string }) {
+  return db.transaction(async (tx) => {
+    const season = await tx.query.seasons.findFirst({
+      where: eq(seasons.id, seasonId),
+    });
+    if (!season) {
+      throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+    }
+    if (!season.hasDraft || season.status !== "drafting") {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事当前无法跳过选秀轮次。");
+    }
+
+    const ds = await lockDraftState(tx, seasonId);
+    if (!ds?.isActive || !ds.currentEntryId) {
+      throw new AppError(ErrorCode.DRAFT_NOT_ACTIVE, ERROR_MESSAGES.DRAFT_NOT_ACTIVE);
+    }
+    assertCurrentDraftTurn(ds, expectedTurn);
+    const now = new Date();
+    if (!ds.roundDeadline || ds.roundDeadline > now) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "当前轮次尚未超时。");
+    }
+    if (await findDraftAutoPickCandidate(tx, seasonId, ds.currentEntryId)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "本轮仍有符合条件的选手，请等待自动选人。");
+    }
+
+    const next = await advanceDraftTurn(tx, ds, ds.currentEntryId, now, actorId);
+    await writeAuditInTx(tx, {
+      seasonId,
+      action: "draft.skip_turn",
+      actorId,
+      targetId: ds.id,
+      meta: {
+        skippedEntryId: ds.currentEntryId,
+        round: ds.currentRound,
+        ...(next
+          ? { nextEntryId: next.entryId, nextRound: next.nextRound }
+          : { draftCompleted: true }),
+        actorEmail,
+      },
+    });
+
+    return { slug: season.slug, completed: next === null };
+  });
+}
+
+async function lockDraftState(tx: TxDb, seasonId: string) {
+  const [state] = await tx
+    .select()
+    .from(draftState)
+    .where(eq(draftState.seasonId, seasonId))
+    .for("update");
+  return state;
+}
+
+async function executeDraftPick(tx: TxDb, input: DraftPickCoreInput): Promise<DraftPickCoreResult> {
   const season =
     input.prefetchedSeason ??
     (await tx.query.seasons.findFirst({ where: eq(seasons.id, input.seasonId) }));
@@ -119,15 +184,7 @@ export async function executeDraftPick(
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事阶段无法选人。");
   }
 
-  const ds =
-    input.prefetchedDs ??
-    (
-      await tx
-        .select()
-        .from(draftState)
-        .where(eq(draftState.seasonId, input.seasonId))
-        .for("update")
-    )[0];
+  const ds = input.prefetchedDs ?? (await lockDraftState(tx, input.seasonId));
   if (!ds) {
     throw new AppError(ErrorCode.DRAFT_NOT_ACTIVE, ERROR_MESSAGES.DRAFT_NOT_ACTIVE);
   }
@@ -312,6 +369,23 @@ export async function executeDraftPick(
     },
   });
 
+  const next = await advanceDraftTurn(
+    tx,
+    ds,
+    input.entryId,
+    now,
+    input.captainUserId ?? "system:draft",
+  );
+  return { pickId: pick.id, slug: season.slug, idempotent: false, completed: next === null };
+}
+
+async function advanceDraftTurn(
+  tx: TxDb,
+  state: typeof draftState.$inferSelect,
+  entryId: string,
+  now: Date,
+  actorId: string,
+) {
   const seasonTeams = await tx
     .select({
       id: competitionEntries.id,
@@ -320,22 +394,22 @@ export async function executeDraftPick(
     .from(competitionEntries)
     .where(
       and(
-        eq(competitionEntries.competitionId, input.seasonId),
+        eq(competitionEntries.competitionId, state.seasonId),
         isNotNull(competitionEntries.formationOrder),
       ),
     )
     .orderBy(asc(competitionEntries.formationOrder));
-  const next = getNextEntryId(seasonTeams, input.entryId, ds.currentRound);
+  const next = getNextEntryId(seasonTeams, entryId, state.currentRound);
 
   if (!next) {
     await finalizeDraft(tx, {
-      seasonId: input.seasonId,
-      draftStateId: ds.id,
+      seasonId: state.seasonId,
+      draftStateId: state.id,
       now,
-      actorId: input.captainUserId ?? "system:draft",
+      actorId,
     });
 
-    return { pickId: pick.id, slug: season.slug, idempotent: false, completed: true };
+    return null;
   }
 
   const deadline = new Date(now.getTime() + DRAFT_ROUND_TIMEOUT_SECONDS * 1000);
@@ -348,13 +422,13 @@ export async function executeDraftPick(
       isActive: true,
       updatedAt: now,
     })
-    .where(eq(draftState.id, ds.id));
+    .where(eq(draftState.id, state.id));
 
-  return { pickId: pick.id, slug: season.slug, idempotent: false, completed: false };
+  return next;
 }
 
-export async function finalizeDraft(
-  tx: DraftTransaction,
+async function finalizeDraft(
+  tx: TxDb,
   input: { seasonId: string; draftStateId: string; now: Date; actorId: string },
 ): Promise<void> {
   await tx
@@ -412,11 +486,7 @@ async function runAutoPickForSeason(
       throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
     }
 
-    const [ds] = await tx
-      .select()
-      .from(draftState)
-      .where(eq(draftState.seasonId, seasonId))
-      .for("update");
+    const ds = await lockDraftState(tx, seasonId);
 
     if (!ds?.isActive || !ds.currentEntryId) {
       return { picked: false, seasonId, slug: season.slug, reason: "draft_not_active" };
@@ -457,7 +527,7 @@ async function runAutoPickForSeason(
   });
 }
 
-export function assertCurrentDraftTurn(
+function assertCurrentDraftTurn(
   state: Pick<typeof draftState.$inferSelect, "currentEntryId" | "currentRound" | "roundDeadline">,
   expected: DraftTurnInput,
 ) {
