@@ -221,7 +221,7 @@ final result confirmation│
 honor grant/revoke ─────┘
 ```
 
-任何处罚或撤销都不隐式递补、改比分或改荣誉。Major final result 先进入待确认状态，确认后才成为长期可引用事实；归档不会把历史 snapshot 重新解释为当前 profile。
+赛事管理员从当前搜索结果选择处罚对象，核对对象、处罚效果、有效期和公开说明后签发。处罚从签发时生效，未填写结束时间时长期有效。任何处罚或撤销都不隐式递补、改比分或改荣誉。Major final result 先进入待确认状态，确认后才成为长期可引用事实；归档不会把历史 snapshot 重新解释为当前 profile。
 
 ## Community awards
 
