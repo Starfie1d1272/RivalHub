@@ -199,7 +199,7 @@ export async function confirmSecondaryEmailIdentity(input: {
 
 export async function revokeSecondaryEmailIdentity(
   identityId: string,
-): Promise<ActionResult<void>> {
+): Promise<ActionResult<{ localExitCompleted: boolean }>> {
   const parsed = uuidSchema.safeParse(identityId);
   if (!parsed.success)
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "credential id 无效。" });
@@ -208,12 +208,17 @@ export async function revokeSecondaryEmailIdentity(
     await db.transaction((tx) =>
       revokeSecondaryEmailIdentityInTx(tx, { userId: session.userId, identityId: parsed.data }),
     );
+  } catch (error) {
+    return actionError("revokeSecondaryEmailIdentity", error);
+  }
+  try {
     await destroyUserSession();
     revalidatePath("/settings/security");
     revalidatePath("/settings/education");
-    return ok(undefined);
+    return ok({ localExitCompleted: true });
   } catch (error) {
-    return actionError("revokeSecondaryEmailIdentity", error);
+    actionError("revokeSecondaryEmailIdentity", error, "after_commit");
+    return ok({ localExitCompleted: false });
   }
 }
 

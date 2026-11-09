@@ -61,6 +61,8 @@ Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身�
 | 管理员强制退出 | 经 `revokeUserSessions`、`requireSuperAdmin` 与 audit 撤销目标的全部应用会话 |
 | 修改角色、赛季授权、领取邀请码 | 后续请求读取最新权限，不补发登录会话 |
 
+撤销备用邮箱前，确认窗口展示所选邮箱及该账号的全设备退出影响。旧应用会话在下一次服务端校验时失效。事务已完成但当前页面尚未退出时，界面提示用保留的邮箱重新登录。撤销结果尚未确认时，先核对绑定状态再继续。
+
 `src/lib/auth/session-registry.ts` 是唯一注册/校验/撤销 owner。颁发与撤销按 user row lock 串行；provider 验证前从数据库获取 authentication start timestamp，注册时与持久化撤销边界比较，避免旧登录请求在撤销后补发会话。时间比较留在 PostgreSQL，不将微秒精度降为 JavaScript Date 毫秒。注册时按用户清理过期记录，退出和全撤销直接删除对应记录。`user_sessions` 仅是在线心跳表，不承担认证。
 
 密码更新先提交全撤销与 durable issuance block，再调用 Auth，最后重新推进撤销边界并解除 block。明确的 provider 拒绝不会报告成功，旧登录仍保持撤销；网络异常、5xx、数据库最终提交失败或进程中断时保留 block，避免跨系统未知结果下继续颁发会话。找回页只在本次回跳包含恢复上下文及 provider access token 时核验，将两者保存在当前页内存并清除地址栏中的凭据。录入前及提交时，服务端解封用途隔离的恢复上下文，经 Supabase `getUser(token)` 核对邮箱、有效 credential 归属及当前应用账号，使用邮件签发时间校验撤销边界。密码更新推进该边界，旧恢复上下文无法再次授权写入。
