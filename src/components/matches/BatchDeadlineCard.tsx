@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { batchSetCompletionDeadline as telemetry_batchSetCompletionDeadline } from "@/actions/matches";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,9 @@ interface BatchDeadlineCardProps {
 }
 
 export function BatchDeadlineCard({ seasonId, groups }: BatchDeadlineCardProps) {
+  const id = useId();
   const [deadlines, setDeadlines] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
 
   if (groups.length === 0) return null;
@@ -40,57 +42,85 @@ export function BatchDeadlineCard({ seasonId, groups }: BatchDeadlineCardProps) 
 
   function handleSubmit(group: RoundGroup) {
     const key = getGroupKey(group);
-    const value = deadlines[key];
-    if (!value) return;
-    const deadline = parseCSTInput(value);
-    if (!deadline) return;
+    const deadline = parseCSTInput(deadlines[key] ?? null);
+    if (!deadline) {
+      setErrors((previous) => ({ ...previous, [key]: "请输入有效的北京时间。" }));
+      return;
+    }
 
+    setErrors((previous) => ({ ...previous, [key]: "" }));
     startTransition(async () => {
-      const result = await batchSetCompletionDeadline({
-        seasonId,
-        stage: group.stage,
-        round: group.round,
-        entryRound: group.entryRound,
-        completionDeadline: deadline,
-      });
-      if (result.success) {
-        toast.success(`已为 ${result.data.updated} 场比赛设置截止时间`);
-      } else {
-        toast.error(result.error.message ?? "设置失败");
+      try {
+        const result = await batchSetCompletionDeadline({
+          seasonId,
+          stage: group.stage,
+          round: group.round,
+          entryRound: group.entryRound,
+          completionDeadline: deadline,
+        });
+        if (result.success) {
+          toast.success(`已为 ${result.data.updated} 场比赛设置截止时间`);
+        } else {
+          setErrors((previous) => ({ ...previous, [key]: result.error.message }));
+        }
+      } catch {
+        setErrors((previous) => ({ ...previous, [key]: "未能确认设置结果，请刷新赛程后核对。" }));
       }
     });
   }
 
   return (
     <Panel contentClassName="space-y-4 p-4">
-      <h3 className="text-sm font-semibold text-[var(--color-fg)]">批量设置截止时间</h3>
+      <h2 className="text-sm font-semibold text-[var(--color-fg)]">批量设置最晚完成时间</h2>
       <p className="text-xs text-[var(--color-fg-mid)]">
-        按阶段/轮次统一设置最晚完成时间，仅影响 scheduled / in_progress 状态的比赛
+        按阶段和轮次设置，适用于待进行和进行中的比赛。
       </p>
       <div className="space-y-3">
-        {groups.map((group) => {
+        {groups.map((group, index) => {
           const key = getGroupKey(group);
+          const inputId = `${id}-${index}`;
+          const error = errors[key];
           return (
-            <div key={key} className="flex items-end gap-3 flex-wrap">
-              <div className="flex-1 min-w-[140px]">
-                <Label className="text-xs">
-                  {group.label}
-                  <span className="ml-1 text-[var(--color-fg-dim)]">({group.matchCount} 场)</span>
-                </Label>
-                <Input
-                  type="datetime-local"
-                  value={deadlines[key] ?? ""}
-                  onChange={(e) => setDeadlines((prev) => ({ ...prev, [key]: e.target.value }))}
-                  className="mt-1"
-                />
+            <div key={key} className="space-y-2">
+              <div className="flex items-end gap-3 flex-wrap">
+                <div className="flex-1 min-w-[140px]">
+                  <Label htmlFor={inputId} className="text-xs">
+                    {group.label} · 最晚完成时间（北京时间）
+                    <span className="ml-1 text-[var(--color-fg-dim)]">({group.matchCount} 场)</span>
+                  </Label>
+                  <Input
+                    id={inputId}
+                    type="datetime-local"
+                    value={deadlines[key] ?? ""}
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? `${inputId}-error` : undefined}
+                    onChange={(event) => {
+                      setDeadlines((previous) => ({ ...previous, [key]: event.target.value }));
+                      setErrors((previous) => ({ ...previous, [key]: "" }));
+                    }}
+                    className="mt-1 max-w-full"
+                    disabled={isPending}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  aria-label={`为${group.label}应用最晚完成时间`}
+                  onClick={() => handleSubmit(group)}
+                  disabled={isPending || !deadlines[key]}
+                >
+                  应用本组
+                </Button>
               </div>
-              <Button
-                size="sm"
-                onClick={() => handleSubmit(group)}
-                disabled={isPending || !deadlines[key]}
-              >
-                应用
-              </Button>
+              {error && (
+                <p
+                  id={`${inputId}-error`}
+                  role="alert"
+                  className="text-sm text-[var(--color-danger)]"
+                >
+                  {error}
+                </p>
+              )}
             </div>
           );
         })}

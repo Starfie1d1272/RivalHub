@@ -3,7 +3,7 @@ import { resolveMatchReturnContext } from "@/lib/admin/matches/return-context";
 import { selectSeasonWorkspaceNextAction } from "@/lib/admin/season-workspace/selectors";
 import { getSeasonAdminNavigation } from "@/lib/admin/navigation";
 
-const summary = { pendingApplications: 2, approvedEntries: 4, formedTeamCount: 4, entrantCount: 4, frozenEntrantCount: 0, matchCount: 8, scheduledMatchesWithoutConfirmedLineups: 0, finalResultPendingConfirmation: false, activeAdjudications: 0 };
+const summary = { pendingApplications: 2, approvedEntries: 4, formedTeamCount: 4, entrantCount: 4, frozenEntrantCount: 0, matchCount: 8, lineupReview: { total: 0, onlyMatchId: null }, finalResultPendingConfirmation: false, activeAdjudications: 0 };
 describe("admin work context", () => {
   it("keeps the planning filters and row anchor when returning from a match", () => {
     const href = "/admin/major/matches?view=schedule&stage=play-in&team=one#match-two";

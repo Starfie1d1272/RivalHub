@@ -4,6 +4,12 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import {
+  matchWorkbenchHref,
+  parseMatchWorkbenchTask,
+  resolveMatchReturnContext,
+} from "@/lib/admin/matches/return-context";
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -140,6 +146,7 @@ function formatRemaining(milliseconds: number): string {
 }
 
 export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
+  const search = useSearchParams();
   const {
     begin: beginTask,
     complete: completeTask,
@@ -520,6 +527,12 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const controlsPending = pending || uncertainRevision !== null;
   const turn = room.session;
   const match = room.match;
+  const returnTo = search?.get("returnTo");
+  const verifiedReturnTo =
+    returnTo && resolveMatchReturnContext(room.seasonSlug, returnTo, false).href === returnTo
+      ? returnTo
+      : undefined;
+  const workbenchTask = verifiedReturnTo ? parseMatchWorkbenchTask(search?.get("task")) : undefined;
   const matchClosed = match.statusKey === "finished" || match.statusKey === "cancelled";
   const currentEntry = room.entries.find((entry) => entry.id === turn.currentTurnEntryId);
   const usedMaps = useMemo(() => new Set(room.steps.map((step) => step.mapName)), [room.steps]);
@@ -585,7 +598,10 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
         <Link
           href={
             room.permissions.isAdmin
-              ? `/admin/${room.seasonSlug}/matches/${match.id}`
+              ? (matchWorkbenchHref(room.seasonSlug, match.id, {
+                  returnTo: verifiedReturnTo,
+                  task: workbenchTask,
+                }) as never)
               : `/${room.seasonSlug}/matches/${match.id}`
           }
           className="text-sm text-[var(--color-accent)] hover:underline"

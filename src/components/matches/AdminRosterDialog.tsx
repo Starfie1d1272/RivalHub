@@ -558,7 +558,7 @@ export function AdminRosterDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          管理名单
+          核对与确认首发
         </Button>
       </DialogTrigger>
       <DialogContent size="lg">

@@ -32,13 +32,16 @@ it("restores the conflict queue and original row after navigating back", () => {
   render(<AdminMatchOperations rows={[row]} seasonSlug="major" stage="play-in" team="alpha" stageNames={{ "play-in": "PLAY-IN" }} />);
   expect(screen.getByRole("button", { name: "同刻撞档 1" })).toHaveAttribute("aria-pressed", "true");
   const href = screen.getByRole("link", { name: "进入比赛工作台" }).getAttribute("href")!;
-  expect(new URL(href, "https://example.test").searchParams.get("returnTo")).toBe("/admin/major/matches?stage=play-in&team=alpha&ops=conflict#operation-match-one");
+  const target = new URL(href, "https://example.test");
+  expect(target.searchParams.get("returnTo")).toBe("/admin/major/matches?stage=play-in&team=alpha&ops=conflict#operation-match-one");
+  expect(target.searchParams.get("task")).toBe("scheduling");
+  expect(target.hash).toBe("#match-scheduling");
   expect(document.getElementById("operation-match-one")).toBeInTheDocument();
 });
 
 const data: SeasonWorkspaceOverviewData = {
   season: { id: "event", slug: "custom", name: "Custom", status: "registration", competitionTemplate: "custom", registrationMode: "team", registrationOpenedAt: null, registrationOpensAt: null, registrationClosesAt: null, rosterChangeClosesAt: null, endAt: null },
-  summary: { pendingApplications: 0, approvedEntries: 4, formedTeamCount: 4, entrantCount: 0, frozenEntrantCount: 0, matchCount: 0, scheduledMatchesWithoutConfirmedLineups: 0, finalResultPendingConfirmation: false, activeAdjudications: 0 },
+  summary: { pendingApplications: 0, approvedEntries: 4, formedTeamCount: 4, entrantCount: 0, frozenEntrantCount: 0, matchCount: 0, lineupReview: { total: 0, onlyMatchId: null }, finalResultPendingConfirmation: false, activeAdjudications: 0 },
   registrationFunnel: null, readiness: null, prestartPhase: null,
   nextAction: { label: "进入开赛筹备", detail: "", href: "/admin/custom/prestart" },
 };

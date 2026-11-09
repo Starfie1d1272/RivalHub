@@ -1,11 +1,12 @@
 import React from "react";
 import Link from "next/link";
 import type { CompetitionTemplate } from "@/lib/competition/templates";
+import { matchLineupReviewHref } from "@/lib/admin/matches/return-context";
 
 export interface AdminExceptionSummaryData {
   competitionTemplate: CompetitionTemplate;
   unconfirmedEntrants: number;
-  scheduledMatchesWithoutConfirmedLineups: number;
+  lineupReview: { total: number; onlyMatchId: string | null };
   finalResultPendingConfirmation: boolean;
   activeAdjudications: number;
 }
@@ -28,9 +29,9 @@ export function AdminExceptionSummary({
         ]
       : []),
     {
-      label: "已排期但名单未确认",
-      value: data.scheduledMatchesWithoutConfirmedLineups,
-      href: `/admin/${seasonSlug}/matches`,
+      label: "已排期 · 首发待确认",
+      value: data.lineupReview.total,
+      href: matchLineupReviewHref(seasonSlug, data.lineupReview.onlyMatchId),
     },
     ...(data.competitionTemplate === "major"
       ? [
@@ -44,7 +45,11 @@ export function AdminExceptionSummary({
   ].filter((item) => item.value > 0);
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4" aria-label="当前待处理事项">
+    <section
+      id="workspace-alerts"
+      className="scroll-mt-4 rounded-lg border border-border bg-card p-4"
+      aria-label="当前待处理事项"
+    >
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 className="font-semibold">当前待处理事项</h2>
         <span className="text-xs text-muted-foreground">仅显示需要运营者处理的事项</span>

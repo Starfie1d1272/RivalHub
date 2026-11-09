@@ -20,13 +20,62 @@ const auth = vi.hoisted(() => ({ userId: "" }));
 vi.mock("@/lib/auth/session", () => ({
   requireAuth: async () => ({ userId: auth.userId }),
   getUserSession: async () => ({ userId: auth.userId }),
-  requireSeasonAdmin: async () => ({ userId: auth.userId }),
+  requireSeasonAdmin: async () => ({ userId: auth.userId, email: "operator@example.test" }),
+  auditActorId: ({ userId }: { userId: string }) => userId,
 }));
 vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn() }));
 import { proposeMatchTime, respondToTimeProposal } from "@/actions/matches/scheduling";
+import { updateMatchCompletionDeadline, updateMatchCompletedAt } from "@/actions/matches/results";
 import { getSeasonPersonalNextStep } from "@/lib/seasons/public-next-step";
 
 const hour = 3_600_000;
+
+it("checks a deadline against the newly committed schedule and rejects edits in the wrong phase", async () => {
+  const fixture = await seedFixture({ matchStatus: "scheduled" });
+  const pool = createLocalPool();
+  const writer = await pool.connect();
+  auth.userId = randomUUID();
+  const now = Date.now();
+  const oldSchedule = new Date(now + 2 * hour);
+  const newSchedule = new Date(now + 4 * hour);
+  const requestedDeadline = new Date(now + 3 * hour);
+  const validDeadline = new Date(now + 5 * hour);
+  const current = () => db.query.matches.findFirst({ where: eq(schema.matches.id, fixture.matchId) });
+  try {
+    await pool.query("UPDATE matches SET scheduled_at=$2,completion_deadline=NULL WHERE id=$1", [fixture.matchId, oldSchedule]);
+    await writer.query("BEGIN");
+    await writer.query("UPDATE matches SET scheduled_at=$2 WHERE id=$1", [fixture.matchId, newSchedule]);
+    const [{ pid }] = (await writer.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows;
+    const settingDeadline = updateMatchCompletionDeadline(fixture.matchId, requestedDeadline);
+    await expect.poll(async () => {
+      const result = await pool.query("SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))", [pid]);
+      return result.rowCount;
+    }, { timeout: 2000, interval: 10 }).toBe(1);
+    await writer.query("COMMIT");
+    await expect(settingDeadline).resolves.toMatchObject({
+      success: false,
+      error: { code: "VALIDATION_FAILED", message: expect.stringContaining("不能早于") },
+    });
+    expect(await current()).toMatchObject({ scheduledAt: newSchedule, completionDeadline: null });
+
+    await pool.query("UPDATE matches SET status='in_progress' WHERE id=$1", [fixture.matchId]);
+    await expect(updateMatchCompletionDeadline(fixture.matchId, validDeadline)).resolves.toMatchObject({ success: true });
+    await expect(updateMatchCompletedAt(fixture.matchId, "2026-10-01T20:30")).resolves.toMatchObject({ success: false });
+    expect(await current()).toMatchObject({ completionDeadline: validDeadline, completedAt: null });
+    await pool.query("UPDATE matches SET status='finished',score_a=2,score_b=0,completed_at=now() WHERE id=$1", [fixture.matchId]);
+    await expect(updateMatchCompletionDeadline(fixture.matchId, null)).resolves.toMatchObject({
+      success: false, error: { code: "MATCH_INVALID_TRANSITION" },
+    });
+    await expect(updateMatchCompletedAt(fixture.matchId, "invalid")).resolves.toMatchObject({ success: false });
+    expect(await current()).toMatchObject({ completionDeadline: validDeadline, completedAt: expect.any(Date) });
+    await expect(updateMatchCompletedAt(fixture.matchId, "2026-10-01T20:30")).resolves.toMatchObject({ success: true });
+    expect(await current()).toMatchObject({ completedAt: new Date("2026-10-01T12:30:00Z") });
+  } finally {
+    await writer.query("ROLLBACK");
+    writer.release();
+    await pool.end();
+  }
+});
 
 it.each(["match", "coverage"])("rechecks notice and rolls back resources after actually waiting for the %s lock", async (lock) => {
   const fixture = await seedFixture({ matchStatus: "scheduled" });
