@@ -1,9 +1,10 @@
-import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
+import { findAdminSeasonBySlug, resolveAdminSeasonPageAccess } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { registrationDrafts } from "@/db/schema";
 import { PageHeader } from "@/components/rivalhub";
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { RegistrationReviewList } from "@/components/admin/RegistrationReviewList";
 import { DraftRegistrationTable } from "@/components/admin/DraftRegistrationTable";
 import { CompetitionEntryReviewList } from "@/components/admin/CompetitionEntryReviewList";
@@ -25,6 +26,8 @@ interface PageProps {
 
 export default async function AdminRegistrationsPage({ params, searchParams }: PageProps) {
   const { seasonSlug } = await params;
+  if (!(await resolveAdminSeasonPageAccess(seasonSlug))) return <AdminAccessDenied />;
+
   const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) notFound();
 
