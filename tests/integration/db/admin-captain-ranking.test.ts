@@ -21,6 +21,7 @@ it("keeps canonical eight seeds and total", async () => {
     const candidate = await getAdminCaptainRanking(season);
     expect(baseline.voters).toHaveLength(100);
     expect(candidate.candidateCount).toBe(12);
+    expect(candidate.totalVotes).toBe(2);
     expect(candidate.seeds.map(row => row.id)).toEqual(baseline.candidates.slice(0, 8).map(row => row.id));
     expect(candidate.seeds[0]?.id).toBe(registrations[5]);
     expect(candidate.seeds[0]).not.toHaveProperty("peakRank");

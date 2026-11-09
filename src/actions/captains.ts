@@ -3,8 +3,8 @@
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { randomUUID } from "node:crypto";
-import { and, count, eq, inArray } from "drizzle-orm";
-import { db } from "@/db/client";
+import { and, count, eq } from "drizzle-orm";
+import { db, type TxDb } from "@/db/client";
 import {
   captainVotes,
   competitionEntries,
@@ -16,12 +16,10 @@ import {
   eventRosters,
   seasonRegistrations,
   seasons,
-  steamProfiles,
-  users,
 } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { lockGameplayIdentityWriteInTx } from "@/lib/identity/write-lock";
 import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import {
   castVoteSchema,
@@ -31,17 +29,44 @@ import {
   type ConfirmCaptainsInput,
   type RetractVoteInput,
 } from "@/lib/validators/vote";
-import {
-  CAPTAIN_TEAM_COUNT,
-  MIN_VOTES_FOR_CONFIRM,
-  selectCaptainSeeds,
-  validateCaptainVote,
-} from "@/lib/captains/rules";
+import { getCaptainConfirmationBlocker, validateCaptainVote } from "@/lib/captains/rules";
+import { getAdminCaptainRanking, getSeasonTeamCount } from "@/lib/captains/data";
 import { failValidation, actionError, isPgUniqueViolation } from "@/lib/action-utils";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 
 const CAPTAIN_VOTE_UNIQUE_CONSTRAINT =
   "captain_votes_voter_registration_id_candidate_registration_id_unique";
+
+async function loadLockedVoteContext(tx: TxDb, input: CastVoteInput, userId: string) {
+  // Lock the season before the voter. Votes in different rows can proceed
+  // together, while confirmation and registration review hold it exclusively.
+  const [season] = await tx
+    .select({
+      id: seasons.id,
+      status: seasons.status,
+      hasCaptainVoting: seasons.hasCaptainVoting,
+    })
+    .from(seasons)
+    .innerJoin(seasonRegistrations, eq(seasonRegistrations.seasonId, seasons.id))
+    .where(eq(seasonRegistrations.id, input.voterRegistrationId))
+    .for("share", { of: seasons });
+  if (!season) throw new AppError(ErrorCode.NOT_FOUND, "报名记录不存在");
+
+  const [voter] = await tx
+    .select()
+    .from(seasonRegistrations)
+    .where(eq(seasonRegistrations.id, input.voterRegistrationId))
+    .for("no key update");
+  const candidate = await tx.query.seasonRegistrations.findFirst({
+    where: eq(seasonRegistrations.id, input.candidateRegistrationId),
+  });
+  if (!voter || !candidate) throw new AppError(ErrorCode.NOT_FOUND, "报名记录不存在");
+  if (voter.userId !== userId) throw new AppError(ErrorCode.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
+  if (voter.seasonId !== season.id || candidate.seasonId !== season.id) {
+    throw new AppError(ErrorCode.CAPTAIN_NOT_ELIGIBLE, ERROR_MESSAGES.CAPTAIN_NOT_ELIGIBLE);
+  }
+  return { season, voter, candidate };
+}
 
 export async function castVote(input: CastVoteInput): Promise<ActionResult<{ voteId: string }>> {
   const parsed = castVoteSchema.safeParse(input);
@@ -52,29 +77,11 @@ export async function castVote(input: CastVoteInput): Promise<ActionResult<{ vot
   try {
     const session = await requireAuth();
     const voteId = await db.transaction(async (tx) => {
-      // Serialize count + insert per voter; without this row lock, two tabs
-      // can both observe two votes and exceed the three-vote cap.
-      const [voter] = await tx
-        .select()
-        .from(seasonRegistrations)
-        .where(eq(seasonRegistrations.id, parsed.data.voterRegistrationId))
-        .for("update");
-      const candidate = await tx.query.seasonRegistrations.findFirst({
-        where: eq(seasonRegistrations.id, parsed.data.candidateRegistrationId),
-      });
-      if (!voter || !candidate) {
-        throw new AppError(ErrorCode.NOT_FOUND, "报名记录不存在");
-      }
-      if (voter.userId !== session.userId) {
-        throw new AppError(ErrorCode.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
-      }
-
-      const season = await tx.query.seasons.findFirst({
-        where: eq(seasons.id, voter.seasonId),
-      });
-      if (!season) {
-        throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
-      }
+      const { season, voter, candidate } = await loadLockedVoteContext(
+        tx,
+        parsed.data,
+        session.userId,
+      );
 
       const [voteCountRow] = await tx
         .select({ count: count() })
@@ -137,28 +144,11 @@ export async function retractVote(
   try {
     const session = await requireAuth();
     await db.transaction(async (tx) => {
-      const voter = await tx.query.seasonRegistrations.findFirst({
-        where: eq(seasonRegistrations.id, parsed.data.voterRegistrationId),
-      });
-      const candidate = await tx.query.seasonRegistrations.findFirst({
-        where: eq(seasonRegistrations.id, parsed.data.candidateRegistrationId),
-      });
-      if (!voter || !candidate) {
-        throw new AppError(ErrorCode.NOT_FOUND, "报名记录不存在");
-      }
-      if (voter.userId !== session.userId) {
-        throw new AppError(ErrorCode.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
-      }
-      if (voter.seasonId !== candidate.seasonId) {
-        throw new AppError(ErrorCode.CAPTAIN_NOT_ELIGIBLE, ERROR_MESSAGES.CAPTAIN_NOT_ELIGIBLE);
-      }
-
-      const season = await tx.query.seasons.findFirst({
-        where: eq(seasons.id, voter.seasonId),
-      });
-      if (!season) {
-        throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
-      }
+      const { season, voter, candidate } = await loadLockedVoteContext(
+        tx,
+        parsed.data,
+        session.userId,
+      );
       if (!season.hasCaptainVoting || season.status !== "voting") {
         throw new AppError(ErrorCode.VOTING_CLOSED, ERROR_MESSAGES.VOTING_CLOSED);
       }
@@ -199,106 +189,55 @@ export async function confirmCaptains(
   try {
     const admin = await requireSeasonAdmin(parsed.data.seasonId);
     const result = await db.transaction(async (tx) => {
-      const season = await tx.query.seasons.findFirst({
-        where: eq(seasons.id, parsed.data.seasonId),
-      });
+      // Identity merge can update the eligible user and remap their votes.
+      await lockGameplayIdentityWriteInTx(tx);
+      const [season] = await tx
+        .select({
+          id: seasons.id,
+          slug: seasons.slug,
+          status: seasons.status,
+          hasCaptainVoting: seasons.hasCaptainVoting,
+          hasDraft: seasons.hasDraft,
+        })
+        .from(seasons)
+        .where(eq(seasons.id, parsed.data.seasonId))
+        .for("update");
       if (!season) {
         throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       }
-      if (!season.hasCaptainVoting || !season.hasDraft) {
-        throw new AppError(
-          ErrorCode.SEASON_CAPABILITY_DISABLED,
-          ERROR_MESSAGES.SEASON_CAPABILITY_DISABLED,
-        );
-      }
-      if (season.status !== "voting") {
-        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, ERROR_MESSAGES.SEASON_INVALID_STATUS);
-      }
+      const teamCount = await getSeasonTeamCount(season.id, tx);
+      const { seeds, totalVotes, candidateCount } = await getAdminCaptainRanking(season.id, tx);
+      const blocker = getCaptainConfirmationBlocker({
+        season,
+        teamCount,
+        totalVotes,
+        candidateCount,
+      });
+      if (blocker) throw new AppError(blocker.code, blocker.message);
 
-      const [existingEntryCount] = await tx
-        .select({ count: count() })
-        .from(competitionEntries)
-        .where(eq(competitionEntries.competitionId, season.id));
-      if (Number(existingEntryCount?.count ?? 0) > 0) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "该赛事已生成参赛者");
-      }
-
-      // 防止投票尚未开始或参与不足就确认队长
-      const [voteCountRow] = await tx
-        .select({ count: count() })
-        .from(captainVotes)
-        .innerJoin(
-          seasonRegistrations,
-          eq(captainVotes.candidateRegistrationId, seasonRegistrations.id),
-        )
-        .where(eq(seasonRegistrations.seasonId, season.id));
-      const totalVotes = Number(voteCountRow?.count ?? 0);
-      if (totalVotes < MIN_VOTES_FOR_CONFIRM) {
-        throw new AppError(
-          ErrorCode.VOTING_MINIMUM_NOT_MET,
-          `当前仅有 ${totalVotes} 票，至少需要 ${MIN_VOTES_FOR_CONFIRM} 票才能确认队长`,
-        );
-      }
-
-      const candidates = await tx
-        .select({
-          registrationId: seasonRegistrations.id,
-          userId: users.id,
-          peakRating: seasonRegistrations.peakRating,
-          createdAt: seasonRegistrations.createdAt,
-          personaName: steamProfiles.personaName,
-          displayName: users.displayName,
-          perfectName: users.perfectName,
+      if (
+        seeds.some(({ id, userId }, index) => {
+          const expected = parsed.data.expectedCaptains[index];
+          return id !== expected.registrationId || userId !== expected.userId;
         })
-        .from(seasonRegistrations)
-        .innerJoin(users, eq(seasonRegistrations.userId, users.id))
-        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-        .where(
-          and(
-            eq(seasonRegistrations.seasonId, season.id),
-            eq(seasonRegistrations.status, "approved"),
-            eq(seasonRegistrations.willingToBeCaptain, true),
-          ),
-        );
-      if (candidates.length < CAPTAIN_TEAM_COUNT) {
+      ) {
         throw new AppError(
-          ErrorCode.CAPTAIN_NOT_ELIGIBLE,
-          `至少需要 ${CAPTAIN_TEAM_COUNT} 名已通过且愿意担任队长的候选人`,
+          ErrorCode.VALIDATION_FAILED,
+          "队长名单或选秀顺位已变化，请刷新后重新核对。",
         );
       }
-
-      const candidateIds = candidates.map((candidate) => candidate.registrationId);
-      const voteRows = await tx
-        .select({ candidateRegistrationId: captainVotes.candidateRegistrationId })
-        .from(captainVotes)
-        .where(inArray(captainVotes.candidateRegistrationId, candidateIds));
-      const voteCounts = new Map<string, number>();
-      for (const vote of voteRows) {
-        voteCounts.set(
-          vote.candidateRegistrationId,
-          (voteCounts.get(vote.candidateRegistrationId) ?? 0) + 1,
-        );
-      }
-
-      const seeds = selectCaptainSeeds(
-        candidates.map((candidate) => ({
-          ...candidate,
-          voteCount: voteCounts.get(candidate.registrationId) ?? 0,
-        })),
-      );
 
       const createdEntryIds: string[] = [];
       for (const [index, captain] of seeds.entries()) {
-        const captainName = getPublicDisplayName(captain);
         const revisionId = randomUUID();
         const [entry] = await tx
           .insert(competitionEntries)
           .values({
             competitionId: season.id,
             source: "event_native",
-            name: `${captainName} 队`,
+            name: `${captain.displayName} 队`,
             representativeUserId: captain.userId,
-            sourceRegistrationId: captain.registrationId,
+            sourceRegistrationId: captain.id,
             formationOrder: index + 1,
             registrationStatus: "approved",
             currentRosterRevisionId: revisionId,
@@ -364,7 +303,7 @@ export async function confirmCaptains(
         actorId: auditActorId(admin),
         targetId: season.id,
         meta: {
-          captainRegistrationIds: seeds.map((seed) => seed.registrationId),
+          captainRegistrationIds: seeds.map((seed) => seed.id),
           entryIds: createdEntryIds,
         },
       });
