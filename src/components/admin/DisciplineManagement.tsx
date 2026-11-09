@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -25,6 +25,16 @@ import {
 } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   DISCIPLINE_ADMIN_DEFAULTS,
   type DisciplineAdminQuery,
   type DisciplineSanctionRow,
@@ -48,6 +58,21 @@ export type {
  */
 const MIN_QUERY_LENGTH = 2;
 const SEARCH_DEBOUNCE_MS = 300;
+
+interface SubjectSearch {
+  seasonId: string;
+  query: string;
+  result: { success: true; data: DisciplineSubjectOption[] } | { success: false; error: string };
+}
+
+interface SanctionPreview {
+  seasonId: string;
+  subject: DisciplineSubjectOption;
+  effects: SanctionEffect[];
+  internalEvidence: string | null;
+  publicExplanation: string | null;
+  effectiveUntil: Date | null;
+}
 
 const EFFECT_LABELS: Record<SanctionEffect, string> = {
   registration_block: "报名拦截",
@@ -109,51 +134,57 @@ export function DisciplineManagement({
   const [pending, startTransition] = useTransition();
 
   const [subjectQuery, setSubjectQuery] = useState("");
-  const [subjectResults, setSubjectResults] = useState<DisciplineSubjectOption[]>([]);
-  const [subjectSearchError, setSubjectSearchError] = useState<string | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState<DisciplineSubjectOption | null>(null);
+  const [subjectSearch, setSubjectSearch] = useState<SubjectSearch | null>(null);
+  const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [effects, setEffects] = useState<SanctionEffect[]>([]);
   const [internalEvidence, setInternalEvidence] = useState("");
   const [publicExplanation, setPublicExplanation] = useState("");
   const [effectiveUntilInput, setEffectiveUntilInput] = useState("");
   const [issueError, setIssueError] = useState<string | null>(null);
+  const [issuePreview, setIssuePreview] = useState<SanctionPreview | null>(null);
+  const [issueOutcomeUnknown, setIssueOutcomeUnknown] = useState(false);
 
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const query = subjectQuery.trim();
+  const currentSearch =
+    subjectSearch?.seasonId === seasonId && subjectSearch.query === query
+      ? subjectSearch.result
+      : null;
+  const subjectOptions = currentSearch?.success ? currentSearch.data : [];
+  const selectedSubject = subjectOptions.find(({ id }) => id === selectedSubjectId);
+  const preview = issuePreview?.seasonId === seasonId ? issuePreview : null;
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    const query = subjectQuery.trim();
-    if (query.length < MIN_QUERY_LENGTH) {
-      return;
-    }
-    debounceRef.current = setTimeout(() => {
-      startTransition(async () => {
+    if (query.length < MIN_QUERY_LENGTH) return;
+    let current = true;
+    const timer = setTimeout(async () => {
+      try {
         const result = await searchSanctionSubjects({ seasonId, query });
-        if (result.success) {
-          setSubjectResults(result.data);
-          setSubjectSearchError(null);
-        } else {
-          setSubjectResults([]);
-          setSubjectSearchError(result.error.message);
+        if (current) {
+          setSubjectSearch({
+            seasonId,
+            query,
+            result: result.success ? result : { success: false, error: result.error.message },
+          });
         }
-      });
+      } catch {
+        if (current) {
+          setSubjectSearch({
+            seasonId,
+            query,
+            result: { success: false, error: "搜索暂时不可用，请调整关键词后重试。" },
+          });
+        }
+      }
     }, SEARCH_DEBOUNCE_MS);
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      current = false;
+      clearTimeout(timer);
     };
-  }, [seasonId, subjectQuery]);
-
-  const subjectOptions = useMemo(() => {
-    const options = [...subjectResults];
-    if (selectedSubject && !options.some((o) => o.id === selectedSubject.id)) {
-      options.unshift(selectedSubject);
-    }
-    return options;
-  }, [subjectResults, selectedSubject]);
+  }, [seasonId, query]);
 
   const requestedStatus = searchParams.get("status");
   const currentStatus = STATUS_OPTIONS.some((option) => option.value === requestedStatus)
@@ -168,9 +199,10 @@ export function DisciplineManagement({
 
   function handleSubjectQueryChange(value: string) {
     setSubjectQuery(value);
-    if (value.trim().length < MIN_QUERY_LENGTH) {
-      setSubjectResults([]);
-      setSubjectSearchError(null);
+    if (value.trim() !== query) {
+      setSubjectSearch(null);
+      setSelectedSubjectId("");
+      setIssueError(null);
     }
   }
 
@@ -178,8 +210,9 @@ export function DisciplineManagement({
     startTransition(() => router.refresh());
   }
 
-  function handleIssue() {
+  function prepareIssue() {
     setIssueError(null);
+    setIssueOutcomeUnknown(false);
     if (!selectedSubject) {
       setIssueError("请先搜索并选择被处罚用户。");
       return;
@@ -188,30 +221,44 @@ export function DisciplineManagement({
       setIssueError("请至少选择一项处罚效果。");
       return;
     }
-    const effectiveUntil = parseCSTInput(effectiveUntilInput || null);
+    const effectiveUntil = parseCSTInput(effectiveUntilInput);
+    if (effectiveUntilInput && !effectiveUntil) {
+      setIssueError("请输入有效的结束时间，或留空以长期生效。");
+      return;
+    }
+    setIssuePreview({
+      seasonId,
+      subject: selectedSubject,
+      effects,
+      internalEvidence: internalEvidence.trim() || null,
+      publicExplanation: publicExplanation.trim() || null,
+      effectiveUntil,
+    });
+  }
+
+  function handleIssue(confirmed: SanctionPreview) {
+    setIssueError(null);
+    const { subject, ...sanction } = confirmed;
     startTransition(async () => {
-      const result = await issueSanction({
-        seasonId,
-        subjectUserId: selectedSubject.id,
-        effects,
-        internalEvidence: internalEvidence.trim() || null,
-        publicExplanation: publicExplanation.trim() || null,
-        effectiveUntil,
-      });
-      if (result.success) {
+      try {
+        const result = await issueSanction({ ...sanction, subjectUserId: subject.id });
+        if (!result.success) {
+          setIssueError(result.error.message);
+          return;
+        }
         toast.success("处罚已签发。");
-        setSelectedSubject(null);
+        setIssuePreview(null);
+        setSelectedSubjectId("");
         setSubjectQuery("");
-        setSubjectResults([]);
-        setSubjectSearchError(null);
+        setSubjectSearch(null);
         setEffects([]);
         setInternalEvidence("");
         setPublicExplanation("");
         setEffectiveUntilInput("");
         refresh();
-      } else {
-        setIssueError(result.error.message);
-        toast.error(result.error.message);
+      } catch {
+        setIssueError("未能确认签发结果，请先核对处罚记录再重试。");
+        setIssueOutcomeUnknown(true);
       }
     });
   }
@@ -270,18 +317,16 @@ export function DisciplineManagement({
               placeholder="输入关键字按需搜索…"
               className="w-full max-w-sm rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-fg-dim)] outline-none focus:border-[var(--color-accent)] transition-colors"
             />
-            {subjectSearchError && (
+            {currentSearch?.success === false && (
               <p role="alert" className="text-sm text-[var(--color-danger)]">
-                {subjectSearchError}
+                {currentSearch.error}
               </p>
             )}
             <select
               aria-label="选择被处罚用户"
               value={selectedSubject?.id ?? ""}
-              onChange={(e) => {
-                const picked = subjectOptions.find((o) => o.id === e.target.value) ?? null;
-                setSelectedSubject(picked);
-              }}
+              onChange={(e) => setSelectedSubjectId(e.target.value)}
+              disabled={subjectOptions.length === 0}
               className="w-full max-w-sm rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)] transition-colors"
             >
               <option value="">— 选择用户 —</option>
@@ -292,11 +337,13 @@ export function DisciplineManagement({
                 </option>
               ))}
             </select>
-            {subjectQuery.trim().length >= MIN_QUERY_LENGTH &&
-              subjectResults.length === 0 &&
-              !subjectSearchError && (
-                <p className="text-xs text-[var(--color-fg-mid)]">没有匹配的用户。</p>
-              )}
+            <p role="status" className="text-xs text-[var(--color-fg-mid)]">
+              {query.length >= MIN_QUERY_LENGTH && !currentSearch
+                ? "正在搜索用户…"
+                : currentSearch?.success && subjectOptions.length === 0
+                  ? "没有匹配的用户。"
+                  : null}
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -371,19 +418,84 @@ export function DisciplineManagement({
               type="datetime-local"
               value={effectiveUntilInput}
               onChange={(e) => setEffectiveUntilInput(e.target.value)}
-              className="rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)] transition-colors"
+              className="max-w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)] transition-colors"
             />
           </div>
 
-          {issueError && (
+          {issueError && !preview && (
             <p role="alert" className="text-sm text-[var(--color-danger)]">
               {issueError}
             </p>
           )}
 
-          <Button type="button" variant="outline" onClick={handleIssue} disabled={pending}>
-            签发处罚
-          </Button>
+          <AlertDialog
+            open={preview !== null}
+            onOpenChange={(open) => {
+              if (open) {
+                prepareIssue();
+              } else if (!pending) {
+                setIssuePreview(null);
+                setIssueError(null);
+              }
+            }}
+          >
+            <AlertDialogTrigger asChild>
+              <Button type="button" variant="outline" disabled={pending}>
+                核对处罚
+              </Button>
+            </AlertDialogTrigger>
+            {preview && (
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>签发这项处罚？</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    确认后立即在本赛事生效。请核对被处罚用户、限制和公开说明。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <dl className="space-y-3 text-sm [overflow-wrap:anywhere]">
+                  <div>
+                    <dt className="font-medium">被处罚用户</dt>
+                    <dd>{preview.subject.label}</dd>
+                    {preview.subject.detail && (
+                      <dd className="text-[var(--color-fg-secondary)]">{preview.subject.detail}</dd>
+                    )}
+                  </div>
+                  <div>
+                    <dt className="font-medium">处罚效果</dt>
+                    <dd>{preview.effects.map((effect) => EFFECT_LABELS[effect]).join("、")}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">有效期</dt>
+                    <dd>
+                      {preview.effectiveUntil
+                        ? `签发起至 ${formatCST(preview.effectiveUntil)}（北京时间）`
+                        : "签发起长期有效"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">公开处罚说明</dt>
+                    <dd className="whitespace-pre-wrap">{preview.publicExplanation ?? "未填写"}</dd>
+                  </div>
+                </dl>
+                {issueError && (
+                  <p role="alert" className="text-sm text-[var(--color-danger)]">
+                    {issueError}
+                  </p>
+                )}
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={pending}>返回修改</AlertDialogCancel>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => handleIssue(preview)}
+                    disabled={pending || issueOutcomeUnknown}
+                  >
+                    {pending ? "正在签发…" : "确认签发处罚"}
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            )}
+          </AlertDialog>
         </Panel>
       </section>
 
