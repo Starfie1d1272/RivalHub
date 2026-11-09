@@ -30,7 +30,7 @@ export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
     <div className="space-y-6">
       <PageHeader
         title={`选秀管理 · ${season.name}`}
-        description="启动、暂停、恢复选秀流程。选秀开始后选手可围观实时进度。"
+        description="管理选秀进度，并处理超时后无可选选手的轮次。"
       />
 
       <DraftAdminPanel

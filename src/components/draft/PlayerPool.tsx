@@ -23,10 +23,13 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
 
   const grouped = useMemo(() => {
     const map = new Map<string, PublicDraftPlayer[]>();
-    for (const p of players) {
-      const list = map.get(p.primaryPosition) ?? [];
-      list.push(p);
-      map.set(p.primaryPosition, list);
+    for (const player of players) {
+      for (const position of new Set([player.primaryPosition, player.secondaryPosition])) {
+        if (!position) continue;
+        const list = map.get(position) ?? [];
+        list.push(player);
+        map.set(position, list);
+      }
     }
     return map;
   }, [players]);
@@ -36,22 +39,22 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
     for (const position of grouped.keys()) {
       if (!ordered.includes(position)) ordered.push(position);
     }
+    if (filter !== FILTER_ALL && !ordered.includes(filter)) ordered.push(filter);
     return ordered;
-  }, [grouped, seasonPositions]);
+  }, [filter, grouped, seasonPositions]);
 
   const sortedPlayers = useMemo(() => {
-    const filtered =
-      filter === FILTER_ALL
-        ? players
-        : players.filter((p) => p.primaryPosition === filter || p.secondaryPosition === filter);
+    const filtered = filter === FILTER_ALL ? players : (grouped.get(filter) ?? []);
     return sortByRank(filtered);
-  }, [players, filter]);
+  }, [players, grouped, filter]);
 
   const total = players.length;
 
   if (total === 0) {
     return (
-      <div className="py-12 text-center text-[var(--color-fg-dim)] text-sm">所有选手已被选完</div>
+      <p role="status" className="py-12 text-center text-[var(--color-fg-dim)] text-sm">
+        当前没有待选选手
+      </p>
     );
   }
 
@@ -60,6 +63,8 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
       {/* Filter bar */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <button
+          type="button"
+          aria-pressed={filter === FILTER_ALL}
           onClick={() => setFilter(FILTER_ALL)}
           className={`text-xs px-2 py-1 rounded transition-colors ${
             filter === FILTER_ALL
@@ -74,8 +79,10 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
           return (
             <button
               key={pos}
+              type="button"
+              aria-pressed={pos === filter}
               onClick={() => setFilter(pos === filter ? FILTER_ALL : pos)}
-              disabled={count === 0}
+              disabled={count === 0 && pos !== filter}
               className={`text-xs px-2 py-1 rounded transition-colors ${
                 pos === filter
                   ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)]"
@@ -88,6 +95,14 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
         })}
       </div>
 
+      <p
+        role="status"
+        className={
+          sortedPlayers.length > 0 ? "sr-only" : "py-8 text-center text-sm text-[var(--color-fg-dim)]"
+        }
+      >
+        {sortedPlayers.length > 0 ? `${sortedPlayers.length} 位待选选手` : "当前筛选下没有待选选手"}
+      </p>
       {/* Unified sorted list */}
       <div className="space-y-1 max-h-96 overflow-y-auto">
         {sortedPlayers.map((p) => {

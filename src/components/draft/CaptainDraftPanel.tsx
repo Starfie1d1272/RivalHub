@@ -5,7 +5,7 @@ import { useClientReady } from "@/components/rivalhub/useClientReady";
 
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
-import React, { useMemo, useState } from "react";
+import React, { useId, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronRight, Clock, Loader2, Search, Zap } from "lucide-react";
 import { pickPlayer as telemetry_pickPlayer } from "@/actions/draft";
@@ -54,6 +54,16 @@ interface CaptainDraftPanelProps {
   readonly?: boolean;
 }
 
+export function DraftCaptainWaiting() {
+  const interactive = useClientReady();
+  const { refresh, refreshPending } = useRoutePolling(10_000);
+  return (
+    <Button variant="outline" onClick={refresh} disabled={!interactive || refreshPending}>
+      刷新状态
+    </Button>
+  );
+}
+
 export function CaptainDraftPanel({
   seasonId,
   entryId,
@@ -76,11 +86,18 @@ export function CaptainDraftPanel({
   const [filter, setFilter] = useState(FILTER_ALL);
   const [search, setSearch] = useState("");
   const [pendingRegistrationId, setPendingRegistrationId] = useState<string | null>(null);
+  const [submittedPool, setSubmittedPool] = useState<CaptainDraftPlayer[] | null>(null);
+  const [checkingPick, startPickRefresh] = useTransition();
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [rosterOpen, setRosterOpen] = useState(true);
+  const rosterId = useId();
   const [inspectedId, setInspectedId] = useState<string | null>(null);
   const inspected = players.find((player) => player.registrationId === inspectedId) ?? null;
-  useRoutePolling(isReadonly ? null : 10_000, pendingRegistrationId !== null);
+  const waitingForSnapshot = submittedPool === players;
+  const { refresh, refreshPending } = useRoutePolling(
+    isReadonly ? null : 10_000,
+    pendingRegistrationId !== null || checkingPick,
+  );
 
   const grouped = useMemo(() => {
     const map = new Map<string, CaptainDraftPlayer[]>();
@@ -123,33 +140,52 @@ export function CaptainDraftPanel({
     return players.find((p) => p.registrationId === candidate.registrationId) ?? null;
   }, [players, positionCounts, isDraftActive, isCurrentCaptainTurn]);
 
+  const expectedTurn =
+    currentRound !== null && roundDeadline
+      ? { entryId, round: currentRound, deadline: roundDeadline }
+      : null;
   const canSubmit =
-    interactive && isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
+    interactive &&
+    !isReadonly &&
+    isDraftActive &&
+    isCurrentCaptainTurn &&
+    Boolean(expectedTurn) &&
+    pendingRegistrationId === null &&
+    !checkingPick &&
+    !refreshPending &&
+    !waitingForSnapshot;
 
   async function handlePick(player: CaptainDraftPlayer) {
-    if (!canSubmit || !canPickPosition(positionCounts[player.primaryPosition] ?? 0)) return;
+    if (!canSubmit || !expectedTurn || !canPickPosition(positionCounts[player.primaryPosition] ?? 0))
+      return;
 
     setPendingRegistrationId(player.registrationId);
     setMessage(null);
 
-    const result = await pickPlayer({
-      seasonId,
-      entryId,
-      registrationId: player.registrationId,
-      clientRequestId: crypto.randomUUID(),
-    });
-
-    setPendingRegistrationId(null);
-    if (!result.success) {
-      setMessage({ type: "error", text: result.error.message });
-      return;
+    try {
+      const result = await pickPlayer({
+        seasonId,
+        expectedTurn,
+        registrationId: player.registrationId,
+        clientRequestId: crypto.randomUUID(),
+      });
+      setMessage(
+        result.success
+          ? {
+              type: "success",
+              text: result.data.completed
+                ? "选秀已完成"
+                : `${getPublicDisplayName(player)} 已加入队伍`,
+            }
+          : { type: "error", text: result.error.message },
+      );
+    } catch {
+      setMessage({ type: "error", text: "选人结果暂未确认，请核对当前轮次和阵容后再选。" });
+    } finally {
+      setPendingRegistrationId(null);
+      setSubmittedPool(players);
+      startPickRefresh(() => router.refresh());
     }
-
-    setMessage({
-      type: "success",
-      text: result.data.completed ? "选秀已完成" : `${getPublicDisplayName(player)} 已加入队伍`,
-    });
-    router.refresh();
   }
 
   return (
@@ -182,17 +218,29 @@ export function CaptainDraftPanel({
             </div>
           </div>
 
-          {message && (
-            <div
-              className={`mt-3 rounded-md border px-3 py-2 text-sm ${
-                message.type === "success"
-                  ? "border-[var(--color-ok-edge)] bg-[var(--color-ok-soft)] text-[var(--color-ok)]"
-                  : "border-[var(--color-danger-edge)] bg-[var(--color-danger-soft)] text-[var(--color-danger)]"
-              }`}
-              role="status"
+          <div role="status">
+            {message && (
+              <p
+                className={`mt-3 rounded-md border px-3 py-2 text-sm ${
+                  message.type === "success"
+                    ? "border-[var(--color-ok-edge)] bg-[var(--color-ok-soft)] text-[var(--color-ok)]"
+                    : "border-[var(--color-danger-edge)] bg-[var(--color-danger-soft)] text-[var(--color-danger)]"
+                }`}
+              >
+                {message.text}
+              </p>
+            )}
+          </div>
+          {(waitingForSnapshot || message?.type === "error") && (
+            <Button
+              className="mt-3"
+              size="sm"
+              variant="outline"
+              onClick={refresh}
+              disabled={checkingPick || refreshPending || pendingRegistrationId !== null}
             >
-              {message.text}
-            </div>
+              刷新本轮状态
+            </Button>
           )}
         </div>
       )}
@@ -203,6 +251,8 @@ export function CaptainDraftPanel({
           <button
             type="button"
             disabled={!interactive}
+            aria-expanded={rosterOpen}
+            aria-controls={rosterId}
             onClick={() => setRosterOpen(!rosterOpen)}
             className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] transition-colors"
           >
@@ -215,7 +265,9 @@ export function CaptainDraftPanel({
           </button>
           {
             <div
-              className={`border-t border-[var(--color-border)] px-4 py-3 space-y-3 ${rosterOpen ? "" : "hidden md:block"}`}
+              id={rosterId}
+              hidden={!rosterOpen}
+              className="border-t border-[var(--color-border)] px-4 py-3 space-y-3"
             >
               {/* Position occupation */}
               <div className="flex flex-wrap gap-2 text-xs text-[var(--color-fg-mid)]">
@@ -297,6 +349,7 @@ export function CaptainDraftPanel({
             <input
               type="text"
               disabled={!interactive}
+              aria-label="搜索选手名"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onBlur={() => recordFilter("search", search ? "selected" : "")}
@@ -309,6 +362,7 @@ export function CaptainDraftPanel({
               type="button"
               size="sm"
               variant={filter === FILTER_ALL ? "default" : "secondary"}
+              aria-pressed={filter === FILTER_ALL}
               disabled={!interactive}
               onClick={() => {
                 recordFilter("position", FILTER_ALL);
@@ -326,6 +380,7 @@ export function CaptainDraftPanel({
                   type="button"
                   size="sm"
                   variant={filter === position ? "default" : "secondary"}
+                  aria-pressed={filter === position}
                   disabled={!interactive || count === 0}
                   onClick={() => {
                     const value = filter === position ? FILTER_ALL : position;
