@@ -3,6 +3,7 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import { usePortalTheme } from "./portal-theme";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -44,26 +45,30 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, size = "md", ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed left-1/2 top-1/2 z-[var(--z-overlay)] grid w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-sm border border-[var(--color-border-static)] bg-[var(--color-surface-floating)] text-[var(--color-fg-primary)] shadow-lg duration-[var(--duration-normal)] ease-[var(--ease-tactical)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] motion-reduce:animate-none sm:w-full",
-        className,
-        DIALOG_CONTENT_SIZE_CLASSES[size],
-      )}
-      {...props}
-    >
-      {children}
-      <DialogPrimitive.Close className="absolute right-3 top-3 rounded-sm p-2 text-[var(--color-fg-secondary)] opacity-80 transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-accent-soft)] hover:text-[var(--color-fg-primary)] hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-panel)] disabled:pointer-events-none">
-        <X className="size-4" />
-        <span className="sr-only">关闭对话框</span>
-      </DialogPrimitive.Close>
-    </DialogPrimitive.Content>
-  </DialogPortal>
-));
+>(({ className, children, size = "md", style, ...props }, ref) => {
+  const portalStyle = usePortalTheme(style);
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          "fixed left-1/2 top-1/2 z-[var(--z-overlay)] grid w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-sm border border-[var(--color-border-static)] bg-[var(--color-surface-floating)] text-[var(--color-fg-primary)] shadow-lg duration-[var(--duration-normal)] ease-[var(--ease-tactical)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] motion-reduce:animate-none sm:w-full",
+          className,
+          DIALOG_CONTENT_SIZE_CLASSES[size],
+        )}
+        style={portalStyle}
+        {...props}
+      >
+        {children}
+        <DialogPrimitive.Close className="absolute right-3 top-3 rounded-sm p-2 text-[var(--color-fg-secondary)] opacity-80 transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-accent-soft)] hover:text-[var(--color-fg-primary)] hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-panel)] disabled:pointer-events-none">
+          <X className="size-4" />
+          <span className="sr-only">关闭对话框</span>
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  );
+});
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

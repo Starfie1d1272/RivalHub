@@ -36,7 +36,7 @@ export function TeamMapProfile({
               type="button"
               aria-pressed={metric === key}
               onClick={() => setMetric(key)}
-              className={`min-h-9 rounded-sm px-3 text-sm ${metric === key ? "bg-[var(--color-accent)] text-black" : "border border-[var(--color-border)]"}`}
+              className={`min-h-9 rounded-sm px-3 text-sm ${metric === key ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)]" : "border border-[var(--color-border)]"}`}
             >
               {label}
             </button>

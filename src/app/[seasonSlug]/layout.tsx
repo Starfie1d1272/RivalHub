@@ -10,6 +10,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { SeasonNav } from "@/components/layout/SeasonNav";
+import { PortalThemeProvider } from "@/components/ui/portal-theme";
 import { seasonAccentStyle } from "@/lib/utils/color";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { showStats } from "@/lib/utils/season";
@@ -47,42 +48,39 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
   if (!season) notFound();
   const stagePresentation = await getPublicSeasonStagePresentation(season);
 
+  const theme = season.themeColor
+    ? (seasonAccentStyle(season.themeColor) as React.CSSProperties)
+    : undefined;
+
   return (
-    <div
-      data-season={seasonSlug}
-      style={
-        season.themeColor
-          ? ({
-              ...seasonAccentStyle(season.themeColor),
-            } as React.CSSProperties)
-          : undefined
-      }
-    >
-      <SeasonNav
-        slug={season.slug}
-        seasonName={season.name}
-        status={season.status}
-        hasCaptainVoting={season.hasCaptainVoting}
-        hasDraft={season.hasDraft}
-        hasCommunityAwards={season.hasCommunityAwards}
-        hasMatches={stagePresentation.officialStages.length > 0}
-        hasStats={showStats(season)}
-        hasPredictions={season.competitionTemplate === "major"}
-        participationAction={
-          <Suspense fallback={null}>
-            <SeasonParticipationEntry season={season} />
-          </Suspense>
-        }
-      />
-      <TelemetryScene
-        prefix={`/${seasonSlug}`}
-        scene={season.competitionTemplate}
-        eventId={season.id}
-      />
-      {children}
-      <Suspense fallback={null}>
-        <SeasonInformationFeedbackLauncher season={{ id: season.id, slug: season.slug }} />
-      </Suspense>
+    <div data-season={seasonSlug} style={theme}>
+      <PortalThemeProvider value={theme}>
+        <SeasonNav
+          slug={season.slug}
+          seasonName={season.name}
+          status={season.status}
+          hasCaptainVoting={season.hasCaptainVoting}
+          hasDraft={season.hasDraft}
+          hasCommunityAwards={season.hasCommunityAwards}
+          hasMatches={stagePresentation.officialStages.length > 0}
+          hasStats={showStats(season)}
+          hasPredictions={season.competitionTemplate === "major"}
+          participationAction={
+            <Suspense fallback={null}>
+              <SeasonParticipationEntry season={season} />
+            </Suspense>
+          }
+        />
+        <TelemetryScene
+          prefix={`/${seasonSlug}`}
+          scene={season.competitionTemplate}
+          eventId={season.id}
+        />
+        {children}
+        <Suspense fallback={null}>
+          <SeasonInformationFeedbackLauncher season={{ id: season.id, slug: season.slug }} />
+        </Suspense>
+      </PortalThemeProvider>
     </div>
   );
 }

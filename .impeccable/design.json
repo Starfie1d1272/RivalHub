@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-09T04:18:37.894Z",
+  "generatedAt": "2026-11-09T08:08:51.393Z",
   "title": "Design System: RivalHub",
   "extensions": {
     "colorMeta": {
@@ -269,6 +269,34 @@
           "oklch(84% 0.1647 254.0)",
           "oklch(95% 0.1647 254.0)"
         ]
+      },
+      "border-control": {
+        "role": "neutral",
+        "displayName": "控件边界色",
+        "tonalRamp": [
+          "oklch(15% 0.0402 258.8)",
+          "oklch(26% 0.0402 258.8)",
+          "oklch(38% 0.0402 258.8)",
+          "oklch(49% 0.0402 258.8)",
+          "oklch(61% 0.0402 258.8)",
+          "oklch(72% 0.0402 258.8)",
+          "oklch(84% 0.0402 258.8)",
+          "oklch(95% 0.0402 258.8)"
+        ]
+      },
+      "danger-fg": {
+        "role": "neutral",
+        "displayName": "危险填色前景",
+        "tonalRamp": [
+          "oklch(15% 0.0092 264.3)",
+          "oklch(26% 0.0092 264.3)",
+          "oklch(38% 0.0092 264.3)",
+          "oklch(49% 0.0092 264.3)",
+          "oklch(61% 0.0092 264.3)",
+          "oklch(72% 0.0092 264.3)",
+          "oklch(84% 0.0092 264.3)",
+          "oklch(95% 0.0092 264.3)"
+        ]
       }
     },
     "typographyMeta": {
@@ -302,11 +330,15 @@
       },
       "panel-label": {
         "displayName": "面板标签",
-        "purpose": "面板标题栏的紧凑等宽字。"
+        "purpose": "面板标题栏的 11 px 等宽标签。"
       },
       "badge-mono": {
         "displayName": "等宽标签",
         "purpose": "阶段与简短赛事标签。"
+      },
+      "dense-metadata": {
+        "displayName": "紧凑赛事元数据",
+        "purpose": "10 px 等宽字，用于编号、阶段和紧凑元数据。"
       }
     },
     "shadows": [
@@ -410,7 +442,7 @@
       "refersTo": "button-destructive",
       "description": "危险操作使用对应的语义色。",
       "html": "<button class=\"ds-button ds-button-destructive\" type=\"button\">撤销</button>",
-      "css": ".ds-button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; height: 2.5rem; padding: 0.5rem 1rem; border: 0; border-radius: var(--radius-sm, 4px); background-color: transparent; color: var(--color-fg, #e7ecf3); font-family: inherit; font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; white-space: nowrap; text-decoration: none; transition-property: color, background-color, border-color; transition-duration: var(--duration-fast, 120ms); transition-timing-function: var(--ease-tactical, cubic-bezier(0.22, 1, 0.36, 1)); }\n.ds-button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0a0c10), 0 0 0 4px var(--color-border-focus, var(--color-accent, #ff6b1a)); }\n.ds-button:disabled { opacity: 0.5; pointer-events: none; }\n.ds-button[data-pending=\"true\"] { opacity: 0.7; pointer-events: none; }\n@media (prefers-reduced-motion: reduce) { .ds-button { transition-duration: 1ms; } }\n.ds-button-destructive { background-color: var(--color-danger, #ff5470); }\n@media (hover: hover) { .ds-button-destructive:hover { background-color: color-mix(in oklab, var(--color-danger, #ff5470) 90%, transparent); } }"
+      "css": ".ds-button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; height: 2.5rem; padding: 0.5rem 1rem; border: 0; border-radius: var(--radius-sm, 4px); background-color: transparent; color: var(--color-danger-fg, #0a0c10); font-family: inherit; font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; white-space: nowrap; text-decoration: none; transition-property: color, background-color, border-color; transition-duration: var(--duration-fast, 120ms); transition-timing-function: var(--ease-tactical, cubic-bezier(0.22, 1, 0.36, 1)); }\n.ds-button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0a0c10), 0 0 0 4px var(--color-border-focus, var(--color-accent, #ff6b1a)); }\n.ds-button:disabled { opacity: 0.5; pointer-events: none; }\n.ds-button[data-pending=\"true\"] { opacity: 0.7; pointer-events: none; }\n@media (prefers-reduced-motion: reduce) { .ds-button { transition-duration: 1ms; } }\n.ds-button-destructive { background-color: var(--color-danger, #ff5470); }\n@media (hover: hover) { .ds-button-destructive:hover { background-color: color-mix(in oklab, var(--color-danger, #ff5470) 90%, transparent); } }"
     },
     {
       "name": "文字按钮",
@@ -426,7 +458,7 @@
       "refersTo": "input",
       "description": "内嵌表面与细边框承载可编辑内容。",
       "html": "<input class=\"ds-input\" type=\"text\" aria-label=\"搜索选手\" placeholder=\"搜索选手\">",
-      "css": ".ds-input { box-sizing: border-box; width: 100%; height: 2.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border, #1f2530); border-radius: var(--radius-sm, 4px); background-color: var(--color-panel-low, #0d1016); color: var(--color-fg, #e7ecf3); font-family: inherit; font-size: 1rem; line-height: 1.5rem; }\n.ds-input::placeholder { color: var(--color-fg-mid, #8e96a3); opacity: 1; }\n.ds-input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0a0c10), 0 0 0 4px var(--color-border-focus, var(--color-accent, #ff6b1a)); }\n.ds-input:disabled { cursor: not-allowed; opacity: 0.5; }\n@media (width >= 48rem) { .ds-input { font-size: 0.875rem; line-height: 1.25rem; } }"
+      "css": ".ds-input { box-sizing: border-box; width: 100%; height: 2.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border-control, #64738a); border-radius: var(--radius-sm, 4px); background-color: var(--color-panel-low, #0d1016); color: var(--color-fg, #e7ecf3); font-family: inherit; font-size: 1rem; line-height: 1.5rem; }\n.ds-input::placeholder { color: var(--color-fg-mid, #8e96a3); opacity: 1; }\n.ds-input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0a0c10), 0 0 0 4px var(--color-border-focus, var(--color-accent, #ff6b1a)); }\n.ds-input:disabled { cursor: not-allowed; opacity: 0.5; }\n@media (width >= 48rem) { .ds-input { font-size: 0.875rem; line-height: 1.25rem; } }"
     },
     {
       "name": "等宽标签",
