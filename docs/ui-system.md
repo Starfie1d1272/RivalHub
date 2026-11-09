@@ -16,7 +16,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 后台恢复与影响清单同样遵循这条边界：domain/service 只返回结构化事实，server action 只下发 presentation-safe projection；比赛托管 key、原始状态、阶段 key、确认游标和诊断字段留在服务端，不进入普通 operator UI。
 
-中英混排按视觉层级处理：mono/uppercase tactical chrome 可以保留简短、约定俗成的英文（如 `TBD`、`BO3`、`STAGE2`）；操作指引与异常处理使用自然中文；常见专业标签保留简短英文，必要的中文解释放入共享 HelpTooltip，支持悬停、键盘与触屏。同一视觉层的标签保持同一语言语义，不把生命周期结果、回顾或阵容等说明塞进 destination 名称。
+中英混排按视觉层级处理：mono/uppercase tactical chrome 可以保留简短、约定俗成的英文（如 `TBD`、`BO3`、`STAGE2`）；操作指引与异常处理使用自然中文；常见专业标签保留简短英文，必要的中文解释放入共享 HelpTooltip，支持悬停、键盘与触屏。帮助按钮保留 24px 命中区，指针可进入浮层阅读，Escape 可关闭且不移动键盘焦点。同一视觉层的标签保持同一语言语义，不把生命周期结果、回顾或阵容等说明塞进 destination 名称。
 
 账号入口稳定区分「我的参赛」（私有任务）、「个人主页」（公开资料）与「账号设置」。CS2 canonical position key 保持 `igl`、`awper`、`opener`、`closer`、`anchor`。
 
@@ -41,7 +41,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 | `DialogContent/Body/Footer` | viewport、滚动、focus、操作区与尺寸 contract |
 | `StatusBanner` / `StatusPill` / `Checklist` | 状态解释、紧凑状态与 readiness |
 | `EmptyState` / `ErrorState` / `Skeleton` | empty/error/loading 的明确三态 |
-| `InlineConfirm` | 高影响 mutation 的影响说明与二次确认；可用宽度不足时操作区换到说明下方，不挤窄说明列 |
+| `InlineConfirm` | 高影响 mutation 的影响说明与二次确认；打开后先聚焦取消；Escape 或取消恢复触发焦点，条件替换按钮时传入触发器 ref。窄屏操作区换到说明下方 |
 
 首页备案信息位于共享页脚的最下方，独立一行相对页面居中，使用 12px 常规中文字体与次要灰色文字，链接支持悬停和键盘聚焦。仅首页展示已确认适用的备案信息，其他路由不占用该行空间。
 
@@ -253,7 +253,7 @@ shared layer **不拥有** allowed query、validation、SQL `WHERE/ORDER BY`、q
 
 ## Forms and mutations
 
-- 使用既有 labeled controls；字段级 validation 靠近字段，服务端错误保留给用户。
+- 使用既有 labeled controls。Field 默认生成稳定 ID 关联可见标签；筛选器提供当前范围的名称，互斥按钮公开选择态。字段错误靠近对应控件，保留服务端反馈。
 - pending/success/failure 状态明确，避免重复 mutation。
 - 长期 profile、赛事报名和单场 roster 等不同事实不混成同一表单。
 - 已通过的队伍报名默认展示当前本届只读名单，将主力／替补和确认状态合并到成员行；不展示禁用的编辑复选框或未入选候选队员。当前资料检查可展开查看，并明确其不改变已通过结果；可用的名单变更及负责人交接入口继续保留。名单调整提示区分时间截止、赛事阶段限制和名单锁定。
