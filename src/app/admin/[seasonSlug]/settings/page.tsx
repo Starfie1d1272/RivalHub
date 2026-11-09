@@ -11,6 +11,7 @@ import {
   normalizeTeamRegistrationConfig,
 } from "@/lib/seasons/compatibility";
 import { SeasonForm } from "@/components/admin/SeasonForm";
+import { getSeasonConfirmationVersion } from "@/lib/seasons/confirmation";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { loadConversionPolicyProvenance } from "@/lib/competitive/conversion-policy-admin";
@@ -61,6 +62,10 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
           registrationClosesAt: toCSTDateTimeInput(season.registrationClosesAt),
           rosterChangeClosesAt: toCSTDateTimeInput(season.rosterChangeClosesAt),
           registrationOpenedAt: season.registrationOpenedAt,
+          confirmation: {
+            version: getSeasonConfirmationVersion(season),
+            registrationOpensAt: season.registrationOpensAt?.toISOString() ?? null,
+          },
           conversionPolicyProvenance,
           endAt: toCSTDateTimeInput(season.endAt),
           registrationMode: season.registrationMode,
