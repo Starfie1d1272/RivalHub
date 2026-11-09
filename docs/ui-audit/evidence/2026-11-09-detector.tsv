@@ -1,0 +1,90 @@
+file	line	rule	tool_severity	value	excerpt	disposition
+src/app/admin/page.tsx	71	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/app/admin/users/page.tsx	163	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/admin/AdminUserList.tsx	76	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/admin/AdminUserList.tsx	93	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/admin/AdminUserList.tsx	104	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/admin/AdminUserList.tsx	109	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/admin/AdminUserList.tsx	116	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/admin/AuditLogTable.tsx	302	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/admin/MajorStrengthStarterSummary.tsx	30	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/admin/TeamRegistrationProgress.tsx	85	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/admin/TeamRegistrationProgress.tsx	113	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/bet/PredictionLeaderboard.tsx	104	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/captains/CaptainVotingPanel.tsx	208	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/draft/CaptainDraftPanel.tsx	373	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/draft/CaptainDraftPanel.tsx	386	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/draft/CaptainDraftPanel.tsx	484	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/draft/CaptainDraftPanel.tsx	496	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/draft/PlayerPool.tsx	109	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/draft/PlayerPool.tsx	126	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/draft/PlayerPool.tsx	150	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/draft/PlayerPool.tsx	167	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/draft/TeamDraftGrid.tsx	136	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/draft/TeamDraftGrid.tsx	164	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/draft/TeamDraftGrid.tsx	172	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/matches/AdminMatchWorkbench.tsx	250	side-tab	warning		border-l-2	语义强调，结合当前任务/状态/对阵用途保留
+src/components/matches/MatchCard.tsx	66	side-tab	warning		border-l-4	语义强调，结合当前任务/状态/对阵用途保留
+src/components/matches/MatchHeroHeader.tsx	79	design-system-font-size	advisory	28px	text-[…] class: 28px is off the DESIGN.md type ramp	按对阵标题或主比分角色复核，保留必要层级
+src/components/matches/MatchHeroHeader.tsx	108	design-system-font-size	advisory	56px	text-[…] class: 56px is off the DESIGN.md type ramp	按对阵标题或主比分角色复核，保留必要层级
+src/components/matches/MatchHeroHeader.tsx	164	design-system-font-size	advisory	28px	text-[…] class: 28px is off the DESIGN.md type ramp	按对阵标题或主比分角色复核，保留必要层级
+src/components/matches/MatchMapSequence.tsx	160	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	地图 marker 为紧凑元数据，保留
+src/components/matches/MatchMapSequence.tsx	174	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	地图 marker 为紧凑元数据，保留
+src/components/matches/MatchMapSequence.tsx	184	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	地图 marker 为紧凑元数据，保留
+src/components/matches/MatchMapSequence.tsx	190	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	地图 marker 为紧凑元数据，保留
+src/components/matches/MatchMapSequence.tsx	286	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	地图 marker 为紧凑元数据，保留
+src/components/matches/MatchMapSequence.tsx	308	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	地图 marker 为紧凑元数据，保留
+src/components/matches/MatchRealtime.tsx	239	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/matches/MatchRecentResults.tsx	42	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/matches/MatchSummaryStats.tsx	160	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/matches/MatchSummaryStats.tsx	168	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/matches/VetoMapActions.tsx	73	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/players/DirectoryMetric.tsx	7	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/players/PlayerAttributes.tsx	109	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/players/PlayerAttributes.tsx	131	design-system-font-size	advisory	9px	text-[…] class: 9px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/players/PlayerAttributes.tsx	199	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/players/PlayerMatches.tsx	170	side-tab	warning		border-r-4	语义强调，结合当前任务/状态/对阵用途保留
+src/components/predictions/PredictionBoard.tsx	321	design-system-font-size	advisory	28px	text-[…] class: 28px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/predictions/achievement.module.css	18	design-system-color	advisory	#0006	Undocumented color #0006 is outside DESIGN.md colors	纪念币装饰，保留素材意图，双主题分别复核
+src/components/predictions/achievement.module.css	36	design-system-font-size	advisory	25px	font-size: 25px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/predictions/achievement.module.css	41	design-system-font-size	advisory	15px	font-size: 15px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/predictions/achievement.module.css	86	design-system-color	advisory	#0008	Undocumented color #0008 is outside DESIGN.md colors	纪念币装饰，保留素材意图，双主题分别复核
+src/components/predictions/achievement.module.css	114	design-system-color	advisory	#5a463130	Undocumented color #5a463130 is outside DESIGN.md colors	纪念币装饰，保留素材意图，双主题分别复核
+src/components/predictions/achievement.module.css	115	design-system-color	advisory	#8ebeff14	Undocumented color #8ebeff14 is outside DESIGN.md colors	纪念币装饰，保留素材意图，双主题分别复核
+src/components/predictions/achievement.module.css	131	design-system-font-size	advisory	28px	font-size: 28px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/predictions/achievement.module.css	135	design-system-font-size	advisory	13px	font-size: 13px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/predictions/achievement.module.css	158	design-system-font-size	advisory	13px	font-size: 13px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/predictions/achievement.module.css	187	design-system-font-size	advisory	13px	font-size: 13px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/predictions/achievement.module.css	191	design-system-font-size	advisory	24px	font-size: 24px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/predictions/achievement.module.css	209	design-system-font-size	advisory	13px	font-size: 13px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/predictions/achievement.module.css	243	design-system-font-size	advisory	20px	font-size: 20px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/register/RegistrationForm.tsx	325	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/rivalhub/HelpTooltip.tsx	70	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-006，实测命中区及键盘问题
+src/components/rivalhub/InlineConfirm.tsx	29	side-tab	warning		borderLeft: `3px solid	语义强调，结合当前任务/状态/对阵用途保留
+src/components/rivalhub/MapPreferenceChips.tsx	52	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/rivalhub/PhaseStep.tsx	38	design-system-radius	advisory	2px	borderRadius: 2px is outside the DESIGN.md rounded scale	2px 为 fallback，有运行时 radius token
+src/components/rivalhub/StatusBanner.tsx	30	side-tab	warning		borderLeft: `3px solid	语义强调，结合当前任务/状态/对阵用途保留
+src/components/rules/SpringHistoricalRules.tsx	617	side-tab	warning		"borderLeft: ""3px solid"	语义强调，结合当前任务/状态/对阵用途保留
+src/components/teams/TeamLineupStyle.tsx	296	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/teams/TeamLineupStyle.tsx	421	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/teams/TeamLineupStyle.tsx	432	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/teams/TeamLogoUpload.tsx	101	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/teams/TeamProfileHistory.tsx	101	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/teams/TeamProfileHistory.tsx	109	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/teams/TeamProfileHistory.tsx	117	design-system-font-size	advisory	10px	text-[…] class: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/tournament/tournament.module.css	67	design-system-radius	advisory	5px	border-radius: 5px is outside the DESIGN.md rounded scale	复核赛事组件形状角色，未证实任务影响
+src/components/tournament/tournament.module.css	117	design-system-font-size	advisory	13px	font-size: 13px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/tournament/tournament.module.css	151	design-system-font-size	advisory	20px	font-size: 20px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/tournament/tournament.module.css	162	design-system-radius	advisory	9px	border-radius: 9px is outside the DESIGN.md rounded scale	复核赛事组件形状角色，未证实任务影响
+src/components/tournament/tournament.module.css	245	design-system-font-size	advisory	9px	font-size: 9px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/tournament/tournament.module.css	260	design-system-color	advisory	#35a64a	Undocumented color #35a64a is outside DESIGN.md colors	UIA-018，复核胜方前景和背景组合
+src/components/tournament/tournament.module.css	261	design-system-color	advisory	#fff	Undocumented color #fff is outside DESIGN.md colors	UIA-018，复核胜方前景和背景组合
+src/components/tournament/tournament.module.css	272	design-system-color	advisory	#fff	Undocumented color #fff is outside DESIGN.md colors	UIA-018，复核胜方前景和背景组合
+src/components/tournament/tournament.module.css	315	design-system-radius	advisory	9px	border-radius: 9px is outside the DESIGN.md rounded scale	复核赛事组件形状角色，未证实任务影响
+src/components/tournament/tournament.module.css	338	design-system-font-size	advisory	23px	font-size: 23px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/tournament/tournament.module.css	664	design-system-font-size	advisory	10px	font-size: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/tournament/tournament.module.css	702	design-system-radius	advisory	5px	border-radius: 5px is outside the DESIGN.md rounded scale	复核赛事组件形状角色，未证实任务影响
+src/components/tournament/tournament.module.css	716	design-system-font-size	advisory	9px	font-size: 9px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/tournament/tournament.module.css	729	design-system-font-size	advisory	8px	font-size: 8px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/tournament/tournament.module.css	735	design-system-font-size	advisory	10px	font-size: 10px is off the DESIGN.md type ramp	UIA-031，核对字号角色与使用场景，未单列缺陷
+src/components/tournament/tournament.module.css	756	side-tab	warning		".match[data-source=""assumption""] .teamSide[data-winning=""true""] — inset box-shadow 3px stripe (left)"	语义强调，结合当前任务/状态/对阵用途保留
