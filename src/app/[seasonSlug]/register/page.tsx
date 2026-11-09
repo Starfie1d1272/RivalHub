@@ -549,7 +549,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
       ? "可处理参赛队伍变更"
       : canAdjustEntry
         ? "名单调整开放中"
-        : readOnlyReason ?? (entry?.registrationStatus === "submitted" ? "名单审核中" : null);
+        : (readOnlyReason ?? (entry?.registrationStatus === "submitted" ? "名单审核中" : null));
 
     return (
       <PageLayout variant="standard">
