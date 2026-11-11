@@ -209,6 +209,7 @@ export async function POST(request: Request, context: Context) {
           if (outcome.outcome === "canonicalized") {
             revalidateMatchPaths(season.slug, matchId, {
               mode: "route",
+              statisticsSeasonId: installation.competitionId,
               statisticsReason: outcome.duplicate
                 ? "mizar.canonicalized_duplicate"
                 : "mizar.canonicalized_new",

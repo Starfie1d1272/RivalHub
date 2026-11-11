@@ -7,7 +7,7 @@ import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import type { Route } from "next";
 import type { RecordSummary } from "@/lib/stats/records";
 import { RECORD_EVENT_NAMES, type RecordEventKind } from "@/lib/stats/record-facts";
-import type { RecordEventPage } from "@/lib/stats/tournament-query";
+import type { RecordEventPage } from "@/lib/stats/record-events-query";
 import { displayRecordWeapon } from "@/lib/stats/presentation";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import { statsHref, navigateStatsScope, type StatsQuery } from "@/lib/stats/view-state";

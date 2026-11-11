@@ -9,6 +9,8 @@ import {
   PUBLIC_HOME_TAG,
   PUBLIC_SEASON_CATALOG_TAG,
   PUBLIC_STATS_TAG,
+  ALL_EVENT_STATS_TAG,
+  eventStatsTag,
   publicPlayerTag,
   publicAnnouncementsSeasonTag,
   publicSeasonTag,
@@ -37,6 +39,7 @@ type RevalidationMode = "action" | "route";
 type StatisticsRevalidationOptions = {
   statistics?: boolean;
   statisticsReason?: StatsInvalidationReason;
+  statisticsSeasonId?: string;
 };
 type RevalidationOptions = StatisticsRevalidationOptions & { mode?: RevalidationMode };
 
@@ -46,7 +49,8 @@ export function updatePublicSeasonTags(
   seasonId?: string,
   options: StatisticsRevalidationOptions = {},
 ): void {
-  if (options.statistics !== false) updatePublicStatsTag(options.statisticsReason);
+  if (options.statistics !== false)
+    updatePublicStatsTag(options.statisticsReason, options.statisticsSeasonId);
   updateTag(PUBLIC_SEASON_CATALOG_TAG);
   updateTag(publicSeasonTag(slug));
   updatePublicHomeTag();
@@ -63,7 +67,8 @@ export function revalidatePublicSeasonTags(
   seasonId?: string,
   options: StatisticsRevalidationOptions = {},
 ): void {
-  if (options.statistics !== false) revalidatePublicStatsTag(options.statisticsReason);
+  if (options.statistics !== false)
+    revalidatePublicStatsTag(options.statisticsReason, options.statisticsSeasonId);
   revalidateTag(PUBLIC_SEASON_CATALOG_TAG, { expire: 0 });
   revalidateTag(publicSeasonTag(slug), "max");
   revalidatePublicHomeTag();
@@ -104,10 +109,14 @@ export function updatePublicPlayerTag(userId: string): void {
 }
 
 /** Includes removals and identity corrections; never serve a stale statistical attribution. */
-export function updatePublicStatsTag(reason: StatsInvalidationReason = "season_or_other"): void {
+export function updatePublicStatsTag(
+  reason: StatsInvalidationReason = "season_or_other",
+  seasonId?: string,
+): void {
   recordStatsInvalidation(reason, "attempted");
   try {
     updateTag(PUBLIC_STATS_TAG);
+    updateTag(seasonId ? eventStatsTag(seasonId) : ALL_EVENT_STATS_TAG);
     recordStatsInvalidation(reason, "completed");
   } catch (error) {
     recordStatsInvalidation(reason, "failed");
@@ -118,10 +127,12 @@ export function updatePublicStatsTag(reason: StatsInvalidationReason = "season_o
 /** Route/webhook equivalent of updateTag, which is only legal inside Server Actions. */
 export function revalidatePublicStatsTag(
   reason: StatsInvalidationReason = "season_or_other",
+  seasonId?: string,
 ): void {
   recordStatsInvalidation(reason, "attempted");
   try {
     revalidateTag(PUBLIC_STATS_TAG, { expire: 0 });
+    revalidateTag(seasonId ? eventStatsTag(seasonId) : ALL_EVENT_STATS_TAG, { expire: 0 });
     recordStatsInvalidation(reason, "completed");
   } catch (error) {
     recordStatsInvalidation(reason, "failed");

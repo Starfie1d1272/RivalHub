@@ -34,7 +34,9 @@ import {
 } from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
-import { getCurrentStatsSelectionInTx, getMatchMvpSummary, getTournamentPerformancePopulations, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats, getTournamentRecordEvents } from "../../../src/lib/stats/tournament-query";
+import { getCurrentStatsSelectionInTx } from "../../../src/lib/stats/tournament-scope";
+import { getMatchMvpSummary, getTournamentPerformancePopulations, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
+import { getTournamentRecordEvents } from "../../../src/lib/stats/record-events-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
 import { loadLineupCareers, loadLineupPopulation } from "../../../src/lib/matches/lineup-comparison-query";
 import { partitionRankingPopulation } from "../../../src/lib/stats/ranking";

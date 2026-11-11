@@ -5,7 +5,7 @@ import { TournamentStatsView } from "@/components/stats/TournamentStats";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { getPublicTournamentMapDetail, getPublicTournamentStats } from "@/lib/stats/cached-query";
-import { getTournamentRecordEvents } from "@/lib/stats/tournament-query";
+import { getTournamentRecordEvents } from "@/lib/stats/record-events-query";
 import { buildRecords } from "@/lib/stats/records";
 import { publicStatsView } from "@/lib/stats/public-view";
 import { parseStatsQuery, statsHref, type StatsSearch } from "@/lib/stats/view-state";

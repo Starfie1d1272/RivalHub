@@ -9,7 +9,7 @@ import { cache } from "react";
 import { db } from "@/db/client";
 import { competitionEntries, matches, seasons } from "@/db/schema";
 import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
-import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
+import { ALL_EVENT_STATS_TAG, PUBLIC_STATS_TAG, eventStatsTag } from "@/lib/cache/tags";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import { AppError, ErrorCode } from "@/lib/errors";
 import {
@@ -24,9 +24,8 @@ import {
   getTournamentMapDetail,
   getTournamentStats,
   getTournamentTeamDetail,
-  type TournamentStatsScope,
-  type PlatformStatsScope,
 } from "./tournament-query";
+import type { TournamentStatsScope, PlatformStatsScope } from "./types";
 
 type TournamentViewScope = TournamentStatsScope &
   Pick<PlatformStatsScope, "view" | "mapDetail" | "weaponTeamId">;
@@ -95,14 +94,15 @@ async function requirePublicEntry(seasonId: string, entryId: string): Promise<vo
   if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "参赛队伍不存在或尚未公开。");
 }
 
-function statsCachePolicy(): void {
-  cacheTag(PUBLIC_STATS_TAG);
+function statsCachePolicy(seasonId?: string): void {
+  if (seasonId) cacheTag(ALL_EVENT_STATS_TAG, eventStatsTag(seasonId));
+  else cacheTag(PUBLIC_STATS_TAG);
   cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
 }
 
 async function cachedTournamentStats(scope: TournamentViewScope) {
   "use cache: remote";
-  statsCachePolicy();
+  statsCachePolicy(scope.seasonId);
   return observePublicStatsFill("stats.tournament", async () =>
     preservePublicStatsDependencyFailure(() => getTournamentStats(scope)),
   );
@@ -110,7 +110,7 @@ async function cachedTournamentStats(scope: TournamentViewScope) {
 
 async function cachedTournamentTeam(scope: TeamScope) {
   "use cache: remote";
-  statsCachePolicy();
+  statsCachePolicy(scope.seasonId);
   return observePublicStatsFill("stats.tournament", async () =>
     preservePublicStatsDependencyFailure(() => getTournamentTeamDetail(scope)),
   );
@@ -118,7 +118,7 @@ async function cachedTournamentTeam(scope: TeamScope) {
 
 async function cachedTournamentMap(scope: MapScope) {
   "use cache: remote";
-  statsCachePolicy();
+  statsCachePolicy(scope.seasonId);
   return observePublicStatsFill("stats.tournament", async () =>
     preservePublicStatsDependencyFailure(() => getTournamentMapDetail(scope)),
   );

@@ -1,7 +1,7 @@
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
-import { and, count, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
+import { and, count, eq, inArray, ne, or, sql } from "drizzle-orm";
 import {
   buildTournamentAnalytics,
   buildTournamentPerformanceAnalyticsFromProjections as buildTournamentPerformanceAnalytics,
@@ -12,7 +12,6 @@ import {
   competitionEntries,
   eventRosterMembers,
   matchDemoStatProjections,
-  matchPlayerStats,
   matchMaps,
   matchRosterPlayers,
   matchRosters,
@@ -36,8 +35,15 @@ import {
   type RecordOccurrence,
   type RecordSummary,
 } from "./records";
-import { RECORD_EVENT_NAMES, type CompactRecordEvent, type RecordEventKind } from "./record-facts";
+import { RECORD_EVENT_NAMES, type RecordEventKind } from "./record-facts";
+import type { RecordEventPage } from "./record-events-query";
 import type { StatsTab } from "./view-state";
+import type {
+  PlatformStatsScope,
+  PlayerStatsEventOption,
+  StatsLabels,
+  TournamentStatsScope,
+} from "./types";
 import type { Insight } from "./insights";
 import { buildTournamentResults } from "./results";
 import { buildTeamRatings } from "./team-rating";
@@ -59,70 +65,6 @@ import {
   buildCoverage,
 } from "./tournament-aggregate";
 export { scopePerformanceFactsToTeam } from "./tournament-aggregate";
-
-export interface TournamentStatsScope {
-  seasonId: string;
-  stage?: string;
-  format?: "bo1" | "bo3" | "bo5";
-  mapFilter?: string;
-  teamFilter?: string;
-}
-
-export type PlatformStatsScope = Omit<TournamentStatsScope, "seasonId"> & {
-  seasonId?: string;
-  seasonIds?: string[];
-  weaponTeamId?: string;
-  publicOnly?: boolean;
-  view?: StatsTab;
-  mapDetail?: boolean;
-};
-type StatsEvidenceScope = PlatformStatsScope;
-
-export interface PlayerStatsEventOption {
-  id: string;
-  slug: string;
-  name: string;
-  maps: string[];
-}
-
-export type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
-
-/** Lightweight canonical selection for public directory/scouting aggregates. */
-export async function getCurrentStatsSelectionInTx(
-  tx: TxDb,
-  scope: { seasonId?: string; userIds?: readonly string[]; before?: Date; excludeMatchId?: string },
-) {
-  if (scope.userIds?.length === 0) return { currentImportIds: [], roster: [], matchIds: [] };
-  const candidates = await tx
-    .selectDistinct({ id: matches.id })
-    .from(matches)
-    .innerJoin(seasons, eq(seasons.id, matches.seasonId))
-    .innerJoin(matchPlayerStats, eq(matchPlayerStats.matchId, matches.id))
-    .where(
-      and(
-        officialMatchCondition(),
-        eq(matches.status, "finished"),
-        ne(seasons.status, "draft"),
-        scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
-        scope.before ? lt(matches.completedAt, scope.before) : undefined,
-        scope.excludeMatchId ? ne(matches.id, scope.excludeMatchId) : undefined,
-        scope.userIds ? inArray(matchPlayerStats.userId, [...scope.userIds]) : undefined,
-      ),
-    );
-  const candidateIds = candidates.map((row) => row.id);
-  const effectiveRoster = await loadEffectiveMatchRosterIdentities(tx, candidateIds);
-  const context = await loadStatsContext(
-    tx,
-    {},
-    { matchIds: candidateIds, effectiveRoster, skipLabels: true },
-  );
-  const refs = await loadCurrentProjectionRefs(tx, context);
-  return {
-    currentImportIds: refs.map(({ current }) => current.id),
-    roster: context.roster,
-    matchIds: context.matchIds,
-  };
-}
 
 async function loadPlayerAppearanceScopes(
   tx: TxDb,
@@ -272,7 +214,7 @@ function buildVetoSelection(
     });
 }
 
-async function loadScopedVetoRows(tx: TxDb, scope: StatsEvidenceScope, mapName?: string) {
+async function loadScopedVetoRows(tx: TxDb, scope: PlatformStatsScope, mapName?: string) {
   return tx
     .select({
       matchId: matchVetoSteps.matchId,
@@ -314,7 +256,7 @@ type VetoRow = { matchId: string; mapName: string; action: string; entryId: stri
 
 async function loadVetoData(
   tx: TxDb,
-  scope: StatsEvidenceScope & { teamId?: string },
+  scope: PlatformStatsScope & { teamId?: string },
   entries: Array<{ id: string; name: string }>,
   remap: (id: string) => string = (id) => id,
   reusedMatches?: readonly VetoMatch[],
@@ -704,160 +646,9 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
   };
 }
 
-export const RECORD_EVENT_PAGE_SIZE = 25;
-export interface RecordEventOccurrence extends CompactRecordEvent {
-  eventName: string;
-  eventSlug: string;
-  matchId: string;
-  mapId: string;
-  mapName: string;
-  entityName: string;
-  teamName: string;
-  teamHref: string;
-  opponent: string;
-  opponentHref: string;
-  victimName?: string;
-  score: string;
-}
-export interface RecordEventPage {
-  rows: RecordEventOccurrence[];
-  total: number;
-  page: number;
-  pages: number;
-  maps: number;
-  weapons: string[];
-}
-/** Same current-import / revision / identity selection as analytics, with DB-side event pagination. */
-export async function getTournamentRecordEvents(
-  scope: PlatformStatsScope,
-  filter: { eventType?: RecordEventKind | ""; eventWeapon?: string; eventPage?: number },
-  database: DB = db,
-): Promise<RecordEventPage> {
-  return database.transaction(
-    async (tx) => {
-      if (!scope.seasonId || scope.publicOnly) {
-        const events = await tx
-          .select({ id: seasons.id })
-          .from(seasons)
-          .where(
-            and(
-              ne(seasons.status, "draft"),
-              scope.seasonIds ? inArray(seasons.id, scope.seasonIds) : undefined,
-              scope.seasonId ? eq(seasons.id, scope.seasonId) : undefined,
-            ),
-          );
-        if (scope.seasonId && !events.some((event) => event.id === scope.seasonId))
-          throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
-        scope = { ...scope, seasonIds: events.map((event) => event.id) };
-      }
-      const loaded = await loadStatsEvidenceSelection(
-        tx,
-        scope,
-        {},
-        sql<ProjectionTargets>`jsonb_build_object(
-      'tournament', jsonb_build_object('mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey', 'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey'),
-      'performance', jsonb_build_object('mapKey', ${matchDemoStatProjections.facts}->'performance'->'mapKey', 'matchKey', ${matchDemoStatProjections.facts}->'performance'->'matchKey'))`,
-      );
-      const ids = loaded.selected.map((row) => row.importId);
-      const page = filter.eventPage ?? 1;
-      if (!Number.isSafeInteger(page) || page < 1 || page > 999999)
-        throw new AppError(ErrorCode.NOT_FOUND, "事件页不可用。");
-      if (!ids.length) {
-        if (page > 1) throw new AppError(ErrorCode.NOT_FOUND, "事件页不可用。");
-        return { rows: [], total: 0, page: 1, pages: 1, maps: 0, weapons: [] };
-      }
-      const source = sql`LATERAL jsonb_array_elements(COALESCE(${matchDemoStatProjections.facts}->'records'->'events', '[]'::jsonb)) WITH ORDINALITY AS occurrence(event, position)`;
-      const base = and(
-        inArray(matchDemoStatProjections.importId, ids),
-        eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
-      );
-      const typeCondition = filter.eventType
-        ? sql`occurrence.event->>'kind' = ${filter.eventType}`
-        : undefined;
-      const condition = and(
-        base,
-        typeCondition,
-        filter.eventWeapon
-          ? sql`(occurrence.event->>'weapon' = ${filter.eventWeapon} OR occurrence.event->'weapons' ? ${filter.eventWeapon})`
-          : undefined,
-      );
-      const [countRow] = await tx
-        .select({ total: count() })
-        .from(matchDemoStatProjections)
-        .innerJoin(source, sql`true`)
-        .where(condition);
-      const total = Number(countRow?.total ?? 0),
-        pages = Math.max(1, Math.ceil(total / RECORD_EVENT_PAGE_SIZE));
-      if (page > pages) throw new AppError(ErrorCode.NOT_FOUND, "事件页不可用。");
-      const weaponRows = await tx
-        .selectDistinct({ weapon: sql<string>`weapon.value #>> '{}'` })
-        .from(matchDemoStatProjections)
-        .innerJoin(source, sql`true`)
-        .innerJoin(
-          sql`LATERAL jsonb_array_elements(COALESCE(occurrence.event->'weapons', jsonb_build_array(occurrence.event->'weapon'))) AS weapon(value)`,
-          sql`true`,
-        )
-        .where(and(base, typeCondition));
-      const weapons = weaponRows
-        .map((row) => row.weapon)
-        .filter((weapon): weapon is string => Boolean(weapon))
-        .sort();
-      const rows = await tx
-        .select({
-          importId: matchDemoStatProjections.importId,
-          event: sql<CompactRecordEvent>`occurrence.event`,
-        })
-        .from(matchDemoStatProjections)
-        .innerJoin(source, sql`true`)
-        .where(condition)
-        .orderBy(
-          matchDemoStatProjections.importId,
-          sql`(occurrence.event->>'round')::int`,
-          sql`occurrence.position`,
-        )
-        .limit(RECORD_EVENT_PAGE_SIZE)
-        .offset((page - 1) * RECORD_EVENT_PAGE_SIZE);
-      const refs = new Map(loaded.currentRefs.map((ref) => [ref.current.id, ref]));
-      const entries = new Map(loaded.entryRows.map((entry) => [entry.id, entry]));
-      return {
-        total,
-        page,
-        pages,
-        maps: loaded.selected.length,
-        weapons,
-        rows: rows.map(({ importId, event }) => {
-          const { map, match } = refs.get(importId)!;
-          const entry = entries.get(event.entryId)!;
-          const opponent = entries.get(
-            event.entryId === match.entryAId ? match.entryBId : match.entryAId,
-          )!;
-          return {
-            ...event,
-            eventName: entry.eventName,
-            eventSlug: entry.eventSlug,
-            matchId: match.id,
-            mapId: map.id,
-            mapName: map.mapName,
-            entityName: loaded.labels.players[event.entityId] ?? "选手",
-            teamName: entry.name,
-            teamHref: `/${entry.eventSlug}/teams/${entry.id}`,
-            opponent: opponent.name,
-            opponentHref: `/${opponent.eventSlug}/teams/${opponent.id}`,
-            victimName: event.victimId
-              ? (loaded.labels.players[event.victimId] ?? "选手")
-              : undefined,
-            score: `${event.scoreA}-${event.scoreB}`,
-          };
-        }),
-      };
-    },
-    { isolationLevel: "repeatable read", accessMode: "read only" },
-  );
-}
-
 async function loadTournamentPlayerSnapshot(
   tx: TxDb,
-  scope: StatsEvidenceScope & { playerId: string },
+  scope: PlatformStatsScope & { playerId: string },
   matchIds: readonly string[],
   options: {
     requireCurrentImports?: boolean;

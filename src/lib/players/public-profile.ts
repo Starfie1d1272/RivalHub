@@ -23,7 +23,7 @@ import { publicCompetitionEntryCondition } from "@/lib/competition-entries/publi
 import type { getPublicPlayerById } from "@/lib/data/public-players";
 import { getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { getPublicSeasonResultsBatch } from "@/lib/seasons/public-results";
-import type { PlayerStatsEventOption } from "@/lib/stats/tournament-query";
+import type { PlayerStatsEventOption } from "@/lib/stats/types";
 import { getPublicPlayerCareerDetail } from "@/lib/stats/cached-query";
 import { getPlayerAttributeBenchmark } from "@/lib/stats/player-attribute-benchmark";
 import { projectPlayerAttributeProfile } from "@/lib/stats/player-attributes";

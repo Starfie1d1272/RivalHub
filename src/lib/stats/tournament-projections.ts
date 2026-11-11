@@ -14,7 +14,7 @@ import {
 } from "./projection-transport";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { loadStatsContext, loadCurrentProjectionRefs } from "./tournament-scope";
-import type { PlatformStatsScope as StatsEvidenceScope, StatsLabels } from "./tournament-query";
+import type { PlatformStatsScope as StatsEvidenceScope, StatsLabels } from "./types";
 
 export async function loadStatsEvidence(
   tx: TxDb,

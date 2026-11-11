@@ -11,7 +11,11 @@ import { loadOperatorContext } from "../../../src/lib/admin/matches/operator-con
 import { loadEffectiveMatchRoster } from "../../../src/lib/match-rosters/effective";
 import { readRivalHubEvents } from "../../../src/lib/demo-integration/read";
 import { buildEvidenceRevisionForTarget } from "../../../src/lib/demo-integration/revision";
-import { getCurrentStatsSelectionInTx, getTournamentStats } from "../../../src/lib/stats/tournament-query";
+import { getCurrentStatsSelectionInTx } from "../../../src/lib/stats/tournament-scope";
+import { getTournamentStats } from "../../../src/lib/stats/tournament-query";
+import { getStatsLeaderboard } from "@/lib/stats/leaderboard-query";
+import { loadMatchScoreboard } from "@/lib/matches/detail-scoreboard";
+import { loadLineupCareers } from "@/lib/matches/lineup-comparison-query";
 import { CURRENT_DAK_SEMANTIC_PROFILE } from "../../../src/lib/demo-integration/semantic-profile";
 import { createStageBracket, saveStageBracketState, advanceStageBracket, ensureResolvedBracketMatch, loadStageBracketNodeViews } from "../../../src/lib/bracket";
 import normalEvidence from "../../fixtures/demo-evidence/normal-map-v1.json";
@@ -112,7 +116,7 @@ describe("reviewed early series completion PostgreSQL", () => {
     const adapted = adaptStatsEvidence(evidence, new Map(bindings.map(binding => [binding.steam64, binding])));
     await db.insert(schema.matchDemoStatProjections).values({ importId, projectionVersion: STATISTICS_PROJECTION_VERSION, payloadSha256: "b".repeat(64), demoSha256: "a".repeat(64), semanticProfile: CURRENT_DAK_SEMANTIC_PROFILE, analysisVersion: "fixture", evidenceRevision: revision, identityBindings: bindings, facts: { tournament: adapted.tournament, performance: collectTournamentPerformanceMapProjection(adapted.performance) } });
     expect((await getTournamentStats({ seasonId: f.seasonId })).coverage.detailedMaps).toBe(1);
-    await db.insert(schema.matchPlayerStats).values({ matchId: f.matchId, mapId: f.mapTwoId, perfectName: "原始 OCR", kills: 17, deaths: 9, assists: 3, userId: owner, dakImportId: importId });
+    await db.insert(schema.matchPlayerStats).values({ matchId: f.matchId, mapId: f.mapTwoId, perfectName: "原始 OCR", verifiedByAdmin: "fixture-admin", kills: 17, deaths: 9, assists: 3, userId: owner, dakImportId: importId });
     const before = (await readRivalHubEvents({ seasonIds: [f.seasonId] })).events[0]!.series.find(row => row.id === match.id)!;
     expect(before.maps.find(row => row.id === f.mapTwoId)?.demoStatus).toBe("synced");
     await apply(await confirmation(f.request));
@@ -124,6 +128,20 @@ describe("reviewed early series completion PostgreSQL", () => {
     expect(await db.query.matchPlayerStats.findFirst({ where: eq(schema.matchPlayerStats.mapId, f.mapTwoId) })).toMatchObject({ kills: 17, deaths: 9, assists: 3, dakImportId: importId });
     expect((await db.transaction(tx => getCurrentStatsSelectionInTx(tx, { seasonId: f.seasonId }))).currentImportIds).not.toContain(importId);
     expect((await getTournamentStats({ seasonId: f.seasonId })).coverage.detailedMaps).toBe(0);
+    expect(await loadLineupCareers([owner], randomUUID(), new Date(end.getTime() + 1))).toEqual([]);
+
+    // Historical OCR rows could share a user under two names on the same map.
+    const other = roster.find((member) => member.userId !== owner)!;
+    await db.insert(schema.matchPlayerStats).values([
+      { userId: owner, perfectName: "Duplicate A" },
+      { userId: owner, perfectName: "Duplicate B" },
+      { userId: other.userId, perfectName: "Clean", adr: 86, kills: 18, deaths: 9, hsPercent: 50 },
+    ].map((row) => ({ ...row, mapId: f.mapOneId, matchId: f.matchId, verifiedByAdmin: "fixture-admin" })));
+    const correctedMaps = await db.query.matchMaps.findMany({ where: eq(schema.matchMaps.matchId, match.id) });
+    const detail = await loadMatchScoreboard(match, correctedMaps, new Map(roster.map((row) => [row.userId, row.entryId])), null, {});
+    const leaderboard = await getStatsLeaderboard({ matchIds: [match.id] }, [], roster, db, { requireRosterMatch: true });
+    expect(detail.mapPlayers.get(f.mapOneId)?.map((row) => row.userId)).toEqual([other.userId]);
+    expect(leaderboard).toMatchObject([{ userId: other.userId, maps: 1, avgAdr: 86, kdRatio: 2, avgHs: 50 }]);
     expect(await db.query.matchDemoStatProjections.findFirst({ where: eq(schema.matchDemoStatProjections.importId, importId) })).toMatchObject({ evidenceRevision: revision, identityBindings: bindings });
   });
 

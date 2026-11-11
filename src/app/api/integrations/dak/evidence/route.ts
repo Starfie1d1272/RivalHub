@@ -7,6 +7,7 @@ import {
 } from "@/lib/demo-integration/http";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { BoundedJsonError, readBoundedRequestJson } from "@/lib/integrations/http-body";
+import type { RivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import { revalidatePublicStatsTag } from "@/lib/revalidation";
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -52,7 +53,8 @@ export async function POST(request: Request): Promise<Response> {
       // A newer needs_attention import also changes which lineage is current and
       // can remove an older confirmed sample from public statistics.
       diagnostics.phase = "revalidation";
-      revalidatePublicStatsTag("dak.evidence");
+      // The submission command already validated the complete Evidence payload.
+      revalidatePublicStatsTag("dak.evidence", (input as RivalHubDemoEvidenceV1).target.seasonId);
       return integrationJson(request, result);
     },
   );

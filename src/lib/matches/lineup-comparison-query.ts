@@ -9,9 +9,7 @@ import { getLineupStatsPopulation } from "@/lib/stats/leaderboard-query";
 import { partitionRankingPopulation } from "@/lib/stats/ranking";
 import type { LineupCareer } from "./lineup-comparison";
 
-/** One aggregate for both lineups and the historical baseline.
- * Confirmed per-map facts are reused without revalidating each import at read time.
- */
+/** One population for both lineups and the historical baseline, using current statistics facts. */
 export async function loadLineupPopulation(
   matchId: string,
   before: Date,
