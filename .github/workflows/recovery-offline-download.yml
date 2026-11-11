@@ -1,0 +1,55 @@
+name: Recovery offline download
+
+on:
+  workflow_dispatch:
+    inputs:
+      completion_key:
+        description: R2 completion key for a completed daily or manual full backup
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  prepare-download:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - name: Install age
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends age
+      - name: Seal short-lived download URLs to the offline recovery identity
+        env:
+          COMPLETION_KEY: ${{ inputs.completion_key }}
+          R2_ACCOUNT_ID: ${{ vars.RIVALHUB_R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.RIVALHUB_R2_BUCKET }}
+          BACKUP_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.RIVALHUB_R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$COMPLETION_KEY" =~ ^production/(daily|manual|pre-release)/[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9a-f-]{36}\.complete\.json$ ]]
+          [[ "$R2_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]
+          [[ "$R2_BUCKET" =~ ^[a-z0-9][a-z0-9-]+[a-z0-9]$ ]]
+          [[ "$BACKUP_RECIPIENT" =~ ^age1[0-9a-z]{58}$ ]]
+          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          prefix="${COMPLETION_KEY%.complete.json}"
+          for suffix in complete.json manifest.json tar.gz.age; do
+            aws s3api head-object --endpoint-url "$endpoint" --bucket "$R2_BUCKET" --key "$prefix.$suffix" >/dev/null
+          done
+          for suffix in complete.json manifest.json tar.gz.age; do
+            aws s3 presign --endpoint-url "$endpoint" --expires-in 900 "s3://$R2_BUCKET/$prefix.$suffix"
+          done | age --encrypt --recipient "$BACKUP_RECIPIENT" --output "$RUNNER_TEMP/recovery-download.age"
+      - name: Upload encrypted GET receipt
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: recovery-download-receipt
+          path: ${{ runner.temp }}/recovery-download.age
+          retention-days: 1
+          if-no-files-found: error

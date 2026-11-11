@@ -153,6 +153,10 @@ pnpm db:recovery:fetch \
 
 fetch 固定按 completion → sidecar → encrypted artifact 顺序执行 HEAD/真实 GET 与 checksum 验证，核对 run identity、artifact size/hash 和 sidecar/completion relationship；只把三个已验证文件放进一个全新的 `0700` 目录，拒绝覆盖已存在目录。它严格只执行 HEAD/GET 下载，不连接 PostgreSQL/Supabase，不调用 Cloudflare configuration API，不执行 PUT，不读取 age private key，也不在 fetch 阶段解密 artifact。
 
+### 没有本地 R2 凭据时取件
+
+从受保护的 `main` 手动运行 **Recovery offline download**，输入已完成 full backup 的 R2 completion key。工作流核对三个对象，并将 15 分钟有效的三个 GET URL 加密给现有离线灾备 identity。Actions 只保存加密凭据，R2 继续保存原备份。按 completion、sidecar、encrypted artifact 的顺序取件到私有目录，立即用 `db:recovery:restore` 的 manifest、completion 和 artifact 校验。签名 URL 不写入终端输出、仓库或验收记录。
+
 ## Recovery format baseline
 
 当前 Recovery format 固定为版本 2（`RECOVERY_FORMAT_VERSION = 2`）。解析器直接校验 format version 相符性，不支持未知版本。
