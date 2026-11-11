@@ -666,7 +666,10 @@ jobs:
               echo "GitHub Release $RELEASE_TAG 已 immutable；保留已发布 metadata。"
             else
               echo "GitHub Release $RELEASE_TAG 已存在，更新 notes…"
-              gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/rivalhub-release-evidence.json" --clobber
+              HAS_EVIDENCE="$(gh release view "$RELEASE_TAG" --json assets --jq 'any(.assets[]; .name == "rivalhub-release-evidence.json")')"
+              if [[ "$HAS_EVIDENCE" == false ]]; then
+                gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/rivalhub-release-evidence.json"
+              fi
               gh release edit "$RELEASE_TAG" \
                 --notes-file /tmp/release-notes.md \
                 "${RELEASE_FLAGS[@]}"
