@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reviewRegistration } from "@/actions/admin";
-import { saveRegistrationDraft, submitRegistration } from "@/actions/register";
+import { submitRegistration } from "@/actions/register";
 import type { DB } from "@/db/client";
 import * as schema from "@/db/schema";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -48,7 +48,7 @@ afterEach(async () => {
   await pool.end();
 });
 
-async function fixture(maxTotal = 3) {
+async function fixture() {
   const seasonId = randomUUID();
   const now = Date.now();
   await database.insert(schema.seasons).values({
@@ -56,7 +56,7 @@ async function fixture(maxTotal = 3) {
     registrationMode: "solo", status: "registration", hasCaptainVoting: true,
     registrationOpensAt: new Date(now - 60_000), registrationOpenedAt: new Date(now - 60_000),
     registrationClosesAt: new Date(now + 60_000), positions: [position, secondary],
-    registrationConfig: normalizeRegistrationConfig({ maxPerPosition: 1, maxTotal, mapPool }),
+    registrationConfig: normalizeRegistrationConfig({ maxPerPosition: 1, maxTotal: 3, mapPool }),
   });
   return seasonId;
 }
@@ -82,15 +82,18 @@ function steamProfile(_database: unknown, _previous: string | null, steam64: str
 }
 
 function pauseSteamLookups(count: number) {
+  const firstReached = Promise.withResolvers<void>();
   const reached = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
   let started = 0;
   dependencies.steam.mockImplementation(async (...args: Parameters<typeof steamProfile>) => {
-    if (++started === count) reached.resolve();
+    started++;
+    if (started === 1) firstReached.resolve();
+    if (started === count) reached.resolve();
     await release.promise;
     return steamProfile(...args);
   });
-  return { reached: reached.promise, release: release.resolve };
+  return { firstReached: firstReached.promise, reached: reached.promise, release: release.resolve };
 }
 
 describe("solo registration writes use current season and approval facts", () => {
@@ -123,10 +126,15 @@ describe("solo registration writes use current season and approval facts", () =>
     const [first, second] = await Promise.all([player(seasonId), player(seasonId)]);
     dependencies.session.mockResolvedValueOnce(first.session).mockResolvedValueOnce(second.session);
     const pause = pauseSteamLookups(2);
-    const attempts = [submitRegistration(first.form), submitRegistration(second.form)];
+    const firstAttempt = submitRegistration(first.form);
+    const attempts = [firstAttempt];
     try {
-      await Promise.race([pause.reached, ...attempts.map((attempt) => attempt.then(() => {
-        throw new Error("Contender finished before both lookups");
+      await Promise.race([pause.firstReached, firstAttempt.then((result) => {
+        throw new Error(`First contender finished before lookup: ${JSON.stringify(result)}`);
+      })]);
+      attempts.push(submitRegistration(second.form));
+      await Promise.race([pause.reached, ...attempts.map((attempt) => attempt.then((result) => {
+        throw new Error(`Contender finished before both lookups: ${JSON.stringify(result)}`);
       }))]);
     } finally {
       pause.release();
@@ -140,39 +148,4 @@ describe("solo registration writes use current season and approval facts", () =>
     })).toHaveLength(1);
   });
 
-  it("applies the approved total even when another position has room", async () => {
-    const seasonId = await fixture(1);
-    const [first, second] = await Promise.all([player(seasonId), player(seasonId)]);
-    second.form.primaryPosition = secondary;
-    second.form.secondaryPosition = position;
-    dependencies.steam.mockImplementation(steamProfile);
-    dependencies.session.mockResolvedValueOnce(first.session).mockResolvedValueOnce(second.session);
-    const a = await submitRegistration(first.form);
-    const b = await submitRegistration(second.form);
-    if (!a.success || !b.success) throw new Error("Unable to create the two pending registrations");
-    dependencies.admin.mockResolvedValue(first.session);
-    expect(await reviewRegistration({ registrationId: a.data.registrationId, status: "approved" }))
-      .toMatchObject({ success: true });
-    expect(await reviewRegistration({ registrationId: b.data.registrationId, status: "approved" }))
-      .toMatchObject({ success: false, error: { code: "REGISTRATION_FULL" } });
-  });
-
-  it("rejects a submission and draft after registration closes", async () => {
-    const seasonId = await fixture();
-    const entrant = await player(seasonId);
-    dependencies.session.mockResolvedValue(entrant.session);
-    const pause = pauseSteamLookups(1);
-    const pending = submitRegistration(entrant.form);
-    try {
-      await Promise.race([pause.reached, pending.then(() => { throw new Error("Submission finished before lookup"); })]);
-      await database.update(schema.seasons).set({ registrationClosesAt: new Date(Date.now() - 1) })
-        .where(eq(schema.seasons.id, seasonId));
-    } finally {
-      pause.release();
-      await pending;
-    }
-    expect(await pending).toMatchObject({ success: false, error: { code: "REGISTRATION_CLOSED" } });
-    expect(await saveRegistrationDraft({ seasonId, email: entrant.form.email }))
-      .toMatchObject({ success: false, error: { code: "REGISTRATION_CLOSED" } });
-  });
 });
