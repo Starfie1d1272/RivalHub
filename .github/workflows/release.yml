@@ -53,6 +53,7 @@ jobs:
       previous_release_commit: ${{ steps.frozen_identity.outputs.previous_release_commit }}
       release_mode: ${{ steps.frozen_identity.outputs.release_mode }}
       ci_run_id: ${{ steps.candidate_ci.outputs.ci_run_id }}
+      ci_run_attempt: ${{ steps.candidate_ci.outputs.ci_run_attempt }}
       ci_head_sha: ${{ steps.candidate_ci.outputs.ci_head_sha }}
       requires_scheduler_provision: ${{ steps.plan.outputs.requiresSchedulerProvision }}
       requires_migration_rehearsal: ${{ steps.plan.outputs.requiresMigrationRehearsal }}
@@ -341,14 +342,6 @@ jobs:
           cache: false
           require-lockfile: true
 
-      - name: Verify Linux deployment credential presence
-        env:
-          LINUX_DEPLOY_SSH_KEY: ${{ secrets.LINUX_DEPLOY_SSH_KEY }}
-          LINUX_DEPLOY_KNOWN_HOSTS: ${{ vars.LINUX_DEPLOY_KNOWN_HOSTS }}
-        run: |
-          [[ "$LINUX_DEPLOY_SSH_KEY" == *"PRIVATE KEY"* ]] || { echo 'Missing Linux deployment key.' >&2; exit 1; }
-          [[ "$LINUX_DEPLOY_KNOWN_HOSTS" == *"[47.103.131.158]:52222"* ]] || { echo 'Missing pinned Linux host key.' >&2; exit 1; }
-
       - name: Prepare immutable Linux application checkout
         run: |
           SOURCE="$GITHUB_WORKSPACE"
@@ -586,11 +579,18 @@ jobs:
           path: .agent-tmp/standby-production-package
 
       - name: Deploy Linux production and verify canonical identity
+        id: promotion
         if: env.RELEASE_MODE == 'fresh'
         env:
           LINUX_DEPLOY_SSH_KEY: ${{ secrets.LINUX_DEPLOY_SSH_KEY }}
           LINUX_DEPLOY_KNOWN_HOSTS: ${{ vars.LINUX_DEPLOY_KNOWN_HOSTS }}
         run: node scripts/ci/timing.mjs "Linux deploy / smoke / rollback" --timeout-ms 600000 -- pnpm exec tsx scripts/release/linux-routing.ts
+
+      - name: Retain release evidence tooling across checkout
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-tooling/release" "$RUNNER_TEMP/release-tooling/standby"
+          cp scripts/release/evidence.mjs "$RUNNER_TEMP/release-tooling/release/"
+          cp scripts/standby/layers.mjs "$RUNNER_TEMP/release-tooling/standby/"
 
       - name: Restore immutable application checkout for post-deploy steps
         if: needs.preflight.outputs.release_operator_sha != needs.preflight.outputs.release_sha
@@ -607,6 +607,7 @@ jobs:
           require-lockfile: true
 
       - name: 配置并验证 production scheduler
+        id: scheduler
         if: env.REQUIRES_SCHEDULER_PROVISION == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -623,10 +624,39 @@ jobs:
             pnpm db:production:scheduler:verify
           '
 
+      - name: Check GitHub dependency graph against the candidate lockfile
+        id: dependency_readback
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          outcome=unavailable
+          if gh api "repos/$GITHUB_REPOSITORY/dependency-graph/sbom" > "$RUNNER_TEMP/release-sbom.json"; then
+            outcome=mismatch
+            if pnpm exec tsx scripts/dependencies/snapshot.ts verify-sbom "$RUNNER_TEMP/release-sbom.json"; then
+              outcome=verified
+            fi
+          fi
+          echo "outcome=$outcome" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare release evidence
+        env:
+          RIVALHUB_RELEASE_CI_RUN_ID: ${{ needs.preflight.outputs.ci_run_id }}
+          RIVALHUB_RELEASE_CI_RUN_ATTEMPT: ${{ needs.preflight.outputs.ci_run_attempt }}
+          RIVALHUB_RELEASE_OPERATOR_SHA: ${{ needs.preflight.outputs.release_operator_sha }}
+          RIVALHUB_DEPENDENCY_READBACK: ${{ steps.dependency_readback.outputs.outcome }}
+          RIVALHUB_MIGRATION_REHEARSAL: ${{ needs.migration_rehearsal.result }}
+          RIVALHUB_MIGRATION_APPLY: ${{ needs.production_migration.result }}
+          RIVALHUB_CHECKPOINT_KIND: ${{ needs.preflight.outputs.checkpoint_kind }}
+          RIVALHUB_CHECKPOINT_RESULT: ${{ needs.checkpoint.result }}
+        run: node "$RUNNER_TEMP/release-tooling/release/evidence.mjs" "$RUNNER_TEMP/rivalhub-release-evidence.json"
+
       - name: 生成 Production delta release notes
         run: pnpm release:notes > /tmp/release-notes.md
 
       - name: 创建或更新 GitHub Release
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -643,18 +673,38 @@ jobs:
               echo "GitHub Release $RELEASE_TAG 已 immutable；保留已发布 metadata。"
             else
               echo "GitHub Release $RELEASE_TAG 已存在，更新 notes…"
+              HAS_EVIDENCE="$(gh release view "$RELEASE_TAG" --json assets --jq 'any(.assets[]; .name == "rivalhub-release-evidence.json")')"
+              if [[ "$HAS_EVIDENCE" == false ]]; then
+                gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/rivalhub-release-evidence.json"
+              fi
               gh release edit "$RELEASE_TAG" \
                 --notes-file /tmp/release-notes.md \
                 "${RELEASE_FLAGS[@]}"
             fi
           else
-            gh release create "$RELEASE_TAG" \
+            gh release create "$RELEASE_TAG" "$RUNNER_TEMP/rivalhub-release-evidence.json" --verify-tag \
               --title "$RELEASE_TAG" \
               --notes-file /tmp/release-notes.md \
               "${RELEASE_FLAGS[@]}"
           fi
           RELEASE_PUB_END="$(date +%s%3N)"
           node scripts/ci/timing.mjs record --label "GitHub Release publish" --start-ms "$RELEASE_PUB_START" --end-ms "$RELEASE_PUB_END"
+
+      - name: Record promotion, dependency and publication results
+        if: always()
+        env:
+          PROMOTION: ${{ steps.promotion.outcome }}
+          DEPENDENCIES: ${{ steps.dependency_readback.outputs.outcome }}
+          SCHEDULER: ${{ steps.scheduler.outcome }}
+          PUBLICATION: ${{ steps.publish.outcome }}
+        run: |
+          {
+            echo "### Release stage status"
+            echo "- Promotion ($RELEASE_MODE): ${PROMOTION:-unavailable}"
+            echo "- Dependency graph: ${DEPENDENCIES:-unavailable}"
+            echo "- Scheduler: ${SCHEDULER:-unavailable}"
+            echo "- GitHub Release: ${PUBLICATION:-unavailable}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 记录 workflow 总耗时并生成 summary
         if: always()

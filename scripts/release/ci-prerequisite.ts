@@ -251,7 +251,10 @@ async function cliMain(): Promise<void> {
       pollTimeoutMs,
     });
     if (process.env.GITHUB_OUTPUT) {
-      appendFileSync(process.env.GITHUB_OUTPUT, `ci_run_id=${evidence.runId}\nci_head_sha=${evidence.headSha}\n`);
+      appendFileSync(
+        process.env.GITHUB_OUTPUT,
+        `ci_run_id=${evidence.runId}\nci_run_attempt=${evidence.runAttempt}\nci_head_sha=${evidence.headSha}\n`,
+      );
     }
     process.exit(0);
   } catch (error) {

@@ -5,11 +5,15 @@ import { after } from "next/server";
 import { db } from "@/db/client";
 import type { DB, TxDb } from "@/db/client";
 import { steamProfiles, users } from "@/db/schema";
-import { getSteamPlayerSummaries, type SteamProfileSummary } from "@/lib/steam";
+import {
+  getSteamPlayerSummaries,
+  STEAM_SUMMARY_BATCH_SIZE,
+  type SteamProfileSummary,
+} from "@/lib/steam";
 import { AppError, ErrorCode } from "@/lib/errors";
 import {
   revalidatePublicHomeTag,
-  revalidatePublicPlayerTag,
+  revalidatePublicPlayerTags,
   revalidatePublicStatsTag,
 } from "@/lib/revalidation";
 
@@ -235,62 +239,54 @@ export async function refreshSteamProfiles() {
   ];
   if (steam64s.length === 0) return { processed: 0, updated: 0, unresolved: 0 };
 
-  const result = await getSteamPlayerSummaries(steam64s);
-  if (result.status !== "ok")
-    throw new Error(
-      result.status === "unconfigured"
-        ? "STEAM_PROFILE_UNCONFIGURED"
-        : "STEAM_PROFILE_PROVIDER_FAILED",
-    );
-
   const cached = await loadSteamProfilesBySteam64(db, steam64s);
-  const changedProfiles: SteamProfileSummary[] = [];
   const changedSteam64s = new Set<string>();
   let unresolved = 0;
-  for (const steam64 of steam64s) {
-    const profile = result.profiles.get(steam64);
-    if (!profile) {
-      unresolved += 1;
-      continue;
+  let failed = 0;
+  try {
+    for (let offset = 0; offset < steam64s.length; offset += STEAM_SUMMARY_BATCH_SIZE) {
+      const batch = steam64s.slice(offset, offset + STEAM_SUMMARY_BATCH_SIZE);
+      const fetchedAt = new Date();
+      const result = await getSteamPlayerSummaries(batch, 5000);
+      if (result.status === "unconfigured") throw new Error("STEAM_PROFILE_UNCONFIGURED");
+      if (result.status === "failed") {
+        failed += 1;
+        continue;
+      }
+
+      const profiles = [...result.profiles.values()];
+      unresolved += batch.length - profiles.length;
+      if (!profiles.length) continue;
+      await db
+        .insert(steamProfiles)
+        .values(profiles.map((profile) => ({ ...profile, fetchedAt })))
+        .onConflictDoUpdate({
+          target: steamProfiles.steam64,
+          set: {
+            personaName: sql`excluded.persona_name`,
+            profileUrl: sql`excluded.profile_url`,
+            avatarUrl: sql`excluded.avatar_url`,
+            fetchedAt: sql`excluded.fetched_at`,
+          },
+          setWhere: sql`${steamProfiles.fetchedAt} <= excluded.fetched_at`,
+        });
+      for (const profile of profiles) {
+        const previous = cached.get(profile.steam64);
+        if (
+          previous?.personaName !== profile.personaName ||
+          previous?.profileUrl !== profile.profileUrl ||
+          previous?.avatarUrl !== profile.avatarUrl
+        )
+          changedSteam64s.add(profile.steam64);
+      }
     }
-    const previous = cached.get(steam64);
-    if (
-      previous?.personaName === profile.personaName &&
-      previous.profileUrl === profile.profileUrl &&
-      previous.avatarUrl === profile.avatarUrl
-    )
-      continue;
-    changedProfiles.push(profile);
-    changedSteam64s.add(steam64);
+  } finally {
+    revalidatePublicPlayerTags(
+      candidates
+        .filter((candidate) => candidate.steam64 && changedSteam64s.has(candidate.steam64))
+        .map((candidate) => candidate.id),
+    );
   }
-
-  if (changedProfiles.length > 0) {
-    const fetchedAt = new Date();
-    await db
-      .insert(steamProfiles)
-      .values(
-        changedProfiles.map((profile) => ({
-          steam64: profile.steam64,
-          personaName: profile.personaName,
-          profileUrl: profile.profileUrl,
-          avatarUrl: profile.avatarUrl,
-          fetchedAt,
-        })),
-      )
-      .onConflictDoUpdate({
-        target: steamProfiles.steam64,
-        set: {
-          personaName: sql`excluded.persona_name`,
-          profileUrl: sql`excluded.profile_url`,
-          avatarUrl: sql`excluded.avatar_url`,
-          fetchedAt: sql`excluded.fetched_at`,
-        },
-      });
-  }
-
-  const changedUserIds = candidates
-    .filter((candidate) => candidate.steam64 && changedSteam64s.has(candidate.steam64))
-    .map((candidate) => candidate.id);
-  for (const userId of changedUserIds) revalidatePublicPlayerTag(userId);
-  return { processed: steam64s.length, updated: changedProfiles.length, unresolved };
+  if (failed) throw new Error(`STEAM_PROFILE_PROVIDER_FAILED: ${failed} batches`);
+  return { processed: steam64s.length, updated: changedSteam64s.size, unresolved };
 }

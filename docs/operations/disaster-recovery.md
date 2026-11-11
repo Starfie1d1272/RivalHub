@@ -10,8 +10,8 @@ RivalHub 使用 Recovery format 2 的 typed recovery artifact：full artifact �
 
 数据恢复目标与窗口定义如下：
 
-- **RPO**：正常情况下日常定时备份保障 RPO ≤ 24h；关键比赛日或高价值操作前后，可按需手动触发 manual backup。Release 不再机械触发 full backup：只有 Release Plan 识别到 release-time Storage mutation capability（发布过程将不可逆修改既有 Production Storage object）时才创建 full checkpoint，识别到不可逆数据库变更时创建 DB-only checkpoint。
-- **RTO**：在第一次真实 production snapshot → isolated restore drill 完成前，achievable RTO 保持为 `unverified`，待首次演练测定后记录真实基线。
+- **RPO**：正常情况下日常定时备份保障 RPO ≤ 24h；watchdog 单独核对最近一次成功且已回读的生产备份开始时间，超过 24 小时或缺证据时报失败。关键比赛日或高价值操作前后，可按需手动触发 manual backup。Release 不再机械触发 full backup：只有 Release Plan 识别到 release-time Storage mutation capability（发布过程将不可逆修改既有 Production Storage object）时才创建 full checkpoint，识别到不可逆数据库变更时创建 DB-only checkpoint。
+- **RTO**：2026-11-12 JST 从启动离线取件到隔离管理员路径通过用时约 14 分钟，隔离服务已预启动。该演练包含取件与应用验证。生产接管、DNS 切流和调度恢复的用时需要单独演练。
 
 数据库 dump 与 Storage inventory/download 是顺序操作，不是跨系统原子快照；`createdAt` 是 run identity，不代表严格 point-in-time。backup 在 database dump 前由 [`storage-policy.ts`](../../scripts/db/recovery/storage-policy.ts) 读取 managed references，Storage snapshot 完成后再次读取；两次 reference set 必须 exact equal，且第一组 references 必须全部出现在同一份 Storage inventory 中，否则整个 run fail closed。
 
@@ -252,6 +252,8 @@ Verifier 分为两层：
 Supabase database backup 不包含 Storage objects；clone/restore 还需人工重建上述 Storage/Auth/Realtime/extension/provider 配置。没有 provider read-back 时，不能把 automatic backup、PITR、scheduler 或 cutover 写成已可用；R2 logical snapshot 也不能代替 provider physical backup。
 
 ## Rehearsal 与关闭条件
+
+2026-11-12 JST 演练使用 v2.25.43 的 2026-11-11 06:06:36 UTC 生产快照，开始取件时快照约 14 小时。加密制品 27,957,518 字节，离线回读核对 SHA-256。隔离恢复命令用时 5.34 秒，核对迁移终点 `0106_vengeful_paibok`、数据库约束与领域不变量，并回读 84 个 Storage 对象。该快照没有需跳过的已失效临时对象。以原版应用验证首页与版本端点、匿名管理页跳转、隔离合成账号密码登录，以及授予管理员角色后读取设置页。 [生产备份](https://github.com/Starfie1d1272/RivalHub/actions/runs/42970047756) [离线取件](https://github.com/Starfie1d1272/RivalHub/actions/runs/43093499170)
 
 Issue 只有在以下真实 evidence 全部完成后才允许关闭：
 

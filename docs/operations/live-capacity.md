@@ -137,3 +137,11 @@ HTTP driver 在内存读取 `producers[]`：`fixture.matchId`、`fixture.authori
 没有生产锁事故、生产压测、远程 Supabase 迁移、部署或权限变更。loopback 故障模型不等于 Supabase 故障实现。真实 provider 仍需验证：目标 project 的 quotas/modern-key Broadcast 支持、跨区 RTT/p99、429/timeout 后晚到包、撤销/接管与 viewer reducer 的 end-to-end reset、多实例热点/公平性、token renew/rejoin 高峰、最大复杂度 Radar payload、实际出站和账单。超时后 provider 已接受的消息无法靠数据库回滚撤回；这是现有 transport 的边界，不能用本次 mock/本地通过签署生产能力。
 
 本专项不替代 #784 身份/竞猜容量、#610 后台工作流或 #615 公开 consumer 的完整验收。DB retry、公共缓存、投影 backfill/coverage 和 release checks 继续沿用 main，未改写其 owner。
+
+## 生产赛事窗口
+
+2026-11-08 至 11-10 UTC 的正式完赛窗口按真实赛果时间选取。11-08 05:00 窗口的 60 个 cgroup 样本 P95 为 486.1 MiB，最大 487.1 MiB。11-09 04:00 窗口的 60 个样本 P95 为 481.1 MiB。主机限制为 512 MiB。
+
+11-08 13:00 UTC 是这段日志中 LIVE 帧最多的一小时。应用接受 3,110 帧，记录 46 个超时帧、11 个竞争丢弃、3 个广播失败。该小时 cgroup 样本最大 511.9 MiB。14:00 窗口有 139 个接受帧和 4 个广播失败，cgroup 样本最大 512.0 MiB。样本中 `oom_kill` 最大为 0。
+
+同窗 Supabase 网关记录的 Realtime POST 分别为 3,111 和 135 次，请求体总量为 32,075,151 和 1,126,750 字节，P95 为 13,346 和 10,516 字节。两个窗口分别记录 50 和 23 次 WebSocket 升级。升级次数含重连和其他订阅，请求体是发布端输入。历史报表的日期范围受套餐限制，本次未获得并发连接及出站计费样本。预算复核沿用 2 Hz，下一次真实 LIVE 按同一 UTC 窗口对齐 `mizar.live.outcome_window`、`runtime.cgroup.sample`、DB 接收字节和 [Supabase Realtime 报表](https://supabase.com/docs/guides/realtime/reports)。

@@ -89,6 +89,15 @@ function state(): State {
     remaining: emptyRemaining(),
   });
 }
+function dbTrafficReleaseIdentity() {
+  const safe = (value: string | undefined) =>
+    value && /^[A-Za-z0-9._-]{1,80}$/.test(value) ? value : "unknown";
+  return {
+    release: safe(process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA),
+    deployment: safe(process.env.RIVALHUB_DEPLOYMENT_ID || process.env.VERCEL_DEPLOYMENT_ID),
+  };
+}
+
 export function withDbTrafficSource<T>(source: DbTrafficSource, fn: () => T): T {
   return state().context.run({ source }, fn);
 }
@@ -374,15 +383,11 @@ function armExitCapsule(s: State): void {
           Object.values(row.skipReasons).some(Boolean),
       );
       if (retainedRows.length || receivedBytes) {
-        const rawRelease =
-          process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
-        const rawDeployment = process.env.VERCEL_DEPLOYMENT_ID || "unknown";
         const batch = {
           id: crypto.randomUUID(),
           process: current.processId,
           at: Math.min(now, current.hour + HOUR - 1),
-          release: /^[A-Za-z0-9._-]{1,80}$/.test(rawRelease) ? rawRelease : "unknown",
-          deployment: /^[A-Za-z0-9._-]{1,80}$/.test(rawDeployment) ? rawDeployment : "unknown",
+          ...dbTrafficReleaseIdentity(),
           dropped: 0,
           receivedBytes,
           connections: current.connections,
@@ -600,13 +605,9 @@ async function openDelivery(s: State): Promise<DbTrafficDelivery> {
     s.delivery = Promise.all([import("./db-traffic-spool"), import("./db-traffic-delivery")]).then(
       async ([{ DbTrafficSpool }, { DbTrafficDelivery }]) => {
         const spool = await DbTrafficSpool.open(directory);
-        const release =
-          process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
-        const deployment = process.env.VERCEL_DEPLOYMENT_ID || "unknown";
         return new DbTrafficDelivery(spool, {
           process: s.processId,
-          release: /^[A-Za-z0-9._-]{1,80}$/.test(release) ? release : "unknown",
-          deployment: /^[A-Za-z0-9._-]{1,80}$/.test(deployment) ? deployment : "unknown",
+          ...dbTrafficReleaseIdentity(),
         });
       },
     );
@@ -701,11 +702,6 @@ export function flushDbTraffic() {
     !s.sealing &&
     (s.rows.size || s.receivedBytes || s.coverageUnknownSince !== undefined)
   ) {
-    const releaseValue =
-      process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
-    const deploymentValue = process.env.VERCEL_DEPLOYMENT_ID || "unknown";
-    const release = /^[A-Za-z0-9._-]{1,80}$/.test(releaseValue) ? releaseValue : "unknown";
-    const deployment = /^[A-Za-z0-9._-]{1,80}$/.test(deploymentValue) ? deploymentValue : "unknown";
     const rows = structuredClone([...s.rows.values()]);
     const remaining = { ...s.remaining };
     const at = Math.min(now, s.hour + HOUR - 1);
@@ -713,8 +709,7 @@ export function flushDbTraffic() {
       id: crypto.randomUUID(),
       process: s.processId,
       at,
-      release,
-      deployment,
+      ...dbTrafficReleaseIdentity(),
       dropped: 0,
       receivedBytes: s.receivedBytes,
       connections: s.connections,

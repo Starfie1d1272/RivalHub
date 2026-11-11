@@ -1,4 +1,5 @@
 import "server-only";
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 
 import { NextResponse } from "next/server";
 import { captureException } from "@/lib/observability/server";
@@ -40,7 +41,9 @@ export async function executeScheduledJob<T>(
   const source = parseSchedulerSource(request);
   if (source instanceof Response) return source;
 
-  return executeScheduledJobCore({ jobKey, source, runner });
+  return withDbTrafficSource(`scheduler.${jobKey}`, () =>
+    executeScheduledJobCore({ jobKey, source, runner }),
+  );
 }
 
 /** Shared runner used by the super-admin break-glass action. */
@@ -48,7 +51,9 @@ export async function executeScheduledJobManually<T>(
   jobKey: SchedulerJobKey,
   runner: () => Promise<SchedulerRunnerResult<T>>,
 ): Promise<SchedulerExecutionResult<T>> {
-  return executeScheduledJobCore({ jobKey, source: "super-admin-manual", runner });
+  return withDbTrafficSource(`scheduler.${jobKey}`, () =>
+    executeScheduledJobCore({ jobKey, source: "super-admin-manual", runner }),
+  );
 }
 
 async function executeScheduledJobCore<T>(input: {

@@ -38,11 +38,15 @@ export interface SteamProfileSummary {
 
 export type SteamProfileLookup =
   | { status: "ok"; profiles: Map<string, SteamProfileSummary> }
-  | { status: "unconfigured" | "failed" };
+  | { status: "unconfigured" }
+  | { status: "failed" };
+
+export const STEAM_SUMMARY_BATCH_SIZE = 100;
 
 /** Safe projection only; GetPlayerSummaries accepts at most 100 SteamIDs. */
 export async function getSteamPlayerSummaries(
   steam64s: readonly string[],
+  timeoutMs = 3000,
 ): Promise<SteamProfileLookup> {
   const key = process.env.STEAM_API_KEY;
   if (!key) {
@@ -59,13 +63,13 @@ export async function getSteamPlayerSummaries(
   }
   const ids = [...new Set(steam64s.filter((id) => /^\d{17}$/.test(id)))];
   const profiles = new Map<string, SteamProfileSummary>();
-  for (let offset = 0; offset < ids.length; offset += 100) {
-    const batch = ids.slice(offset, offset + 100);
+  for (let offset = 0; offset < ids.length; offset += STEAM_SUMMARY_BATCH_SIZE) {
+    const batch = ids.slice(offset, offset + STEAM_SUMMARY_BATCH_SIZE);
     try {
       const response = await fetch(
         `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${encodeURIComponent(key)}&steamids=${batch.join(",")}`,
         {
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(timeoutMs),
           cache: "no-store",
         },
       );

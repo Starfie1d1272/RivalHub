@@ -37,7 +37,8 @@ release lineage gate (`rivalhub-release-lineage`)
 → if requiresStatsProjectionBackfill: protected per-map statistics backfill → read-only coverage verify
 → if fresh: Linux package verification → restart / smoke / rollback
 → if requiresSchedulerProvision: scheduler provision + verify
-→ publish/update Production-delta GitHub Release notes
+→ record candidate dependency-graph readback
+→ publish/update Production-delta GitHub Release notes and release evidence
 ```
 
 PG17 rehearsal、checkpoint 与 candidate build 在 preflight 完成后并行。Linux 恢复事务由部署工具变更的 CI 验证；candidate build 构建并上传制品，runtime smoke 留在切换阶段。Release workflow 使用独立的 `rivalhub-release-lineage` workflow-level concurrency；其 `production_migration` job，以及仅在确实需要 scheduler provisioning 时的 `finalize` job，共享 `rivalhub-production-state-serialization` 与 daily backup，application-only release 不因 daily backup 排队。migration release 在 production migration/verify 完成后，先完成任何被 Release Plan 要求的 Steam profile backfill/coverage，再由同一 `finalize` job 执行 Linux 部署、smoke / routing、conditional scheduler 与 GitHub Release。
@@ -72,7 +73,7 @@ Veto 申诉生命周期独立使用 `src/lib/matches/veto-room/lifecycle-contrac
 
 8. **Same-tag resume**：若某次 run 已完成 promote，canonical Production 已等于 candidate，但后续 scheduler 或 GitHub Release 步骤失败，retry 不得把 candidate 自己当作 previous，也不得重新执行 checkpoint/migration/deploy/routing。此时 workflow dispatch 必须显式提供首次 run 冻结的 `previous_release_tag` / `previous_release_commit`；脚本验证 canonical 已精确等于 candidate、previous pair 合法且位于 candidate ancestry 后设置 `RIVALHUB_RELEASE_MODE=resume`，仅继续幂等的 post-promotion 步骤。若 canonical 仍是旧版，则这些 resume inputs 反而是错误配置并 fail closed，正常走 fresh path。
 9. **Protected Steam profile gate**：当 Release Plan 要求 backfill 时，production migration/verify 成功后必须使用 protected `STEAM_API_KEY` 和显式 cache-write confirmation 执行完整 current-primary backfill，再以 `REPEATABLE READ READ ONLY` coverage verify 确认 current-primary profile cache coverage；任一 provider、backfill 或 coverage failure 都阻止 candidate smoke/routing，旧 Production 保持为当前线上版本。
-10. **Phase timing evidence**：各阶段耗时由 `scripts/ci/timing.mjs` 统一记录并写入 Step Summary，至少区分 Release Plan、bootstrap、PG17 replay、DB-only/full checkpoint、production migration、Steam profile backfill/coverage、candidate build/smoke、routing、scheduler、GitHub Release 与 Total。最终 publish job 以 preflight 记录的起点计算 `Total`，覆盖后续 job 等待与并行阶段。
+10. **Phase timing evidence**：各阶段耗时由 `scripts/ci/timing.mjs` 统一记录并写入 Step Summary，至少区分 Release Plan、bootstrap、PG17 replay、DB-only/full checkpoint、production migration、Steam profile backfill/coverage、candidate build/smoke、routing、scheduler、GitHub Release 与 Total。每次运行分别记录晋级、依赖图回读、调度及发布结果。依赖图读到 mismatch 或 unavailable 时保留状态，发布仍使用已验收的锁文件。GitHub Release 附带 `rivalhub-release-evidence.json`，记录候选与上版 identity、frozen operator SHA、CI 和 release run/attempt、迁移 rehearsal 与 checkpoint、锁文件和构建层摘要。首次晋级的制品摘要含配置摘要、各层压缩字节和校验和。same-tag resume 记录已核验的线上版本并保留已发布的制品摘要。最终 publish job 以 preflight 记录的起点计算 `Total`，覆盖后续 job 等待与并行阶段。
 
 GitHub production Environment 只允许受保护的 `main` 与 release tag 模式 `v*`。仓库 owner 可创建 release tag，单独的 immutable tag ruleset 阻止已有 tag 更新与删除。Release preflight 验证 tag SHA 在 `main` lineage 中。production secrets、target confirmations 与 remote-write authorization 只存在于 protected production Environment/canonical wrappers。Linux 通过 `LINUX_DEPLOY_SSH_KEY` 与 `LINUX_DEPLOY_KNOWN_HOSTS` 连接固定主机 `47.103.131.158:52222`，严格校验已核实的 host key；本路径部署身份为 root，配置新凭据必须获得相应授权。禁止复用操作员个人私钥。runtime secrets 保留在服务器 `/etc/rivalhub-production/production.env`，不复制到 CI；安装权限及文件位置见 [standby.md](./standby.md)。
 

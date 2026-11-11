@@ -229,6 +229,30 @@ describe("BET transactional admission and settlement",()=>{
     const [match]=await f.db.insert(schema.matches).values({seasonId:f.seasonId,entryAId:f.entryIds[0]!,entryBId:f.entryIds[1]!,majorStageRunId:original!.majorStageRunId,stage:"stage1",ownership:"major_stage",managedKey:"rollout-window",format:"bo3"}).returning();
     await f.db.update(schema.betPrograms).set({dirty:false,catalogVersion:3}).where(eq(schema.betPrograms.seasonId,f.seasonId));
     expect((await f.db.execute(sql`select public.scheduler_job_is_due('reconcile-predictions') as due`)).rows[0]!.due).toBe(true);
+    const failingSeasonId = randomUUID();
+    const season = (await f.db.query.seasons.findFirst({ where: eq(schema.seasons.id, f.seasonId) }))!;
+    const oldest = new Date("2025-01-01T00:00:00Z");
+    await f.db.insert(schema.seasons).values({ ...season, id: failingSeasonId, slug: failingSeasonId });
+    await f.db.insert(schema.betPrograms).values({ seasonId: failingSeasonId, dirty: true, catalogVersion: 3, updatedAt: oldest });
+    await f.db.execute(sql`
+      CREATE FUNCTION reject_fixture_bet_reconcile() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.season_id::text = TG_ARGV[0] AND NEW.catalog_version <> OLD.catalog_version THEN
+          RAISE EXCEPTION 'synthetic program failure';
+        END IF;
+        RETURN NEW;
+      END $$;
+    `);
+    await f.db.execute(sql.raw(`CREATE TRIGGER reject_fixture_bet_reconcile BEFORE UPDATE ON bet_programs
+      FOR EACH ROW EXECUTE FUNCTION reject_fixture_bet_reconcile('${failingSeasonId}')`));
+    try {
+      await expect(runBetReconciliationJob(f.db)).rejects.toThrow("Bet reconciliation failed for 1 programs");
+      const failed = await f.db.query.betPrograms.findFirst({ where: eq(schema.betPrograms.seasonId, failingSeasonId) });
+      expect(failed).toMatchObject({ dirty: true, catalogVersion: 3 });
+      expect(failed!.updatedAt.getTime()).toBeGreaterThan(oldest.getTime());
+    } finally {
+      await f.db.execute(sql`DROP TRIGGER reject_fixture_bet_reconcile ON bet_programs`);
+    }
     expect(await runBetReconciliationJob(f.db)).toBe(1);
     expect((await read(f.db,f.seasonId,f.userId)).markets.filter(m=>m.matchId===match!.id && m.type==="total_rounds" && m.canStake)).toHaveLength(3);
     expect(await f.db.query.betPrograms.findFirst({where:eq(schema.betPrograms.seasonId,f.seasonId)})).toMatchObject({dirty:false,catalogVersion:4});

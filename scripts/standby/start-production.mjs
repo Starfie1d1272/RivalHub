@@ -32,6 +32,8 @@ if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[
   const manifest = JSON.parse(readFileSync(resolve(root, "standby.json"), "utf8"));
   assertProductionStandbyEnvironment(manifest);
   // This launcher serves exactly one standalone Node process.
+  process.env.RIVALHUB_RELEASE_COMMIT = manifest.sourceCommit;
+  process.env.RIVALHUB_DEPLOYMENT_ID = `linux-${manifest.sourceCommit.slice(0, 12)}-${manifest.configurationSha256.slice(0, 12)}`;
   process.env.RIVALHUB_PRESENCE_MODE = "single-process";
   process.chdir(root);
   await import(new URL("../../server.js", import.meta.url));

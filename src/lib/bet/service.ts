@@ -21,6 +21,7 @@ import {
 } from "@/db/schema";
 import { betRosterRestriction } from "./admission";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { captureException } from "@/lib/observability/server";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { distributePool } from "./pool";
@@ -800,15 +801,43 @@ export async function operateBetInTx(
 }
 export async function runBetReconciliationJob(database: DB = db) {
   const due = await database
-    .select()
+    .select({ seasonId: programs.seasonId, queueTime: sql<string>`${programs.updatedAt}::text` })
     .from(programs)
     .where(or(eq(programs.dirty, true), lt(programs.catalogVersion, BET_CATALOG_VERSION)))
-    .orderBy(asc(programs.updatedAt))
+    .orderBy(asc(programs.updatedAt), asc(programs.seasonId))
     .limit(10);
-  for (const program of due)
-    await database.transaction(async (tx) => {
-      await lockBetProgram(tx, program.seasonId);
-      await reconcileBetInTx(tx, program.seasonId);
-    });
+  let failed = 0;
+  for (const program of due) {
+    try {
+      await database.transaction(async (tx) => {
+        await lockBetProgram(tx, program.seasonId);
+        await reconcileBetInTx(tx, program.seasonId);
+      });
+    } catch (error) {
+      failed += 1;
+      captureException("bet.reconcile_failure", error, {
+        scope: "bet",
+        operation: "reconcile",
+        retryable: true,
+      });
+      await database
+        .update(programs)
+        .set({ updatedAt: sql`clock_timestamp()` })
+        .where(
+          and(
+            eq(programs.seasonId, program.seasonId),
+            sql`${programs.updatedAt} = ${program.queueTime}::timestamptz`,
+          ),
+        )
+        .catch((error) =>
+          captureException("bet.reconcile_retry_order_failed", error, {
+            scope: "bet",
+            operation: "reconcile",
+            retryable: true,
+          }),
+        );
+    }
+  }
+  if (failed) throw new Error(`Bet reconciliation failed for ${failed} programs`);
   return due.length;
 }

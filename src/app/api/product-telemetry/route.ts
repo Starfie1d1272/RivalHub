@@ -1,4 +1,5 @@
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
+import { logEvent } from "@/lib/observability/server";
 import { telemetryBootstrap } from "@/lib/telemetry/server";
 import { configuredTelemetryOrigin } from "@/lib/telemetry/origin";
 
@@ -23,6 +24,14 @@ export async function POST(request: Request): Promise<Response> {
     );
     return Response.json(config, { headers });
   } catch {
+    logEvent({
+      level: "warn",
+      event: "telemetry.bootstrap.unavailable",
+      scope: "telemetry",
+      operation: "bootstrap",
+      errorClass: "dependency",
+      retryable: true,
+    });
     return new Response(null, { status: 503, headers });
   }
 }
