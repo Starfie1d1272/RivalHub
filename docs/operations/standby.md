@@ -85,7 +85,7 @@ systemctl show rivalhub-production -p LogNamespace -p MainPID
 
 回退已有生产候选时先停止服务，按 `previous-snapshot` 指定的快照恢复 `previous-release` symlink、`production.env` 与 `service`，执行 `daemon-reload` 和启动，并回读 exact release identity。缺少任一快照项时停止并定位；保留当前、上一包及故障证据。反向代理与 DNS 是独立回退步骤。
 
-正式域名的 Caddy site 使用有效证书，参见 [`Caddyfile.production.example`](../../scripts/standby/Caddyfile.production.example)。`reverse_proxy 127.0.0.1:3032` 默认保留 Host，并设置 X-Forwarded-Host、X-Forwarded-Proto；保持 streaming。代理请求体上限设为 12 MB，为 Next 的 10 MiB Server Actions 及 multipart 开销留出空间；应用层限制仍生效。不要设置全站共享 HTML 缓存或 Preview Basic Auth。切换前用 DNS challenge 预置有效证书，并用 `curl --resolve` 或显式 SNI/Host 的 HTTPS 客户端验证；切换后去除临时静态证书引用，确认 Caddy 自动签证成功并登记 renewal 信息。保留预置证书作为故障证据，不能把手工 DNS 证书视为自动续期已完成。
+正式域名的 Caddy site 使用有效证书，参见 [`Caddyfile.production.example`](../../scripts/standby/Caddyfile.production.example)。`reverse_proxy 127.0.0.1:3032` 默认保留 Host，并设置 X-Forwarded-Host、X-Forwarded-Proto；保持 streaming。应用发送 HTTPS 主站 HSTS、内容类型与 Referrer 策略，并禁止首页、登录和私有工作区被 iframe 嵌入。公开比赛与 Mizar 路径保持可嵌入。代理请求体上限设为 12 MB，为 Next 的 10 MiB Server Actions 及 multipart 开销留出空间；应用层限制仍生效。不要设置全站共享 HTML 缓存或 Preview Basic Auth。切换前用 DNS challenge 预置有效证书，并用 `curl --resolve` 或显式 SNI/Host 的 HTTPS 客户端验证；切换后去除临时静态证书引用，确认 Caddy 自动签证成功并登记 renewal 信息。保留预置证书作为故障证据，不能把手工 DNS 证书视为自动续期已完成。
 
 新旧 standalone build 的 Server Actions ID/encryption key 可能不同。验收需在候选上重新加载页面并实际调用 action；旧页面可能需要刷新。Session 延续仍取决于相同的 `ADMIN_SESSION_SECRET`，不能以应用 commit 相同推断密钥或 action identity 相同。
 

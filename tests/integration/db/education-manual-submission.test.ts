@@ -3,13 +3,31 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { submitAdmissionNoticeEducation } from "../../../src/actions/education-verifications";
 import { createLocalPool } from "./harness/database";
 
-const { requireAuthMock, auditActorIdMock, uploadMock, removeMock } = vi.hoisted(() => ({
+const { requireAuthMock, auditActorIdMock, uploadMock, removeMock, connection } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
   auditActorIdMock: vi.fn((session: { userId: string }) => session.userId),
   uploadMock: vi.fn(),
   removeMock: vi.fn(),
+  connection: { loseNextCommit: false },
 }));
 
+vi.mock("@/db/client", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/db/client")>();
+  return {
+    ...original,
+    db: new Proxy(original.db, {
+      get(target, property) {
+        if (property !== "transaction" || !connection.loseNextCommit) return Reflect.get(target, property);
+        const loseCommit: typeof target.transaction = async (callback, config) => {
+          connection.loseNextCommit = false;
+          await target.transaction(callback, config);
+          throw new Error("COMMIT response lost");
+        };
+        return loseCommit;
+      },
+    }),
+  };
+});
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({
   requireAuth: requireAuthMock,
@@ -36,6 +54,7 @@ function manualForm(institutionId: string): FormData {
 describe("manual education verification PostgreSQL workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    connection.loseNextCommit = false;
     auditActorIdMock.mockImplementation((session: { userId: string }) => session.userId);
     uploadMock.mockResolvedValue(undefined);
     removeMock.mockResolvedValue(undefined);
@@ -55,6 +74,17 @@ describe("manual education verification PostgreSQL workflow", () => {
       requireAuthMock.mockResolvedValue(session);
       uploadMock.mockResolvedValue(undefined);
       removeMock.mockResolvedValue(undefined);
+
+      const objects = new Set<string>();
+      uploadMock.mockImplementationOnce(async (key: string) => {
+        objects.add(key);
+        throw new Error("Storage committed before the response was lost");
+      });
+      removeMock.mockImplementationOnce(async (key: string) => { objects.delete(key); });
+      await expect(submitAdmissionNoticeEducation(manualForm(institutionId))).resolves.toMatchObject({ success: false });
+      expect(objects.size).toBe(0);
+      expect(removeMock).toHaveBeenCalledWith(uploadMock.mock.calls[0]?.[0]);
+      uploadMock.mockClear();
 
       const concurrent = await Promise.all([
         submitAdmissionNoticeEducation(manualForm(institutionId)),
@@ -109,7 +139,7 @@ describe("manual education verification PostgreSQL workflow", () => {
     }
   });
 
-  it("compensates a successfully uploaded object when the transaction cannot commit", async () => {
+  it("keeps the evidence object when PostgreSQL committed before the response was lost", async () => {
     const pool = createLocalPool({ max: 2 });
     const userId = randomUUID();
     const email = `education-manual-failure-${userId}@local.test`;
@@ -119,22 +149,12 @@ describe("manual education verification PostgreSQL workflow", () => {
       if (!institution.rows[0]) throw new Error("Local fixture 需要高校目录记录。");
       await pool.query("INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())", [userId, email]);
       requireAuthMock.mockResolvedValue({ userId, email });
-      uploadMock.mockImplementation(async (objectKey: string) => {
-        const verificationId = objectKey.split("/", 1)[0];
-        await pool.query(
-          `INSERT INTO education_verifications
-             (id, user_id, institution_id, academic_status, evidence_type, evidence_object_key, status, reviewed_by, reviewed_at)
-           VALUES ($1, $2, $3, 'enrolled', 'manual_other', $4, 'approved', 'local-conflict', now())`,
-          [verificationId, userId, institution.rows[0].id, objectKey],
-        );
-      });
-
-      await expect(submitAdmissionNoticeEducation(manualForm(institution.rows[0].id))).resolves.toMatchObject({
-        success: false,
-        error: { code: "INTERNAL_ERROR" },
+      connection.loseNextCommit = true;
+      await expect(submitAdmissionNoticeEducation(manualForm(institution.rows[0].id))).resolves.toEqual({
+        success: true, data: "created",
       });
       expect(uploadMock).toHaveBeenCalledTimes(1);
-      expect(removeMock).toHaveBeenCalledWith(expect.stringMatching(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.png$/));
+      expect(removeMock).not.toHaveBeenCalled();
       await expect(pool.query("SELECT count(*)::text AS count FROM education_verifications WHERE user_id = $1", [userId])).resolves.toMatchObject({ rows: [{ count: "1" }] });
     } finally {
       await pool.query("DELETE FROM audit_logs WHERE actor_id = $1", [userId]).catch(() => {});

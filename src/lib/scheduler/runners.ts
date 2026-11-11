@@ -21,7 +21,10 @@ import {
   CommittedDefaultLineupsError,
   DefaultLineupMaterializationError,
 } from "@/lib/matches/default-lineup-error";
-import { purgeExpiredEducationEvidence } from "@/lib/education/retention";
+import {
+  purgeExpiredEducationEvidence,
+  purgeOrphanedEducationEvidence,
+} from "@/lib/education/retention";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 import {
   revalidateMatchPaths,
@@ -129,10 +132,8 @@ export async function runMatchTimeAutoAwardJob() {
 
 export async function runEducationEvidenceCleanupJob() {
   const cleared = await purgeExpiredEducationEvidence();
-  return {
-    result: { cleared },
-    businessTransitions: cleared,
-  } satisfies SchedulerRunnerResult<{ cleared: number }>;
+  const orphansRemoved = await purgeOrphanedEducationEvidence();
+  return { result: { cleared, orphansRemoved }, businessTransitions: cleared };
 }
 
 export async function runSteamProfileRefreshJob() {

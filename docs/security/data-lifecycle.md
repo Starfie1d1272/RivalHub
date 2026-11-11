@@ -42,7 +42,8 @@ DAK 是账号签发的设备授权。每次请求在原签发范围内核对账�
 | 正式赛事、冻结名单、赛果、奖项、裁决、积分账本 | 长期可追溯历史；改名、解绑、归档不是删除触发 | 正式更正/撤销由原 owner 与审计处理；不重写当时归属。账号删除后的匿名化范围尚需独立契约；见 [workflows](../workflows.md) |
 | 当前账号、联系方式、报名草稿、legacy 私有字段 | 按账号使用、办赛联系和报名续填目的保留，不设置统一定期删除 | identity/auth 处理凭据撤销、归并与会话失效；保留既有更新和删除行为，通用账号删除产品尚未实现 |
 | 教育目录、认证结论、审核历史 | 保留审核事实，与证据分开 | 清理 code/object 不删除学校、已通过/驳回、审核时间与结论 |
-| Completed 教育核验材料 | `reviewedAt` 达 canonical 七天 cutoff 后到期；pending 不按提交时间推断到期，缺审核时间不补造 | 新列表/搜索/签名请求不再提供到期 evidence。[retention](../../src/lib/education/retention.ts) 删除对象成功后才清 DB key，CHSI code 清空；失败交既有 scheduler 重试。已签发短期 URL 仍受 adapter TTL/对象删除约束，读端不能撤销它；[签名入口](../../src/lib/education/evidence-access.ts)、[列表 DB](../../tests/integration/db/education-admin-review.test.ts)、[清理 DB](../../tests/integration/db/education-manual-retention.test.ts) |
+| Completed 教育核验材料 | `reviewedAt` 达 canonical 七天 cutoff 后到期；pending 不按提交时间推断到期，缺审核时间不补造 | 新列表/搜索/签名请求不再提供到期 evidence。[retention](../../src/lib/education/retention.ts) 删除对象成功后才清 DB key，CHSI code 清空；失败交既有 scheduler 重试。管理员签名跳转标记为私有且禁止缓存，审计只记录操作者及认证记录标识。短期 URL 受 adapter TTL 和对象删除约束；[签名入口](../../src/lib/education/evidence-access.ts)、[列表 DB](../../tests/integration/db/education-admin-review.test.ts)、[清理 DB](../../tests/integration/db/education-manual-retention.test.ts) |
+| 教育材料无引用上传对象 | 文件名在提交时一次生成，已有引用的对象按对应审核状态保留。上传或提交返回不确定时，核对持久引用后再补偿 | 每日清理任务通过 Storage API 删除超过 24 小时且仍无引用的教育材料，每轮最多 50 项。恢复仅重建有效 DB 引用 |
 | Pending 教育审核/未完成身份请求 | pending 教育材料保留至审核完成，再按审核后七天清理；身份请求按办理用途保留，有 expiresAt 的授权请求到期不可使用 | 不按提交时间自动判定放弃；由审核流程处理积压，复用现有材料清理 owner |
 | Demo import/receipt/私有诊断 | 为导入排障、赛果更正和来源追溯保留，不设置统一固定 purge 期限 | 保留现有领域删除与关联生命周期；原始数据和诊断保持私有，正式统计继续由 canonical projection 提供 |
 | 设备 verifier、配对/邀请、会话 | 原 owner expiresAt/撤销控制使用资格；session 有 canonical 有效期 | registry 注册时清该用户过期会话，退出/全撤销删除记录，durable fence 保留；设备撤销保留关系与审计。每次配对启动有界清理最多 50 条已过期且从未绑定设备的 intent。已绑定关系与 receipts 继续按领域保留 |
