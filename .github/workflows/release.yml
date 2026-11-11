@@ -588,6 +588,22 @@ jobs:
           LINUX_DEPLOY_KNOWN_HOSTS: ${{ vars.LINUX_DEPLOY_KNOWN_HOSTS }}
         run: node scripts/ci/timing.mjs "Linux deploy / smoke / rollback" --timeout-ms 600000 -- pnpm exec tsx scripts/release/linux-routing.ts
 
+      - name: Check whether this release is already immutable
+        id: existing_release
+        if: env.RELEASE_MODE == 'resume'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          immutable="$(gh release view "$RELEASE_TAG" --json isImmutable --jq .isImmutable || true)"
+          echo "immutable=$immutable" >> "$GITHUB_OUTPUT"
+
+      - name: Read the promoted package manifest for release evidence
+        if: env.RELEASE_MODE == 'resume' && steps.existing_release.outputs.immutable != 'true'
+        env:
+          LINUX_DEPLOY_SSH_KEY: ${{ secrets.LINUX_DEPLOY_SSH_KEY }}
+          LINUX_DEPLOY_KNOWN_HOSTS: ${{ vars.LINUX_DEPLOY_KNOWN_HOSTS }}
+        run: pnpm exec tsx scripts/release/linux-routing.ts --read-installed-evidence
+
       - name: Retain release evidence tooling across checkout
         run: |
           mkdir -p "$RUNNER_TEMP/release-tooling/release" "$RUNNER_TEMP/release-tooling/standby"
@@ -644,6 +660,7 @@ jobs:
           echo "outcome=$outcome" >> "$GITHUB_OUTPUT"
 
       - name: Prepare release evidence
+        if: steps.existing_release.outputs.immutable != 'true'
         env:
           RIVALHUB_RELEASE_CI_RUN_ID: ${{ needs.preflight.outputs.ci_run_id }}
           RIVALHUB_RELEASE_CI_RUN_ATTEMPT: ${{ needs.preflight.outputs.ci_run_attempt }}

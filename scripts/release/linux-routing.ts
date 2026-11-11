@@ -63,13 +63,71 @@ export async function verifyCanonical(expected: ReleaseIdentity) {
   } while (true);
 }
 
+function protectedSshOptions(directory: string): string[] {
+  const key = process.env.LINUX_DEPLOY_SSH_KEY;
+  const knownHosts = process.env.LINUX_DEPLOY_KNOWN_HOSTS;
+  if (!key?.includes("PRIVATE KEY") || !knownHosts?.includes("[47.103.131.158]:52222")) {
+    throw new Error("Protected Linux SSH credential and pinned host key required.");
+  }
+  writeFileSync(join(directory, "key"), key + "\n", { mode: 0o600 });
+  writeFileSync(join(directory, "known_hosts"), knownHosts + "\n", { mode: 0o600 });
+  return ["-i", join(directory, "key"), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "GlobalKnownHostsFile=/dev/null", "-o", "UserKnownHostsFile=" + join(directory, "known_hosts"), "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3"];
+}
+
+async function readInstalledPackageEvidence() {
+  const candidate = assertReleaseIdentity({ releaseTag: process.env.RELEASE_TAG, releaseCommit: process.env.RELEASE_SHA });
+  await verifyIdentity(candidate);
+  const temp = mkdtempSync(join(tmpdir(), "rivalhub-release-evidence-"));
+  try {
+    const response = execFileSync("ssh", [...protectedSshOptions(temp), "-p", "52222", host, "/bin/bash -s"], {
+      timeout: 30_000, maxBuffer: 8 * 1024 * 1024, input: [
+        "set -euo pipefail",
+        "sha=" + candidate.releaseCommit,
+        "root=/opt/rivalhub-production",
+        'current=$(readlink "$root/current")',
+        '[[ "$current" =~ ^releases/rivalhub-production-$sha-[0-9a-f]{12}-[0-9a-f]{12}$ ]]',
+        'digest=$(cat "$root/$current/.archive-sha256")',
+        '[[ "$digest" =~ ^[0-9a-f]{64}$ && "$current" == *"-${digest:0:12}" ]]',
+        'name="${current##*/}"',
+        'manifest="${name%-*}.layers.json"',
+        'for file in /root/rivalhub-release-"$sha"-*/"$manifest"; do',
+        '  [[ -f "$file" && "$(sha256sum "$file" | cut -d " " -f 1)" == "$digest" ]] || continue',
+        '  printf "%s %s\\n" "$digest" "$manifest"',
+        '  cat "$file"',
+        "  exit 0",
+        "done",
+        "echo 'Verified installed package manifest not retained on production host.' >&2",
+        "exit 1",
+        "",
+      ].join("\n"),
+    });
+    const newline = response.indexOf(10);
+    if (newline < 0) throw new Error("Missing installed package evidence header.");
+    const [digest, name] = response.subarray(0, newline).toString("utf8").split(" ");
+    const raw = response.subarray(newline + 1);
+    const expectedName = new RegExp("^rivalhub-production-" + candidate.releaseCommit + "-[a-f0-9]{12}\\.layers\\.json$");
+    if (!expectedName.test(name) || createHash("sha256").update(raw).digest("hex") !== digest) {
+      throw new Error("Installed package evidence checksum or identity mismatch.");
+    }
+    const output = resolve(".agent-tmp/standby-production-package");
+    mkdirSync(output, { recursive: true });
+    const path = join(output, name);
+    writeFileSync(path, raw, { flag: "wx" });
+    writeFileSync(path + ".sha256", digest + "  " + name + "\n", { flag: "wx" });
+    const manifest = loadLayerManifest(path);
+    if (manifest.sourceCommit !== candidate.releaseCommit || manifest.releaseTag !== candidate.releaseTag) {
+      throw new Error("Installed package evidence differs from the canonical release.");
+    }
+    console.log("Installed Linux package evidence verified for " + candidate.releaseTag + ".");
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   console.log(JSON.stringify({ event: "linux.release_stage", stage: "package_validation" }));
   const candidate = assertReleaseIdentity({ releaseTag: process.env.RELEASE_TAG, releaseCommit: process.env.RELEASE_SHA });
   const previous = assertReleaseIdentity({ releaseTag: process.env.RIVALHUB_PREVIOUS_RELEASE_TAG, releaseCommit: process.env.RIVALHUB_PREVIOUS_RELEASE_COMMIT });
-  const key = process.env.LINUX_DEPLOY_SSH_KEY;
-  const knownHosts = process.env.LINUX_DEPLOY_KNOWN_HOSTS;
-  if (!key?.includes("PRIVATE KEY") || !knownHosts?.includes("[47.103.131.158]:52222")) throw new Error("Protected Linux SSH credential and pinned host key required.");
   const packageDir = resolve(".agent-tmp/standby-production-package");
   const files = readdirSync(packageDir);
   const layers = files.filter(name => /^rivalhub-production-[a-f0-9]{40}-[a-f0-9]{12}\.layers\.json$/.test(name));
@@ -85,13 +143,11 @@ async function main() {
     || (!layered && manifest.sha256 !== hash) || readFileSync(join(packageDir, `${archive}.sha256`), "utf8").trim() !== `${hash}  ${archive}`) throw new Error("Package checksum or candidate identity mismatch.");
   const temp = mkdtempSync(join(tmpdir(), "rivalhub-release-"));
   const remote = `/root/rivalhub-release-${candidate.releaseCommit}-${randomUUID()}`;
-  writeFileSync(join(temp, "key"), key + "\n", { mode: 0o600 });
-  writeFileSync(join(temp, "known_hosts"), knownHosts + "\n", { mode: 0o600 });
-  const options = ["-i", join(temp, "key"), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", `UserKnownHostsFile=${join(temp, "known_hosts")}`, "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3"];
-  const ssh = (command: string) => execFileSync("ssh", [...options, "-p", "52222", host, command], { stdio: "inherit", timeout: 300_000 });
   const pair = `${candidate.releaseTag} ${candidate.releaseCommit} ${previous.releaseTag} ${previous.releaseCommit}`;
   let result = "failed";
   try {
+    const options = protectedSshOptions(temp);
+    const ssh = (command: string) => execFileSync("ssh", [...options, "-p", "52222", host, command], { stdio: "inherit", timeout: 300_000 });
     // Setup failures occur before any application mutation.
     console.log(JSON.stringify({ event: "linux.release_stage", stage: "remote_directory" }));
     ssh(`mkdir -m 700 ${remote}`);
@@ -142,5 +198,9 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main().catch(error => { console.error(error); process.exitCode = 1; });
+  const command = process.argv[2] === "--read-installed-evidence" ? readInstalledPackageEvidence : main;
+  command().catch(error => {
+    console.error(command === main ? error : error instanceof Error ? error.message : "Installed release evidence readback failed.");
+    process.exitCode = 1;
+  });
 }
