@@ -65,6 +65,10 @@ const LIVE_SURFACES = [
 const SYSTEM_FLOW_MAP = [
   { prefixes: ["src/lib/admin/season-context.ts", "src/app/admin/layout.tsx", "src/app/admin/logs/"], specs: ["tests/e2e/flows/admin-immediate-boundaries.spec.ts"] },
   { prefixes: ["src/lib/registrations/admin-review", "src/app/admin/[seasonSlug]/registrations/"], specs: ["tests/e2e/flows/admin-season-private-reads.spec.ts"] },
+  {
+    prefixes: ["src/actions/competition-entries.ts", "src/actions/teams.ts", "src/lib/competition-entries/", "src/app/[seasonSlug]/register/", "src/app/my/teams/", "src/components/register/CompetitionEntryFlow.tsx"],
+    specs: ["tests/e2e/flows/major-entry.spec.ts"],
+  },
 
   { prefixes: ["src/actions/test-matches.ts", "src/lib/matches/test-matches.ts", "src/components/matches/TestMatch", "src/app/admin/[seasonSlug]/test-matches/"], specs: ["tests/e2e/flows/test-matches.spec.ts"] },
   { prefixes: ["src/actions/bet.ts", "src/components/bet/BetBoard", "src/components/bet/BetOperations"], specs: ["tests/e2e/flows/bet.spec.ts"] },
@@ -99,19 +103,19 @@ const SYSTEM_FLOW_MAP = [
       "src/components/auth/LoginForm.tsx",
       "src/components/auth/TurnstileWidget.tsx",
     ],
-    specs: ["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts", "tests/e2e/flows/secondary-email-confirmation.spec.ts"],
+    specs: ["tests/e2e/flows/session-revocation.spec.ts", "tests/e2e/flows/secondary-email-confirmation.spec.ts"],
   },
 ];
 
 const BROWSER_GROUPS = {
-  account: ["account-transport-budget", "major-entry", "secondary-email-confirmation", "session-revocation"],
+  account: ["account-transport-budget", "secondary-email-confirmation", "session-revocation"],
   admin: ["admin-awards-boundaries", "admin-content-read-boundaries", "admin-season-private-reads"],
   // The Flight query-count probe reads database-wide pg_stat_statements.
   "admin-query": ["admin-immediate-boundaries"],
   predictions: ["bet", "free-predictions", "predictions"],
   matches: ["mizar-source-lifecycle", "ocr-receipt-recovery", "series-score-correction"],
   events: ["event-logo", "major-qualification"],
-  teams: ["team-invitations", "test-matches"],
+  teams: ["major-entry", "team-invitations", "test-matches"],
 };
 
 const PRODUCTION_HARNESS_PREFIXES = [
