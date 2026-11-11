@@ -39,6 +39,7 @@ import {
 } from "@/lib/registrations/admin-review-contract";
 import { observeAction } from "@/lib/telemetry/client";
 import type { ActionResult } from "@/types/action";
+import { ErrorCode } from "@/lib/errors";
 
 const grantCompetitionEntryRestrictionOverride = observeAction(
   "competition-entries.grantCompetitionEntryRestrictionOverride",
@@ -127,6 +128,7 @@ export function CompetitionEntryReviewList({
         const result = await action();
         if (!result.success) {
           toast.error(result.error.message);
+          if (result.error.code === ErrorCode.INTERNAL_ERROR) router.refresh();
           return;
         }
         toast.success(successMessage);
