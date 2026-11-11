@@ -28,11 +28,11 @@ export function syntheticUserId(persona: PreviewPersona): string {
 }
 
 export function deterministicUserId(snapshotUsers: readonly Record<string, unknown>[], candidates: PersonaCandidates | undefined, persona: PreviewPersona, used: Set<string>): string | null {
+  if (persona === "season-admin" || persona === "super-admin") return null;
   const candidate = candidates && (persona === "player" ? candidates.playerUserId
     : persona === "invited" ? candidates.invitedUserId
       : persona === "captain" ? candidates.captainUserId
-        : persona === "season-admin" ? candidates.seasonAdminUserId
-          : candidates.superAdminUserId);
+        : null);
   if (candidate && !used.has(candidate) && snapshotUsers.some((user) => String(user.id) === candidate && user.status === "active")) return candidate;
   const fallback = [...snapshotUsers]
     .filter((user) => user.status === "active" && typeof user.id === "string" && !used.has(String(user.id)))

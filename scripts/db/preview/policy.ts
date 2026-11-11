@@ -456,7 +456,7 @@ export function exportQuery(table: string, source: PreviewPolicyInput = readExpe
   if (table === "users") expressions.push(`id::text || '@preview.invalid' AS email`, `'user' AS role`);
   if (table === "disciplinary_cases") expressions.push(`'${PREVIEW_REDACTED_ACTOR}'::text AS issued_by`);
   if (table === "season_registrations") expressions.push(`ARRAY[]::text[] AS screenshot_urls`);
-  if (table === "team_memberships") expressions.push(`CASE WHEN "ended_at" IS NOT NULL THEN 'left'::team_membership_end_reason ELSE NULL END AS ended_reason`);
+  if (table === "team_memberships") expressions.push(`CASE WHEN "ended_at" IS NOT NULL THEN 'left'::public.team_membership_end_reason ELSE NULL END AS ended_reason`);
   if (table === "post_event_adjudications" || table === "tournament_honors") expressions.push(`id AS client_request_id`);
   if (table === "post_event_adjudications" || table === "match_veto_appeals") expressions.push(`'预览已脱敏' AS reason`);
   if (table === "competition_qualification_drafts") expressions.push(`'${PREVIEW_REDACTED_ACTOR}'::text AS updated_by`);

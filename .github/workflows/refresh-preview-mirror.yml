@@ -48,8 +48,8 @@ jobs:
           PRODUCT_TELEMETRY_ENDPOINT: ${{ vars.PRODUCT_TELEMETRY_ENDPOINT }}
           RIVALHUB_DB_TARGET: production
           RIVALHUB_PRODUCTION_PROJECT_CONFIRM: ggkxqgbiudlovcgizgsq
-          RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:5432
+          RIVALHUB_PREVIEW_DB_PASSWORD: ${{ secrets.RIVALHUB_PREVIEW_DB_PASSWORD }}
           RIVALHUB_PREVIEW_AGE_RECIPIENT: ${{ vars.RIVALHUB_PREVIEW_AGE_RECIPIENT }}
           RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST: ${{ vars.RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST }}
         shell: bash

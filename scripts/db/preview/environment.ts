@@ -1,5 +1,4 @@
-import { OFFICIAL_PREVIEW } from "../../../src/lib/runtime/official-deployment-profile.mjs";
-import { buildProductionEnvironment } from "../production-environment";
+import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import type { Environment } from "../remote-environment";
 import { buildStagingEnvironment, STAGING_PROJECT_REF } from "../staging-environment";
 
@@ -14,7 +13,14 @@ export function assertRefreshRunner(env: Environment = process.env): void {
 export function sourceDatabaseUrl(env: Environment = process.env): string {
   assertRefreshRunner(env);
   if (env.RIVALHUB_ALLOW_REMOTE_DB_WRITE) throw new Error("Mirror source does not accept remote-write authority.");
-  return buildProductionEnvironment(env, { requiresWriteAuthorization: false }).DATABASE_URL!;
+  const { projectRef, poolerHost, sessionPoolerPort } = OFFICIAL_PRODUCTION;
+  if (env.RIVALHUB_DB_TARGET !== "production" || env.RIVALHUB_PRODUCTION_PROJECT_CONFIRM !== projectRef ||
+    env.RIVALHUB_PRODUCTION_DB_HOST_CONFIRM !== `${poolerHost}:${sessionPoolerPort}`) {
+    throw new Error("Preview source must be the official production session pooler.");
+  }
+  const password = env.RIVALHUB_PREVIEW_DB_PASSWORD;
+  if (!password) throw new Error("Preview source reader password is not configured.");
+  return `postgresql://rivalhub_preview_exporter.${projectRef}:${encodeURIComponent(password)}@${poolerHost}:${sessionPoolerPort}/postgres`;
 }
 
 export function targetEnvironment(env: Environment = process.env) {
