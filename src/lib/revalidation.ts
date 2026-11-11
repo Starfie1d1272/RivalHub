@@ -96,8 +96,9 @@ export function updatePublicSeasonInfoTag(seasonId: string): void {
   updateTag(publicSeasonInfoTag(seasonId));
 }
 
-export function revalidatePublicPlayerTag(userId: string): void {
-  revalidateTag(publicPlayerTag(userId), "max");
+export function revalidatePublicPlayerTags(userIds: readonly string[]): void {
+  if (!userIds.length) return;
+  for (const userId of userIds) revalidateTag(publicPlayerTag(userId), "max");
   revalidatePublicHomeTag();
   revalidatePublicStatsTag("identity");
 }

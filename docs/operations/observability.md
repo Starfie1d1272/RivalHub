@@ -194,3 +194,5 @@ Worker 在接收时尽力处理 1 个最多 32 批的分块，每小时维护最
 既有受保护 `release-host-diagnostic.mjs` 的主机只读回执中，`statsJournal` 读取最近固定 60 分钟的 journal，按固定 operation 和 UTC 十分钟桶输出 `[bucket, operation, count]`。每项是该桶内**最后观察到的一条进程累计值**，不会相加；journal 的 cat 输出不能可靠区分进程或重启，因此 `processBoundary` 为 `unavailable`、`delta` 为 null，不可跨桶相减。无样本不代表零；`status` 不可用或不完整时不得解释为完整观测。该读取与原 incident journal 查询共用 30 秒、16 MiB 上限，不接数据库，不输出请求标识或原文；尚无 Worker 或管理员面板接入保证。
 
 管理面板数据读取失败以固定 `telemetry.dashboard.<endpoint>.<reason>.<stage>` operation 记录进程累计次数；仅计实际拒绝或共享加载 owner，等待同一加载的调用不重复计数。endpoint 为 database、analysis、history、long_window；reason 和 stage 为固定分类。`httpStatus` 仅保留最近一次 100–599 状态，`durationMs` 仅保留最近一次有限耗时；timeout 仅由本地 deadline 判定。401/403 仍表现为服务不可用。`statsJournal.dashboardRows` 每个 operation 返回最近一条 `[bucket, operation, count, httpStatus, durationMs]`，最多 80 条；截断会标记 `dashboardTruncated` 和 incomplete。它不是请求日志，不包含路径参数、凭据或响应内容；未知进程边界时不能计算增量。缓存损坏时驱逐该项并执行一次正常读取，这些分类用于下一步定位，并不证明当前故障已修复。
+
+主机运行时将当前包的提交与配置摘要写入流量 deployment identity。调度读取使用已注册的任务名归因，产品遥测签发失败记录有界类别。Steam 定时刷新按 100 个一批，单批限 5 秒，成功批次更新抓取时间，失败批次在任务健康中可见。生产 2026-11-08 至 11-11 UTC 日志中的 6 次 Steam 失败均为超时。

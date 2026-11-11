@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   trigger:
@@ -51,6 +52,15 @@ jobs:
           set -euo pipefail
           PLAN="$(pnpm --silent db:production:scheduler:watchdog-plan "$PLAN_MODE" .scheduler-production)"
           echo "job_keys=$PLAN" >> "$GITHUB_OUTPUT"
+          if [[ "$PLAN_MODE" == scheduled ]]; then
+            echo "### Scheduler freshness" >> "$GITHUB_STEP_SUMMARY"
+            if [[ "$PLAN" == "[]" ]]; then
+              echo "Primary scheduler is fresh." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "Primary scheduler fallback requested for $PLAN" >> "$GITHUB_STEP_SUMMARY"
+              echo "::warning title=Scheduler fallback required::$PLAN"
+            fi
+          fi
 
       - name: Invoke required scheduler fallbacks
         env:
@@ -90,3 +100,12 @@ jobs:
             fi
           done
           exit "$FAILED"
+
+
+      - name: Check verified production backup age
+        if: always() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/recovery-backup.yml/runs?status=success&branch=main&per_page=1" > "$RUNNER_TEMP/latest-recovery-backup.json"
+          node scripts/db/recovery/backup-freshness.mjs "$RUNNER_TEMP/latest-recovery-backup.json" >> "$GITHUB_STEP_SUMMARY"
