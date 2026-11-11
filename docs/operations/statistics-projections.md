@@ -148,7 +148,7 @@ recovery and billing quota are separate from code deployment.
 `use cache: remote` uses Next.js's process-local handler on the current Linux
 production service. Entries and tag invalidation are not shared across instances;
 restart clears the cache. See [Linux hosting](./standby.md#公共缓存与验收). Fresh public event membership is read outside the cache and enters normalized platform/event keys; archived public events remain eligible and withdrawn drafts cannot reuse the previous aggregate. Statistics and compiled historical
-benchmarks share the semantic public-statistics tag. Authorized draft queries and
+benchmarks use the platform statistics tag. Event statistics also have a per-event tag and a tag for cross-event identity or policy changes. Match delivery expires the affected event and the platform results together. Fresh public-event membership still gates visibility. Authorized draft queries and
 viewer membership/invitation state bypass public caches. Mutations expire the tag
 immediately: Server Actions use `updateTag`, HTTP entrypoints use
 `revalidateTag(tag, { expire: 0 })`. General metadata may retain its existing SWR

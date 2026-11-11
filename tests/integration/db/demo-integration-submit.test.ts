@@ -34,7 +34,9 @@ import {
 } from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
-import { getCurrentStatsSelectionInTx, getMatchMvpSummary, getTournamentPerformancePopulations, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats, getTournamentRecordEvents } from "../../../src/lib/stats/tournament-query";
+import { getCurrentStatsSelectionInTx } from "../../../src/lib/stats/tournament-scope";
+import { getMatchMvpSummary, getTournamentPerformancePopulations, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
+import { getTournamentRecordEvents } from "../../../src/lib/stats/record-events-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
 import { loadLineupCareers, loadLineupPopulation } from "../../../src/lib/matches/lineup-comparison-query";
 import { partitionRankingPopulation } from "../../../src/lib/stats/ranking";
@@ -1092,14 +1094,8 @@ describe("DAK evidence submit persistence", () => {
 
       // Prematch scouting shares the scoreboard aggregation and historical population.
       queryLog.length = 0;
-      const stream = (client as unknown as {connection:{stream:NodeJS.ReadableStream}}).connection.stream;
-      let protocolBytes = 0; const countBytes = (chunk:Uint8Array) => { protocolBytes += chunk.byteLength; };
-      stream.on("data", countBytes);
       const comparison = await loadLineupCareers(userIds, randomUUID(), new Date(now.getTime() + 1), observedDatabase);
-      stream.removeListener("data", countBytes);
-      console.info("LINEUP_POPULATION_PROTOCOL_BYTES", protocolBytes);
       expect(comparison).toHaveLength(userIds.length);
-      const comparisonQueries = queryLog.length;
       const cutoff = new Date(now.getTime() + 1), excluded = randomUUID();
       const population = await loadLineupPopulation(excluded, cutoff, observedDatabase);
       const ranked = await observedDatabase.transaction(async tx => {
@@ -1114,7 +1110,6 @@ describe("DAK evidence submit persistence", () => {
         expect(selected).toEqual(population.filter(row => new Set<string>(lineup).has(row.userId)));
       }
       expect(queryLog.some(query => query.includes('"facts"') || query.includes('"payload"'))).toBe(false);
-      console.info(JSON.stringify({ scenario: "lineup-comparison", queries: comparisonQueries, players: comparison.length, dtoBytes: Buffer.byteLength(JSON.stringify(comparison)), cache: "uncached local PostgreSQL" }));
       const firstCareer = allTimeCareer.scoreboard[0]!;
       expect(comparison.find(row => row.userId === userIds[0])).toMatchObject({ maps: firstCareer.maps, rounds: firstCareer.rounds, rating: firstCareer.avgRating, adr: firstCareer.avgAdr, kpr: firstCareer.kpr, kast: firstCareer.kast, firstKill: firstCareer.fkpr, trade: firstCareer.tradeKpr });
       // A match ending exactly at the cutoff cannot leak into its own preview.

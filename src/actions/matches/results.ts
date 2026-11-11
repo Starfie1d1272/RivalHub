@@ -65,7 +65,7 @@ export async function updateMatchStatus(
       }
     });
 
-    revalidateMatchPaths(seasonForStatus.slug, matchId);
+    revalidateMatchPaths(seasonForStatus.slug, matchId, { statisticsSeasonId: match.seasonId });
     if (finishedSlug) {
       updatePublicSeasonTags(finishedSlug, match.seasonId);
       revalidatePath(`/${finishedSlug}`);
@@ -145,7 +145,7 @@ export async function recordMapResult(
       finishedSlug = result.finishedSlug;
     });
 
-    revalidateMatchPaths(season.slug, matchId);
+    revalidateMatchPaths(season.slug, matchId, { statisticsSeasonId: season.id });
     if (finishedSlug) {
       updatePublicSeasonTags(finishedSlug, match.seasonId);
       revalidatePath(`/${finishedSlug}`);
@@ -207,7 +207,7 @@ export async function updateMatchCompletionDeadline(
       });
     });
 
-    revalidateMatchPaths(season.slug, matchId);
+    revalidateMatchPaths(season.slug, matchId, { statisticsSeasonId: season.id });
 
     return ok(undefined);
   } catch (e) {
@@ -325,7 +325,7 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
       });
     });
 
-    revalidateMatchPaths(season.slug, matchId);
+    revalidateMatchPaths(season.slug, matchId, { statisticsSeasonId: season.id });
     return ok(undefined);
   } catch (e) {
     return actionError("deleteMatch", e);
@@ -380,7 +380,7 @@ export async function updateMatchCompletedAt(
       });
     });
 
-    revalidateMatchPaths(season.slug, matchId);
+    revalidateMatchPaths(season.slug, matchId, { statisticsSeasonId: season.id });
     return ok(undefined);
   } catch (e) {
     return actionError("updateMatchCompletedAt", e);
@@ -414,7 +414,7 @@ export async function correctMapScore(
         actorId: auditActorId(session),
       }),
     );
-    revalidateMatchPaths(season.slug, match.id);
+    revalidateMatchPaths(season.slug, match.id, { statisticsSeasonId: match.seasonId });
     return ok(undefined);
   } catch (error) {
     return actionError("correctMapScore", error);
@@ -486,7 +486,7 @@ export async function forfeitMatch(
       });
     });
 
-    revalidateMatchPaths(season.slug, matchId);
+    revalidateMatchPaths(season.slug, matchId, { statisticsSeasonId: season.id });
     if (finishedSlug) {
       updatePublicSeasonTags(finishedSlug, match.seasonId);
       revalidatePath(`/${finishedSlug}`);

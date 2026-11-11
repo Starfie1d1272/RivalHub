@@ -602,7 +602,7 @@ export function PlayersExplorer({
             {seasonSlug && (
               <label className="grid gap-1">
                 <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
-                  Team
+                  队伍
                 </span>
                 <select
                   value={query.teamFilter}
@@ -613,7 +613,7 @@ export function PlayersExplorer({
                   }
                   className="min-h-8 min-w-40 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm"
                 >
-                  <option value="">All teams</option>
+                  <option value="">全部队伍</option>
                   {data.options.teams.map((team) => (
                     <option key={team.id} value={team.id}>
                       {team.name}
@@ -624,7 +624,7 @@ export function PlayersExplorer({
             )}
             <label className="grid min-w-56 flex-1 gap-1 sm:max-w-sm">
               <span className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
-                Search
+                搜索选手
               </span>
               <input
                 ref={searchRef}
@@ -633,20 +633,20 @@ export function PlayersExplorer({
                 type="search"
                 maxLength={STATS_QUERY_VALUE_LIMIT}
                 className="min-h-8 border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2.5 py-1.5 text-sm"
-                placeholder="Player or team"
+                placeholder="选手或队伍"
               />
             </label>
             <div className="ml-auto flex items-center gap-3 pb-1 text-xs text-[var(--color-fg-dim)]">
               {partialCoverage && (
                 <span>
-                  Coverage {data.coverage.detailedMaps}/{data.coverage.completedMaps}
+                  数据覆盖 {data.coverage.detailedMaps}/{data.coverage.completedMaps} 张地图
                 </span>
               )}
               <span role="status" aria-atomic="true">
                 {visibleRows.length
-                  ? `${visibleRows.length} player${visibleRows.length === 1 ? "" : "s"}`
+                  ? `${visibleRows.length} 位选手`
                   : hasFilters
-                    ? "No players match these filters."
+                    ? "没有选手符合当前筛选条件"
                     : "暂无选手统计"}
               </span>
               {hasFilters && (
@@ -655,7 +655,7 @@ export function PlayersExplorer({
                   onClick={clearFilters}
                   className="text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]"
                 >
-                  Clear filters
+                  清除筛选
                 </button>
               )}
             </div>

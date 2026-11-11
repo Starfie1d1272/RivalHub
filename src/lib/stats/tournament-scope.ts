@@ -1,11 +1,12 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   competitionEntries,
   matchDemoImports,
   matchDemoStatProjections,
   matchMaps,
+  matchPlayerStats,
   matches,
   seasons,
   teams,
@@ -27,7 +28,8 @@ import {
   tournamentTransportSelection,
 } from "./projection-transport";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
-import type { PlatformStatsScope as StatsEvidenceScope } from "./tournament-query";
+import { officialMatchCondition } from "@/lib/matches/scope";
+import type { PlatformStatsScope } from "./types";
 
 const statsMatchFields = {
   id: matches.id,
@@ -55,9 +57,58 @@ const statsMapFields = {
   completedAt: matchMaps.completedAt,
 };
 
+/** Lightweight canonical selection for public directory/scouting aggregates. */
+export async function getCurrentStatsSelectionInTx(
+  tx: TxDb,
+  scope: {
+    seasonId?: string;
+    userIds?: readonly string[];
+    before?: Date;
+    excludeMatchId?: string;
+    requireVerifiedDemo?: boolean;
+  },
+) {
+  if (scope.userIds?.length === 0) return { currentImportIds: [], roster: [], matchIds: [] };
+  const candidates = await tx
+    .select({ id: matches.id })
+    .from(matches)
+    .innerJoin(seasons, eq(seasons.id, matches.seasonId))
+    .where(
+      and(
+        officialMatchCondition(),
+        eq(matches.status, "finished"),
+        ne(seasons.status, "draft"),
+        scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
+        scope.before ? lt(matches.completedAt, scope.before) : undefined,
+        scope.excludeMatchId ? ne(matches.id, scope.excludeMatchId) : undefined,
+        exists(
+          tx
+            .select({ id: matchPlayerStats.id })
+            .from(matchPlayerStats)
+            .where(
+              and(
+                eq(matchPlayerStats.matchId, matches.id),
+                scope.userIds ? inArray(matchPlayerStats.userId, [...scope.userIds]) : undefined,
+                scope.requireVerifiedDemo ? isNotNull(matchPlayerStats.dakImportId) : undefined,
+                scope.requireVerifiedDemo ? isNotNull(matchPlayerStats.verifiedByAdmin) : undefined,
+              ),
+            ),
+        ),
+      ),
+    );
+  const candidateIds = candidates.map((row) => row.id);
+  const context = await loadStatsContext(tx, {}, { matchIds: candidateIds, skipLabels: true });
+  const refs = await loadCurrentProjectionRefs(tx, context);
+  return {
+    currentImportIds: refs.map(({ current }) => current.id),
+    roster: context.roster,
+    matchIds: context.matchIds,
+  };
+}
+
 export async function loadStatsContext(
   tx: TxDb,
-  scope: StatsEvidenceScope,
+  scope: PlatformStatsScope,
   options: {
     mapName?: string;
     teamId?: string;

@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { ratioOfSums, roundWeightedAvg, simpleAvg } from "./sql";
-import { getCurrentStatsSelectionInTx } from "./tournament-query";
+import { getCurrentStatsSelectionInTx } from "./tournament-scope";
 
 /** OCR remains independently verified; DAK rows must belong to the selected valid lineage. */
 function currentStatsCondition(currentImportIds: readonly string[]) {

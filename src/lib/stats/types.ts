@@ -1,3 +1,30 @@
+import type { StatsTab } from "./view-state";
+
+export interface TournamentStatsScope {
+  seasonId: string;
+  stage?: string;
+  format?: "bo1" | "bo3" | "bo5";
+  mapFilter?: string;
+  teamFilter?: string;
+}
+
+export type PlatformStatsScope = Omit<TournamentStatsScope, "seasonId"> & {
+  seasonId?: string;
+  seasonIds?: string[];
+  weaponTeamId?: string;
+  publicOnly?: boolean;
+  view?: StatsTab;
+  mapDetail?: boolean;
+};
+export interface PlayerStatsEventOption {
+  id: string;
+  slug: string;
+  name: string;
+  maps: string[];
+}
+
+export type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
+
 /**
  * 统计筛选条件 — stage/mapName 为未来按阶段/地图下钻预留，当前可传 undefined
  *

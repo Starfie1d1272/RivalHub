@@ -6,7 +6,7 @@ import {
 import { buildTournamentResults } from "./results";
 import type { loadStatsContext } from "./tournament-scope";
 import type { loadStatsEvidence, loadStatsDetailEvidence } from "./tournament-projections";
-import type { StatsLabels } from "./tournament-query";
+import type { StatsLabels } from "./types";
 
 type PerformanceEvidenceFacts = Awaited<
   ReturnType<typeof loadStatsEvidence>

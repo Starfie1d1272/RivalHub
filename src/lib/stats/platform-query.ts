@@ -10,16 +10,19 @@ import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { competitionEntries, matchMaps, matchVetoSteps, matches, seasons } from "@/db/schema";
 import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
-import { PUBLIC_SEASON_CATALOG_TAG, PUBLIC_STATS_TAG } from "@/lib/cache/tags";
+import {
+  ALL_EVENT_STATS_TAG,
+  PUBLIC_SEASON_CATALOG_TAG,
+  PUBLIC_STATS_TAG,
+  eventStatsTag,
+} from "@/lib/cache/tags";
 import { AppError, ErrorCode, isAppErrorCode } from "@/lib/errors";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { INSIGHT_RULES_VERSION } from "./insights";
-import {
-  getTournamentStats,
-  getTournamentRecordEvents,
-  type PlatformStatsScope,
-} from "./tournament-query";
+import { getTournamentStats } from "./tournament-query";
+import { getTournamentRecordEvents } from "./record-events-query";
+import type { PlatformStatsScope } from "./types";
 import { buildRecords } from "./records";
 import { publicStatsView } from "./public-view";
 import { parseStatsQuery, type StatsSearch } from "./view-state";
@@ -64,7 +67,8 @@ async function cachedOfficialStatsMapCatalog(seasonIds: string[]) {
 }
 async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) {
   "use cache: remote";
-  cacheTag(PUBLIC_STATS_TAG);
+  if (scope.seasonId) cacheTag(ALL_EVENT_STATS_TAG, eventStatsTag(scope.seasonId));
+  else cacheTag(PUBLIC_STATS_TAG);
   cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
   void versions;
   return observeStatsCacheFill("platform", () =>
@@ -82,7 +86,8 @@ async function cachedPublicRecordEvents(
   version: string,
 ) {
   "use cache: remote";
-  cacheTag(PUBLIC_STATS_TAG);
+  if (scope.seasonId) cacheTag(ALL_EVENT_STATS_TAG, eventStatsTag(scope.seasonId));
+  else cacheTag(PUBLIC_STATS_TAG);
   cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
   void version;
   return preservePublicStatsDependencyFailure(async () => {
@@ -187,36 +192,14 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
         .limit(1);
       if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
     }
-    const scope: PlatformStatsScope = {
-      publicOnly: true,
-      view: query.tab,
-      mapDetail: Boolean(query.map),
-      seasonId: event?.id,
-      seasonIds: ids,
-      stage: query.stage || undefined,
-      format: query.format || undefined,
-      mapFilter: query.map || query.mapFilter || undefined,
-      weaponTeamId: query.tab === "weapons" ? query.teamFilter || undefined : undefined,
-    };
-    // Entity filtering is presentation only: qualification/Insights use the full scoped population.
-    recordStatsCache("platform", "readCalls");
-    let data = await cachedPlatformStats(
-      scope,
-      `${STATISTICS_PROJECTION_VERSION}:insights/${INSIGHT_RULES_VERSION}`,
-    );
     const requestedPage = raw.recordPage;
-    if (requestedPage !== undefined) {
-      if (
-        query.tab !== "records" ||
+    if (
+      requestedPage !== undefined &&
+      (query.tab !== "records" ||
         typeof requestedPage !== "string" ||
-        !/^[1-9][0-9]{0,5}$/.test(requestedPage)
-      )
-        throw new AppError(ErrorCode.NOT_FOUND, "纪录页不可用。");
-      const page = Number(requestedPage),
-        max = Math.max(1, ...(data.records ?? []).map((r) => r.pages));
-      if (page > max) throw new AppError(ErrorCode.NOT_FOUND, "纪录页不可用。");
-      query.recordPage = page;
-      if (page > 1) data = { ...data, records: buildRecords(data.recordTies ?? [], page) };
+        !/^[1-9][0-9]{0,5}$/.test(requestedPage))
+    ) {
+      throw new AppError(ErrorCode.NOT_FOUND, "纪录页不可用。");
     }
     for (const key of ["eventType", "eventWeapon", "eventPage"] as const) {
       if (
@@ -229,24 +212,54 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
       )
         throw new AppError(ErrorCode.NOT_FOUND, "事件范围不可用。");
     }
-    if (query.tab === "records") {
-      const filter = {
-        eventType: query.eventType || undefined,
-        eventWeapon: query.eventWeapon || undefined,
-        eventPage: query.eventPage,
-      };
-      // Only cache weapon filters present in the data, not arbitrary user input.
-      const available = filter.eventWeapon
-        ? await getCachedPublicRecordEvents(scope, {
-            eventType: filter.eventType,
-            eventWeapon: undefined,
-            eventPage: 1,
-          })
+    const scope: PlatformStatsScope = {
+      publicOnly: true,
+      view: query.tab,
+      mapDetail: Boolean(query.map),
+      seasonId: event?.id,
+      seasonIds: ids,
+      stage: query.stage || undefined,
+      format: query.format || undefined,
+      mapFilter: query.map || query.mapFilter || undefined,
+      weaponTeamId: query.tab === "weapons" ? query.teamFilter || undefined : undefined,
+    };
+    const eventFilter =
+      query.tab === "records"
+        ? {
+            eventType: query.eventType || undefined,
+            eventWeapon: query.eventWeapon || undefined,
+            eventPage: query.eventPage,
+          }
         : undefined;
-      const recordEvents =
-        available && !available.weapons.includes(filter.eventWeapon!)
-          ? await getTournamentRecordEvents(scope, filter)
-          : await getCachedPublicRecordEvents(scope, filter);
+    // Use the unfiltered page's scoped weapon list before filling the aggregate.
+    const weapon = eventFilter?.eventWeapon ?? "";
+    const available = weapon
+      ? await getCachedPublicRecordEvents(scope, {
+          eventType: eventFilter?.eventType,
+          eventPage: 1,
+        })
+      : undefined;
+    const unknownWeapon = available && !available.weapons.includes(weapon);
+    if (unknownWeapon && (eventFilter?.eventPage ?? 1) > 1)
+      throw new AppError(ErrorCode.NOT_FOUND, "事件页不可用。");
+
+    // Entity filtering is presentation only: qualification/Insights use the full scoped population.
+    recordStatsCache("platform", "readCalls");
+    let data = await cachedPlatformStats(
+      scope,
+      `${STATISTICS_PROJECTION_VERSION}:insights/${INSIGHT_RULES_VERSION}`,
+    );
+    if (requestedPage !== undefined) {
+      const page = Number(requestedPage),
+        max = Math.max(1, ...(data.records ?? []).map((r) => r.pages));
+      if (page > max) throw new AppError(ErrorCode.NOT_FOUND, "纪录页不可用。");
+      query.recordPage = page;
+      if (page > 1) data = { ...data, records: buildRecords(data.recordTies ?? [], page) };
+    }
+    if (eventFilter) {
+      const recordEvents = unknownWeapon
+        ? { ...available, rows: [], total: 0, page: 1, pages: 1 }
+        : await getCachedPublicRecordEvents(scope, eventFilter);
       data = { ...data, recordEvents };
     }
     return {
