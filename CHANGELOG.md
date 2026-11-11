@@ -5,6 +5,26 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.44]
+
+### Security
+
+- Preview 刷新使用独立只读角色导出脱敏公开赛事数据，Actions 只传输加密制品。
+- 撤销管理员时同步撤销其 DAK 连接，Demo 提交复核设备的当前赛事权限。DAK 上传按原大小上限限量读取，DAK 与 Mizar 配对会在请求过多或凭据轮换时返回明确反馈。
+- 教育材料上传和入库结果不确定时先核对数据库引用，避免删除已经提交的材料。管理员签名跳转禁止缓存并保留访问记录。
+
+### Fixed
+
+- 个人报名的提交与审核按赛事串行判定，保护已批准的报名和最后一个位置名额。报名窗口关闭后会拒绝在途的旧提交，登录和审核的无效输入会返回明确提示。
+- 公开赛事提供 robots 与 sitemap，未知赛事标记不收录。队伍审核在数据库分页，报名及审核失败可以刷新后核对状态。
+- 官方赛果、已确认计分板和 Demo 统计更正提交时登记缓存失效，通知失败后由现有调度补发。独立投影回填沿用同一失效链路。
+- 赛前阵容比较与数据中心共用 Demo 采纳规则。排行榜排除旧计分板的歧义记录，赛果更正只失效相关赛事和全站汇总，统计筛选拒绝无效页码并统一选手操作文案。
+- 竞猜调度保留失败项目的重试资格，继续处理其他赛事。Steam 资料分批保存，成功刷新更新抓取时间。运行记录关联实际部署，发布保留可独立查看的晋级和回退证据。
+
+### Changed
+
+- 页面字体由应用随版本分发。生产版本同时提供字体和雷达渲染器的许可证，Edge 请求异常使用独立的结构化日志。
+
 ## [2.25.43]
 
 ### Security
@@ -3628,6 +3648,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.44]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.43...v2.25.44
 [2.25.43]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.42...v2.25.43
 [2.25.42]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.40...v2.25.42
 [2.25.41]: https://github.com/Starfie1d1272/RivalHub/commit/672bf9ade05b1550e64011f35533d4f2cbe36275
