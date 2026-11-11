@@ -111,11 +111,15 @@ export function RegistrationReviewList({
   ) {
     const label = REGISTRATION_STATUS_LABELS[status];
     startTransition(async () => {
-      const result = await reviewRegistration({ registrationId, status });
-      if (!result.success) {
-        toast.error(result.error.message);
-      } else {
-        toast.success(`已${label}`);
+      try {
+        const result = await reviewRegistration({ registrationId, status });
+        if (!result.success) toast.error(result.error.message);
+        else {
+          toast.success(`已${label}`);
+          router.refresh();
+        }
+      } catch {
+        toast.error("审核结果暂未确认。正在刷新报名状态，请核对后再操作。");
         router.refresh();
       }
     });

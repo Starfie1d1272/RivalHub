@@ -5,7 +5,7 @@ import { isMajorRosterAdjustmentPhaseOpen } from "@/lib/major/roster-window";
 import { canSelfChangeApprovedRoster } from "@/lib/registration/window";
 
 import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
-import { db } from "@/db/client";
+import { db, type DB, type TxDb } from "@/db/client";
 import {
   competitionEntries,
   competitionQualificationRuns,
@@ -215,8 +215,8 @@ export async function getTeamRegistrationReview(
       ? [sql`${competitionEntries.submittedAt} ASC NULLS LAST`, asc(competitionEntries.id)]
       : [desc(competitionEntries.updatedAt), desc(competitionEntries.id)];
 
-  const [entries, [reviewQueueCount]] = await Promise.all([
-    db
+  const list = (database: DB | TxDb) =>
+    database
       .select({
         id: competitionEntries.id,
         name: competitionEntries.name,
@@ -248,8 +248,9 @@ export async function getTeamRegistrationReview(
         eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId),
       )
       .where(where)
-      .orderBy(...orderBy),
-    db
+      .orderBy(...orderBy);
+  const countEntries = (database: DB | TxDb, filter: SQL | undefined) =>
+    database
       .select({ count: count() })
       .from(competitionEntries)
       .innerJoin(
@@ -257,14 +258,36 @@ export async function getTeamRegistrationReview(
         and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")),
       )
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(
-        and(
-          eq(competitionEntries.competitionId, season.id),
-          eq(users.status, "active"),
-          inArray(competitionEntries.registrationStatus, [...TEAM_REVIEW_STATUSES]),
-        ),
-      ),
-  ]);
+      .where(filter);
+  const queueFilter = and(
+    eq(competitionEntries.competitionId, season.id),
+    eq(users.status, "active"),
+    inArray(competitionEntries.registrationStatus, [...TEAM_REVIEW_STATUSES]),
+  );
+  const pageSize = TEAM_REGISTRATION_REVIEW_PAGE_SIZE;
+  const pageFor = (total: number) => Math.max(1, Math.min(query.page, Math.ceil(total / pageSize)));
+  const sqlPagination =
+    query.qualification === "all" &&
+    !["attention", "changes_requested", "self_change_draft"].includes(query.status);
+  const [entries, [reviewQueueCount], sqlTotal] = sqlPagination
+    ? await db.transaction(
+        async (tx) => {
+          const [[matching], queue] = await Promise.all([
+            countEntries(tx, where),
+            countEntries(tx, queueFilter),
+          ]);
+          const total = Number(matching?.count ?? 0);
+          const rows =
+            total > 0
+              ? await list(tx)
+                  .limit(pageSize)
+                  .offset((pageFor(total) - 1) * pageSize)
+              : [];
+          return [rows, queue, total] as const;
+        },
+        { isolationLevel: "repeatable read", accessMode: "read only" },
+      )
+    : ([...(await Promise.all([list(db), countEntries(db, queueFilter)])), undefined] as const);
 
   const projectedRows = await projectTeamRegistrationRows(season, entries, true);
   const reviewRows = projectedRows.map((row) => ({
@@ -296,13 +319,13 @@ export async function getTeamRegistrationReview(
       : statusRows.filter(
           (row) => (row.qualificationFindings.length === 0) === (query.qualification === "ready"),
         );
-  const total = filteredRows.length;
-  const totalPages = Math.ceil(total / TEAM_REGISTRATION_REVIEW_PAGE_SIZE);
-  const page = totalPages > 0 ? Math.min(query.page, totalPages) : 1;
-  const start = (page - 1) * TEAM_REGISTRATION_REVIEW_PAGE_SIZE;
+  const total = sqlTotal ?? filteredRows.length;
+  const totalPages = Math.ceil(total / pageSize);
+  const page = pageFor(total);
+  const start = (page - 1) * pageSize;
 
   return {
-    rows: filteredRows.slice(start, start + TEAM_REGISTRATION_REVIEW_PAGE_SIZE),
+    rows: sqlPagination ? filteredRows : filteredRows.slice(start, start + pageSize),
     total,
     page,
     pageSize: TEAM_REGISTRATION_REVIEW_PAGE_SIZE,
@@ -373,6 +396,10 @@ async function projectTeamRegistrationRows(
                 inArray(competitionEntryRosterRevisions.entryId, entryIds),
                 inArray(competitionEntryRosterRevisions.id, revisionIds),
               ),
+            )
+            .orderBy(
+              asc(competitionEntryRosterMembers.createdAt),
+              asc(competitionEntryRosterMembers.id),
             ),
         ]);
 
