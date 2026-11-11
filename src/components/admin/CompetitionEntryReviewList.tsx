@@ -38,6 +38,8 @@ import {
   type TeamRegistrationReviewRow,
 } from "@/lib/registrations/admin-review-contract";
 import { observeAction } from "@/lib/telemetry/client";
+import type { ActionResult } from "@/types/action";
+import { ErrorCode } from "@/lib/errors";
 
 const grantCompetitionEntryRestrictionOverride = observeAction(
   "competition-entries.grantCompetitionEntryRestrictionOverride",
@@ -119,6 +121,24 @@ export function CompetitionEntryReviewList({
   });
   const searchFieldRef = useRef<ListSearchFieldHandle>(null);
   const [pending, startTransition] = useTransition();
+
+  function applyReview(action: () => Promise<ActionResult<unknown>>, successMessage: string) {
+    startTransition(async () => {
+      try {
+        const result = await action();
+        if (!result.success) {
+          toast.error(result.error.message);
+          if (result.error.code === ErrorCode.INTERNAL_ERROR) router.refresh();
+          return;
+        }
+        toast.success(successMessage);
+      } catch {
+        toast.error("操作结果暂未确认。正在刷新报名审核，请核对后再操作。");
+      }
+      router.refresh();
+    });
+  }
+
   const review = (
     entryId: string,
     decision: "approved" | "waitlisted" | "changes_requested" | "rejected",
@@ -130,46 +150,36 @@ export function CompetitionEntryReviewList({
             ?.trim()
         : undefined;
     if ((decision === "changes_requested" || decision === "rejected") && !reason) return;
-    startTransition(async () => {
-      const result = await reviewCompetitionEntry({ entryId, decision, reason });
-      if (!result.success) toast.error(result.error.message);
-      else {
-        toast.success(`报名状态已更新为${presentCompetitionEntryRegistration(decision).label}`);
-        router.refresh();
-      }
-    });
+    applyReview(
+      () => reviewCompetitionEntry({ entryId, decision, reason }),
+      `报名状态已更新为${presentCompetitionEntryRegistration(decision).label}`,
+    );
   };
 
   const grantOverride = (entry: ReviewEntry, finding: QualificationFinding) => {
     if (!finding.waivable) return;
     const reason = window.prompt(`请填写解除“${finding.message}”的具体理由：`)?.trim();
     if (!reason) return;
-    startTransition(async () => {
-      const result = await grantCompetitionEntryRestrictionOverride({
-        entryId: entry.id,
-        restrictionCode: finding.code,
-        reason,
-      });
-      if (!result.success) toast.error(result.error.message);
-      else {
-        toast.success("资格限制已解除并记录审计");
-        router.refresh();
-      }
-    });
+    applyReview(
+      () =>
+        grantCompetitionEntryRestrictionOverride({
+          entryId: entry.id,
+          restrictionCode: finding.code,
+          reason,
+        }),
+      "资格限制已解除并记录审计",
+    );
   };
 
   const revokeOverride = (entry: ReviewEntry, finding: QualificationFinding) => {
-    startTransition(async () => {
-      const result = await revokeCompetitionEntryRestrictionOverride({
-        entryId: entry.id,
-        restrictionCode: finding.code,
-      });
-      if (!result.success) toast.error(result.error.message);
-      else {
-        toast.success("资格限制解除已撤销");
-        router.refresh();
-      }
-    });
+    applyReview(
+      () =>
+        revokeCompetitionEntryRestrictionOverride({
+          entryId: entry.id,
+          restrictionCode: finding.code,
+        }),
+      "资格限制解除已撤销",
+    );
   };
 
   const requestedStatus = searchParams.get("status");

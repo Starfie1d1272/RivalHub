@@ -237,7 +237,7 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
               <AlertDialogTitle>撤销全部管理员权限？</AlertDialogTitle>
               <AlertDialogDescription className="[overflow-wrap:anywhere]">
                 将撤销 {getDisplayName(target)}（{target.email}
-                ）的全部管理员权限。该账号将变为普通用户。
+                ）的全部管理员权限。该账号将变为普通用户，原有 DAK 配对凭据同时失效。
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="space-y-2 text-sm [overflow-wrap:anywhere]">

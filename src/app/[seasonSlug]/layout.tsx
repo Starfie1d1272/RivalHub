@@ -6,7 +6,7 @@ import { PageLayout, Spinner } from "@/components/rivalhub";
 import type { PublicSeason } from "@/lib/data/public-seasons";
 import { io } from "next/cache";
 import { TelemetryScene } from "@/components/telemetry/ProductTelemetry";
-import { Suspense } from "react";
+import { cache, Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { SeasonNav } from "@/components/layout/SeasonNav";
@@ -14,7 +14,7 @@ import { PortalThemeProvider } from "@/components/ui/portal-theme";
 import { seasonAccentStyle } from "@/lib/utils/color";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { showStats } from "@/lib/utils/season";
-import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
+import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { SeasonInformationFeedbackLauncher } from "@/components/operations/GlobalInformationFeedbackLauncher";
 
 interface SeasonLayoutProps {
@@ -22,11 +22,15 @@ interface SeasonLayoutProps {
   params: Promise<{ seasonSlug: string }>;
 }
 
+const getSeasonForRequest = cache(getPublicOrAuthorizedDraftSeason);
+
 export async function generateMetadata({ params }: SeasonLayoutProps): Promise<Metadata> {
   const { seasonSlug } = await params;
-  const season = await getPublicSeasonBySlug(seasonSlug);
+  const season = await getSeasonForRequest(seasonSlug);
+  if (!season) notFound();
   return {
-    title: season?.name ?? seasonSlug,
+    title: season.name,
+    robots: season.status === "draft" ? { index: false, follow: false } : undefined,
   };
 }
 
@@ -43,7 +47,7 @@ export default function SeasonLayout({ children, params }: SeasonLayoutProps) {
 async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
   await io();
   const { seasonSlug } = await params;
-  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
+  const season = await getSeasonForRequest(seasonSlug);
 
   if (!season) notFound();
   const stagePresentation = await getPublicSeasonStagePresentation(season);

@@ -35,7 +35,7 @@ export function ErrorState({
       >
         ● {code}
       </div>
-      <div
+      <h2
         className="font-semibold"
         style={{
           fontFamily: "var(--font-display)",
@@ -45,7 +45,7 @@ export function ErrorState({
         }}
       >
         {title}
-      </div>
+      </h2>
       {sub && (
         <p className="mx-auto mt-2 max-w-[460px] font-sans text-sm leading-6 text-[var(--color-fg-secondary)]">
           {sub}
@@ -59,7 +59,7 @@ export function ErrorState({
       {onRetry && (
         <div className="mt-4.5 flex justify-center gap-2">
           <Button type="button" onClick={onRetry}>
-            ↻ {retryLabel}
+            <span aria-hidden="true">↻</span> {retryLabel}
           </Button>
         </div>
       )}
