@@ -1,6 +1,8 @@
 import "server-only";
 import { AppError } from "@/lib/errors";
 import { ZodError } from "zod";
+import { BoundedJsonError } from "@/lib/integrations/http-body";
+export { readBoundedRequestJson as readBoundedMizarJson } from "@/lib/integrations/http-body";
 import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { ensureRequestId } from "@/lib/observability/context";
 import { withRouteObservability } from "@/lib/observability/route";
@@ -57,60 +59,6 @@ export function withMizarRequest(
   );
 }
 
-class MizarBodyError extends Error {
-  constructor(public readonly code: "invalid_body" | "body_timeout" | "payload_too_large") {
-    super(code);
-  }
-}
-
-/** Bound bytes while streaming; Content-Length is untrusted. */
-export async function readBoundedMizarJson(
-  request: Request,
-  maxBytes: number,
-  timeoutMs?: number,
-): Promise<unknown> {
-  const reader = request.body?.getReader();
-  if (!reader) throw new MizarBodyError("invalid_body");
-  let timedOut = false;
-  const timer =
-    timeoutMs === undefined
-      ? undefined
-      : setTimeout(() => {
-          timedOut = true;
-          void reader.cancel().catch(() => {});
-        }, timeoutMs);
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (timedOut) throw new MizarBodyError("body_timeout");
-      if (done) break;
-      size += value.byteLength;
-      if (size > maxBytes) {
-        await reader.cancel();
-        throw new MizarBodyError("payload_too_large");
-      }
-      chunks.push(value);
-    }
-    const buffer = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      buffer.set(chunk, offset);
-      offset += chunk.length;
-    }
-    try {
-      return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer));
-    } catch {
-      // Malformed JSON/UTF-8 is client input; never retain its parser message/body.
-      throw new MizarBodyError("invalid_body");
-    }
-  } finally {
-    clearTimeout(timer);
-    reader.releaseLock();
-  }
-}
-
 export function mizarHttpError(error: unknown, diagnostics?: MizarDiagnostics) {
   const headers = { "Cache-Control": "no-store" };
   const reliable = diagnostics?.operation === "reliable";
@@ -121,14 +69,14 @@ export function mizarHttpError(error: unknown, diagnostics?: MizarDiagnostics) {
   else if (
     reliable &&
     ((error instanceof ZodError && diagnostics.phase === "validate") ||
-      (error instanceof MizarBodyError && error.code === "invalid_body"))
+      (error instanceof BoundedJsonError && error.code === "invalid_body"))
   )
     reason = "invalid_schema";
   let logged = false;
   if (
     reliable &&
     ((error instanceof AppError && error.code !== "INTERNAL_ERROR") ||
-      error instanceof MizarBodyError ||
+      error instanceof BoundedJsonError ||
       (error instanceof ZodError &&
         (diagnostics.phase === "validate" || diagnostics.phase === "domain")))
   ) {
@@ -160,7 +108,7 @@ export function mizarHttpError(error: unknown, diagnostics?: MizarDiagnostics) {
       { status, headers },
     );
   }
-  if (error instanceof MizarBodyError) {
+  if (error instanceof BoundedJsonError) {
     const status =
       error.code === "payload_too_large" ? 413 : error.code === "body_timeout" ? 408 : 400;
     const message =
