@@ -53,8 +53,8 @@ export const matches = pgTable(
       operatorAId: string;
       operatorBId: string;
       eligibility?: {
-        a: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility;
-        b: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility;
+        a: import("@/lib/competition-qualification/eligibility-contract").QualificationRosterEligibility;
+        b: import("@/lib/competition-qualification/eligibility-contract").QualificationRosterEligibility;
       };
     }>(),
 

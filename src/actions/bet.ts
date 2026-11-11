@@ -9,7 +9,6 @@ import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { ok } from "@/types/action";
-import { betBoardRequestInput, readBetBoardRequest } from "@/lib/bet/request-read";
 import { publicBetTag } from "@/lib/cache/tags";
 import { readBetStakeReceipt } from "@/lib/bet/receipt-read";
 import { joinBetInTx, stakeBetInTx, operateBetInTx, claimBetReliefInTx } from "@/lib/bet/service";
@@ -36,15 +35,6 @@ function refresh(slug: string, seasonId: string) {
     revalidatePath(`/admin/${slug}/bet`);
   } catch (error) {
     actionError("bet.postcommit_refresh", error);
-  }
-}
-export async function getUnifiedBetBoard(input: unknown) {
-  const p = betBoardRequestInput.safeParse(input);
-  if (!p.success) return failValidation("赛事参数无效");
-  try {
-    return ok(await readBetBoardRequest(p.data));
-  } catch (error) {
-    return actionError("bet.unified_read", error);
   }
 }
 export async function getBetPredictionRanking(input: unknown) {

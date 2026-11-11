@@ -14,6 +14,7 @@ export type ArchitectureRuleId =
   | "ARCH_CLIENT_SERVER"
   | "ARCH_LIB_ENTRYPOINT"
   | "ARCH_CANONICAL_PROVIDER"
+  | "ARCH_SCHEMA_CONTRACT"
   | "ARCH_AUDIT_WRITER"
   | "ARCH_PAGE_AGGREGATE";
 
@@ -80,6 +81,11 @@ export function checkArchitecture(options: ArchitectureCheckOptions = {}): Archi
   for (const record of records.values()) {
     for (const edge of record.allEdges) {
       checkCanonicalProvider(record, edge.specifier, report);
+      if (record.path.startsWith("src/db/schema/") &&
+          (edge.specifier === "@/lib/bracket" || edge.specifier === "@/lib/competition-qualification/eligibility")) {
+        report({ ruleId: "ARCH_SCHEMA_CONTRACT", file: record.path, target: edge.specifier,
+          message: "Schema 只依赖持久化值契约。" });
+      }
     }
     checkAuditWriter(record, report);
     checkPageAggregates(record, report);

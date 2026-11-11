@@ -69,3 +69,7 @@ optional prediction progression
 ## Maintenance
 
 只有长期方向、依赖或 major-version boundary 改变时更新本文件。不要写当前 Issue 编号、当前版本号、近期优先级、测试/migration 数量或单个 PR 的完成状态。
+
+### 3.0 独立实例
+
+`3.0` 按 [#1326](https://github.com/Starfie1d1272/RivalHub/issues/1326) 记录已回补的权限、数据和恢复修复。每批 PR 记录源 commit 与在新基线的实测证据。晋级前，在同一候选 SHA 核对空库安装、最近稳定版本到 3.0 的数据升级、Hosted 与完整自托管验收。迁移序列不同的场景由 3.0 升级规程提供路径。待验收项和迁移兼容差异继续由 #1326 跟踪。
