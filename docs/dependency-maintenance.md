@@ -37,3 +37,7 @@ main submission 不处理 PR/fork/Dependabot 的写入，也不证明 dependency
 Miniflare 的 `undici` 与 `sharp` 使用限定到该父包版本的安全升级 override；父包采用修复版本后移除对应 override。ESLint、config-array 和 typescript-estree 的 minimatch 使用新版命名导出及 `Minimatch.match` API，通过定向版本选择使用 11.x，父包版本范围支持后移除该选择。
 
 Next.js 官方 lint preset 的 React/import/a11y 插件当前仍使用 minimatch 3.x 的 callable CommonJS API；3.x 不包含 GHSA-g3hv-75wg-m249 所述的高阶预处理路径。该公告按版本范围生成的告警需按实际锁定版本和消费路径核对。保留安全扫描，不设置全局 audit 忽略；父包升级或依赖路径改变时重新核对。
+
+## 发布素材许可
+
+Geist 和 JetBrains Mono 从已提交的 WOFF2 字库构建。升级字库时同步更新 [随包许可](../public/notices/index.md) 与各子集。升级 Noto Sans SC 或 Radar renderer 时核对包内许可，更新随包文件。Radar 的许可、素材来源和第三方声明由资产脚本从锁定包复制。安装后确认 `public/notices/` 和 `public/vendor/radar/<version>/` 都进入部署包。

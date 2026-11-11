@@ -1,6 +1,6 @@
 import { DeploymentUpdateNotice } from "@/components/layout/DeploymentUpdateNotice";
 import type { Metadata } from "next";
-import { Geist, JetBrains_Mono } from "next/font/google";
+import "./fonts/fonts.css";
 import "@fontsource-variable/noto-sans-sc/wght.css";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
@@ -14,16 +14,6 @@ import { ThemeProvider } from "next-themes";
 import { connection } from "next/server";
 import { isPreview } from "@/lib/runtime/preview";
 import { readPreviewMirrorIdentity } from "@/lib/preview/mirror-state";
-
-const geist = Geist({
-  variable: "--font-geist",
-  subsets: ["latin"],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-});
 
 const siteTheme = "dark";
 
@@ -54,11 +44,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="zh-CN"
-      className={`${siteTheme} ${geist.variable} ${jetbrainsMono.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="zh-CN" className={siteTheme} suppressHydrationWarning>
       <body className="antialiased min-h-screen flex flex-col">
         <ThemeProvider attribute="class" forcedTheme={siteTheme} enableSystem={false}>
           <OperationsProvider>

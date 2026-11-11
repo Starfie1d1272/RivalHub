@@ -13,12 +13,24 @@ const branches = Object.keys(policy.tables).sort().map((table) =>
 const sql = `-- Generated from scripts/db/preview/policy.ts by reader-sql.ts.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'rivalhub_preview_exporter') THEN
-    CREATE ROLE rivalhub_preview_exporter NOLOGIN NOINHERIT CONNECTION LIMIT 1;
+    BEGIN
+      CREATE ROLE rivalhub_preview_exporter NOLOGIN NOINHERIT CONNECTION LIMIT 1;
+      ALTER ROLE rivalhub_preview_exporter SET default_transaction_read_only = on;
+      ALTER ROLE rivalhub_preview_exporter SET statement_timeout = '60s';
+    EXCEPTION WHEN duplicate_object OR unique_violation THEN
+      -- A concurrent database can initialize the same cluster role.
+      NULL;
+    END;
+  END IF;
+  IF NOT EXISTS (
+    SELECT FROM pg_roles
+    WHERE rolname = 'rivalhub_preview_exporter' AND rolconnlimit = 1
+      AND NOT (rolsuper OR rolinherit OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls)
+      AND rolconfig @> ARRAY['default_transaction_read_only=on', 'statement_timeout=60s']
+  ) THEN
+    RAISE EXCEPTION 'Preview export role does not match the restricted role contract';
   END IF;
 END $$;
---> statement-breakpoint
-ALTER ROLE rivalhub_preview_exporter SET default_transaction_read_only = on;
-ALTER ROLE rivalhub_preview_exporter SET statement_timeout = '60s';
 --> statement-breakpoint
 CREATE SCHEMA IF NOT EXISTS rivalhub_preview;
 REVOKE ALL ON SCHEMA rivalhub_preview FROM PUBLIC, anon, authenticated;

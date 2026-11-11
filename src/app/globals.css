@@ -103,9 +103,9 @@
   --color-info-edge: rgba(74, 158, 255, 0.34);
 
   /* Typography */
-  --font-sans: var(--font-geist, "Geist"), var(--font-noto-sans-sc), system-ui, sans-serif;
-  --font-display: var(--font-geist, "Geist"), var(--font-noto-sans-sc), system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono, "JetBrains Mono"), ui-monospace, monospace;
+  --font-sans: "Geist", var(--font-noto-sans-sc), system-ui, sans-serif;
+  --font-display: "Geist", var(--font-noto-sans-sc), system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   /* Letter spacing */
   --tracking-tight-2: -0.02em;

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { appendFileSync, readFileSync, readdirSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -12,6 +12,24 @@ const FULL_STATIC_MATRIX = [
   { task: "checks", changedPaths: [] },
   { task: "unit-all", mode: "full", changedPaths: [] },
   { task: "build", changedPaths: [] },
+];
+
+const TRANSACTION_RULE_SPECS = new Map([
+  ["src/lib/registration/window.ts", [
+    "tests/integration/db/registration-opening.test.ts",
+    "tests/integration/db/season-registration-correctness.test.ts",
+    "tests/integration/db/solo-registration-write-fence.test.ts",
+  ]],
+  ["src/lib/matches/result-rules.ts", [
+    "tests/integration/db/series-score-correction.test.ts",
+    "tests/integration/db/major-result-recovery.test.ts",
+  ]],
+  ["src/lib/bet/admission.ts", ["tests/integration/db/bet.test.ts"]],
+]);
+const DEMO_SCHEMA_SURFACES = [
+  "docs/contracts/rivalhub-demo-evidence-v1.schema.json",
+  "scripts/demo-evidence/",
+  "src/lib/demo-evidence/",
 ];
 
 const DB_BACKED_APP_PREFIXES = [
@@ -47,6 +65,10 @@ const LIVE_SURFACES = [
 const SYSTEM_FLOW_MAP = [
   { prefixes: ["src/lib/admin/season-context.ts", "src/app/admin/layout.tsx", "src/app/admin/logs/"], specs: ["tests/e2e/flows/admin-immediate-boundaries.spec.ts"] },
   { prefixes: ["src/lib/registrations/admin-review", "src/app/admin/[seasonSlug]/registrations/"], specs: ["tests/e2e/flows/admin-season-private-reads.spec.ts"] },
+  {
+    prefixes: ["src/actions/competition-entries.ts", "src/actions/teams.ts", "src/lib/competition-entries/", "src/app/[seasonSlug]/register/", "src/app/my/teams/", "src/components/register/CompetitionEntryFlow.tsx"],
+    specs: ["tests/e2e/flows/major-entry.spec.ts"],
+  },
 
   { prefixes: ["src/actions/test-matches.ts", "src/lib/matches/test-matches.ts", "src/components/matches/TestMatch", "src/app/admin/[seasonSlug]/test-matches/"], specs: ["tests/e2e/flows/test-matches.spec.ts"] },
   { prefixes: ["src/actions/bet.ts", "src/components/bet/BetBoard", "src/components/bet/BetOperations"], specs: ["tests/e2e/flows/bet.spec.ts"] },
@@ -81,19 +103,19 @@ const SYSTEM_FLOW_MAP = [
       "src/components/auth/LoginForm.tsx",
       "src/components/auth/TurnstileWidget.tsx",
     ],
-    specs: ["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts", "tests/e2e/flows/secondary-email-confirmation.spec.ts"],
+    specs: ["tests/e2e/flows/session-revocation.spec.ts", "tests/e2e/flows/secondary-email-confirmation.spec.ts"],
   },
 ];
 
 const BROWSER_GROUPS = {
-  account: ["account-transport-budget", "major-entry", "secondary-email-confirmation", "session-revocation"],
+  account: ["account-transport-budget", "secondary-email-confirmation", "session-revocation"],
   admin: ["admin-awards-boundaries", "admin-content-read-boundaries", "admin-season-private-reads"],
   // The Flight query-count probe reads database-wide pg_stat_statements.
   "admin-query": ["admin-immediate-boundaries"],
   predictions: ["bet", "free-predictions", "predictions"],
   matches: ["mizar-source-lifecycle", "ocr-receipt-recovery", "series-score-correction"],
   events: ["event-logo", "major-qualification"],
-  teams: ["team-invitations", "test-matches"],
+  teams: ["major-entry", "team-invitations", "test-matches"],
 };
 
 const PRODUCTION_HARNESS_PREFIXES = [
@@ -115,6 +137,9 @@ const PRODUCTION_SMOKE_PREFIXES = [
   "src/components/layout/SeasonNav.tsx",
   "src/app/login/",
   "src/lib/auth/session.ts",
+  "src/lib/auth/supabase-server.ts",
+  "src/actions/auth.ts",
+  "src/app/admin/layout.tsx",
   "src/lib/session/",
   "src/app/api/bet/",
   "src/app/[seasonSlug]/bet/",
@@ -198,6 +223,7 @@ export function classifyChangedFiles(entries, options = {}) {
     provider: false,
     production: false,
     deployment: false,
+    demoSchema: false,
   };
   for (const entry of entries) {
     const removed = /^[DR]/.test(entry.status);
@@ -213,6 +239,7 @@ export function classifyChangedFiles(entries, options = {}) {
       evidence.provider ||= classification.provider === true;
       evidence.production ||= PRODUCTION_SMOKE_PREFIXES.some(prefix => path.startsWith(prefix));
       evidence.deployment ||= isDeploymentTool(path);
+      evidence.demoSchema ||= DEMO_SCHEMA_SURFACES.some(prefix => path.startsWith(prefix));
       evidence.e2eFull ||= classification.e2eFull === true;
       if (!existsAtHead) {
         evidence.typeTests ||= path.startsWith("tests/");
@@ -313,6 +340,17 @@ function isChangesetNote(path) {
 
 function classifyPath(path, existsAtHead) {
   if (isChangesetNote(path)) return { capabilities: [], reason: `release metadata: ${path}` };
+
+  if (path === ".git-blame-ignore-revs") return { capabilities: [], reason: "git blame metadata" };
+  if (path === DEMO_SCHEMA_SURFACES[0]) return { capabilities: ["static"], reason: "generated DAK Schema" };
+  const transactionSpecs = TRANSACTION_RULE_SPECS.get(path);
+  if (transactionSpecs) {
+    return {
+      capabilities: ["static", "postgres"],
+      reason: `transaction rule: ${path}`,
+      integrationSpecs: transactionSpecs.every(spec => existsSync(spec)) ? transactionSpecs : undefined,
+    };
+  }
 
   const docs = path === ".impeccable/design.json" || path.startsWith("docs/") || path.endsWith(".md") || path.endsWith(".mdx");
   if (docs) return { capabilities: [], reason: `docs-only: ${path}` };
@@ -517,6 +555,7 @@ function buildStaticMatrix(evidence) {
   }
 
   if (evidence.deployment) matrix.push({ task: "deployment" });
+  if (evidence.demoSchema) matrix.push({ task: "demo-schema" });
   if (matrix.length === 0) matrix.push({ task: "type-app" });
   return [{ task: "affected", checks: matrix }];
 }

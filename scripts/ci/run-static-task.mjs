@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { resolve } from "node:path";
 
-const FULL_CHECKS = ["format", "type-app", "type-tests", "type-scripts", "lint", "architecture", "dead-code", "deployment"];
+const FULL_CHECKS = ["format", "type-app", "type-tests", "type-scripts", "lint", "architecture", "dead-code", "deployment", "demo-schema"];
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const task = process.env.STATIC_TASK;
 
@@ -62,6 +62,8 @@ function commandFor({ task, project, relatedSources, explicitTests, changedPaths
       return ["exec", "bash", "-c", "pnpm knip && pnpm knip --production"];
     case "build":
       return ["exec", "node", "scripts/ci/hermetic-production-build.mjs"];
+    case "demo-schema":
+      return ["demo-evidence:schema:check"];
     case "deployment":
       return ["exec", "node", "--test",
         "scripts/standby/install-production.test.mjs", "scripts/standby/production-quiescence.test.mjs",

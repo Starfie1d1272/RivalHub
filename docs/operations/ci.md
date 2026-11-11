@@ -27,9 +27,9 @@ plan ─→ static ─────┐
 - dead-code / dependency hygiene；
 - production build。
 
-普通 affected 任务在一个 runner 上安装一次依赖。格式检查只读取改动的源码，格式、类型、lint 和架构检查与相关 Vitest 并行；FULL 保留全量源码格式检查。跨 project 消费者由一次 `vitest related` 发现；变更的测试按所属 project 显式执行，未发现指定文件时阻断。FULL 并行执行静态检查、现有 unit suite 和 hermetic production build。安装／恢复工具变化时，在静态 runner 执行现有 Linux 安装器和流量状态测试。
+普通 affected 任务在一个 runner 上安装一次依赖。格式检查只读取改动的源码，格式、类型、lint 和架构检查与相关 Vitest 并行；FULL 保留全量源码格式检查。跨 project 消费者由一次 `vitest related` 发现；变更的测试按所属 project 显式执行，未发现指定文件时阻断。FULL 并行执行静态检查、现有 unit suite 和 hermetic production build。DAK 输入契约、生成器或公开 JSON Schema 变化时验证生成物一致性。安装／恢复工具变化时，在静态 runner 执行现有 Linux 安装器和流量状态测试。
 
-普通门禁中 Vitest 和 Playwright 首次失败即失败。需要复现间歇性问题时可以定向重试。Vitest reporter 记录 project 测试结果和较慢文件，外层 wrapper 单独计量命令耗时。
+普通门禁中 Vitest 和 Playwright 首次失败即失败。需要复现间歇性问题时可以定向重试。若 required gate 需要同 SHA 重跑，重新运行整个 workflow，使执行预算使用同一次 attempt 的计时。每次 attempt 保留独立诊断制品。Vitest reporter 记录 project 测试结果和较慢文件，外层 wrapper 单独计量命令耗时。
 
 ### postgres
 
@@ -41,9 +41,9 @@ plan ─→ static ─────┐
 - seed / fixture / schema verification；
 - real PostgreSQL integration tests。
 
-CI 不使用 mock 来替代 constraint、transaction、locking 或并发证据。affected PG 从真实测试的传递依赖计算消费者（含动态 import 与 vi.mock 引用），混合修改取并集；schema、migration、harness 或未知消费者回退 FULL。容量测量由独立 experiments config 运行，不进入 required PG suite。
+CI 不使用 mock 来替代 constraint、transaction、locking 或并发证据。affected PG 从真实测试的传递依赖计算消费者（含动态 import 与 vi.mock 引用），混合修改取并集。报名窗口、赛果与下注准入共享规则直接匹配各自的 PostgreSQL 事务用例。schema、migration、harness 或未知消费者回退 FULL。容量测量由独立 experiments config 运行，不进入 required PG suite。
 
-FULL PostgreSQL 固定使用两个 runner，以 Vitest 原生 `1/2`、`2/2` 按文件分片完整 integration 集合；affected PG 仍使用一个 `1/1` runner 与原选择集合。两个 FULL runner 各自启动真实 `postgres:17`，执行 migration risk/release compatibility、active-chain replay、seed/fixture/schema verification，并为原有三个并发 worker 克隆独立数据库；不共享数据库或事务。matrix 禁用 fail-fast、最多并发两个 runner，保留每片 timing/test-count evidence；任一片失败或取消使 `postgres` 聚合失败，gate 等待全部分片，180 秒预算按实际执行关键路径计算，排队不计入。
+FULL PostgreSQL 固定使用两个 runner，以 Vitest 原生 `1/2`、`2/2` 按文件分片完整 integration 集合；affected PG 仍使用一个 `1/1` runner 与原选择集合。两个 FULL runner 各自启动真实 `postgres:17`，执行 active-chain replay、seed/fixture/schema verification，并为三个并发 worker 克隆独立数据库。FULL 的第 1 片承担 migration risk 和 previous-stable release compatibility；affected 的单片承担相同职责。matrix 禁用 fail-fast、最多并发两个 runner，保留每片 timing/test-count evidence；任一片失败或取消使 `postgres` 聚合失败，gate 等待全部分片，180 秒预算按实际执行关键路径计算，排队不计入。
 
 Release 的 migration rehearsal 使用同一套 plain `postgres:17` service、`preparePg17Database()` 和 active migration replay owner；它不启动 Local Supabase。CI PostgreSQL lane、Release workflow 与本地 `db:local:migrate` 共享 `scripts/db/migration-replay.ts`，避免出现第二套只在发布时运行的 migration runner。
 
@@ -82,6 +82,8 @@ Pull Request 的 Draft / Ready 仅代表协作与合并准入状态，不直接�
 `scripts/ci/timing.mjs` 的 command wrapper 是 project wall-time owner。`vitest-timing-reporter.ts` 只输出 per-project facts 与 top 15 per-file diagnostic duration，Step Summary 会明确区分两者。
 
 `push` 到 `main` 同样采用 changed-surface 规划 affected evidence 并产生 exact-SHA CI evidence，遇到未知/破坏性/工具链变更时 fail closed 到 FULL；merge queue 与手动 workflow 运行完整 convergence gate。Release 消费 exact tag commit SHA 的 push CI 成功证据，不重复执行代码正确性 CI。
+
+最近 PR 的墙钟和重跑按 lane 核对。运行 `node scripts/ci/pr-wall-time.mjs 30`，它使用 GitHub 的 run 创建时间、gate 完成时间及 plan 实际 runner 初始化时间，分别给出墙钟 P95 与初始分配延迟。样本同时记录失败步骤、取消、排队与同 run 重跑。Step Summary 的 180 秒是执行关键路径，普通 PR 的墙钟目标为 P95 ≤ 180 秒。
 
 ## Concurrency 与 exact-SHA 证据隔离
 

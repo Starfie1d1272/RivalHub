@@ -107,7 +107,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: timing-static-${{ matrix.task }}
+          name: timing-static-${{ matrix.task }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/rivalhub-timing-${{ github.job }}.jsonl
           if-no-files-found: ignore
           retention-days: 14
@@ -186,7 +186,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: timing-${{ github.job }}-${{ strategy.job-index }}
+          name: timing-${{ github.job }}-${{ strategy.job-index }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/rivalhub-timing-${{ github.job }}.jsonl
           if-no-files-found: ignore
           retention-days: 14
@@ -295,7 +295,7 @@ jobs:
         if: ${{ always() && (failure() || cancelled()) }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: system-failure-evidence-${{ matrix.task }}
+          name: system-failure-evidence-${{ matrix.task }}-attempt-${{ github.run_attempt }}
           path: .agent-tmp/system-artifacts
           if-no-files-found: ignore
           retention-days: 7
@@ -303,7 +303,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: timing-${{ github.job }}-${{ matrix.task }}
+          name: timing-${{ github.job }}-${{ matrix.task }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/rivalhub-timing-${{ github.job }}.jsonl
           if-no-files-found: ignore
           retention-days: 14
@@ -402,7 +402,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: timing-${{ github.job }}
+          name: timing-${{ github.job }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/rivalhub-timing-${{ github.job }}.jsonl
           if-no-files-found: ignore
           retention-days: 14
