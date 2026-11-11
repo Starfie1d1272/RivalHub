@@ -46,6 +46,7 @@
     "scripts/ci/run-static-task.mjs!",
     "scripts/ci/hermetic-production-build.mjs!",
     "scripts/ci/timing.mjs!",
+    "scripts/ci/pr-wall-time.mjs!",
     "scripts/ci/execution-budget.mjs!",
     "scripts/ci/validate-pr-title.mjs!",
     "scripts/ci/vitest-timing-reporter.ts!",
