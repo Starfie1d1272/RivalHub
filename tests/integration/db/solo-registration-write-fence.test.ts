@@ -77,14 +77,18 @@ async function player(seasonId: string) {
   return { session: { userId: id, email }, form };
 }
 
+function steamProfile(_database: unknown, _previous: string | null, steam64: string) {
+  return { steam64, personaName: "Fixture", profileUrl: `https://steamcommunity.com/profiles/${steam64}`, avatarUrl: null };
+}
+
 function pauseSteamLookups(count: number) {
   const reached = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
   let started = 0;
-  dependencies.steam.mockImplementation(async () => {
+  dependencies.steam.mockImplementation(async (...args: Parameters<typeof steamProfile>) => {
     if (++started === count) reached.resolve();
     await release.promise;
-    return null;
+    return steamProfile(...args);
   });
   return { reached: reached.promise, release: release.resolve };
 }
@@ -94,7 +98,7 @@ describe("solo registration writes use current season and approval facts", () =>
     const seasonId = await fixture();
     const entrant = await player(seasonId);
     dependencies.session.mockResolvedValue(entrant.session);
-    dependencies.steam.mockResolvedValue(null);
+    dependencies.steam.mockImplementation(steamProfile);
     const first = await submitRegistration(entrant.form);
     if (!first.success) throw new Error(first.error.message);
     dependencies.admin.mockResolvedValue(entrant.session);
@@ -141,7 +145,7 @@ describe("solo registration writes use current season and approval facts", () =>
     const [first, second] = await Promise.all([player(seasonId), player(seasonId)]);
     second.form.primaryPosition = secondary;
     second.form.secondaryPosition = position;
-    dependencies.steam.mockResolvedValue(null);
+    dependencies.steam.mockImplementation(steamProfile);
     dependencies.session.mockResolvedValueOnce(first.session).mockResolvedValueOnce(second.session);
     const a = await submitRegistration(first.form);
     const b = await submitRegistration(second.form);

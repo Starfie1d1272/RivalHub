@@ -5,7 +5,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import { and, count, eq, inArray, not } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { matches, seasonRegistrations, seasons } from "@/db/schema";
+import { matches, seasons } from "@/db/schema";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { getRegistrationCounts } from "@/lib/registration/counts";
 
