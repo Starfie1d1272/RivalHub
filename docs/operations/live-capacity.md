@@ -142,4 +142,6 @@ HTTP driver 在内存读取 `producers[]`：`fixture.matchId`、`fixture.authori
 
 2026-11-08 至 11-10 UTC 的正式完赛窗口按真实赛果时间选取。11-08 05:00 窗口的 60 个 cgroup 样本 P95 为 486.1 MiB，最大 487.1 MiB。11-09 04:00 窗口的 60 个样本 P95 为 481.1 MiB。主机限制为 512 MiB。
 
-11-08 13:00 UTC 是这段日志中 LIVE 帧最多的一小时。应用接受 3,110 帧，记录 46 个超时帧、11 个竞争丢弃、3 个广播失败。该小时 cgroup 样本最大 511.9 MiB。14:00 窗口有 139 个接受帧和 4 个广播失败，cgroup 样本最大 512.0 MiB。样本中 `oom_kill` 最大为 0。预算复核使用 2 Hz 现行节拍，下一次有真实 LIVE 的赛事按同一 UTC 窗口核对 `mizar.live.outcome_window`、`runtime.cgroup.sample`、DB 接收字节与 Supabase 使用量。当前这组历史日志能量化帧与主机内存，观众和计费口径需要与 provider 核对。
+11-08 13:00 UTC 是这段日志中 LIVE 帧最多的一小时。应用接受 3,110 帧，记录 46 个超时帧、11 个竞争丢弃、3 个广播失败。该小时 cgroup 样本最大 511.9 MiB。14:00 窗口有 139 个接受帧和 4 个广播失败，cgroup 样本最大 512.0 MiB。样本中 `oom_kill` 最大为 0。
+
+同窗 Supabase 网关记录的 Realtime POST 分别为 3,111 和 135 次，请求体总量为 32,075,151 和 1,126,750 字节，P95 为 13,346 和 10,516 字节。两个窗口分别记录 50 和 23 次 WebSocket 升级。升级次数含重连和其他订阅，请求体是发布端输入。历史报表的日期范围受套餐限制，本次未获得并发连接及出站计费样本。预算复核沿用 2 Hz，下一次真实 LIVE 按同一 UTC 窗口对齐 `mizar.live.outcome_window`、`runtime.cgroup.sample`、DB 接收字节和 [Supabase Realtime 报表](https://supabase.com/docs/guides/realtime/reports)。
