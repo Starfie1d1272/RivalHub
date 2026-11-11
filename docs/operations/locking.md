@@ -86,8 +86,8 @@ public-cache reset/hard-expire procedure before traffic resumes: a historical
 published watermark is not proof that a surviving external cache matches the
 restored database. Browser Data API and Realtime have no grants or policies.
 
-Triggers register session/step/timeout/appeal/lineup/map changes in the same
-transaction as those facts. Generation advances once per match/transaction;
+Triggers register session, step, timeout, appeal, lineup, map, result and statistics changes in the same
+transaction as those facts. Statistics includes Demo import transitions, materialized projections and confirmed scoreboard rows. Generation advances once per match/transaction;
 additional categories in that transaction are merged. Unpublished categories
 are retained until delivery. In particular, map creation, replacement and
 rewind deletion register `map_plan`, which always retains broad statistics

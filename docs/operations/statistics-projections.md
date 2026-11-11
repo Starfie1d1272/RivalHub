@@ -156,13 +156,7 @@ policy. Public tournament, match, career, benchmark and lineup-style results,
 platform aggregates, public record-event pages and the official map catalog do not refresh on a timer;
 fixed-cutoff and rolling lineup comparisons follow the same policy. A future
 completion timestamp crossing the rolling cutoff may not be reflected until the
-next tagged write, eviction, or cold cache. A failed post-commit tag update can leave
-business statistics or an old public attribution stale until a later successful
-invalidation, eviction, or a cold cache. A standalone same-version projection backfill
-also does not signal the application cache; its changes can remain stale until one of
-those events. Operator-triggered Steam profile cache misses can likewise leave a cached
-record-event label stale. This is not a durable delivery mechanism
-or an immediate withdrawal guarantee. The cache does not replace persisted
+next tagged write, eviction, or cold cache. Match result, map, lineup, Demo import, confirmed scoreboard and projection changes enqueue a match delivery generation in the same transaction. This includes same-version CLI backfills. A failed post-commit delivery remains pending for the bounded scheduler dispatcher. The dispatcher acknowledges the captured generation only after successful expiration. See [match projection delivery](./locking.md#match-projection-postcommit-delivery). Operator-triggered Steam profile cache misses can leave a cached record-event label stale until an identity refresh. The cache does not replace persisted
 projections and keys change on deploy; self-hosted process-local entries are lost
 on restart and do not share invalidations across instances.
 

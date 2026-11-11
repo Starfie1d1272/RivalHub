@@ -17,7 +17,7 @@ import { matches } from "./matches";
 import { competitionEntries } from "./competition-entries";
 import { users } from "./users";
 
-/** Server-only BP cache delivery watermark; no actor, reason or private payload. */
+/** Server-only match projection delivery watermark; no actor, reason or private payload. */
 export const matchVetoInvalidations = pgTable(
   "match_veto_invalidations",
   {
@@ -31,7 +31,7 @@ export const matchVetoInvalidations = pgTable(
       .notNull()
       .default(sql`0`),
     affectedFacts: jsonb("affected_facts")
-      .$type<VetoAffectedFact[]>()
+      .$type<Array<VetoAffectedFact | "statistics">>()
       .notNull()
       .default(sql`'[]'::jsonb`),
     lastTransactionId: bigint("last_transaction_id", { mode: "bigint" }).notNull(),
@@ -40,7 +40,7 @@ export const matchVetoInvalidations = pgTable(
   (t) => ({
     factsShape: check(
       "match_veto_invalidations_facts_check",
-      sql`jsonb_typeof(${t.affectedFacts}) = 'array' AND ${t.affectedFacts} <@ '["lineups","appeals","veto_step","map_plan","veto"]'::jsonb AND jsonb_array_length(${t.affectedFacts}) <= 5`,
+      sql`jsonb_typeof(${t.affectedFacts}) = 'array' AND ${t.affectedFacts} <@ '["lineups","appeals","veto_step","map_plan","veto","statistics"]'::jsonb AND jsonb_array_length(${t.affectedFacts}) <= 6`,
     ),
     generationShape: check(
       "match_veto_invalidations_generation_check",
