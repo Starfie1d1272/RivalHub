@@ -100,8 +100,6 @@ jobs:
             fi
           done
           exit "$FAILED"
-
-
       - name: Check verified production backup age
         if: always() && github.ref == 'refs/heads/main'
         env:
