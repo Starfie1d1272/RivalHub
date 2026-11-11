@@ -9,11 +9,12 @@ import { openSeasonRegistrationInTx } from "@/lib/seasons/lifecycle";
 export async function ensureRegistrationOpenForParticipantInTx(
   tx: TxDb,
   seasonId: string,
-  now = new Date(),
+  suppliedNow?: Date,
 ): Promise<{ season: typeof seasons.$inferSelect; opened: boolean }> {
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
 
+  const now = suppliedNow ?? new Date();
   const scheduledOpeningIsDue =
     season.status === "registration" &&
     season.registrationOpenedAt === null &&

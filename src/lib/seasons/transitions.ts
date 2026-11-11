@@ -7,16 +7,7 @@ import { and, count, eq, inArray, not } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { matches, seasonRegistrations, seasons } from "@/db/schema";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
-
-async function getApprovedCountInTx(tx: TxDb, seasonId: string): Promise<number> {
-  const [row] = await tx
-    .select({ count: count() })
-    .from(seasonRegistrations)
-    .where(
-      and(eq(seasonRegistrations.seasonId, seasonId), eq(seasonRegistrations.status, "approved")),
-    );
-  return Number(row?.count ?? 0);
-}
+import { getRegistrationCounts } from "@/lib/registration/counts";
 
 /**
  * 如果条件满足（通过数满 / 截止过期），自动推进 registration → 下一状态。
@@ -38,7 +29,7 @@ export async function maybeAdvanceFromRegistration(
     return null;
 
   const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
-  const approvedCount = await getApprovedCountInTx(tx, seasonId);
+  const { approvedCount } = await getRegistrationCounts(seasonId, tx);
   const full = approvedCount >= registrationConfig.maxTotal;
 
   const deadlinePassed =
