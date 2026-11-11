@@ -15,7 +15,7 @@ export function revalidateMatchProjectionPaths(
   );
   revalidateMatchPaths(context.slug, context.matchId, {
     mode: options.mode,
-    statisticsReason: "veto",
+    statisticsReason: receipt.affectedFacts?.includes("statistics") ? "scoreboard" : "veto",
     statistics: plan.statistics,
   });
   if (options.mode === "route") revalidateTag(plan.immediateTag, { expire: 0 });

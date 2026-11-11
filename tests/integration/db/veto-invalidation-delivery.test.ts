@@ -92,13 +92,19 @@ it("coalesces BP facts once per transaction and rolls the delivery obligation ba
   expect(await watermark(f.matchId)).toEqual(delivered);
 });
 
-it("makes scheduler delivery failures visible and recovers archived/paused rooms without domain replay", async () => {
+it("retries committed match statistics invalidation through the scheduler for archived events", async () => {
   const f = await seedFixture();
+  await deliverMatchProjectionInvalidation(f.matchId, "route");
+  await db.update(schema.matches).set({ status: "finished", scoreA: 2, scoreB: 0, completedAt: new Date() })
+    .where(eq(schema.matches.id, f.matchId));
+  expect((await watermark(f.matchId))?.affectedFacts).toEqual(["statistics"]);
   await db.update(schema.seasons).set({ status: "archived" }).where(eq(schema.seasons.id, f.seasonId));
   const before = (await readVetoRoomSnapshot(f.matchId)).session;
   const due = await db.execute(sql`select public.scheduler_job_is_due('resolve-match-veto-timeouts', false) as due`);
   expect(due.rows[0]!.due).toBe(true);
-  cache.revalidateTag.mockImplementation(() => { throw new Error("cache delivery unavailable"); });
+  cache.revalidateTag.mockImplementation((tag) => {
+    if (tag === PUBLIC_STATS_TAG) throw new Error("cache delivery unavailable");
+  });
   await expect(runMatchVetoScheduledJob()).rejects.toThrow("cache delivery unavailable");
   expect((await watermark(f.matchId))!.generation).toBeGreaterThan((await watermark(f.matchId))!.publishedGeneration);
   cache.revalidateTag.mockReset();
