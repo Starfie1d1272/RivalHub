@@ -2,13 +2,14 @@
 
 RivalHub 的服务器预览站固定连接 `rivalhub-dev`，不连接 production，也不读取 #569 的正式 R2 灾备 artifact。`rivalhub-dev` 是可牺牲 shared staging：Preview 可完整读写，下一次 refresh 覆盖测试数据。镜像由受保护的 `Refresh Preview Mirror` workflow 生成：production job 只读导出，dev job 在固定的 `dtdzxnzjtohzjmfkighg` 上重置和导入。
 
-生产导出账号 `rivalhub_preview_exporter` 通过 Session Pooler 连接，仅调用数据库私有 schema 的投影函数并读取迁移哈希。函数按公开赛事过滤赛季、报名及相关比赛谱系。教育证据和生产管理员授权不进入快照，Preview 管理员使用合成身份。公开 Storage 读取限于允许的对象路径和总字节数。
+生产导出通过主机上的受限 SSH 命令读取。专用公钥只允许执行生产包内的 `scripts/standby/preview-export.sh`。命令拒绝传入的远程命令，限制并发和总时长，以应用用户运行，在同一个只读快照内读取迁移前缀、表列清单和审核过的投影。GitHub runner 核对主机包与公开部署身份、迁移前缀和投影列。公开 Storage 读取限于允许的对象路径和总字节数。
 
-首次启用时先发版应用 `preview_reader` 迁移，再由维护者给该角色启用登录并将随机密码设置为 Production Environment 的 `RIVALHUB_PREVIEW_DB_PASSWORD`。核对凭据只可读取投影，直接访问用户邮箱、Auth、审计及写入请求应失败。更新投影时通过 `pnpm exec tsx scripts/db/preview/reader-sql.ts` 为 active chain 生成新的 `*_preview_reader.sql` custom migration，使用 `--check` 核对最新定义。
+`rivalhub_preview_exporter` 保持 `NOLOGIN`。托管 Supabase 的 `pg_net` 通过 `PUBLIC` 向直连数据库角色授予请求队列权限。更新投影时通过 `pnpm exec tsx scripts/db/preview/reader-sql.ts` 为 active chain 生成新的 `*_preview_reader.sql` custom migration，使用 `--check` 核对最新定义。
+
 ## 刷新边界
 
 - 需要更新 Preview 时从受保护的 `main` 手动 dispatch，导出与导入程序使用该次 dispatch 的同一个 SHA。默认恢复生产所用的 migration prefix。只有显式启用 `apply_current_migrations` 时，才应用 `migration_ref` 的追加迁移。备用分支只 checkout migration 目录，导入程序在重置 dev 前验证它包含镜像的完整 source prefix。Preview 与 staging rehearsal 各有入口。
-- production job 使用只读事务读取源端，用公开 Storage URL 读取允许的公开素材。runner 在临时目录压缩快照，用独立 Preview age recipient 加密，Actions artifact 只含密文。staging runner 用 staging Environment 的独立 identity 解密，导入后清理临时明文。发布和每日备份独立运行。
+- production job 通过受限 SSH 命令读取一致的生产投影，用公开 Storage URL 读取允许的公开素材。runner 在临时目录压缩快照，用独立 Preview age recipient 加密，Actions artifact 只含密文。staging runner 用 staging Environment 的独立 identity 解密，导入后清理临时明文。发布和每日备份独立运行。
 - `refresh-dev` 失败且密文仍在一天保留期内时，优先使用 GitHub Actions 的 **Re-run failed jobs**。确认原 run 的 source SHA 和 staging 目标。导出失败、密文过期或需要更新数据时重新 dispatch。
 - 导出保留经过列审查的赛事与统计数据。Auth identity、真实邮箱、教育核验记录和核验引用、私有材料、审计、私人招募意向不导出。历史 DAK facts 保留不可用的配对 lineage，配对凭据 hash、权限与使用信息用固定的预览投影替换。资格赛历史保留格式、名额、状态、预排名和比赛关系。内部 actor 和裁决理由用预览占位值。公共资产经明确路径范围及 MIME/大小检查后导入固定 dev bucket。
 - 独立比赛从 `0077_match_execution_context` 起镜像执行快照与结果结论。快照只投影固定 version、图池与脱敏双方（Preview A/B、空标志 URL），不复制任意 JSON 键；赛事比赛继续保留空快照。`result_disposition` 与总比分保持原值，保证导入后仍满足比赛变体和终局约束。旧 source migration prefix 不查询这两个新列。
@@ -36,7 +37,7 @@ RivalHub 的服务器预览站固定连接 `rivalhub-dev`，不连接 production
 
 Preview export 的 policy 以 source 的 Drizzle migration ledger 为输入，而不是无条件使用 latest `main` 的完整 table/column 清单。migration-keyed policy 只要求 source 已拥有的 table 与 exported column；source 尚未应用的 additive table/column 留在 future policy 中，不会被查询。reviewed-but-omitted column 不进入 export projection。Steam legacy shadow 由真实 cleanup migration 的 lifecycle marker 管理：source 尚未应用该 migration 时，Preview 允许这些物理列存在但不导出；migration 已应用后，若列重新出现则以 `REMOVED_MIRROR_COLUMNS` fail closed。source physical inventory 中的 unknown table/column、缺失 exported column 和不匹配的 migration prefix 仍 fail closed。
 
-Export 与 refresh 的失败都经过现有 `src/lib/observability/` safe exception boundary，保留内部 `cause` chain，并输出稳定的 phase/code 与有限 structural context（例如 table、column、provider、providerCode、httpStatus、retryable）。允许的 export phase 包括 source identity、source DB connection、migration ledger、schema inventory-policy、table export、persona selection、public asset export 和 snapshot write；refresh phase 也会区分 snapshot read、DB、persona、asset 与 mirror-state 步骤。日志不会输出 production row、SQL/params、credential、provider body 或 asset path。
+Export 与 refresh 的失败都经过现有 `src/lib/observability/` safe exception boundary，保留内部 `cause` chain，并输出稳定的 phase/code 与有限 structural context（例如 table、column、provider、providerCode、httpStatus、retryable）。允许的 export phase 包括 source identity、migration ledger、schema inventory-policy、table export、persona selection、public asset export 和 snapshot write；refresh phase 也会区分 snapshot read、DB、persona、asset 与 mirror-state 步骤。日志不会输出 production row、SQL/params、credential、provider body 或 asset path。
 
 社区奖的 PostgreSQL integration 以当前真实 `information_schema` inventory 校验新增列与获奖者表，并执行公开获奖者导出查询。定向 policy 验证覆盖 `0090_yellow_blink` 前后的 source prefix、未知列拒绝和 artifact 中非公开获奖者拒绝；不把这些定向检查描述为全部历史 schema 的真实数据库验收。
 
@@ -72,5 +73,6 @@ Preview runtime 拒绝非 `rivalhub-dev` database/public Auth URL 与缺失的 s
 1. 在 `rivalhub-dev` 的 Supabase Storage 确认 `team-logos` 为 public、1 MiB、且只允许 JPEG/PNG/WebP；`Refresh Preview Mirror` 会在 destructive DB reset 前对该固定 bucket 做幂等 bootstrap，provider 权限不足时必须先由 owner 补齐并 read back。
 2. 在 GitHub `staging` environment 录入 `RIVALHUB_PREVIEW_DEV_SECRET_KEY` 与现有 `RIVALHUB_STAGING_DB_PASSWORD`；无需配置 persona password secret。
 3. 用独立 `age-keygen` 生成 Preview identity。公钥写入 production Environment 的 `RIVALHUB_PREVIEW_AGE_RECIPIENT`，私钥写入 staging Environment 的 `RIVALHUB_PREVIEW_AGE_IDENTITY`。staging Environment 只允许从 `main` dispatch。灾备继续使用自己的离线密钥。
-4. 在服务器 Preview 运行环境录入上述 dev-scoped 值，保留 HTTPS Basic Auth。
-5. 从 `main` 手动运行 `Refresh Preview Mirror`，确认 source commit、加密与导入步骤结果，再做 Preview persona smoke。制品保留一天。
+4. 先发布包含 `preview-export.sh` 的生产包。生成独立 Ed25519 密钥，在生产部署账号的 `authorized_keys` 写入 `restrict,command="/bin/sh /opt/rivalhub-production/current/scripts/standby/preview-export.sh"` 与该公钥。用专用密钥验证普通远程命令被拒绝，再把私钥写入 production Environment 的 `RIVALHUB_PREVIEW_SSH_KEY`。工作流沿用已核实的 `LINUX_DEPLOY_KNOWN_HOSTS`。
+5. 在服务器 Preview 运行环境录入上述 dev-scoped 值，保留 HTTPS Basic Auth。
+6. 从 `main` 手动运行 `Refresh Preview Mirror`，确认 source commit、加密与导入步骤结果，再做 Preview persona smoke。制品保留一天。

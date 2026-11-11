@@ -34,6 +34,7 @@
     "scripts/standby/production-host.mjs!",
     "scripts/standby/production-traffic-status.mjs!",
     "scripts/standby/production-quiescence.mjs!",
+    "scripts/standby/read-preview-source.mjs!",
     "scripts/standby/production-quiescence.d.mts!",
     "scripts/standby/build-production.mjs",
     "scripts/standby/start-production.mjs!",

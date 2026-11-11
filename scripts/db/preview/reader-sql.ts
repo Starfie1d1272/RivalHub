@@ -57,7 +57,9 @@ REVOKE ALL ON FUNCTION rivalhub_preview.export_table(text) FROM PUBLIC, anon, au
 GRANT EXECUTE ON FUNCTION rivalhub_preview.export_table(text) TO rivalhub_preview_exporter;
 `;
 
-if (process.argv.includes("--check")) {
+if (process.argv.includes("--tables")) {
+  process.stdout.write(JSON.stringify(Object.keys(policy.tables).sort()));
+} else if (process.argv.includes("--check")) {
   const latest = readdirSync(dir).filter((name) => /^\d+_preview_reader\.sql$/.test(name)).sort().at(-1);
   if (!latest || readFileSync(resolve(dir, latest), "utf8") !== sql)
     throw new Error("Preview reader projection drift: generate a new custom preview_reader migration.");

@@ -1,25 +1,9 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { recoveryConsumerSummary, reportOfflineConsumer } from "../../../scripts/db/recovery/accounting";
 import type { RecoveryManifest } from "../../../scripts/db/recovery/manifest";
-
-const state = vi.hoisted(() => ({ query: vi.fn() }));
-const names = vi.hoisted(() => ["education_verifications", "event_roster_members", "community_groups", "seasons", "users", "competition_entries", "competition_entry_participants", "teams"]);
-vi.mock("pg", () => ({ Pool: class {
-  connect = async () => ({ query: state.query, release: vi.fn() });
-  end = vi.fn();
-} }));
-vi.mock("../../../scripts/db/preview/environment", () => ({ sourceDatabaseUrl: () => "postgresql://localhost/fixture" }));
-vi.mock("../../../scripts/db/recovery/source", () => ({ resolveProductionSourceIdentity: async () => ({ deployedCommit: "a".repeat(40), deployedReleaseTag: "v2.24.5" }) }));
-vi.mock("../../../scripts/db/production-preflight", () => ({ assertActiveChainPrefix: vi.fn(), readExpectedMigrations: () => [] }));
-vi.mock("../../../scripts/db/preview/policy", () => ({
-  previewPolicyFor: () => ({ tables: Object.fromEntries(names.map((name) => [name, {}])) }),
-  assertReviewedColumns: vi.fn(),
-}));
-
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("offline consumer accounting", () => {
   it("projects only existing file/storage numbers and never manifest secrets or hashes", () => {
@@ -47,29 +31,4 @@ describe("offline consumer accounting", () => {
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 
-  it("counts existing Storage download buffers once and distinguishes an observed empty export", async () => {
-    vi.stubEnv("RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST", "public/a.png,public/b.png");
-    state.query.mockReset().mockImplementation(async (sql: string) => ({ rows:
-      sql.includes("FROM drizzle.") ? [{ hash: "fixture", when: "1" }]
-        : sql.includes("pg_catalog.pg_class") ? names.map((table_name) => ({ table_name, column_name: "id" })) : [],
-    }));
-    const bytes = Buffer.from("synthetic-image-buffer");
-    const download = vi.fn(async (url: URL, init: RequestInit) => {
-      expect(url.pathname).toMatch(/^\/storage\/v1\/object\/public\/season-public-assets\/public\/[ab]\.png$/);
-      expect(init.headers).toBeUndefined();
-      return new Response(new Uint8Array(bytes), { headers: { "content-type": "image/png" } });
-    });
-    vi.stubGlobal("fetch", download);
-    const { exportMirror } = await import("../../../scripts/db/preview/snapshot");
-    const accounting = { tables: {}, storage_download_bytes: null as number | null };
-    const snapshot = await exportMirror(accounting);
-    expect(download).toHaveBeenCalledTimes(2);
-    expect(accounting.storage_download_bytes).toBe(bytes.length * 2);
-    expect(snapshot.assets).toHaveLength(2);
-    vi.stubEnv("RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST", "");
-    download.mockClear();
-    await exportMirror(accounting);
-    expect(download).not.toHaveBeenCalled();
-    expect(accounting.storage_download_bytes).toBe(0);
-  });
 });
