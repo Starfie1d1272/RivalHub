@@ -53,6 +53,7 @@ jobs:
       previous_release_commit: ${{ steps.frozen_identity.outputs.previous_release_commit }}
       release_mode: ${{ steps.frozen_identity.outputs.release_mode }}
       ci_run_id: ${{ steps.candidate_ci.outputs.ci_run_id }}
+      ci_run_attempt: ${{ steps.candidate_ci.outputs.ci_run_attempt }}
       ci_head_sha: ${{ steps.candidate_ci.outputs.ci_head_sha }}
       requires_scheduler_provision: ${{ steps.plan.outputs.requiresSchedulerProvision }}
       requires_migration_rehearsal: ${{ steps.plan.outputs.requiresMigrationRehearsal }}
@@ -642,7 +643,13 @@ jobs:
       - name: Prepare release evidence
         env:
           RIVALHUB_RELEASE_CI_RUN_ID: ${{ needs.preflight.outputs.ci_run_id }}
+          RIVALHUB_RELEASE_CI_RUN_ATTEMPT: ${{ needs.preflight.outputs.ci_run_attempt }}
+          RIVALHUB_RELEASE_OPERATOR_SHA: ${{ needs.preflight.outputs.release_operator_sha }}
           RIVALHUB_DEPENDENCY_READBACK: ${{ steps.dependency_readback.outputs.outcome }}
+          RIVALHUB_MIGRATION_REHEARSAL: ${{ needs.migration_rehearsal.result }}
+          RIVALHUB_MIGRATION_APPLY: ${{ needs.production_migration.result }}
+          RIVALHUB_CHECKPOINT_KIND: ${{ needs.preflight.outputs.checkpoint_kind }}
+          RIVALHUB_CHECKPOINT_RESULT: ${{ needs.checkpoint.result }}
         run: node "$RUNNER_TEMP/release-tooling/release/evidence.mjs" "$RUNNER_TEMP/rivalhub-release-evidence.json"
 
       - name: 生成 Production delta release notes
