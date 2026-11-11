@@ -1,5 +1,5 @@
 import { jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import type { BracketDatabase as Database } from "@/lib/bracket";
+import type { BracketDatabase as Database } from "@/lib/bracket/storage-contract";
 import { seasons } from "./seasons";
 
 /**

@@ -12,32 +12,20 @@ import { capabilitiesFromSeason } from "@/lib/competition/definition";
 import { loadActiveRestrictionOverridesInTx } from "@/lib/competition-entries/restriction-overrides";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
-import type { PlayerStrengthInput } from "@/lib/major/player-strength";
-import type { FrozenRestrictionOverrideSnapshot } from "@/lib/major/run-snapshot";
 import {
   loadParticipantQualificationFacts,
   resolveCompetitiveContext,
   toPlayerStrengthInput,
 } from "@/lib/qualification/service";
-import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
 
-export interface QualificationEligibilityPolicy {
-  version: 1;
-  affiliationRules: readonly InstitutionAffiliationRule[];
-  competitiveProfile: CompetitiveProfileConfig | null;
-  starterCount: number;
-  maxSubstitutes: number;
-  externalStrengthGapEnabled: boolean;
-}
-
-export interface QualificationRosterEligibility {
-  version: 1;
-  entryId: string;
-  rosterRevisionId: string;
-  policy: QualificationEligibilityPolicy;
-  competitiveFacts: PlayerStrengthInput[];
-  restrictionOverrides: FrozenRestrictionOverrideSnapshot[];
-}
+import type {
+  QualificationEligibilityPolicy,
+  QualificationRosterEligibility,
+} from "./eligibility-contract";
+export type {
+  QualificationEligibilityPolicy,
+  QualificationRosterEligibility,
+} from "./eligibility-contract";
 
 export async function freezeQualificationPolicy(
   season: Season,

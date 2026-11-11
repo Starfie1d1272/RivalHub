@@ -348,7 +348,7 @@ export const eventRosters = pgTable(
       .references(() => competitionEntries.id),
     eligibilitySnapshot:
       jsonb("eligibility_snapshot").$type<
-        import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility
+        import("@/lib/competition-qualification/eligibility-contract").QualificationRosterEligibility
       >(),
     sourceRosterRevisionId: uuid("source_roster_revision_id").references(
       () => competitionEntryRosterRevisions.id,

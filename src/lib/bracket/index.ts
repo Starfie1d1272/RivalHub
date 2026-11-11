@@ -13,7 +13,7 @@ import type { Database } from "brackets-manager";
 import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import type { StageConfig } from "@/types/season";
 
-export type { Database as BracketDatabase } from "brackets-manager";
+export type { BracketDatabase } from "./storage-contract";
 
 export type BracketStageRef = {
   id: number;

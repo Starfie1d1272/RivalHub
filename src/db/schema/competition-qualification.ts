@@ -37,7 +37,7 @@ export const competitionQualificationRuns = pgTable(
     qualifierCount: integer("qualifier_count").notNull(),
     eligibilityPolicy:
       jsonb("eligibility_policy").$type<
-        import("@/lib/competition-qualification/eligibility").QualificationEligibilityPolicy
+        import("@/lib/competition-qualification/eligibility-contract").QualificationEligibilityPolicy
       >(),
     configuredAt: timestamp("configured_at", { withTimezone: true }).notNull().defaultNow(),
     configuredBy: text("configured_by").notNull(),

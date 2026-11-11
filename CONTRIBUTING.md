@@ -23,6 +23,7 @@
 - 2.x Issue 标题使用 `[2.x] <问题或目标>`；开放 Issue 必须且只能有一个 `priority:P0`–`priority:P3`。Issue 最小结构为背景 → 目标 → 验收，只有能限定实现时再增加范围/非目标。
 - PR 标题使用 `type(scope): 摘要`，允许 `feat`、`fix`、`refactor`、`perf`、`docs`、`test`、`build`、`ci`、`chore`、`release`、`revert`；`scope` 可选。人工摘要默认中文，代码名/协议名保留英文。
 - PR 关联 Issue 使用 `Refs #N`；是否关闭 Issue 由验收条件决定，不用 `Closes` 代替验收。
+- `3.0` 是独立实例开发分支，使用 squash PR 和最新原生 Actions `ci-gate`。晋级条件见 [3.0 路线](docs/roadmap.md#30-独立实例)。
 - `main` PR 必须满足 required `ci-gate`、strict up-to-date 和已解决 review thread；真实规则以 GitHub ruleset 为准。
 
 ## PR 交付与 CI
@@ -31,6 +32,7 @@
 - 本地迭代只执行与当前改动匹配的 host-only 快速检查。不要为了每次修改重复启动 PostgreSQL、Local Supabase 或 browser 重型环境；对应真实环境证据由 CI 按需运行，失败复现时再按 [`docs/operations/local-development.md`](docs/operations/local-development.md) 启动最小层级。
 - Draft 与 Ready PR 使用同一个 Evidence Planner，根据 changed surface 选择 affected static、PostgreSQL integration spec 和 semantic browser flow，遵循 L0–L4 风险分层，不机械升级为 FULL。Draft 以非 required 的 `draft-gate` 汇总快速反馈；Ready 产生 ruleset required 的 `ci-gate`。
 - Ready 仅表示可供审阅，不代表审阅通过或已获合并授权。合并仍须完成复审，并满足最新 required checks、strict up-to-date 和已解决 review thread；用户明确要求 Draft 的 PR 不自行转为 Ready。
+- 权限、持久数据和发版 PR 在描述中注明业务 owner、可能失败的边界及实际验收证据。复审按最新 diff 核对这些边界及恢复路径。涉及多个 owner 时由合并者确认对应证据齐全。
 - 只有最新 commit 的 required `ci-gate` / `pr-title` 及 ruleset 要求的其它 checks 全部成功，且 strict up-to-date 与 review thread 条件满足后，才可以 merge。新 push 会使旧 commit 的 evidence 失效，不能沿用旧结果。
 
 ## Changeset and release
