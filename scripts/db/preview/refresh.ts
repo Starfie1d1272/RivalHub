@@ -103,8 +103,8 @@ async function migrateToSource(client: PoolClient, snapshot: MirrorSnapshot): Pr
   } finally { rmSync(folder, { recursive: true, force: true }); }
 }
 
-async function migrateCurrent(client: PoolClient): Promise<void> {
-  await migrateCanonicalDatabase(drizzle(client), "drizzle/migrations");
+async function migrateCurrent(client: PoolClient, directory: string): Promise<void> {
+  await migrateCanonicalDatabase(drizzle(client), directory);
 }
 
 async function ensureMirrorState(client: PoolClient): Promise<void> {
@@ -118,7 +118,7 @@ async function ensureMirrorState(client: PoolClient): Promise<void> {
 type RefreshDataPhases = {
   importSnapshot: (client: PoolClient, snapshot: MirrorSnapshot) => Promise<void>;
   verify: (client: PoolClient) => Promise<unknown>;
-  migrateCurrent: (client: PoolClient) => Promise<void>;
+  migrateCurrent: (client: PoolClient, directory: string) => Promise<void>;
 };
 
 export async function importSnapshot(client: Pick<PoolClient, "query">, snapshot: MirrorSnapshot): Promise<void> {
@@ -153,13 +153,13 @@ export async function importSnapshot(client: Pick<PoolClient, "query">, snapshot
 export async function importAndMigrateSnapshot(
   client: PoolClient,
   snapshot: MirrorSnapshot,
-  applyCurrentMigrations: boolean,
+  migrationsDirectory: string | null,
   phases: RefreshDataPhases = { importSnapshot, verify: verifyForeignKeys, migrateCurrent },
 ): Promise<void> {
   await phases.importSnapshot(client, snapshot);
   await phases.verify(client);
-  if (applyCurrentMigrations) {
-    await phases.migrateCurrent(client);
+  if (migrationsDirectory) {
+    await phases.migrateCurrent(client, migrationsDirectory);
     await phases.verify(client);
   }
 }
@@ -207,6 +207,16 @@ async function provisionPersonas(snapshot: MirrorSnapshot, target: ReturnType<ty
 export async function refreshMirror(path: string): Promise<void> {
   const target = await runPreviewRefreshPhase("dev storage preflight", async () => targetEnvironment());
   const snapshot = await runPreviewRefreshPhase("snapshot read", async () => readSnapshot(path));
+  const currentMigrations = readExpectedMigrations();
+  assertActiveChainPrefix(snapshot.migrations, currentMigrations);
+  const targetMigrations = target.migrationsDirectory
+    ? readExpectedMigrations(target.migrationsDirectory)
+    : snapshot.migrations;
+  assertActiveChainPrefix(snapshot.migrations, targetMigrations);
+  const usesCurrentSchema = currentMigrations.every(
+    (migration, index) => targetMigrations[index]?.hash === migration.hash
+      && targetMigrations[index]?.when === migration.when,
+  );
   const storage = createClient(target.supabaseUrl, target.secretKey, { auth: { persistSession: false, autoRefreshToken: false } }).storage;
   await runPreviewRefreshPhase("dev storage preflight", () => ensurePreviewTeamLogoBucket(storage));
   const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1, query_timeout: 120_000 });
@@ -216,10 +226,10 @@ export async function refreshMirror(path: string): Promise<void> {
     client = connected;
     await runPreviewRefreshPhase("db reset", () => resetDevSchema(connected));
     await runPreviewRefreshPhase("db migrate", () => migrateToSource(connected, snapshot));
-    await runPreviewRefreshPhase("db import", () => importAndMigrateSnapshot(connected, snapshot, target.applyCurrentMigrations));
+    await runPreviewRefreshPhase("db import", () => importAndMigrateSnapshot(connected, snapshot, target.migrationsDirectory));
     await runPreviewRefreshPhase("db state setup", () => ensureMirrorState(connected));
     // Current domain code requires the current schema; older source-only mirrors stay readable.
-    if (target.applyCurrentMigrations || snapshot.migrations.length === readExpectedMigrations().length) {
+    if (usesCurrentSchema) {
       await runPreviewRefreshPhase("pickem windows", async () => {
         const [{ initializePreviewPickEm }, schema] = await Promise.all([
           import("./predictions"), import("../../../src/db/schema"),

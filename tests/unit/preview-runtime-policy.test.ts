@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
 import { assertReviewedColumns, exportQuery, previewPolicyFor } from "../../scripts/db/preview/policy";
 import { readSnapshot, type MirrorSnapshot } from "../../scripts/db/preview/snapshot";
+import { assertRefreshRunner } from "../../scripts/db/preview/environment";
 
 describe("preview runtime record isolation", () => {
   it.each([
@@ -31,6 +32,54 @@ describe("preview runtime record isolation", () => {
       snapshot.tables[table] = [{ [columns[0]]: "production-only" }];
       writeFileSync(path, JSON.stringify(snapshot));
       expect(() => readSnapshot(path)).toThrow(expect.objectContaining({ code: "PREVIEW_SNAPSHOT_INVALID" }));
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+});
+
+describe("preview transport trust boundary", () => {
+  it("allows only manual dispatch of the mirror workflow from main", () => {
+    const env = {
+      GITHUB_ACTIONS: "true",
+      GITHUB_REPOSITORY: "Starfie1d1272/RivalHub",
+      GITHUB_REF: "refs/heads/main",
+      GITHUB_EVENT_NAME: "workflow_dispatch",
+      GITHUB_WORKFLOW_REF: "Starfie1d1272/RivalHub/.github/workflows/refresh-preview-mirror.yml@refs/heads/main",
+    };
+    expect(() => assertRefreshRunner(env)).not.toThrow();
+    expect(() => assertRefreshRunner({ ...env, GITHUB_REF: "refs/heads/3.0" })).toThrow();
+    expect(() => assertRefreshRunner({ ...env, GITHUB_EVENT_NAME: "schedule" })).toThrow();
+    expect(() => assertRefreshRunner({ ...env, GITHUB_WORKFLOW_REF: "different.yml" })).toThrow();
+  });
+
+  it("rejects education rows and preserves only inert DAK import lineage", () => {
+    const migrations = readExpectedMigrations();
+    const policy = previewPolicyFor(migrations);
+    expect(exportQuery("education_verifications", policy)).toMatch(/WHERE false$/);
+    expect(exportQuery("event_roster_members", policy)).toContain("NULL AS education_verification_id");
+    expect(exportQuery("dak_pairings", policy)).toContain("'preview:' || id::text AS token_hash");
+    const snapshot: MirrorSnapshot = {
+      format: 2, sourceCommit: "a".repeat(40), sourceTag: "v2.25.43",
+      refreshedAt: "2026-11-12T00:00:00Z", migrations, assets: [],
+      personaCandidates: { currentSeasonId: null, playerUserId: null, invitedUserId: null, captainUserId: null, seasonAdminUserId: null, superAdminUserId: null },
+      tables: Object.fromEntries(Object.keys(policy.tables).map((name) => [name, []])),
+    };
+    const createdAt = "2026-11-12T00:00:00Z";
+    snapshot.tables.dak_pairings = [{
+      id: "fixture", status: "revoked", token_hash: "preview:fixture", scopes: [], season_ids: [],
+      last_used_at: null, revoked_at: createdAt, created_at: createdAt,
+    }];
+    const directory = mkdtempSync(join(tmpdir(), "preview-transport-policy-"));
+    const path = join(directory, "snapshot.json");
+    try {
+      writeFileSync(path, JSON.stringify(snapshot));
+      expect(() => readSnapshot(path)).not.toThrow();
+      snapshot.tables.dak_pairings[0].token_hash = "actual-source-hash";
+      writeFileSync(path, JSON.stringify(snapshot));
+      expect(() => readSnapshot(path)).toThrow();
+      snapshot.tables.dak_pairings = [];
+      snapshot.tables.education_verifications = [{ id: "verification", user_id: "person" }];
+      writeFileSync(path, JSON.stringify(snapshot));
+      expect(() => readSnapshot(path)).toThrow();
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 });

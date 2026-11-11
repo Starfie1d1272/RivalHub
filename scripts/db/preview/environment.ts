@@ -1,30 +1,23 @@
 import { OFFICIAL_PREVIEW } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { buildProductionEnvironment } from "../production-environment";
+import type { Environment } from "../remote-environment";
 import { buildStagingEnvironment, STAGING_PROJECT_REF } from "../staging-environment";
 
-export function assertRefreshRunner(env: NodeJS.ProcessEnv = process.env): void {
-  const isManual = env.GITHUB_EVENT_NAME === "workflow_dispatch";
-  const migrationRef = env.RIVALHUB_PREVIEW_MIGRATION_REF;
-  let expectedRef = "refs/heads/main";
-  if (isManual && migrationRef) {
-    expectedRef = migrationRef.startsWith("refs/heads/") ? migrationRef : `refs/heads/${migrationRef}`;
-  } else if (isManual) {
-    expectedRef = "";
-  }
+export function assertRefreshRunner(env: Environment = process.env): void {
   if (env.GITHUB_ACTIONS !== "true" || env.GITHUB_REPOSITORY !== "Starfie1d1272/RivalHub"
-    || env.GITHUB_REF !== expectedRef || env.GITHUB_WORKFLOW !== "Refresh Preview Data"
-    || !["schedule", "workflow_dispatch", "workflow_run"].includes(env.GITHUB_EVENT_NAME ?? "")) {
-    throw new Error("Mirror refresh only runs from an approved main or manual policy ref.");
+    || env.GITHUB_REF !== "refs/heads/main" || env.GITHUB_EVENT_NAME !== "workflow_dispatch"
+    || env.GITHUB_WORKFLOW_REF !== "Starfie1d1272/RivalHub/.github/workflows/refresh-preview-mirror.yml@refs/heads/main") {
+    throw new Error("Mirror refresh must be dispatched from the protected main workflow.");
   }
 }
 
-export function sourceDatabaseUrl(env: NodeJS.ProcessEnv = process.env): string {
+export function sourceDatabaseUrl(env: Environment = process.env): string {
   assertRefreshRunner(env);
   if (env.RIVALHUB_ALLOW_REMOTE_DB_WRITE) throw new Error("Mirror source does not accept remote-write authority.");
   return buildProductionEnvironment(env, { requiresWriteAuthorization: false }).DATABASE_URL!;
 }
 
-export function targetEnvironment(env: NodeJS.ProcessEnv = process.env) {
+export function targetEnvironment(env: Environment = process.env) {
   assertRefreshRunner(env);
   if (env.RIVALHUB_PREVIEW_RESET_CONFIRM !== STAGING_PROJECT_REF) throw new Error("Explicit dev mirror reset confirmation required.");
   const databaseUrl = buildStagingEnvironment(env, { requiresWriteAuthorization: true }).DATABASE_URL!;
@@ -33,7 +26,9 @@ export function targetEnvironment(env: NodeJS.ProcessEnv = process.env) {
   return {
     databaseUrl,
     secretKey,
-    applyCurrentMigrations: env.RIVALHUB_PREVIEW_APPLY_CURRENT_MIGRATIONS === "true",
+    migrationsDirectory: env.RIVALHUB_PREVIEW_APPLY_CURRENT_MIGRATIONS === "true"
+      ? env.RIVALHUB_PREVIEW_MIGRATIONS_DIR ?? "drizzle/migrations"
+      : null,
     supabaseUrl: OFFICIAL_PREVIEW.supabaseUrl,
   };
 }

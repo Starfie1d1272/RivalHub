@@ -64,8 +64,7 @@ export function assertActiveChainPrefix(actual: readonly Migration[], expected: 
   }
 }
 
-export function readExpectedMigrations(): ExpectedMigration[] {
-  const migrationsDirectory = resolve(process.cwd(), "drizzle/migrations");
+export function readExpectedMigrations(migrationsDirectory = "drizzle/migrations"): ExpectedMigration[] {
   const journal = JSON.parse(readFileSync(resolve(migrationsDirectory, "meta/_journal.json"), "utf8")) as { entries: MigrationJournalEntry[] };
   return journal.entries.map((entry) => ({
     tag: entry.tag,
