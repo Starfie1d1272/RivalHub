@@ -17,23 +17,36 @@ export async function register(): Promise<void> {
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
-  const { requestContextFromHeaders } = await import("@/lib/observability/context");
-  const { captureException } = await import("@/lib/observability/server");
-  const requestContext = requestContextFromHeaders(
-    request.headers,
-    context.routePath ?? request.path,
-    request.path,
-  );
-  captureException("next.request.unhandled_error", error, {
-    scope: "next",
-    operation: context.routeType ?? "request",
-    route: requestContext.route,
-    requestId: requestContext.requestId,
-    safeContext: {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { requestContextFromHeaders } = await import("@/lib/observability/context");
+    const { captureException } = await import("@/lib/observability/server");
+    const requestContext = requestContextFromHeaders(
+      request.headers,
+      context.routePath ?? request.path,
+      request.path,
+    );
+    captureException("next.request.unhandled_error", error, {
+      scope: "next",
+      operation: context.routeType ?? "request",
+      route: requestContext.route,
+      requestId: requestContext.requestId,
+      safeContext: {
+        errorDigest: extractErrorDigest(error),
+        routeType: context.routeType,
+        routerKind: context.routerKind,
+        renderSource: context.renderSource,
+      },
+    });
+    return;
+  }
+  console.error(
+    JSON.stringify({
+      level: "error",
+      event: "next.request.unhandled_error",
+      scope: "next",
+      operation: context.routeType ?? "request",
+      runtime: "edge",
       errorDigest: extractErrorDigest(error),
-      routeType: context.routeType,
-      routerKind: context.routerKind,
-      renderSource: context.renderSource,
-    },
-  });
+    }),
+  );
 };

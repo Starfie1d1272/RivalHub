@@ -100,8 +100,8 @@ RivalHub 2.x 先把官方实例和真实赛事运营做好。代码以 AGPL-3.0 
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm db:local:bootstrap
-pnpm dev:local
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:bootstrap
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm dev:local
 ```
 
 本地开发使用仓库提供的 Local Supabase 配置。完整环境、数据库迁移、CI 和发布说明从 [`docs/README.md`](./docs/README.md) 进入对应文档。

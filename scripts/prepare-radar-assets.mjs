@@ -9,6 +9,7 @@ if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('radar-view must use an ex
 const destination = new URL(`../public/vendor/radar/${version}/`, import.meta.url);
 await mkdir(destination, { recursive: true });
 await cp(join(root, 'assets'), destination, { recursive: true });
+await cp(join(root, '..', 'LICENSE'), new URL('LICENSE', destination));
 for (const name of ['radar-provenance.json', 'icon-provenance.json', 'THIRD-PARTY-NOTICES.md']) {
   await cp(join(root, name), new URL(name, destination));
 }
