@@ -13,7 +13,8 @@ import type {
   EvidenceSubmissionResponse,
   RivalHubEvidenceSubmission,
 } from "./contracts";
-import { pairingCanReadSeason } from "./pairing";
+import { pairingCanReadSeason, requireCurrentDakPairingInTx } from "./pairing";
+import { lockGameplayIdentityWriteInTx } from "@/lib/identity/write-lock";
 import { demoImportMetadataSelection, type DemoImportMetadata } from "./metadata";
 import {
   DEMO_CONTENT_CONFLICT_MESSAGE,
@@ -102,6 +103,9 @@ export async function submitRivalHubEvidence(
   const payloadSha256 = sha256Json(evidence);
 
   return db.transaction(async (tx) => {
+    await lockGameplayIdentityWriteInTx(tx);
+    const pairing = await requireCurrentDakPairingInTx(tx, args.pairingId);
+    assertEvidenceSeasonInPairingScope(pairing, evidence.target.seasonId);
     await lockDemoImportLineageInTx(tx, evidence.target.matchMapId);
     let idempotent: DemoImportMetadata | undefined;
     if (args.idempotencyKey) {

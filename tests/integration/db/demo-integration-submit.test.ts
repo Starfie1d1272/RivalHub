@@ -154,6 +154,7 @@ describe("DAK evidence submit persistence", () => {
       await database.insert(schema.users).values(userIds.map((id, index) => ({
         id,
         email: `${id}@local.test`,
+        role: index === 0 ? "super_admin" as const : "user" as const,
         steam64: `765611980000000${String(index + 1).padStart(2, "0")}`,
       })));
       await database.insert(schema.seasons).values({

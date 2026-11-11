@@ -33,6 +33,8 @@
 | 公开运营图片；[Storage registry](../../scripts/db/recovery/storage-policy.ts) | public Storage 保存队标、赛事 Logo/群二维码 | 对象为 public，上传权限与内部 inventory 仍 server-only |
 | 环境/provider secret；[部署](../deployment.md) | Vercel/GitHub protected configuration、Vault、provider 拥有运行凭据 | secret，不导出值到文档/PR/log/普通应用备份；DB 内 verifier hash 按上述设备/身份类别另行保护 |
 
+DAK 是账号签发的设备授权。每次请求在原签发范围内核对账号当前赛事权限，提交 Evidence 在同一写事务内复核。撤销管理员角色时一并撤销其 DAK 配对。Mizar 安装归属赛事，继续走该赛事的独立设备撤销。轮换会话密钥时，尚在轮询而不能重新派生已存凭据的客户端收到过期响应，可重新配对。
+
 ## 保留、到期与删除
 
 | 类别 | 保留 / 触发 | 删除或匿名化 / evidence |
@@ -43,7 +45,7 @@
 | Completed 教育核验材料 | `reviewedAt` 达 canonical 七天 cutoff 后到期；pending 不按提交时间推断到期，缺审核时间不补造 | 新列表/搜索/签名请求不再提供到期 evidence。[retention](../../src/lib/education/retention.ts) 删除对象成功后才清 DB key，CHSI code 清空；失败交既有 scheduler 重试。已签发短期 URL 仍受 adapter TTL/对象删除约束，读端不能撤销它；[签名入口](../../src/lib/education/evidence-access.ts)、[列表 DB](../../tests/integration/db/education-admin-review.test.ts)、[清理 DB](../../tests/integration/db/education-manual-retention.test.ts) |
 | Pending 教育审核/未完成身份请求 | pending 教育材料保留至审核完成，再按审核后七天清理；身份请求按办理用途保留，有 expiresAt 的授权请求到期不可使用 | 不按提交时间自动判定放弃；由审核流程处理积压，复用现有材料清理 owner |
 | Demo import/receipt/私有诊断 | 为导入排障、赛果更正和来源追溯保留，不设置统一固定 purge 期限 | 保留现有领域删除与关联生命周期；原始数据和诊断保持私有，正式统计继续由 canonical projection 提供 |
-| 设备 verifier、配对/邀请、会话 | 原 owner expiresAt/撤销控制使用资格；session 有 canonical 有效期 | registry 注册时清该用户过期会话，退出/全撤销删除记录，durable fence 保留；设备撤销保留关系/audit。失效 intents/receipts 未有统一物理 purge |
+| 设备 verifier、配对/邀请、会话 | 原 owner expiresAt/撤销控制使用资格；session 有 canonical 有效期 | registry 注册时清该用户过期会话，退出/全撤销删除记录，durable fence 保留；设备撤销保留关系与审计。每次配对启动有界清理最多 50 条已过期且从未绑定设备的 intent。已绑定关系与 receipts 继续按领域保留 |
 | 反馈 | 为问题跟进、重复问题识别与历史排障保留；resolved 后不设置自动删除期限 | 状态更新保留 body/pathname/fingerprint，访问继续限超级管理员；主动撤回或匿名化产品未实现 |
 | 业务 audit | 当前无统一自动 purge，维护正式追溯 | 低敏写入与安全投影不使历史 raw/private meta 公开；未来脱敏需定义责任追溯、tombstone、授权关系 |
 | 产品遥测 | 压缩 raw/索引及短期聚合关联键至多七天；两类长期汇总各自默认关闭，启用时明确 1–90 天；任务 attempt 仅客户端内存，身份切换清空 | 读端到期不可见、小时任务分块删行，不保证所有副本七天物理擦除；D1 Time Travel 恢复副本可能在行删除后另存七天，清理故障还会延后，必须按 [产品遥测清单](../operations/product-telemetry.md) 确认总保留要求；恢复前停收并清过期数据；不进入应用 PG 备份 |

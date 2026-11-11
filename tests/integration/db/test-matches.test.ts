@@ -248,6 +248,7 @@ describe("event test matches", () => {
       return { ...participant, resolution: { status: "matched", userId: player.userId, eventRosterMemberId: player.eventRosterMemberId!, entryId: player.entryId } };
     });
     const [intent] = await db.insert(schema.dakPairingIntents).values({ pollTokenHash: randomUUID(), status: "authorized", authorizedByUserId: f.captainA, expiresAt: new Date(Date.now() + 600000), authorizedAt: new Date() }).returning();
+    await db.insert(schema.seasonAdminGrants).values({ userId: f.captainA, seasonId: f.seasonId });
     const [pairing] = await db.insert(schema.dakPairings).values({ pairingIntentId: intent.id, userId: f.captainA, tokenHash: randomUUID(), scopes: ["event:read", "demo:submit"], seasonIds: [f.seasonId] }).returning();
     const imported = await submitRivalHubEvidence({ input: evidence, pairingId: pairing.id, pairingScope: pairing });
     expect(imported).toMatchObject({ status: "synced", issues: [] });

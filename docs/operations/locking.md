@@ -23,7 +23,7 @@ Public reads do not acquire these mutation locks.
 | Mizar LIVE | installation SHARE → match SHARE → source SHARE, with publication inside the transaction; channel disposal follows commit |
 | Mizar display heartbeat | separate transaction after committed claim/reliable; installation only, skips busy/no-idle application pools, 25ms lock / 250ms statement budget, 30s DB write throttle, database clock, no revoked/cross-competition writes |
 | `identity/write-lock.ts`, merge and confirmed Demo attribution | gameplay identity advisory gate first → user/identity or Demo lineage/season/domain rows; merge also reparents references and encounters their FK/trigger edges |
-| Demo import/review/promotion and player statistics | identity gate where attribution changes → map lineage/official writes → prediction/BET outboxes; follow their existing identity owner |
+| Demo import/review/promotion and player statistics | identity gate where attribution changes → DAK account SHARE and pairing SHARE for device submissions → map lineage/official writes → prediction/BET outboxes. Role revocation takes account UPDATE before revoking its pairings |
 | `postmatch/service.ts` | direct match UPDATE → submission/commentator/source rows; it uses a separate match owner, not the canonical helper |
 | Solo registration | identity advisory gate → season UPDATE → registration admission and profile/registration writes. Draft and review take the same season UPDATE. Steam lookup runs before the write transaction |
 | team/competition-entry/qualification/registration owners | aggregate parent/current revision/participant/active-claim/event-roster writes; FK and deferred aggregate validators remain part of their commit boundary |

@@ -1,10 +1,16 @@
 import "server-only";
 
 import { randomBytes } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { inArray, lte, notExists, and, eq, isNull } from "drizzle-orm";
 
-import { db } from "@/db/client";
-import { dakPairingIntents, dakPairings, type DakPairing } from "@/db/schema";
+import { db, type DB, type TxDb } from "@/db/client";
+import {
+  dakPairingIntents,
+  dakPairings,
+  seasonAdminGrants,
+  users,
+  type DakPairing,
+} from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { DAK_SCOPES, type DakScope } from "./contracts";
@@ -52,6 +58,28 @@ export async function startDakPairing(origin: string): Promise<DakPairingStart> 
   const safeOrigin = normalizeOrigin(origin);
   const pollToken = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + PAIRING_TTL_MS);
+  await db.delete(dakPairingIntents).where(
+    inArray(
+      dakPairingIntents.id,
+      db
+        .select({ id: dakPairingIntents.id })
+        .from(dakPairingIntents)
+        .where(
+          and(
+            lte(dakPairingIntents.expiresAt, new Date()),
+            notExists(
+              db
+                .select({ id: dakPairings.id })
+                .from(dakPairings)
+                .where(eq(dakPairings.pairingIntentId, dakPairingIntents.id)),
+            ),
+          ),
+        )
+        .orderBy(dakPairingIntents.expiresAt)
+        .limit(50)
+        .for("update", { skipLocked: true }),
+    ),
+  );
   const [intent] = await db
     .insert(dakPairingIntents)
     .values({
@@ -71,27 +99,86 @@ export async function startDakPairing(origin: string): Promise<DakPairingStart> 
   };
 }
 
+async function currentDakSeasonIds(
+  database: DB | TxDb,
+  userId: string,
+  lockOwner = false,
+): Promise<string[]> {
+  const query = database
+    .select({ status: users.status, role: users.role })
+    .from(users)
+    .where(eq(users.id, userId));
+  const [owner] = lockOwner ? await query.for("share") : await query;
+  if (owner?.status !== "active") {
+    throw new AppError(ErrorCode.UNAUTHORIZED, "DAK 连接所属账号已停用。");
+  }
+  if (owner.role === "super_admin") return ["*"];
+  const grants = await database
+    .select({ seasonId: seasonAdminGrants.seasonId })
+    .from(seasonAdminGrants)
+    .where(eq(seasonAdminGrants.userId, userId));
+  return grants.map((grant) => grant.seasonId).sort();
+}
+
+function scopeCurrentDakPairing(pairing: DakPairing, currentSeasonIds: string[]): DakPairing {
+  const seasonIds = currentSeasonIds.includes("*")
+    ? pairing.seasonIds
+    : currentSeasonIds.filter((seasonId) => pairingCanReadSeason(pairing, seasonId));
+  if (!seasonIds.length) {
+    throw new AppError(ErrorCode.FORBIDDEN, "当前账号没有该 DAK 连接的赛事管理员权限。");
+  }
+  return { ...pairing, seasonIds };
+}
+
+export async function requireCurrentDakPairingInTx(
+  tx: TxDb,
+  pairingId: string,
+): Promise<DakPairing> {
+  const [candidate] = await tx
+    .select({ userId: dakPairings.userId })
+    .from(dakPairings)
+    .where(eq(dakPairings.id, pairingId));
+  if (!candidate) throw new AppError(ErrorCode.UNAUTHORIZED, "DAK 连接凭据无效或已撤销。");
+  const currentSeasonIds = await currentDakSeasonIds(tx, candidate.userId, true);
+  const [pairing] = await tx
+    .select()
+    .from(dakPairings)
+    .where(
+      and(
+        eq(dakPairings.id, pairingId),
+        eq(dakPairings.userId, candidate.userId),
+        eq(dakPairings.status, "active"),
+      ),
+    )
+    .for("share");
+  if (!pairing) throw new AppError(ErrorCode.UNAUTHORIZED, "DAK 连接凭据无效或已撤销。");
+  return scopeCurrentDakPairing(pairing, currentSeasonIds);
+}
+
+export async function revokeUserDakPairingsInTx(tx: TxDb, userId: string): Promise<number> {
+  const revoked = await tx
+    .update(dakPairings)
+    .set({ status: "revoked", revokedAt: new Date() })
+    .where(and(eq(dakPairings.userId, userId), eq(dakPairings.status, "active")))
+    .returning({ id: dakPairings.id });
+  return revoked.length;
+}
+
 export async function authorizeDakPairing(
   pairingId: string,
   authorization: CurrentUserAuthorization,
 ): Promise<void> {
-  const seasonIds =
-    authorization.role === "super_admin" ? ["*"] : [...authorization.seasonIds].sort();
-  if (seasonIds.length === 0)
-    throw new AppError(ErrorCode.FORBIDDEN, "当前账号没有可连接的赛事管理员权限。");
-
   await db.transaction(async (tx) => {
+    const seasonIds = await currentDakSeasonIds(tx, authorization.userId, true);
+    if (seasonIds.length === 0) {
+      throw new AppError(ErrorCode.FORBIDDEN, "当前账号没有可连接的赛事管理员权限。");
+    }
     const [intent] = await tx
       .select()
       .from(dakPairingIntents)
       .where(eq(dakPairingIntents.id, pairingId))
       .for("update");
     if (!intent || intent.expiresAt.getTime() <= Date.now()) {
-      if (intent?.status === "pending")
-        await tx
-          .update(dakPairingIntents)
-          .set({ status: "expired" })
-          .where(eq(dakPairingIntents.id, intent.id));
       throw new AppError(ErrorCode.VALIDATION_FAILED, "连接请求已过期，请在 DAK Studio 重新发起。");
     }
     if (intent.status !== "pending")
@@ -99,9 +186,7 @@ export async function authorizeDakPairing(
 
     // The raw poll token is not persisted. The Studio derives the same access
     // token from its private poll token after this intent becomes authorized.
-    // The hash is filled by the poll endpoint once it presents that token.
-    // To keep the DB artifact one-way, the pairing token hash is intentionally
-    // derived from the poll hash and intent id below.
+    // The authorization records the hash the polling credential must match.
     const tokenHash = hashOpaque(accessTokenFor(intent.id, intent.pollTokenHash));
     const [pairing] = await tx
       .insert(dakPairings)
@@ -165,6 +250,11 @@ export async function pollDakPairing(
   if (!pairing || pairing.status !== "active")
     throw new AppError(ErrorCode.FORBIDDEN, "DAK 连接已撤销。");
 
+  const accessToken = accessTokenFor(intent.id, tokenHash);
+  if (hashOpaque(accessToken) !== pairing.tokenHash) {
+    return { status: "expired", expiresAt: intent.expiresAt.toISOString() };
+  }
+
   // deliveredAt is audit metadata only. A lost authorized response must be
   // recoverable without an ACK protocol, so every valid poll inside the intent
   // TTL returns the same deterministic credential.
@@ -178,7 +268,7 @@ export async function pollDakPairing(
   return {
     status: "authorized",
     expiresAt: intent.expiresAt.toISOString(),
-    accessToken: accessTokenFor(intent.id, tokenHash),
+    accessToken,
   };
 }
 
@@ -197,11 +287,17 @@ export async function authenticateDakRequest(
   if (!pairing) throw new AppError(ErrorCode.UNAUTHORIZED, "DAK 连接凭据无效或已撤销。");
   if (!pairing.scopes.includes(requiredScope))
     throw new AppError(ErrorCode.FORBIDDEN, "DAK 连接没有此操作权限。");
-  await db
+  const scopedPairing = scopeCurrentDakPairing(
+    pairing,
+    await currentDakSeasonIds(db, pairing.userId),
+  );
+  const [activePairing] = await db
     .update(dakPairings)
     .set({ lastUsedAt: new Date() })
-    .where(eq(dakPairings.id, pairing.id));
-  return { pairing, userId: pairing.userId };
+    .where(and(eq(dakPairings.id, pairing.id), eq(dakPairings.status, "active")))
+    .returning({ id: dakPairings.id });
+  if (!activePairing) throw new AppError(ErrorCode.UNAUTHORIZED, "DAK 连接凭据无效或已撤销。");
+  return { pairing: scopedPairing, userId: pairing.userId };
 }
 
 export function pairingCanReadSeason(

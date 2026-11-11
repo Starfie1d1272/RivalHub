@@ -1,3 +1,4 @@
+import { pairingStartRetryAfter } from "@/lib/integrations/pairing-security";
 import { startDakPairing } from "@/lib/demo-integration/pairing";
 import {
   withIntegrationRequest,
@@ -16,6 +17,16 @@ export async function POST(request: Request): Promise<Response> {
     "pairing.start",
     async (diagnostics) => {
       const origin = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
+      const retryAfter = pairingStartRetryAfter();
+      if (retryAfter !== null)
+        return integrationJson(
+          request,
+          { error: { code: "RATE_LIMITED", message: "配对请求过于频繁，请稍后重试。" } },
+          {
+            status: 429,
+            headers: { "Retry-After": String(retryAfter) },
+          },
+        );
       diagnostics.phase = "domain";
       return integrationJson(request, await startDakPairing(origin), { status: 201 });
     },

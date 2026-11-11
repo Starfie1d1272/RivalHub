@@ -2,7 +2,7 @@ import { lockSeasonForTournamentInTx } from "@/lib/postevent/guard";
 import "server-only";
 import { mizarAuditActorId } from "@/lib/audit/people";
 import { randomBytes } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { inArray, lte, notExists, and, eq, isNull } from "drizzle-orm";
 import { db, type TxDb } from "@/db/client";
 import {
   mizarInstallations,
@@ -60,6 +60,28 @@ export async function startMizarPairing(origin: string): Promise<MizarPairingSta
     throw new AppError(ErrorCode.VALIDATION_FAILED, "RivalHub 授权地址无效。");
   const pollToken = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + PAIRING_TTL_MS);
+  await db.delete(mizarPairingIntents).where(
+    inArray(
+      mizarPairingIntents.id,
+      db
+        .select({ id: mizarPairingIntents.id })
+        .from(mizarPairingIntents)
+        .where(
+          and(
+            lte(mizarPairingIntents.expiresAt, new Date()),
+            notExists(
+              db
+                .select({ id: mizarInstallations.id })
+                .from(mizarInstallations)
+                .where(eq(mizarInstallations.pairingIntentId, mizarPairingIntents.id)),
+            ),
+          ),
+        )
+        .orderBy(mizarPairingIntents.expiresAt)
+        .limit(50)
+        .for("update", { skipLocked: true }),
+    ),
+  );
   const [intent] = await db
     .insert(mizarPairingIntents)
     .values({ pollTokenHash: hashOpaque(pollToken), expiresAt })
@@ -155,6 +177,7 @@ export async function pollMizarPairing(
       id: mizarInstallations.id,
       competitionId: mizarInstallations.competitionId,
       revokedAt: mizarInstallations.revokedAt,
+      credentialHash: mizarInstallations.credentialHash,
       userId: users.id,
       displayName: users.displayName,
       perfectName: users.perfectName,
@@ -166,6 +189,9 @@ export async function pollMizarPairing(
     .where(eq(mizarInstallations.pairingIntentId, intent.id));
   if (!installation || installation.revokedAt)
     throw new AppError(ErrorCode.FORBIDDEN, "Mizar 连接已撤销。");
+  const credential = installationCredential(intent.id, tokenHash);
+  if (hashCredential(credential) !== installation.credentialHash)
+    return { status: "expired", expiresAt };
   if (!intent.deliveredAt)
     await db
       .update(mizarPairingIntents)
@@ -176,7 +202,7 @@ export async function pollMizarPairing(
     expiresAt,
     installationId: installation.id,
     competitionId: installation.competitionId,
-    credential: installationCredential(intent.id, tokenHash),
+    credential,
     displayName: installation.displayName?.trim() || "赛事管理员",
     authorizedUser: {
       userId: installation.userId,

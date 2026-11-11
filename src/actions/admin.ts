@@ -21,6 +21,7 @@ import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
 import { getRegistrationCounts } from "@/lib/registration/counts";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
+import { revokeUserDakPairingsInTx } from "@/lib/demo-integration/pairing";
 import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
 import { updatePublicHomeTag, updatePublicSeasonTags } from "@/lib/revalidation";
 import { type RegistrationStatus, validateTransition } from "@/lib/registration-transitions";
@@ -274,12 +275,17 @@ export async function revokeUserAdminRole(userId: string) {
         .set({ role: "user", updatedAt: new Date() })
         .where(eq(users.id, userId));
 
+      const revokedDakPairings = await revokeUserDakPairingsInTx(tx, userId);
       await writeAuditInTx(tx, {
         seasonId: null,
         action: "admin.revoke_role",
         actorId: auditActorId(session),
         targetId: userId,
-        meta: { from: target.role, seasonIds: grants.map((grant) => grant.seasonId) },
+        meta: {
+          from: target.role,
+          seasonIds: grants.map((grant) => grant.seasonId),
+          revokedDakPairings,
+        },
       });
     });
 
