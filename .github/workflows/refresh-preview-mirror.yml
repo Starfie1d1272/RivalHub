@@ -38,6 +38,8 @@ jobs:
         with:
           cache: true
           require-lockfile: true
+      - name: Verify the database projection matches the export policy
+        run: pnpm exec tsx scripts/db/preview/reader-sql.ts --check
       - name: Install age
         run: |
           sudo apt-get update -qq
