@@ -27,17 +27,12 @@ export const educationEvidenceStorage = {
     }
   },
 
-  async remove(key: string): Promise<void> {
-    try {
-      const { error } = await createServiceClient()
-        .storage.from(EDUCATION_EVIDENCE_BUCKET)
-        .remove([key]);
-      if (error && !isMissingObjectError(error)) throw error;
-    } catch (error) {
-      if (isMissingObjectError(error)) return;
-      reportStorageFailure("remove", error);
-      throw new AppError(ErrorCode.INTERNAL_ERROR, STORAGE_FAILURE_MESSAGE);
-    }
+  remove(key: string): Promise<void> {
+    return removeEvidenceObjects([key]);
+  },
+
+  removeMany(keys: string[]): Promise<void> {
+    return removeEvidenceObjects(keys);
   },
 
   async createSignedUrl(key: string): Promise<string> {
@@ -53,6 +48,20 @@ export const educationEvidenceStorage = {
     }
   },
 };
+
+async function removeEvidenceObjects(keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+  try {
+    const { error } = await createServiceClient()
+      .storage.from(EDUCATION_EVIDENCE_BUCKET)
+      .remove(keys);
+    if (error && !isMissingObjectError(error)) throw error;
+  } catch (error) {
+    if (isMissingObjectError(error)) return;
+    reportStorageFailure("remove", error);
+    throw new AppError(ErrorCode.INTERNAL_ERROR, STORAGE_FAILURE_MESSAGE);
+  }
+}
 
 function reportStorageFailure(operation: "upload" | "remove" | "signed_url", error: unknown): void {
   // Keep only bounded status/code metadata; never read messages, paths, files or URLs.

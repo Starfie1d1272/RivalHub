@@ -118,7 +118,7 @@ export async function submitAdmissionNoticeEducationCommand(input: {
   file: ValidatedEducationEvidenceFile;
 }): Promise<EducationSubmissionOutcome> {
   const context = await requireEducationSubmissionContext(input.session, input.institutionId);
-  let uploadedObjectKey: string | undefined;
+  let attemptedObjectKey: string | undefined;
 
   try {
     return await db.transaction(async (tx) => {
@@ -129,8 +129,8 @@ export async function submitAdmissionNoticeEducationCommand(input: {
 
       const verificationId = randomUUID();
       const objectKey = `${verificationId}/${randomUUID()}.${input.file.extension}`;
+      attemptedObjectKey = objectKey;
       await educationEvidenceStorage.upload(objectKey, input.file.file, input.file.mimeType);
-      uploadedObjectKey = objectKey;
 
       await tx.insert(educationVerifications).values({
         id: verificationId,
@@ -151,12 +151,21 @@ export async function submitAdmissionNoticeEducationCommand(input: {
       return "created";
     });
   } catch (error) {
-    if (uploadedObjectKey) {
+    const objectKey = attemptedObjectKey;
+    if (objectKey) {
       try {
-        await educationEvidenceStorage.remove(uploadedObjectKey);
+        // Wait for the original transaction to release its lock before deciding
+        // whether a lost COMMIT response left a durable reference.
+        const referenced = await db.transaction(async (tx) => {
+          await lockEducationSubmissionInTx(tx, context);
+          return tx.query.educationVerifications.findFirst({
+            where: eq(educationVerifications.evidenceObjectKey, objectKey),
+            columns: { id: true },
+          });
+        });
+        if (referenced) return "created";
+        await educationEvidenceStorage.remove(objectKey);
       } catch {
-        // The storage adapter has already emitted a safe dependency event;
-        // this event records only that compensation was unsuccessful.
         logEvent({
           level: "error",
           event: "education.evidence_storage.compensation_failure",

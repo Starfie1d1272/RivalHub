@@ -33,6 +33,26 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   serverExternalPackages: ["pg"],
   typedRoutes: true,
+  headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "match\\.starfie1d\\.top" }],
+        headers: [{ key: "Strict-Transport-Security", value: "max-age=31536000" }],
+      },
+      ...["/", "/login", "/my/:path*", "/settings/:path*", "/admin/:path*"].map((source) => ({
+        source,
+        headers: [{ key: "X-Frame-Options", value: "DENY" }],
+      })),
+    ];
+  },
   // The release endpoint is public, but the identity must be frozen into the
   // exact build rather than read from mutable runtime configuration. Missing
   // markers remain invalid and make the endpoint fail closed.

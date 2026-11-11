@@ -1,9 +1,9 @@
 import "server-only";
 
-import { and, eq, isNotNull, lte, ne } from "drizzle-orm";
+import { and, eq, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { educationVerifications } from "@/db/schema";
-import { educationEvidenceStorage } from "./storage";
+import { EDUCATION_EVIDENCE_BUCKET, educationEvidenceStorage } from "./storage";
 import { purgeExpiredEducationEvidence as purgeWithStore } from "./retention-core";
 
 /**
@@ -70,4 +70,23 @@ export async function purgeExpiredEducationEvidence(now = new Date()): Promise<n
     },
     now,
   );
+}
+
+/** Storage metadata is read-only. Each key is minted once and uploaded before its DB reference. */
+export async function purgeOrphanedEducationEvidence(now = new Date()): Promise<number> {
+  // Aged keys can no longer be part of a live submission. A missed compensation
+  // is retried by the daily job, including uploads that finished after timeout.
+  const before = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const { rows } = await db.execute<{ name: string }>(sql`
+    SELECT o.name FROM storage.objects o
+    WHERE o.bucket_id = ${EDUCATION_EVIDENCE_BUCKET}
+      AND o.created_at < ${before.toISOString()}::timestamptz
+      AND o.name ~ '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}[.](jpg|png|webp)$'
+      AND NOT EXISTS (
+        SELECT 1 FROM ${educationVerifications} WHERE ${educationVerifications.evidenceObjectKey} = o.name
+      )
+    ORDER BY o.created_at, o.name LIMIT 50
+  `);
+  await educationEvidenceStorage.removeMany(rows.map(({ name }) => name));
+  return rows.length;
 }

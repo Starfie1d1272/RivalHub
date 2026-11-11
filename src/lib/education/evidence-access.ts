@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { educationVerifications } from "@/db/schema";
+import { writeAuditInTx } from "@/lib/audit/write";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { educationEvidenceStorage } from "@/lib/education/storage";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -14,7 +15,7 @@ export async function getManualEducationEvidenceSignedUrl(input: unknown): Promi
   const parsed = z.object({ id: z.uuid() }).strict().safeParse(input);
   if (!parsed.success) throw new AppError(ErrorCode.VALIDATION_FAILED, "教育材料标识无效。");
 
-  await requireSuperAdmin();
+  const admin = await requireSuperAdmin();
   const verification = await db.query.educationVerifications.findFirst({
     where: eq(educationVerifications.id, parsed.data.id),
     columns: { evidenceType: true, evidenceObjectKey: true, status: true, reviewedAt: true },
@@ -29,5 +30,11 @@ export async function getManualEducationEvidenceSignedUrl(input: unknown): Promi
       "教育材料已过保留期，不能再查看；审核结论仍保留。如需核对认证结果，请查看教育认证记录。",
     );
   }
-  return educationEvidenceStorage.createSignedUrl(verification.evidenceObjectKey);
+  const signedUrl = await educationEvidenceStorage.createSignedUrl(verification.evidenceObjectKey);
+  await writeAuditInTx(db, {
+    action: "education_verification.evidence_accessed",
+    actorId: admin.userId,
+    targetId: parsed.data.id,
+  });
+  return signedUrl;
 }

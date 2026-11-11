@@ -429,6 +429,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "user_identity.merge": { label: "合并用户身份", category: "user" },
 
   "institution.manual_created": { label: "新增院校目录条目", category: "education" },
+  "education_verification.evidence_accessed": { label: "查看教育核验材料", category: "education" },
   "education_verification.submit": { label: "提交教育认证", category: "education" },
   "education_verification.institutional_email": {
     label: "通过校邮箱完成认证",
