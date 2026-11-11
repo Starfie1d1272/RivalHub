@@ -49,13 +49,20 @@ const bundle = resolve(root, ".next/standalone");
 cpSync(resolve(root, "public"), `${bundle}/public`, { recursive: true });
 cpSync(resolve(root, ".next/static"), `${bundle}/.next/static`, { recursive: true });
 for (const path of ["scripts/standby/start-production.mjs", "scripts/standby/production-config.mjs",
+  "scripts/standby/preview-export.sh", "scripts/standby/read-preview-source.mjs", "src/db/postgres-connection.ts", "src/db/supabase-ca.ts",
   "src/lib/runtime/official-deployment-profile.mjs", "scripts/db/production-environment.ts", "scripts/db/remote-environment.ts", "src/lib/release/identity.ts"]) {
   const destination = resolve(bundle, path);
   mkdirSync(dirname(destination), { recursive: true });
   // Node's native TS loader requires explicit extensions; retain canonical guard logic.
-  const source = readFileSync(resolve(tooling, path), "utf8").replace('from "./remote-environment"', 'from "./remote-environment.ts"');
+  const source = readFileSync(resolve(tooling, path), "utf8")
+    .replace('from "./remote-environment"', 'from "./remote-environment.ts"')
+    .replace('from "./supabase-ca"', 'from "./supabase-ca.ts"');
   writeFileSync(destination, source);
 }
+const previewTables = execFileSync("pnpm", ["exec", "tsx", resolve(tooling, "scripts/db/preview/reader-sql.ts"), "--tables"], {
+  cwd: root, env, encoding: "utf8",
+});
+writeFileSync(resolve(bundle, "scripts/standby/preview-tables.json"), previewTables);
 mkdirSync(`${bundle}/runtime`, { recursive: true });
 cpSync(process.execPath, `${bundle}/runtime/node`);
 const manifest = {

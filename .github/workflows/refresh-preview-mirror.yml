@@ -48,10 +48,8 @@ jobs:
         env:
           DB_TRAFFIC_KEY: ${{ secrets.DB_TRAFFIC_KEY }}
           PRODUCT_TELEMETRY_ENDPOINT: ${{ vars.PRODUCT_TELEMETRY_ENDPOINT }}
-          RIVALHUB_DB_TARGET: production
-          RIVALHUB_PRODUCTION_PROJECT_CONFIRM: ggkxqgbiudlovcgizgsq
-          RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:5432
-          RIVALHUB_PREVIEW_DB_PASSWORD: ${{ secrets.RIVALHUB_PREVIEW_DB_PASSWORD }}
+          RIVALHUB_PREVIEW_SSH_KEY: ${{ secrets.RIVALHUB_PREVIEW_SSH_KEY }}
+          LINUX_DEPLOY_KNOWN_HOSTS: ${{ vars.LINUX_DEPLOY_KNOWN_HOSTS }}
           RIVALHUB_PREVIEW_AGE_RECIPIENT: ${{ vars.RIVALHUB_PREVIEW_AGE_RECIPIENT }}
           RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST: ${{ vars.RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST }}
         shell: bash
@@ -59,10 +57,23 @@ jobs:
           set -euo pipefail
           umask 077
           [[ "$RIVALHUB_PREVIEW_AGE_RECIPIENT" =~ ^age1[0-9a-z]{58}$ ]]
-          snapshot="$RUNNER_TEMP/rivalhub-preview/preview-mirror.json"
-          mkdir -p "$(dirname "$snapshot")"
-          trap 'unlink "$snapshot" 2>/dev/null || true' EXIT
-          pnpm db:preview:export "$snapshot"
+          directory="$RUNNER_TEMP/rivalhub-preview"
+          mkdir -p "$directory"
+          snapshot="$directory/preview-mirror.json"
+          projection="$directory/projection.jsonl"
+          key="$directory/preview-key"
+          hosts="$directory/known_hosts"
+          trap 'for file in "$projection" "$snapshot" "$key" "$hosts"; do unlink "$file" 2>/dev/null || true; done' EXIT
+          [[ "$RIVALHUB_PREVIEW_SSH_KEY" == *"BEGIN OPENSSH PRIVATE KEY"* ]]
+          [[ "$LINUX_DEPLOY_KNOWN_HOSTS" == *"[47.103.131.158]:52222"* ]]
+          printf '%s\n' "$RIVALHUB_PREVIEW_SSH_KEY" > "$key"
+          printf '%s\n' "$LINUX_DEPLOY_KNOWN_HOSTS" > "$hosts"
+          unset RIVALHUB_PREVIEW_SSH_KEY LINUX_DEPLOY_KNOWN_HOSTS
+          timeout 150s ssh -n -T -C -p 52222 -i "$key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null \
+            -o "UserKnownHostsFile=$hosts" -o ConnectTimeout=10 root@47.103.131.158 > "$projection"
+          unlink "$key"
+          pnpm db:preview:export "$snapshot" "$projection"
           gzip -c "$snapshot" | age --encrypt --recipient "$RIVALHUB_PREVIEW_AGE_RECIPIENT" --output "$snapshot.gz.age"
       - name: Upload encrypted mirror
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

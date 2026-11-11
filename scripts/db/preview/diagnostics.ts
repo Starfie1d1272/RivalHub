@@ -3,7 +3,6 @@ import { redactText, safeCode } from "../../../src/lib/observability/redact";
 
 export type PreviewExportPhase =
   | "source identity"
-  | "source DB connection"
   | "migration ledger"
   | "schema inventory-policy"
   | "table export"
@@ -37,7 +36,6 @@ export type PreviewErrorCode =
   | "REMOVED_MIRROR_COLUMNS"
   | "MISSING_MIRROR_COLUMNS"
   | "MISSING_MIRROR_TABLE"
-  | "PREVIEW_TABLE_EXPORT_FAILED"
   | "PREVIEW_PERSONA_SELECTION_FAILED"
   | "PREVIEW_ASSET_EXPORT_FAILED"
   | "PREVIEW_SNAPSHOT_INVALID"
