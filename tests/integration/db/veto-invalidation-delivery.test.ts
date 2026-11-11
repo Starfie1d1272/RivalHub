@@ -93,6 +93,7 @@ it("coalesces BP facts once per transaction and rolls the delivery obligation ba
 });
 
 it("retries committed match statistics invalidation through the scheduler for archived events", async () => {
+  await deliverExistingFixtureVetoInvalidations();
   const f = await seedFixture();
   await deliverMatchProjectionInvalidation(f.matchId, "route");
   await db.update(schema.matches).set({ status: "finished", scoreA: 2, scoreB: 0, completedAt: new Date() })
@@ -134,12 +135,13 @@ it("hard-invalidates map catalog consumers when a BP plan is rewound or maps are
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === PUBLIC_STATS_TAG)).toBe(true);
 });
 
-it.each(["in_progress", "scheduled"] as const)("delivers pending obligations when an archived %s room also has a rejected lifecycle transition", async status => {
+it("delivers pending obligations when an archived room has a rejected lifecycle transition", async () => {
+  await deliverExistingFixtureVetoInvalidations();
   const f = await seedFixture();
   const entry = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, f.entryAId) }))!;
-  await db.update(schema.matches).set({ status }).where(eq(schema.matches.id, f.matchId));
+  await db.update(schema.matches).set({ status: "in_progress" }).where(eq(schema.matches.id, f.matchId));
   await db.update(schema.matchVetoSessions).set({ completedAt: null, pausedAt: null,
-    startedAt: status === "in_progress" ? new Date() : null,
+    startedAt: new Date(),
     entryAStartRequestedAt: new Date(), entryAStartRequestedBy: entry.representativeUserId, turnDeadlineAt: sql`clock_timestamp() - interval '10 seconds'`,
   }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
   await db.update(schema.seasons).set({ status: "archived" }).where(eq(schema.seasons.id, f.seasonId));

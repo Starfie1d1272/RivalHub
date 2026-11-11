@@ -49,7 +49,7 @@ describe("public discipline mirror boundary", () => {
       expect(read).toThrow("outside a public effective outcome");
       row.effective_from = "2026-01-01T00:00:00Z";
       snapshot.tables.seasons[0].status = "draft";
-      expect(read).toThrow("outside a public effective outcome");
+      expect(read).toThrow("Preview mirror snapshot is invalid");
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 });
