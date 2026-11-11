@@ -8,6 +8,7 @@ const repo = (await exec("gh", ["repo", "view", "--json", "nameWithOwner", "--jq
 const api = async path => JSON.parse((await exec("gh", ["api", `repos/${repo}/actions/${path}`])).stdout);
 const { workflow_runs: runs } = await api(`workflows/ci.yml/runs?event=pull_request&per_page=${count}`);
 const groups = new Map();
+const failureSteps = new Map();
 let unavailable = 0;
 const p95 = values => values.length ? [...values].sort((a,b)=>a-b)[Math.ceil(values.length * 0.95) - 1] : null;
 for (let offset = 0; offset < runs.length; offset += 4) {
@@ -37,6 +38,13 @@ for (let offset = 0; offset < runs.length; offset += 4) {
     if (gate?.conclusion === "success") group.wall.push(Math.round((Date.parse(gate.completed_at) - Date.parse(run.created_at)) / 1000));
     if (planStart) group.allocation.push(Math.round((Date.parse(planStart) - Date.parse(run.created_at)) / 1000));
     groups.set(key, group);
+    for (const job of active.filter(job => job.conclusion === "failure" && job !== gate)) {
+      for (const step of job.steps ?? []) {
+        if (step.conclusion !== "failure") continue;
+        const failure = `${lane} / ${job.name} / ${step.name}`;
+        failureSteps.set(failure, (failureSteps.get(failure) ?? 0) + 1);
+      }
+    }
   }));
 }
 console.table([...groups].sort(([a],[b])=>a.localeCompare(b)).map(([lane, { wall, allocation, ...counts }]) => ({
@@ -44,3 +52,6 @@ console.table([...groups].sort(([a],[b])=>a.localeCompare(b)).map(([lane, { wall
 })));
 
 if (unavailable) console.warn(`Unavailable job histories: ${unavailable} of ${runs.length}`);
+if (failureSteps.size) {
+  console.table([...failureSteps].sort((a, b) => b[1] - a[1]).map(([step, failures]) => ({ step, failures })));
+}

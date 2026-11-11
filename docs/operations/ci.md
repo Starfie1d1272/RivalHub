@@ -83,7 +83,7 @@ Pull Request 的 Draft / Ready 仅代表协作与合并准入状态，不直接�
 
 `push` 到 `main` 同样采用 changed-surface 规划 affected evidence 并产生 exact-SHA CI evidence，遇到未知/破坏性/工具链变更时 fail closed 到 FULL；merge queue 与手动 workflow 运行完整 convergence gate。Release 消费 exact tag commit SHA 的 push CI 成功证据，不重复执行代码正确性 CI。
 
-最近 PR 的墙钟和重跑按 lane 核对。运行 `node scripts/ci/pr-wall-time.mjs 30`，它使用 GitHub 的 run 创建时间、gate 完成时间及 plan 实际 runner 初始化时间，分别给出墙钟 P95 与初始分配延迟。样本同时记录失败、取消、排队与同 run 重跑。Step Summary 的 180 秒是执行关键路径，普通 PR 的墙钟目标为 P95 ≤ 180 秒。
+最近 PR 的墙钟和重跑按 lane 核对。运行 `node scripts/ci/pr-wall-time.mjs 30`，它使用 GitHub 的 run 创建时间、gate 完成时间及 plan 实际 runner 初始化时间，分别给出墙钟 P95 与初始分配延迟。样本同时记录失败步骤、取消、排队与同 run 重跑。Step Summary 的 180 秒是执行关键路径，普通 PR 的墙钟目标为 P95 ≤ 180 秒。
 
 ## Concurrency 与 exact-SHA 证据隔离
 
