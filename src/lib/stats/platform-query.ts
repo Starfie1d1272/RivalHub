@@ -223,6 +223,26 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
       mapFilter: query.map || query.mapFilter || undefined,
       weaponTeamId: query.tab === "weapons" ? query.teamFilter || undefined : undefined,
     };
+    const eventFilter =
+      query.tab === "records"
+        ? {
+            eventType: query.eventType || undefined,
+            eventWeapon: query.eventWeapon || undefined,
+            eventPage: query.eventPage,
+          }
+        : undefined;
+    // Use the unfiltered page's scoped weapon list before filling the aggregate.
+    const weapon = eventFilter?.eventWeapon ?? "";
+    const available = weapon
+      ? await getCachedPublicRecordEvents(scope, {
+          eventType: eventFilter?.eventType,
+          eventPage: 1,
+        })
+      : undefined;
+    const unknownWeapon = available && !available.weapons.includes(weapon);
+    if (unknownWeapon && (eventFilter?.eventPage ?? 1) > 1)
+      throw new AppError(ErrorCode.NOT_FOUND, "事件页不可用。");
+
     // Entity filtering is presentation only: qualification/Insights use the full scoped population.
     recordStatsCache("platform", "readCalls");
     let data = await cachedPlatformStats(
@@ -236,26 +256,10 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
       query.recordPage = page;
       if (page > 1) data = { ...data, records: buildRecords(data.recordTies ?? [], page) };
     }
-    if (query.tab === "records") {
-      const filter = {
-        eventType: query.eventType || undefined,
-        eventWeapon: query.eventWeapon || undefined,
-        eventPage: query.eventPage,
-      };
-      // Only cache weapon filters present in the data, not arbitrary user input.
-      const available = filter.eventWeapon
-        ? await getCachedPublicRecordEvents(scope, {
-            eventType: filter.eventType,
-            eventWeapon: undefined,
-            eventPage: 1,
-          })
-        : undefined;
-      const unknownWeapon = available && !available.weapons.includes(filter.eventWeapon!);
-      if (unknownWeapon && (filter.eventPage ?? 1) > 1)
-        throw new AppError(ErrorCode.NOT_FOUND, "事件页不可用。");
+    if (eventFilter) {
       const recordEvents = unknownWeapon
         ? { ...available, rows: [], total: 0, page: 1, pages: 1 }
-        : await getCachedPublicRecordEvents(scope, filter);
+        : await getCachedPublicRecordEvents(scope, eventFilter);
       data = { ...data, recordEvents };
     }
     return {
