@@ -39,6 +39,7 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
     });
     return;
   }
+  // eslint-disable-next-line no-console -- Edge uses the platform log sink.
   console.error(
     JSON.stringify({
       level: "error",
