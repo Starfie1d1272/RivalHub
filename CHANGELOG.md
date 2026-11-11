@@ -5,6 +5,16 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.45]
+
+### Security
+
+- 生产 Preview 镜像通过专用 SSH 密钥执行固定的只读导出命令，继续采用加密制品导入 staging。
+
+### Fixed
+
+- 晋级后续跑发布时，从生产主机回读首次安装的制品摘要并保存在正式 Release 中。
+
 ## [2.25.44]
 
 ### Security
@@ -3648,6 +3658,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.45]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.44...v2.25.45
 [2.25.44]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.43...v2.25.44
 [2.25.43]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.42...v2.25.43
 [2.25.42]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.40...v2.25.42
