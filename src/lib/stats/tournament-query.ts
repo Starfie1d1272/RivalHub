@@ -26,7 +26,6 @@ import {
 } from "@/lib/match-rosters/effective";
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getPlayerStatsScoreboards, getStatsLeaderboard } from "./leaderboard-query";
-import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildScopeInsights } from "./insight-facts";
 import {
@@ -48,7 +47,7 @@ import type { Insight } from "./insights";
 import { buildTournamentResults } from "./results";
 import { buildTeamRatings } from "./team-rating";
 import { classifyVetoSample } from "./veto-sample";
-import { loadStatsContext, loadCurrentProjectionRefs } from "./tournament-scope";
+import { loadStatsContext } from "./tournament-scope";
 import {
   loadStatsEvidence,
   loadStatsDetailEvidence,
