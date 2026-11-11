@@ -21,23 +21,24 @@ if (
 
 const digest = file => createHash("sha256").update(readFileSync(file)).digest("hex");
 const directory = ".agent-tmp/standby-production-package";
-let artifact = null;
-if (env.RELEASE_MODE === "fresh") {
-  const names = readdirSync(directory).filter(name => /^rivalhub-production-[a-f0-9]{40}-[a-f0-9]{12}\.layers\.json$/.test(name));
-  if (names.length !== 1) throw new Error("Expected one verified layered production manifest.");
-  const file = join(directory, names[0]);
-  const bundle = loadLayerManifest(file);
-  if (bundle.sourceCommit !== env.RELEASE_SHA || bundle.releaseTag !== env.RELEASE_TAG ||
-      bundle.operatorCommit !== env.RIVALHUB_RELEASE_OPERATOR_SHA) {
-    throw new Error("Release evidence package identity mismatch.");
-  }
-  artifact = {
-    manifestSha256: digest(file),
-    configurationSha256: bundle.configurationSha256,
-    bundleTreeSha256: bundle.bundleTreeSha256,
-    layers: bundle.layers.map(({ kind, bytes, sha256, treeSha256 }) => ({ kind, bytes, sha256, treeSha256 })),
-  };
+const names = readdirSync(directory).filter(name => /^rivalhub-production-[a-f0-9]{40}-[a-f0-9]{12}\.layers\.json$/.test(name));
+if (names.length !== 1) throw new Error("Expected one verified layered production manifest.");
+const file = join(directory, names[0]);
+const bundle = loadLayerManifest(file);
+if (bundle.sourceCommit !== env.RELEASE_SHA || bundle.releaseTag !== env.RELEASE_TAG ||
+    !Number.isSafeInteger(bundle.ciRunId) || bundle.ciRunId <= 0 ||
+    (env.RELEASE_MODE === "fresh" && (bundle.operatorCommit !== env.RIVALHUB_RELEASE_OPERATOR_SHA ||
+      bundle.ciRunId !== Number(env.RIVALHUB_RELEASE_CI_RUN_ID)))) {
+  throw new Error("Release evidence package identity mismatch.");
 }
+const artifact = {
+  manifestSha256: digest(file),
+  configurationSha256: bundle.configurationSha256,
+  bundleTreeSha256: bundle.bundleTreeSha256,
+  operatorCommit: bundle.operatorCommit,
+  ciRunId: bundle.ciRunId,
+  layers: bundle.layers.map(({ kind, bytes, sha256, treeSha256 }) => ({ kind, bytes, sha256, treeSha256 })),
+};
 
 const evidence = {
   format: 1,
