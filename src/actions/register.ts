@@ -3,7 +3,7 @@
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
-import { and, count, eq, ne, sql } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { users, seasons, seasonRegistrations, registrationDrafts } from "@/db/schema";
@@ -18,6 +18,7 @@ import {
 } from "@/lib/validators/registration";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { getRegistrationWindowState } from "@/lib/registration/window";
+import { getRegistrationCounts } from "@/lib/registration/counts";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
 import { lockGameplayIdentityWriteInTx } from "@/lib/identity/write-lock";
@@ -84,10 +85,11 @@ export async function saveRegistrationDraft(input: unknown) {
       email,
     };
 
-    const currentSeason = await db.transaction(async (tx) => {
-      const materializedSeason = initialWindow.needsOpeningRecovery
-        ? (await ensureRegistrationOpenForParticipantInTx(tx, parsed.data.seasonId)).season
-        : season;
+    const current = await db.transaction(async (tx) => {
+      const { season: materializedSeason, opened } = await ensureRegistrationOpenForParticipantInTx(
+        tx,
+        parsed.data.seasonId,
+      );
       const windowState = getRegistrationWindowState(materializedSeason);
       if (!windowState.canSaveDraft) {
         throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);
@@ -103,13 +105,11 @@ export async function saveRegistrationDraft(input: unknown) {
           target: [registrationDrafts.seasonId, registrationDrafts.email],
           set: { payload, updatedAt: new Date() },
         });
-      return materializedSeason;
+      return { season: materializedSeason, opened };
     });
 
-    revalidatePath(`/${currentSeason.slug}/register`);
-    if (initialWindow.needsOpeningRecovery) {
-      updatePublicSeasonTags(currentSeason.slug, currentSeason.id);
-    }
+    revalidatePath(`/${current.season.slug}/register`);
+    if (current.opened) updatePublicSeasonTags(current.season.slug, current.season.id);
     return ok({ email });
   } catch (e) {
     return actionError("saveRegistrationDraft", e);
@@ -173,17 +173,7 @@ export async function loadRegistrationDraft(seasonId: string, email: string) {
  */
 export async function submitRegistration(input: RegistrationFormData) {
   const seedParsed = registrationSeedSchema.safeParse(input);
-  if (!seedParsed.success) {
-    const fieldErrors: Record<string, string> = {};
-    for (const [field, errors] of Object.entries(seedParsed.error.flatten().fieldErrors)) {
-      if (errors?.[0]) fieldErrors[field] = errors[0];
-    }
-    return fail({
-      code: ErrorCode.VALIDATION_FAILED,
-      message: "输入校验失败，请检查各字段",
-      fieldErrors,
-    });
-  }
+  if (!seedParsed.success) return invalidRegistrationInput(seedParsed.error);
 
   try {
     let season = await db.query.seasons.findFirst({
@@ -227,20 +217,10 @@ export async function submitRegistration(input: RegistrationFormData) {
 
     const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
     const parsed = buildRegistrationSchema(registrationConfig, season.positions).safeParse(input);
-    if (!parsed.success) {
-      const fieldErrors: Record<string, string> = {};
-      for (const [field, errors] of Object.entries(parsed.error.flatten().fieldErrors)) {
-        if (errors?.[0]) fieldErrors[field] = errors[0];
-      }
-      return fail({
-        code: ErrorCode.VALIDATION_FAILED,
-        message: "输入校验失败，请检查各字段",
-        fieldErrors,
-      });
-    }
+    if (!parsed.success) return invalidRegistrationInput(parsed.error);
 
-    const data = parsed.data;
-    const normalizedEmail = normalizeEmail(data.email);
+    const initialData = parsed.data;
+    const normalizedEmail = normalizeEmail(initialData.email);
     if (normalizedEmail !== normalizeEmail(session.email)) {
       return fail({
         code: ErrorCode.FORBIDDEN,
@@ -257,68 +237,64 @@ export async function submitRegistration(input: RegistrationFormData) {
         message: "账号数据异常，请重新登录后再报名",
       });
     }
-    await assertUsersNotBlockedInTx(db, {
-      seasonId: season.id,
-      userLabels: new Map([[user.id, user.email]]),
-      effect: "registration_block",
-      message: "当前账号处于报名禁赛期",
-    });
-
-    const existing = await db.query.seasonRegistrations.findFirst({
-      where: and(
-        eq(seasonRegistrations.userId, user.id),
-        eq(seasonRegistrations.seasonId, data.seasonId),
-      ),
-    });
-    if (existing?.status === "approved") {
-      throw new AppError(
-        ErrorCode.REGISTRATION_DUPLICATE,
-        "报名已审核通过，无法自行修改。如确需调整请联系管理员。",
-      );
-    }
-
-    const [totalCount] = await db
-      .select({ count: count() })
-      .from(seasonRegistrations)
-      .where(
-        and(
-          eq(seasonRegistrations.seasonId, data.seasonId),
-          eq(seasonRegistrations.status, "approved"),
-        ),
-      );
-    if (!existing && Number(totalCount?.count ?? 0) >= registrationConfig.maxTotal) {
-      throw new AppError(ErrorCode.REGISTRATION_FULL, ERROR_MESSAGES.REGISTRATION_FULL);
-    }
-
-    const positionFilters = [
-      eq(seasonRegistrations.seasonId, data.seasonId),
-      eq(seasonRegistrations.primaryPosition, data.primaryPosition),
-      ne(seasonRegistrations.status, "rejected"),
-    ];
-    if (existing) {
-      positionFilters.push(ne(seasonRegistrations.id, existing.id));
-    }
-
-    const [posCount] = await db
-      .select({ count: count() })
-      .from(seasonRegistrations)
-      .where(and(...positionFilters));
-    if (Number(posCount?.count ?? 0) >= registrationConfig.maxPerPosition) {
-      throw new AppError(ErrorCode.POSITION_FULL, ERROR_MESSAGES.POSITION_FULL);
-    }
-
-    await assertSteam64Available(db, data.steam64, user.id);
-    const steamProfile = await getSteamProfileForPrimary(db, user.steam64, data.steam64);
+    await assertSteam64Available(db, initialData.steam64, user.id);
+    const steamProfile = await getSteamProfileForPrimary(db, user.steam64, initialData.steam64);
 
     const registration = await db.transaction(async (tx) => {
       await lockGameplayIdentityWriteInTx(tx);
-      const currentSeason = initialWindow.needsOpeningRecovery
-        ? (await ensureRegistrationOpenForParticipantInTx(tx, data.seasonId)).season
-        : season;
+      const { season: currentSeason, opened } = await ensureRegistrationOpenForParticipantInTx(
+        tx,
+        seasonId,
+      );
       const currentWindow = getRegistrationWindowState(currentSeason);
-      if (!currentWindow.canSubmit) {
+      if (!currentWindow.canSubmit)
         throw new AppError(ErrorCode.REGISTRATION_CLOSED, currentWindow.message);
+      if (currentSeason.registrationMode !== "solo") {
+        throw new AppError(
+          ErrorCode.SEASON_CAPABILITY_DISABLED,
+          "队伍报名尚未开放，请联系赛事管理员",
+        );
       }
+
+      const currentConfig = normalizeRegistrationConfig(currentSeason.registrationConfig);
+      const currentInput = buildRegistrationSchema(
+        currentConfig,
+        currentSeason.positions,
+      ).safeParse(input);
+      if (!currentInput.success)
+        return { invalidInput: currentInput.error, opened, seasonSlug: currentSeason.slug };
+      const data = currentInput.data;
+      await assertUsersNotBlockedInTx(tx, {
+        seasonId,
+        userLabels: new Map([[user.id, user.email]]),
+        effect: "registration_block",
+        message: "当前账号处于报名禁赛期",
+      });
+
+      const existing = await tx.query.seasonRegistrations.findFirst({
+        where: and(
+          eq(seasonRegistrations.userId, user.id),
+          eq(seasonRegistrations.seasonId, seasonId),
+        ),
+      });
+      if (existing?.status === "approved") {
+        throw new AppError(
+          ErrorCode.REGISTRATION_DUPLICATE,
+          "报名已审核通过，无法自行修改。如确需调整请联系管理员。",
+        );
+      }
+      const { approvedCount, positionCounts } = await getRegistrationCounts(
+        seasonId,
+        tx,
+        existing?.id,
+      );
+      if (!existing && approvedCount >= currentConfig.maxTotal) {
+        throw new AppError(ErrorCode.REGISTRATION_FULL, ERROR_MESSAGES.REGISTRATION_FULL);
+      }
+      if ((positionCounts[data.primaryPosition] ?? 0) >= currentConfig.maxPerPosition) {
+        throw new AppError(ErrorCode.POSITION_FULL, ERROR_MESSAGES.POSITION_FULL);
+      }
+
       const declaredProfile = normalizePlayerDeclaredProfile(data);
       await changePrimarySteam64InTx(tx, {
         userId: user.id,
@@ -371,7 +347,12 @@ export async function submitRegistration(input: RegistrationFormData) {
               status: "pending",
               updatedAt: new Date(),
             })
-            .where(eq(seasonRegistrations.id, existing.id))
+            .where(
+              and(
+                eq(seasonRegistrations.id, existing.id),
+                ne(seasonRegistrations.status, "approved"),
+              ),
+            )
             .returning()
         : await tx
             .insert(seasonRegistrations)
@@ -401,43 +382,29 @@ export async function submitRegistration(input: RegistrationFormData) {
         meta: { email: data.email, primaryPosition: data.primaryPosition },
       });
 
-      return { registration: savedRegistration, seasonSlug: currentSeason.slug };
+      return { registration: savedRegistration, seasonSlug: currentSeason.slug, opened };
     });
 
+    if (registration.opened) updatePublicSeasonTags(registration.seasonSlug, seasonId);
+    if (registration.invalidInput) return invalidRegistrationInput(registration.invalidInput);
     updatePublicPlayerTag(user.id);
-    if (initialWindow.needsOpeningRecovery) {
-      updatePublicSeasonTags(registration.seasonSlug, registration.registration.seasonId);
-    } else {
-      updatePublicHomeTag();
-    }
+    if (!registration.opened) updatePublicHomeTag();
     revalidatePath(`/${registration.seasonSlug}/register`);
-    return ok({ registrationId: registration.registration.id, email: data.email });
+    return ok({ registrationId: registration.registration.id, email: initialData.email });
   } catch (e) {
     return actionError("submitRegistration", e);
   }
 }
 
-/** 查询某赛季各位置报名人数及已通过总数。 */
-export async function getRegistrationCounts(seasonId: string): Promise<{
-  positionCounts: Record<string, number>;
-  approvedCount: number;
-}> {
-  const rows = await db
-    .select({
-      position: seasonRegistrations.primaryPosition,
-      count: count(),
-      approvedCount: sql<string>`count(*) filter (where ${seasonRegistrations.status} = 'approved')`,
-    })
-    .from(seasonRegistrations)
-    .where(
-      and(eq(seasonRegistrations.seasonId, seasonId), ne(seasonRegistrations.status, "rejected")),
-    )
-    .groupBy(seasonRegistrations.primaryPosition);
-
-  return {
-    positionCounts: Object.fromEntries(rows.map((row) => [row.position, Number(row.count)])),
-    approvedCount: Number(
-      rows.reduce((total, row) => total + BigInt(row.approvedCount), BigInt(0)),
-    ),
-  };
+function invalidRegistrationInput(error: z.ZodError) {
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const field = issue.path[0];
+    if (typeof field === "string" && !fieldErrors[field]) fieldErrors[field] = issue.message;
+  }
+  return fail({
+    code: ErrorCode.VALIDATION_FAILED,
+    message: "输入校验失败，请检查各字段",
+    fieldErrors,
+  });
 }

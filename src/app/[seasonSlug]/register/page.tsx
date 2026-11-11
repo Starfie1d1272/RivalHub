@@ -25,7 +25,7 @@ import {
   steamProfiles,
   users,
 } from "@/db/schema";
-import { getRegistrationCounts } from "@/actions/register";
+import { getRegistrationCounts } from "@/lib/registration/counts";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
 import {
   normalizeAffiliationRules,

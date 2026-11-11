@@ -25,6 +25,7 @@ Public reads do not acquire these mutation locks.
 | `identity/write-lock.ts`, merge and confirmed Demo attribution | gameplay identity advisory gate first → user/identity or Demo lineage/season/domain rows; merge also reparents references and encounters their FK/trigger edges |
 | Demo import/review/promotion and player statistics | identity gate where attribution changes → map lineage/official writes → prediction/BET outboxes; follow their existing identity owner |
 | `postmatch/service.ts` | direct match UPDATE → submission/commentator/source rows; it uses a separate match owner, not the canonical helper |
+| Solo registration | identity advisory gate → season UPDATE → registration admission and profile/registration writes. Draft and review take the same season UPDATE. Steam lookup runs before the write transaction |
 | team/competition-entry/qualification/registration owners | aggregate parent/current revision/participant/active-claim/event-roster writes; FK and deferred aggregate validators remain part of their commit boundary |
 | community awards | award parent and recipient writes; the recipient trigger locks old/new award parents, including reassignment |
 | scheduler runners | invoke the same domain owners; job dispatch does not replace domain locks or allow an alternate writer order |

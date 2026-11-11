@@ -4,6 +4,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "crypto";
+import { z } from "zod";
 import { eq, and, count } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
@@ -18,6 +19,7 @@ import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
+import { getRegistrationCounts } from "@/lib/registration/counts";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
 import { updatePublicHomeTag, updatePublicSeasonTags } from "@/lib/revalidation";
@@ -25,18 +27,16 @@ import { type RegistrationStatus, validateTransition } from "@/lib/registration-
 
 // ── 审核报名 ────────────────────────────────────────────
 
-interface ReviewInput {
-  registrationId: string;
-  status: "pending" | "approved" | "rejected" | "waitlisted";
-  reason?: string;
-}
+const registrationReviewInput = z.object({
+  registrationId: z.guid("报名 ID 格式不正确"),
+  status: z.enum(["pending", "approved", "rejected", "waitlisted"], { error: "无效的审核状态" }),
+  reason: z.string().max(1000, "审核原因不得超过 1000 字").optional(),
+});
 
-export async function reviewRegistration(input: ReviewInput) {
-  const { registrationId, status: targetStatus, reason } = input;
-
-  if (!["pending", "approved", "rejected", "waitlisted"].includes(targetStatus)) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "无效的审核状态" });
-  }
+export async function reviewRegistration(input: z.input<typeof registrationReviewInput>) {
+  const parsed = registrationReviewInput.safeParse(input);
+  if (!parsed.success) return failValidation(parsed.error.issues[0]?.message ?? "审核参数无效");
+  const { registrationId, status: targetStatus, reason } = parsed.data;
 
   try {
     const existingReg = await db.query.seasonRegistrations.findFirst({
@@ -83,19 +83,17 @@ export async function reviewRegistration(input: ReviewInput) {
       }
 
       if (targetStatus === "approved") {
-        // 只统计已通过的，不含自身（自身是 pending/waitlisted，未算入上限）
-        const [posCount] = await tx
-          .select({ count: count() })
-          .from(seasonRegistrations)
-          .where(
-            and(
-              eq(seasonRegistrations.seasonId, reg.seasonId),
-              eq(seasonRegistrations.primaryPosition, reg.primaryPosition),
-              eq(seasonRegistrations.status, "approved"),
-            ),
-          );
+        const { approvedCount, approvedPositionCounts } = await getRegistrationCounts(
+          season.id,
+          tx,
+        );
         const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
-        if (Number(posCount?.count ?? 0) >= registrationConfig.maxPerPosition) {
+        if (approvedCount >= registrationConfig.maxTotal) {
+          throw new AppError(ErrorCode.REGISTRATION_FULL, ERROR_MESSAGES.REGISTRATION_FULL);
+        }
+        if (
+          (approvedPositionCounts[reg.primaryPosition] ?? 0) >= registrationConfig.maxPerPosition
+        ) {
           throw new AppError(ErrorCode.POSITION_FULL, ERROR_MESSAGES.POSITION_FULL);
         }
       }

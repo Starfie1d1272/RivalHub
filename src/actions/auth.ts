@@ -31,14 +31,18 @@ import {
 } from "@/lib/auth/sign-in-error";
 import { captureException, logEvent } from "@/lib/observability/server";
 
+function isAuthEmail(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 320 && value.includes("@");
+}
+
 export async function loginWithPassword(
   email: string,
   password: string,
 ): Promise<ActionResult<{ email: string }>> {
-  if (!email || !email.includes("@")) {
+  if (!isAuthEmail(email)) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   }
-  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
     return fail({
       code: ErrorCode.VALIDATION_FAILED,
       message: `密码至少 ${MIN_PASSWORD_LENGTH} 位`,
@@ -92,10 +96,10 @@ export async function signUp(
   turnstileToken?: string,
   next?: string,
 ): Promise<ActionResult<{ email: string }>> {
-  if (!email || !email.includes("@")) {
+  if (!isAuthEmail(email)) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   }
-  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
     return fail({
       code: ErrorCode.VALIDATION_FAILED,
       message: `密码至少 ${MIN_PASSWORD_LENGTH} 位`,
@@ -112,7 +116,7 @@ export async function signUp(
   // Turnstile 验证码校验
   const secretKey = process.env.TURNSTILE_SECRET_KEY;
   if (secretKey) {
-    if (!turnstileToken) {
+    if (typeof turnstileToken !== "string" || !turnstileToken) {
       return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请完成验证码校验" });
     }
     try {
@@ -190,7 +194,7 @@ export async function resendSignupConfirmation(
   email: string,
   next?: string,
 ): Promise<ActionResult<void>> {
-  if (!email || !email.includes("@"))
+  if (!isAuthEmail(email))
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   try {
     const { error } = await createPublicAuthClient().auth.resend({
@@ -249,7 +253,7 @@ function safeNextPath(next: string | undefined): string | null {
 }
 
 export async function sendPasswordResetEmail(email: string): Promise<ActionResult<undefined>> {
-  if (typeof email !== "string" || !email.includes("@") || email.length > 320) {
+  if (!isAuthEmail(email)) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   }
   const normalizedEmail = normalizeEmail(email);
