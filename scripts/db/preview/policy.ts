@@ -351,6 +351,19 @@ export function exportQuery(table: string, source: PreviewPolicyInput = readExpe
   const tablePolicy = policy.tables[table];
   if (!tablePolicy) throw new PreviewMirrorError("FUTURE_MIRROR_TABLE", "Table is not permitted in mirror export.", { context: { table } });
   const expressions = tablePolicy.exportedColumns.map((column) => {
+    if (table === "event_roster_members" && column === "education_verification_id") return "NULL AS education_verification_id";
+    if (table === "dak_pairing_intents") {
+      if (column === "poll_token_hash") return "'preview:' || id::text AS poll_token_hash";
+      if (column === "status") return "'expired' AS status";
+      if (["authorized_by_user_id", "authorized_at", "delivered_at"].includes(column)) return `NULL AS ${quoteIdentifier(column)}`;
+    }
+    if (table === "dak_pairings") {
+      if (column === "token_hash") return "'preview:' || id::text AS token_hash";
+      if (column === "status") return "'revoked' AS status";
+      if (column === "revoked_at") return "created_at AS revoked_at";
+      if (column === "last_used_at") return "NULL AS last_used_at";
+      if (column === "scopes" || column === "season_ids") return `ARRAY[]::text[] AS ${quoteIdentifier(column)}`;
+    }
     // Keep the independent variant valid without copying arbitrary side labels, URLs or JSON keys.
     if (table === "matches" && column === "execution_context") return `CASE WHEN execution_context IS NULL THEN NULL ELSE jsonb_build_object(
       'version', 1, 'sides', jsonb_build_object(
@@ -376,8 +389,8 @@ export function exportQuery(table: string, source: PreviewPolicyInput = readExpe
     `'${PREVIEW_REDACTED_ACTOR}'::text AS configured_by`,
     `CASE WHEN "started_at" IS NULL THEN NULL ELSE '${PREVIEW_REDACTED_ACTOR}'::text END AS started_by`,
   );
-  // Only public, final facts; pending private review evidence is not a preview seed.
-  const filter = table === "education_verifications" ? " WHERE status = 'approved'"
+  // Sensitive verifications are omitted. Public projections retain their existing visibility gates.
+  const filter = table === "education_verifications" ? " WHERE false"
     : table === "disciplinary_cases" ? " WHERE status <> 'draft' AND effective_from <= now() AND EXISTS (SELECT 1 FROM public.seasons s WHERE s.id = disciplinary_cases.season_id AND s.status <> 'draft')"
     : table === "announcements" ? " WHERE status = 'published'"
       : table === "community_awards" ? " WHERE status IN ('approved', 'awarded', 'not_awarded', 'cancelled')"

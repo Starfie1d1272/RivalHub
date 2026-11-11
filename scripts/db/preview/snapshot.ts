@@ -5,7 +5,6 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { Pool, type PoolClient } from "pg";
-import { createClient } from "@supabase/supabase-js";
 import { assertActiveChainPrefix, readExpectedMigrations, type Migration } from "../production-preflight";
 import { resolveProductionSourceIdentity } from "../recovery/source";
 import {
@@ -118,8 +117,6 @@ export async function exportMirror(accounting?: Pick<OfflineConsumerSummary, "ta
       }
       return exported;
     });
-    const education = new Set(tables.education_verifications.map((row) => row.id));
-    for (const row of tables.event_roster_members) if (row.education_verification_id && !education.has(row.education_verification_id)) row.education_verification_id = null;
     const allowedSeasonAssets = new Set((process.env.RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST ?? "")
       .split(",").map((value) => value.trim()).filter(Boolean));
     for (const row of tables.community_groups) {
@@ -194,11 +191,8 @@ export async function selectPersonaCandidates(client: Pick<PoolClient, "query">,
 }
 
 async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedSeasonAssets: Set<string>, accounting?: Pick<OfflineConsumerSummary, "storage_download_bytes">): Promise<MirrorAsset[]> {
-  const secret = process.env.SUPABASE_SECRET_KEY;
-  if (!secret) return [];
   if (accounting) accounting.storage_download_bytes = 0;
   const supabaseUrl = assertProductionSupabaseUrl(process.env.RIVALHUB_PRODUCTION_SUPABASE_URL ?? OFFICIAL_PRODUCTION.supabaseUrl);
-  const client = createClient(supabaseUrl, secret, { auth: { persistSession: false, autoRefreshToken: false } });
   const refs = new Map<string, MirrorAsset["bucket"]>();
   for (const row of [...tables.teams, ...tables.competition_entries]) {
     if (typeof row.logo_url !== "string") continue;
@@ -212,17 +206,18 @@ async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedS
     const [bucket, ...pathParts] = key.split("/");
     if (!PUBLIC_BUCKETS.has(bucket as MirrorAsset["bucket"])) continue;
     const path = pathParts.join("/");
-    const storageBucket = client.storage.from(bucket);
-    let result: Awaited<ReturnType<typeof storageBucket.download>>;
+    if (pathParts.some((part) => !part || part === "." || part === "..")) throw new Error("Invalid public asset path.");
+    const assetUrl = new URL(`/storage/v1/object/public/${bucket}/${pathParts.map(encodeURIComponent).join("/")}`, supabaseUrl);
+    let response: Response;
     try {
-      result = await storageBucket.download(path);
+      response = await fetch(assetUrl, { redirect: "error", signal: AbortSignal.timeout(15_000) });
     } catch (error) {
       throw previewProviderFailure("public asset export", error, { count: assets.length });
     }
-    if (result.error) throw previewProviderFailure("public asset export", result.error, { count: assets.length });
-    const bytes = Buffer.from(await result.data.arrayBuffer());
+    if (!response.ok) throw previewProviderFailure("public asset export", { status: response.status }, { count: assets.length });
+    const bytes = Buffer.from(await response.arrayBuffer());
     if (bytes.length > MAX_ASSET_BYTES || total + bytes.length > MAX_ASSET_TOTAL_BYTES) throw new Error("Preview public asset mirror exceeds bounded size.");
-    const contentType = result.data.type || "application/octet-stream";
+    const contentType = response.headers.get("content-type")?.split(";", 1)[0] ?? "application/octet-stream";
     if (!/^(image\/(?:png|jpe?g|webp)|application\/pdf)$/i.test(contentType)) throw new Error("Preview mirror rejected non-public asset type.");
     assets.push({ bucket: bucket as MirrorAsset["bucket"], path, contentType, sha256: createHash("sha256").update(bytes).digest("hex"), data: bytes.toString("base64") });
     total += bytes.length;
@@ -313,6 +308,17 @@ function readSnapshotUnsafe(path: string): MirrorSnapshot {
         });
       }
       if (table === "users" && (row.email !== `${row.id}@preview.invalid` || row.role !== "user" || row.auth_id || row.email_verified_at)) throw new Error("Unsanitized mirror identity.");
+      if (table === "education_verifications"
+        || (table === "event_roster_members" && row.education_verification_id != null)) throw new Error("Education verification in mirror.");
+      if (table === "dak_pairing_intents" && (row.status !== "expired" || row.poll_token_hash !== `preview:${row.id}`
+        || row.authorized_by_user_id !== null || row.authorized_at !== null || row.delivered_at !== null)) {
+        throw new Error("Unsanitized DAK pairing intent in mirror.");
+      }
+      if (table === "dak_pairings" && (row.status !== "revoked" || row.token_hash !== `preview:${row.id}`
+        || !row.revoked_at || row.revoked_at !== row.created_at || row.last_used_at !== null
+        || JSON.stringify(row.scopes) !== "[]" || JSON.stringify(row.season_ids) !== "[]")) {
+        throw new Error("Unsanitized DAK pairing in mirror.");
+      }
       if (table === "season_registrations" && JSON.stringify(row.screenshot_urls) !== "[]") throw new Error("Private screenshot in mirror.");
       if (table === "team_memberships") assertSanitizedTeamMembership(row);
       if (table === "community_groups" && row.qr_image_path && !String(row.qr_image_path).startsWith("public/")) throw new Error("Private group QR leaked into mirror.");

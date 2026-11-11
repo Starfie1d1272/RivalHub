@@ -17,7 +17,7 @@ RivalHub staging 是**受保护的远程数据库 rehearsal 环境**，不是自
 
 > **Staging database rehearsal**
 
-通过 `workflow_dispatch` 指定要验证的 branch、tag 或 commit。默认使用 `main`。
+从受保护的 `main` 发起 `workflow_dispatch`，在 `ref` 输入中指定要验证的 branch、tag 或 commit。输入默认 `main`。
 
 不要把个人 shell、Preview 或普通 PR job 当成 staging 写入口。
 

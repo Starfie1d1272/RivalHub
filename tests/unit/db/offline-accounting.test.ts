@@ -6,13 +6,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { measureExportRows, recoveryConsumerSummary, reportOfflineConsumer } from "../../../scripts/db/recovery/accounting";
 import type { RecoveryManifest } from "../../../scripts/db/recovery/manifest";
 
-const state = vi.hoisted(() => ({ query: vi.fn(), download: vi.fn() }));
+const state = vi.hoisted(() => ({ query: vi.fn() }));
 const names = vi.hoisted(() => ["education_verifications", "event_roster_members", "community_groups", "seasons", "users", "competition_entries", "competition_entry_participants", "teams"]);
 vi.mock("pg", () => ({ Pool: class {
   connect = async () => ({ query: state.query, release: vi.fn() });
   end = vi.fn();
 } }));
-vi.mock("@supabase/supabase-js", () => ({ createClient: () => ({ storage: { from: () => ({ download: state.download }) } }) }));
 vi.mock("../../../scripts/db/preview/environment", () => ({ sourceDatabaseUrl: () => "postgresql://localhost/fixture" }));
 vi.mock("../../../scripts/db/recovery/source", () => ({ resolveProductionSourceIdentity: async () => ({ deployedCommit: "a".repeat(40), deployedReleaseTag: "v2.24.5" }) }));
 vi.mock("../../../scripts/db/production-preflight", () => ({ assertActiveChainPrefix: vi.fn(), readExpectedMigrations: () => [] }));
@@ -21,11 +20,12 @@ vi.mock("../../../scripts/db/preview/policy", () => ({
   assertReviewedColumns: vi.fn(), exportQuery: (table: string) => `SELECT fixture FROM ${table}`,
 }));
 
-afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("offline consumer accounting", () => {
   it("counts UTF-8 row JSON in the existing export, with one SELECT per table", async () => {
-    vi.stubEnv("SUPABASE_SECRET_KEY", "");
+    vi.stubEnv("RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST", "");
+    vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Unexpected asset request"); }));
     const payload = { id: "fixture", text: '中文\n"\\', nested: { value: "x".repeat(100_000) } };
     state.query.mockReset().mockImplementation(async (sql: string) => ({ rows:
       sql.includes("FROM drizzle.") ? [{ hash: "fixture", when: "1" }]
@@ -36,7 +36,7 @@ describe("offline consumer accounting", () => {
     const accounting = { tables: {} as Record<string, ReturnType<typeof measureExportRows>>, storage_download_bytes: null };
     const snapshot = await exportMirror(accounting);
     expect(accounting.tables.users).toEqual({ rows: 1, logical_payload_bytes: Buffer.byteLength(JSON.stringify(payload)) });
-    expect(accounting.storage_download_bytes).toBeNull();
+    expect(accounting.storage_download_bytes).toBe(0);
     expect(state.query.mock.calls.filter(([sql]) => String(sql).startsWith("SELECT fixture"))).toHaveLength(names.length);
     for (const name of names) expect(state.query.mock.calls.filter(([sql]) => sql === `SELECT fixture FROM ${name}`)).toHaveLength(1);
     const directory = mkdtempSync(join(tmpdir(), "offline-accounting-"));
@@ -94,24 +94,28 @@ describe("offline consumer accounting", () => {
   });
 
   it("counts existing Storage download buffers once and distinguishes an observed empty export", async () => {
-    vi.stubEnv("SUPABASE_SECRET_KEY", "synthetic-fixture-only");
     vi.stubEnv("RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST", "public/a.png,public/b.png");
     state.query.mockReset().mockImplementation(async (sql: string) => ({ rows:
       sql.includes("FROM drizzle.") ? [{ hash: "fixture", when: "1" }]
         : sql.includes("information_schema") ? names.map((table_name) => ({ table_name, column_name: "id" })) : [],
     }));
     const bytes = Buffer.from("synthetic-image-buffer");
-    state.download.mockReset().mockImplementation(async () => ({ error: null, data: new Blob([bytes], { type: "image/png" }) }));
+    const download = vi.fn(async (url: URL, init: RequestInit) => {
+      expect(url.pathname).toMatch(/^\/storage\/v1\/object\/public\/season-public-assets\/public\/[ab]\.png$/);
+      expect(init.headers).toBeUndefined();
+      return new Response(new Uint8Array(bytes), { headers: { "content-type": "image/png" } });
+    });
+    vi.stubGlobal("fetch", download);
     const { exportMirror } = await import("../../../scripts/db/preview/snapshot");
     const accounting = { tables: {}, storage_download_bytes: null as number | null };
     const snapshot = await exportMirror(accounting);
-    expect(state.download).toHaveBeenCalledTimes(2);
+    expect(download).toHaveBeenCalledTimes(2);
     expect(accounting.storage_download_bytes).toBe(bytes.length * 2);
     expect(snapshot.assets).toHaveLength(2);
     vi.stubEnv("RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST", "");
-    state.download.mockClear();
+    download.mockClear();
     await exportMirror(accounting);
-    expect(state.download).not.toHaveBeenCalled();
+    expect(download).not.toHaveBeenCalled();
     expect(accounting.storage_download_bytes).toBe(0);
   });
 });

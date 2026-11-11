@@ -1,0 +1,129 @@
+name: Refresh Preview Mirror
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_current_migrations:
+        description: Apply additional migrations to the imported mirror in rivalhub-dev
+        required: false
+        default: false
+        type: boolean
+      migration_ref:
+        description: Branch providing optional staging SQL migrations
+        required: false
+        default: main
+        type: string
+
+concurrency:
+  group: rivalhub-preview-mirror-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  export-production:
+    name: export encrypted mirror
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          cache: true
+          require-lockfile: true
+      - name: Install age
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends age
+      - name: Export and encrypt read-only snapshot
+        env:
+          DB_TRAFFIC_KEY: ${{ secrets.DB_TRAFFIC_KEY }}
+          PRODUCT_TELEMETRY_ENDPOINT: ${{ vars.PRODUCT_TELEMETRY_ENDPOINT }}
+          RIVALHUB_DB_TARGET: production
+          RIVALHUB_PRODUCTION_PROJECT_CONFIRM: ggkxqgbiudlovcgizgsq
+          RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RIVALHUB_PREVIEW_AGE_RECIPIENT: ${{ vars.RIVALHUB_PREVIEW_AGE_RECIPIENT }}
+          RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST: ${{ vars.RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$RIVALHUB_PREVIEW_AGE_RECIPIENT" =~ ^age1[0-9a-z]{58}$ ]]
+          snapshot="$RUNNER_TEMP/rivalhub-preview/preview-mirror.json"
+          mkdir -p "$(dirname "$snapshot")"
+          trap 'unlink "$snapshot" 2>/dev/null || true' EXIT
+          pnpm db:preview:export "$snapshot"
+          gzip -c "$snapshot" | age --encrypt --recipient "$RIVALHUB_PREVIEW_AGE_RECIPIENT" --output "$snapshot.gz.age"
+      - name: Upload encrypted mirror
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: preview-mirror-encrypted-${{ github.run_id }}
+          path: ${{ runner.temp }}/rivalhub-preview/preview-mirror.json.gz.age
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
+
+  refresh-dev:
+    name: decrypt and refresh rivalhub-dev
+    needs: export-production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: staging
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: inputs.apply_current_migrations && inputs.migration_ref != 'main'
+        with:
+          ref: refs/heads/${{ inputs.migration_ref }}
+          path: .agent-tmp/preview-migration-ref
+          sparse-checkout: drizzle/migrations
+          persist-credentials: false
+      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          cache: true
+          require-lockfile: true
+      - name: Install age
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends age
+      - name: Download encrypted mirror
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: preview-mirror-encrypted-${{ github.run_id }}
+          path: ${{ runner.temp }}/rivalhub-preview
+      - name: Decrypt and import into staging
+        env:
+          RIVALHUB_DB_TARGET: staging
+          RIVALHUB_STAGING_PROJECT_CONFIRM: dtdzxnzjtohzjmfkighg
+          RIVALHUB_STAGING_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
+          RIVALHUB_ALLOW_REMOTE_DB_WRITE: staging
+          RIVALHUB_PREVIEW_RESET_CONFIRM: dtdzxnzjtohzjmfkighg
+          RIVALHUB_STAGING_DB_PASSWORD: ${{ secrets.RIVALHUB_STAGING_DB_PASSWORD }}
+          RIVALHUB_PREVIEW_DEV_SECRET_KEY: ${{ secrets.RIVALHUB_PREVIEW_DEV_SECRET_KEY }}
+          RIVALHUB_PREVIEW_AGE_IDENTITY: ${{ secrets.RIVALHUB_PREVIEW_AGE_IDENTITY }}
+          RIVALHUB_PREVIEW_APPLY_CURRENT_MIGRATIONS: ${{ inputs.apply_current_migrations }}
+          RIVALHUB_PREVIEW_MIGRATIONS_DIR: ${{ inputs.migration_ref != 'main' && '.agent-tmp/preview-migration-ref/drizzle/migrations' || 'drizzle/migrations' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          snapshot="$RUNNER_TEMP/rivalhub-preview/preview-mirror.json"
+          identity="$RUNNER_TEMP/rivalhub-preview/identity"
+          trap 'unlink "$snapshot" 2>/dev/null || true; unlink "$identity" 2>/dev/null || true' EXIT
+          test -n "$RIVALHUB_PREVIEW_AGE_IDENTITY"
+          printf '%s\n' "$RIVALHUB_PREVIEW_AGE_IDENTITY" > "$identity"
+          unset RIVALHUB_PREVIEW_AGE_IDENTITY
+          age --decrypt --identity "$identity" "$snapshot.gz.age" | gzip -dc > "$snapshot"
+          unlink "$identity"
+          pnpm db:preview:refresh "$snapshot"
