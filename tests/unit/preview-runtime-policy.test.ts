@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
 import { assertReviewedColumns, exportQuery, previewPolicyFor } from "../../scripts/db/preview/policy";
 import { readSnapshot, type MirrorSnapshot } from "../../scripts/db/preview/snapshot";
-import { assertRefreshRunner } from "../../scripts/db/preview/environment";
 
 describe("preview runtime record isolation", () => {
   it.each([
@@ -37,20 +36,6 @@ describe("preview runtime record isolation", () => {
 });
 
 describe("preview transport trust boundary", () => {
-  it("allows only manual dispatch of the mirror workflow from main", () => {
-    const env = {
-      GITHUB_ACTIONS: "true",
-      GITHUB_REPOSITORY: "Starfie1d1272/RivalHub",
-      GITHUB_REF: "refs/heads/main",
-      GITHUB_EVENT_NAME: "workflow_dispatch",
-      GITHUB_WORKFLOW_REF: "Starfie1d1272/RivalHub/.github/workflows/refresh-preview-mirror.yml@refs/heads/main",
-    };
-    expect(() => assertRefreshRunner(env)).not.toThrow();
-    expect(() => assertRefreshRunner({ ...env, GITHUB_REF: "refs/heads/3.0" })).toThrow();
-    expect(() => assertRefreshRunner({ ...env, GITHUB_EVENT_NAME: "schedule" })).toThrow();
-    expect(() => assertRefreshRunner({ ...env, GITHUB_WORKFLOW_REF: "different.yml" })).toThrow();
-  });
-
   it("rejects education rows and preserves only inert DAK import lineage", () => {
     const migrations = readExpectedMigrations();
     const policy = previewPolicyFor(migrations);

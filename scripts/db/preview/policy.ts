@@ -346,11 +346,86 @@ export function assertReviewedColumns(
   }
 }
 
+function visibleSeason(seasonId: string): string {
+  return `EXISTS (SELECT 1 FROM public.seasons s WHERE s.id = ${seasonId} AND s.status <> 'draft')`;
+}
+
+function visibleEntry(entryId: string): string {
+  return `EXISTS (SELECT 1 FROM public.competition_entries e WHERE e.id = ${entryId} AND ${visibleSeason("e.competition_id")})`;
+}
+
+function visibleMatch(matchId: string): string {
+  return `EXISTS (SELECT 1 FROM public.matches m WHERE m.id = ${matchId} AND ${visibleSeason("m.season_id")})`;
+}
+
+function visibleImport(importId: string): string {
+  return `EXISTS (SELECT 1 FROM public.match_demo_imports d WHERE d.id = ${importId} AND ${visibleSeason("d.season_id")})`;
+}
+
+function exportRowScope(table: string, columns: readonly string[]): string[] {
+  const scope: string[] = [];
+  if (table === "seasons") scope.push("source.status <> 'draft'");
+  if (columns.includes("season_id")) {
+    const visible = visibleSeason("source.season_id");
+    scope.push(table === "announcements" ? `(source.season_id IS NULL OR ${visible})` : visible);
+  }
+  if (columns.includes("competition_id")) scope.push(visibleSeason("source.competition_id"));
+  if (columns.includes("target_season_id")) {
+    scope.push(`(source.target_season_id IS NULL OR ${visibleSeason("source.target_season_id")})`);
+  }
+  if (columns.includes("match_id")) scope.push(visibleMatch("source.match_id"));
+  if (columns.includes("entry_id") && scope.length === 0) scope.push(visibleEntry("source.entry_id"));
+  if (columns.includes("import_id")) scope.push(visibleImport("source.import_id"));
+  switch (table) {
+    case "education_verifications":
+      return ["false"];
+    case "competition_entry_roster_members":
+      scope.push(`EXISTS (SELECT 1 FROM public.competition_entry_roster_revisions r WHERE r.id = source.revision_id AND ${visibleEntry("r.entry_id")})`);
+      break;
+    case "event_roster_members":
+      scope.push(`EXISTS (SELECT 1 FROM public.event_rosters r WHERE r.id = source.event_roster_id AND ${visibleEntry("r.entry_id")})`);
+      break;
+    case "match_roster_players":
+      scope.push(`EXISTS (SELECT 1 FROM public.match_rosters r WHERE r.id = source.roster_id AND ${visibleMatch("r.match_id")})`);
+      break;
+    case "match_veto_appeals":
+      scope.push(`EXISTS (SELECT 1 FROM public.match_veto_timeout_incidents i WHERE i.id = source.timeout_incident_id AND ${visibleMatch("i.match_id")})`);
+      break;
+    case "captain_votes":
+      for (const column of ["voter_registration_id", "candidate_registration_id"]) {
+        scope.push(`EXISTS (SELECT 1 FROM public.season_registrations r WHERE r.id = source.${column} AND ${visibleSeason("r.season_id")})`);
+      }
+      break;
+    case "disciplinary_cases":
+      scope.push("source.status <> 'draft'", "source.effective_from <= now()");
+      break;
+    case "announcements":
+      scope.push("source.status = 'published'");
+      break;
+    case "community_awards":
+      scope.push("source.status IN ('approved', 'awarded', 'not_awarded', 'cancelled')");
+      break;
+    case "community_award_recipients":
+      scope.push(`EXISTS (SELECT 1 FROM public.community_awards a WHERE a.id = source.award_id AND a.status = 'awarded' AND ${visibleSeason("a.season_id")})`);
+      break;
+    case "dak_pairings":
+      scope.push(`EXISTS (SELECT 1 FROM public.match_demo_imports d WHERE d.submitted_by_pairing_id = source.id AND ${visibleSeason("d.season_id")})`);
+      break;
+    case "dak_pairing_intents":
+      scope.push(`EXISTS (SELECT 1 FROM public.dak_pairings p JOIN public.match_demo_imports d ON d.submitted_by_pairing_id = p.id WHERE p.pairing_intent_id = source.id AND ${visibleSeason("d.season_id")})`);
+      break;
+  }
+  return scope;
+}
+
 export function exportQuery(table: string, source: PreviewPolicyInput = readExpectedMigrations()): string {
   const policy = resolvePolicy(source);
   const tablePolicy = policy.tables[table];
   if (!tablePolicy) throw new PreviewMirrorError("FUTURE_MIRROR_TABLE", "Table is not permitted in mirror export.", { context: { table } });
   const expressions = tablePolicy.exportedColumns.map((column) => {
+    if (table === "user_gameplay_steam_ids" && column === "source_import_id") {
+      return `CASE WHEN ${visibleImport("source.source_import_id")} THEN source.source_import_id END AS source_import_id`;
+    }
     if (table === "event_roster_members" && column === "education_verification_id") return "NULL AS education_verification_id";
     if (table === "dak_pairing_intents") {
       if (column === "poll_token_hash") return "'preview:' || id::text AS poll_token_hash";
@@ -389,13 +464,9 @@ export function exportQuery(table: string, source: PreviewPolicyInput = readExpe
     `'${PREVIEW_REDACTED_ACTOR}'::text AS configured_by`,
     `CASE WHEN "started_at" IS NULL THEN NULL ELSE '${PREVIEW_REDACTED_ACTOR}'::text END AS started_by`,
   );
-  // Sensitive verifications are omitted. Public projections retain their existing visibility gates.
-  const filter = table === "education_verifications" ? " WHERE false"
-    : table === "disciplinary_cases" ? " WHERE status <> 'draft' AND effective_from <= now() AND EXISTS (SELECT 1 FROM public.seasons s WHERE s.id = disciplinary_cases.season_id AND s.status <> 'draft')"
-    : table === "announcements" ? " WHERE status = 'published'"
-      : table === "community_awards" ? " WHERE status IN ('approved', 'awarded', 'not_awarded', 'cancelled')"
-        : table === "community_award_recipients" ? " WHERE EXISTS (SELECT 1 FROM public.community_awards a WHERE a.id = community_award_recipients.award_id AND a.status = 'awarded')" : "";
-  return `SELECT ${expressions.join(", ")} FROM public.${quoteIdentifier(table)}${filter}`;
+  const conditions = exportRowScope(table, tablePolicy.exportedColumns);
+  const filter = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
+  return `SELECT ${expressions.join(", ")} FROM public.${quoteIdentifier(table)} AS source${filter}`;
 }
 
 function resolvePolicy(source: PreviewPolicyInput): PreviewPolicy {
