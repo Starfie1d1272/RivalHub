@@ -2,6 +2,9 @@
 
 RivalHub 的服务器预览站固定连接 `rivalhub-dev`，不连接 production，也不读取 #569 的正式 R2 灾备 artifact。`rivalhub-dev` 是可牺牲 shared staging：Preview 可完整读写，下一次 refresh 覆盖测试数据。镜像由受保护的 `Refresh Preview Mirror` workflow 生成：production job 只读导出，dev job 在固定的 `dtdzxnzjtohzjmfkighg` 上重置和导入。
 
+生产导出账号 `rivalhub_preview_exporter` 通过 Session Pooler 连接，仅调用数据库私有 schema 的投影函数并读取迁移哈希。函数按公开赛事过滤赛季、报名及相关比赛谱系。教育证据和生产管理员授权不进入快照，Preview 管理员使用合成身份。公开 Storage 读取限于允许的对象路径和总字节数。
+
+首次启用时先发版应用 `preview_reader` 迁移，再由维护者给该角色启用登录并将随机密码设置为 Production Environment 的 `RIVALHUB_PREVIEW_DB_PASSWORD`。核对凭据只可读取投影，直接访问用户邮箱、Auth、审计及写入请求应失败。更新投影时通过 `pnpm exec tsx scripts/db/preview/reader-sql.ts` 为 active chain 生成新的 `*_preview_reader.sql` custom migration，使用 `--check` 核对最新定义。
 ## 刷新边界
 
 - 需要更新 Preview 时从受保护的 `main` 手动 dispatch，导出与导入程序使用该次 dispatch 的同一个 SHA。默认恢复生产所用的 migration prefix。只有显式启用 `apply_current_migrations` 时，才应用 `migration_ref` 的追加迁移。备用分支只 checkout migration 目录，导入程序在重置 dev 前验证它包含镜像的完整 source prefix。Preview 与 staging rehearsal 各有入口。

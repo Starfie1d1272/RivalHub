@@ -209,7 +209,7 @@ describe("event test matches", () => {
   it("runs captain lineups and designated two-sided BP, exports real maps, and completes without event progression", async () => {
     const f = await create();
     expect(f.match.testConfig).toMatchObject({ operatorAId: f.operatorA, operatorBId: f.captainB });
-    const mirror = await db.execute(sql`${sql.raw(exportQuery("matches"))} WHERE id = ${f.match.id}`);
+    const mirror = await db.execute(sql`SELECT * FROM (${sql.raw(exportQuery("matches"))}) exported WHERE id = ${f.match.id}`);
     expect(mirror.rows[0]?.test_config).toEqual({
       mapPool: f.match.testConfig!.mapPool, operatorAId: f.operatorA, operatorBId: f.captainB,
     });

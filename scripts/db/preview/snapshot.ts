@@ -9,7 +9,6 @@ import { assertActiveChainPrefix, readExpectedMigrations, type Migration } from 
 import { resolveProductionSourceIdentity } from "../recovery/source";
 import {
   assertReviewedColumns,
-  exportQuery,
   previewPolicyFor,
   sanitizedRequiredFields,
 } from "./policy";
@@ -86,7 +85,10 @@ export async function exportMirror(accounting?: Pick<OfflineConsumerSummary, "ta
 
     const { policy } = await runPreviewExportPhase("schema inventory-policy", async () => {
       const catalog = await client!.query<{ table_name: string; column_name: string }>(
-        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
+        `SELECT c.relname AS table_name, a.attname AS column_name
+         FROM pg_catalog.pg_class c JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
+         WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+           AND a.attnum > 0 AND NOT a.attisdropped ORDER BY c.relname, a.attnum`,
       );
       const sourcePolicy = previewPolicyFor(migrations);
       const sourceInventory = new Map<string, string[]>();
@@ -106,7 +108,11 @@ export async function exportMirror(accounting?: Pick<OfflineConsumerSummary, "ta
       const exported: MirrorSnapshot["tables"] = {};
       for (const table of Object.keys(policy.tables)) {
         try {
-          exported[table] = (await client!.query(exportQuery(table, policy))).rows;
+          const { rows } = await client!.query<{ value: Record<string, unknown> }>(
+            "SELECT value FROM rivalhub_preview.export_table($1) AS mirror(value)",
+            [table],
+          );
+          exported[table] = rows.map(({ value }) => value);
           if (accounting?.tables) accounting.tables[table] = measureExportRows(exported[table]);
         } catch (error) {
           throw new PreviewMirrorError("PREVIEW_TABLE_EXPORT_FAILED", "Preview table export failed.", {
@@ -127,7 +133,7 @@ export async function exportMirror(accounting?: Pick<OfflineConsumerSummary, "ta
     }
     const personaCandidates = await runPreviewExportPhase("persona selection", async () => {
       try {
-        return await selectPersonaCandidates(client!, tables);
+        return selectPersonaCandidates(tables);
       } catch (error) {
         throw new PreviewMirrorError("PREVIEW_PERSONA_SELECTION_FAILED", "Preview persona selection failed.", {
           cause: error,
@@ -167,7 +173,7 @@ function rewriteTeamLogoUrls(tables: MirrorSnapshot["tables"]): void {
   }
 }
 
-export async function selectPersonaCandidates(client: Pick<PoolClient, "query">, tables: MirrorSnapshot["tables"]): Promise<PersonaCandidates> {
+function selectPersonaCandidates(tables: MirrorSnapshot["tables"]): PersonaCandidates {
   const current = [...tables.seasons].sort((a, b) => {
     const rank = (status: unknown) => ({ playing: 0, drafting: 1, voting: 2, registration: 3 } as Record<string, number>)[String(status)] ?? 9;
     return rank(a.status) - rank(b.status) || String(b.registration_opened_at ?? b.updated_at ?? "").localeCompare(String(a.registration_opened_at ?? a.updated_at ?? "")) || String(a.id).localeCompare(String(b.id));
@@ -182,12 +188,14 @@ export async function selectPersonaCandidates(client: Pick<PoolClient, "query">,
     .map((entry) => String(entry.team_id)));
   const captain = tables.teams.filter((team) => currentTeamIds.has(String(team.id)) && team.status !== "disbanded" && active.includes(String(team.captain_user_id))).map((team) => String(team.captain_user_id)).sort()[0]
     ?? tables.teams.filter((team) => active.includes(String(team.captain_user_id))).map((team) => String(team.captain_user_id)).sort()[0] ?? null;
-  const seasonAdmin = seasonId ? (await client.query<{ user_id: string }>(`SELECT grants.user_id FROM public.season_admin_grants grants
-    JOIN public.users ON users.id = grants.user_id
-    WHERE grants.season_id = $1 AND users.status = 'active'
-    ORDER BY grants.granted_at, grants.user_id LIMIT 1`, [seasonId])).rows[0]?.user_id ?? null : null;
-  const superAdmin = active.find((id) => tables.users.some((user) => String(user.id) === id && user.role === "super_admin")) ?? null;
-  return { currentSeasonId: seasonId, playerUserId: participant, invitedUserId: invited, captainUserId: captain, seasonAdminUserId: seasonAdmin, superAdminUserId: superAdmin };
+  return {
+    currentSeasonId: seasonId,
+    playerUserId: participant,
+    invitedUserId: invited,
+    captainUserId: captain,
+    seasonAdminUserId: null,
+    superAdminUserId: null,
+  };
 }
 
 async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedSeasonAssets: Set<string>, accounting?: Pick<OfflineConsumerSummary, "storage_download_bytes">): Promise<MirrorAsset[]> {
@@ -215,8 +223,7 @@ async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedS
       throw previewProviderFailure("public asset export", error, { count: assets.length });
     }
     if (!response.ok) throw previewProviderFailure("public asset export", { status: response.status }, { count: assets.length });
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length > MAX_ASSET_BYTES || total + bytes.length > MAX_ASSET_TOTAL_BYTES) throw new Error("Preview public asset mirror exceeds bounded size.");
+    const bytes = await readPublicAsset(response, Math.min(MAX_ASSET_BYTES, MAX_ASSET_TOTAL_BYTES - total));
     const contentType = response.headers.get("content-type")?.split(";", 1)[0] ?? "application/octet-stream";
     if (!/^(image\/(?:png|jpe?g|webp)|application\/pdf)$/i.test(contentType)) throw new Error("Preview mirror rejected non-public asset type.");
     assets.push({ bucket: bucket as MirrorAsset["bucket"], path, contentType, sha256: createHash("sha256").update(bytes).digest("hex"), data: bytes.toString("base64") });
@@ -224,6 +231,31 @@ async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedS
     if (accounting) accounting.storage_download_bytes = total;
   }
   return assets;
+}
+
+async function readPublicAsset(response: Response, limit: number): Promise<Buffer> {
+  if (!response.body || Number(response.headers.get("content-length")) > limit) {
+    await response.body?.cancel();
+    throw new Error("Preview public asset exceeds bounded size.");
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > limit) {
+        await reader.cancel();
+        throw new Error("Preview public asset exceeds bounded size.");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, length);
 }
 
 function parsePublicStorageUrl(value: string): { bucket: MirrorAsset["bucket"]; path: string } | null {
@@ -307,6 +339,7 @@ function readSnapshotUnsafe(path: string): MirrorSnapshot {
           context: { phase: "snapshot read", table },
         });
       }
+      if (table === "seasons" && row.status === "draft") throw new Error("Draft event in mirror.");
       if (table === "users" && (row.email !== `${row.id}@preview.invalid` || row.role !== "user" || row.auth_id || row.email_verified_at)) throw new Error("Unsanitized mirror identity.");
       if (table === "education_verifications"
         || (table === "event_roster_members" && row.education_verification_id != null)) throw new Error("Education verification in mirror.");

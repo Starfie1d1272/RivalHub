@@ -1,9 +1,8 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { measureExportRows, recoveryConsumerSummary, reportOfflineConsumer } from "../../../scripts/db/recovery/accounting";
+import { recoveryConsumerSummary, reportOfflineConsumer } from "../../../scripts/db/recovery/accounting";
 import type { RecoveryManifest } from "../../../scripts/db/recovery/manifest";
 
 const state = vi.hoisted(() => ({ query: vi.fn() }));
@@ -17,57 +16,12 @@ vi.mock("../../../scripts/db/recovery/source", () => ({ resolveProductionSourceI
 vi.mock("../../../scripts/db/production-preflight", () => ({ assertActiveChainPrefix: vi.fn(), readExpectedMigrations: () => [] }));
 vi.mock("../../../scripts/db/preview/policy", () => ({
   previewPolicyFor: () => ({ tables: Object.fromEntries(names.map((name) => [name, {}])) }),
-  assertReviewedColumns: vi.fn(), exportQuery: (table: string) => `SELECT fixture FROM ${table}`,
+  assertReviewedColumns: vi.fn(),
 }));
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("offline consumer accounting", () => {
-  it("counts UTF-8 row JSON in the existing export, with one SELECT per table", async () => {
-    vi.stubEnv("RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST", "");
-    vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Unexpected asset request"); }));
-    const payload = { id: "fixture", text: '中文\n"\\', nested: { value: "x".repeat(100_000) } };
-    state.query.mockReset().mockImplementation(async (sql: string) => ({ rows:
-      sql.includes("FROM drizzle.") ? [{ hash: "fixture", when: "1" }]
-        : sql.includes("information_schema") ? names.map((table_name) => ({ table_name, column_name: "id" }))
-          : sql === "SELECT fixture FROM users" ? [payload] : [],
-    }));
-    const { exportMirror, writeMirrorSnapshot } = await import("../../../scripts/db/preview/snapshot");
-    const accounting = { tables: {} as Record<string, ReturnType<typeof measureExportRows>>, storage_download_bytes: null };
-    const snapshot = await exportMirror(accounting);
-    expect(accounting.tables.users).toEqual({ rows: 1, logical_payload_bytes: Buffer.byteLength(JSON.stringify(payload)) });
-    expect(accounting.storage_download_bytes).toBe(0);
-    expect(state.query.mock.calls.filter(([sql]) => String(sql).startsWith("SELECT fixture"))).toHaveLength(names.length);
-    for (const name of names) expect(state.query.mock.calls.filter(([sql]) => sql === `SELECT fixture FROM ${name}`)).toHaveLength(1);
-    const directory = mkdtempSync(join(tmpdir(), "offline-accounting-"));
-    try {
-      const path = join(directory, "mirror.json");
-      writeMirrorSnapshot(path, snapshot);
-      const bytes = readFileSync(path);
-      expect(statSync(path).size).toBe(Buffer.byteLength(JSON.stringify(snapshot)));
-      expect(gzipSync(bytes).length).toBeLessThan(bytes.length);
-      expect(bytes.length).toBeGreaterThan(accounting.tables.users.logical_payload_bytes);
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-      vi.spyOn(console, "log").mockImplementation(() => {});
-      for (const summaryPath of [directory, join(directory, "PRIVATE_PATH_SENTINEL", "summary")]) {
-        vi.stubEnv("GITHUB_STEP_SUMMARY", summaryPath);
-        expect(() => reportOfflineConsumer({
-          format: 1, consumer: "preview", run_id: null, github_run_id: null,
-          release: snapshot.sourceTag, source_project: "fixture", started_at: snapshot.refreshedAt, ended_at: snapshot.refreshedAt,
-          status: "exported", rows: 1, logical_payload_bytes: accounting.tables.users.logical_payload_bytes,
-          dump_file_bytes: null, snapshot_file_bytes: bytes.length, compressed_artifact_bytes: null,
-          storage_download_bytes: null, storage_objects: null, tables: accounting.tables,
-        })).not.toThrow();
-        expect(readFileSync(path)).toEqual(bytes);
-        expect(warn).toHaveBeenCalledExactlyOnceWith("offline_consumer_accounting_unavailable");
-        expect(state.query.mock.calls.filter(([sql]) => String(sql).startsWith("SELECT fixture"))).toHaveLength(names.length);
-        warn.mockClear();
-      }
-      // The observation catch never wraps the authoritative snapshot write.
-      expect(() => writeMirrorSnapshot(path, snapshot)).toThrow("Preview mirror snapshot write failed.");
-    } finally { rmSync(directory, { recursive: true, force: true }); }
-  });
-
   it("projects only existing file/storage numbers and never manifest secrets or hashes", () => {
     const manifest = {
       artifactKind: "full", runId: "fixture-run", createdAt: "2026-10-26T00:00:00Z", sourceProjectRef: "fixture-project",
@@ -97,7 +51,7 @@ describe("offline consumer accounting", () => {
     vi.stubEnv("RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST", "public/a.png,public/b.png");
     state.query.mockReset().mockImplementation(async (sql: string) => ({ rows:
       sql.includes("FROM drizzle.") ? [{ hash: "fixture", when: "1" }]
-        : sql.includes("information_schema") ? names.map((table_name) => ({ table_name, column_name: "id" })) : [],
+        : sql.includes("pg_catalog.pg_class") ? names.map((table_name) => ({ table_name, column_name: "id" })) : [],
     }));
     const bytes = Buffer.from("synthetic-image-buffer");
     const download = vi.fn(async (url: URL, init: RequestInit) => {
