@@ -90,6 +90,7 @@
     "scripts/db/preview/snapshot.ts!",
     "scripts/db/preview/reader-sql.ts!",
     "scripts/db/preview/refresh.ts!",
+    "scripts/db/preview/dispatch.ts!",
     "scripts/db/production-identity-merge-preflight.ts!",
     "scripts/db/production-steam-profile-backfill.ts!",
     "scripts/db/production-steam-profile-coverage.ts!",
