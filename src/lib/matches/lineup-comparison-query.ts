@@ -2,20 +2,26 @@ import { observePublicStatsFill } from "@/lib/stats/public-fill";
 import { observeStatsCacheFill, recordStatsCache } from "@/lib/observability/read-budget";
 import "server-only";
 
-import { cacheLife, cacheTag } from "next/cache";
+import { cacheLife } from "next/cache";
+import { eq } from "drizzle-orm";
+import { lineupPopulationState } from "@/db/schema";
 import { db, type DB } from "@/db/client";
-import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
-import { getLineupStatsPopulation } from "@/lib/stats/leaderboard-query";
+import { getLineupStatsPopulation, LINEUP_POPULATION_CHANGED } from "@/lib/stats/leaderboard-query";
+import { STATISTICS_PROJECTION_VERSION } from "@/lib/stats/projection-version";
+import { CURRENT_DAK_SEMANTIC_PROFILE } from "@/lib/demo-integration/semantic-profile";
+import { preservePublicStatsDependencyFailure } from "@/lib/stats/availability";
+import { reuseLineupPopulation } from "./lineup-population-cache";
 import { partitionRankingPopulation } from "@/lib/stats/ranking";
 import type { LineupCareer } from "./lineup-comparison";
 
 /** One population for both lineups and the historical baseline, using current statistics facts. */
 export async function loadLineupPopulation(
-  matchId: string,
+  excludeMatchId: string | null,
   before: Date,
   database: DB = db,
+  revision?: string,
 ): Promise<LineupCareer[]> {
-  const population = await getLineupStatsPopulation(matchId, before, database);
+  const population = await getLineupStatsPopulation(excludeMatchId, before, database, revision);
   const { ranked } = partitionRankingPopulation(
     population,
     (row) => row.avgRating,
@@ -53,25 +59,79 @@ export async function loadLineupCareers(
   return projectLineupCareers(await loadLineupPopulation(matchId, before, database), playerIds);
 }
 
-async function getLineupPopulation(matchId: string, cutoff: string | null) {
+// Bump for changes to the corpus, ranking floor, or the serialized read model.
+const POPULATION_VERSION = `lineup/1:${STATISTICS_PROJECTION_VERSION}:${CURRENT_DAK_SEMANTIC_PROFILE}`;
+
+async function getLineupPopulation(
+  excludeMatchId: string | null,
+  cutoff: string | null,
+  revision: string,
+) {
   "use cache: remote";
-  cacheTag(PUBLIC_STATS_TAG);
-  // A future completedAt crossing the rolling cutoff is reflected on the next
-  // tagged write, rather than triggering periodic population reads.
   cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
-  return observeStatsCacheFill(cutoff ? "lineup.historical" : "lineup.realtime", () =>
-    observePublicStatsFill("stats.lineup", () =>
-      loadLineupPopulation(matchId, cutoff ? new Date(cutoff) : new Date()),
+  const keyFor = (value: string) =>
+    JSON.stringify([POPULATION_VERSION, value, cutoff, excludeMatchId]);
+  return preservePublicStatsDependencyFailure(() =>
+    reuseLineupPopulation(
+      keyFor(revision),
+      () =>
+        observeStatsCacheFill(cutoff ? "lineup.historical" : "lineup.realtime", () =>
+          observePublicStatsFill("stats.lineup", () =>
+            loadLineupPopulation(
+              excludeMatchId,
+              cutoff ? new Date(cutoff) : new Date(),
+              db,
+              revision,
+            ),
+          ),
+        ),
+      cutoff
+        ? async () => {
+            const [state] = await db
+              .select({ changes: lineupPopulationState.recentChanges })
+              .from(lineupPopulationState)
+              .where(eq(lineupPopulationState.revision, revision));
+            const keys: string[] = [];
+            const before = new Date(cutoff).getTime();
+            for (const change of state?.changes ?? []) {
+              if (!change.affectedFrom || !(new Date(change.affectedFrom).getTime() >= before))
+                break;
+              keys.push(keyFor(change.revision));
+            }
+            return keys;
+          }
+        : undefined,
     ),
   );
 }
 
 export async function getLineupCareers(
   playerIds: string[],
-  matchId: string,
-  cutoff: string | null,
+  scope: { matchId: string; cutoff: string | null; revision: string | null; scheduled: boolean },
 ) {
   if (!playerIds.length) return [];
+  const { matchId, cutoff, revision, scheduled } = scope;
   recordStatsCache(cutoff ? "lineup.historical" : "lineup.realtime", "readCalls");
-  return projectLineupCareers(await getLineupPopulation(matchId, cutoff), playerIds);
+  if (revision) {
+    try {
+      // The fresh match row and corpus revision come from the same statement.
+      const excludeMatchId = !cutoff && scheduled ? null : matchId;
+      return projectLineupCareers(
+        await getLineupPopulation(excludeMatchId, cutoff, revision),
+        playerIds,
+      );
+    } catch (error) {
+      if (!(
+        error instanceof Error &&
+        "digest" in error &&
+        error.digest === LINEUP_POPULATION_CHANGED
+      ))
+        throw error;
+    }
+  }
+  // A concurrent commit moved the corpus. Use an exact uncached snapshot for this request.
+  return projectLineupCareers(
+    await loadLineupPopulation(matchId, cutoff ? new Date(cutoff) : new Date()),
+    playerIds,
+  );
 }

@@ -153,9 +153,24 @@ immediately: Server Actions use `updateTag`, HTTP entrypoints use
 `revalidateTag(tag, { expire: 0 })`. General metadata may retain its existing SWR
 policy. Public tournament, match, career, benchmark and lineup-style results,
 platform aggregates, public record-event pages and the official map catalog do not refresh on a timer;
-fixed-cutoff and rolling lineup comparisons follow the same policy. A future
-completion timestamp crossing the rolling cutoff may not be reflected until the
-next tagged write, eviction, or cold cache. Match result, map, lineup, Demo import, confirmed scoreboard and projection changes enqueue a match delivery generation in the same transaction. This includes same-version CLI backfills. A failed post-commit delivery remains pending for the bounded scheduler dispatcher. The dispatcher acknowledges the captured generation only after successful expiration. See [match projection delivery](./locking.md#match-projection-postcommit-delivery). Operator-triggered Steam profile cache misses can leave a cached record-event label stale until an identity refresh. The cache does not replace persisted
+fixed-cutoff and rolling lineup comparisons use the committed public population revision.
+The match page reads that scalar in the same statement as the match. Scheduled,
+unstarted matches share one rolling population. Fixed cutoffs retain the exact
+series exclusion. The bounded revision history allows a fixed-cutoff result to
+reuse a predecessor when every intervening change began at or after its cutoff.
+A cold rebuild checks the revision again within the same read-only
+snapshot as Demo, roster, identity and aggregation reads. An in-flight old build
+writes only to its own revision key. Source failures leave no valid entry.
+
+The Linux service stores up to 32 disposable population results of up to 2 MiB each,
+with a checksum and atomic replacement. Keys include the data revision, cutoff,
+series exclusion, calculation and projection versions. Warm lookups retain the
+fresh match and access reads. A process restart or unrelated build can reuse
+verified results without fetching historical statistics. Relevant official results,
+current Demo/roster changes, visibility changes and identity binding changes advance
+the revision transactionally. Edits to display names, avatars and scheduling details
+leave it unchanged. A future completion timestamp crossing the rolling cutoff may
+be reflected when the population next changes or is evicted. Match result, map, lineup, Demo import, confirmed scoreboard and projection changes enqueue a match delivery generation in the same transaction. This includes same-version CLI backfills. A failed post-commit delivery remains pending for the bounded scheduler dispatcher. The dispatcher acknowledges the captured generation only after successful expiration. See [match projection delivery](./locking.md#match-projection-postcommit-delivery). Operator-triggered Steam profile cache misses can leave a cached record-event label stale until an identity refresh. The cache does not replace persisted
 projections and keys change on deploy; self-hosted process-local entries are lost
 on restart and do not share invalidations across instances.
 

@@ -24,7 +24,7 @@ import { readBilibiliRoom } from "@/lib/production/bilibili";
 import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { eq, and, inArray, or } from "drizzle-orm";
+import { eq, and, getTableColumns, inArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   matches,
@@ -48,6 +48,7 @@ import { MatchTimeNegotiation } from "@/components/matches/MatchTimeNegotiation"
 import { MatchRosterView } from "@/components/matches/MatchRosterView";
 import { MatchLineupComparison } from "@/components/matches/MatchLineupComparison";
 import { lineupComparisonCutoff, resolveLineup } from "@/lib/matches/lineup-comparison";
+import { lineupPopulationRevision } from "@/lib/stats/leaderboard-query";
 import { getLineupCareers } from "@/lib/matches/lineup-comparison-query";
 import { MatchRosterForm } from "@/components/matches/MatchRosterForm";
 import { VetoView } from "@/components/matches/VetoView";
@@ -90,10 +91,14 @@ interface MatchDetailPageProps {
 }
 
 const loadMatch = cache((matchId: string) =>
-  withDbTrafficSource(
-    "match.page",
-    async () => await db.query.matches.findFirst({ where: eq(matches.id, matchId) }),
-  ),
+  withDbTrafficSource("match.page", async () => {
+    const [row] = await db
+      .select({ match: getTableColumns(matches), lineupRevision: lineupPopulationRevision })
+      .from(matches)
+      .where(eq(matches.id, matchId))
+      .limit(1);
+    return row ? { ...row.match, lineupRevision: row.lineupRevision } : undefined;
+  }),
 );
 
 export async function generateMetadata({ params }: MatchDetailPageProps): Promise<Metadata> {
@@ -810,6 +815,7 @@ async function readMatchDetailContent({
                     }}
                     matchId={match.id}
                     cutoff={comparisonCutoff}
+                    revision={match.lineupRevision}
                     allowExpected={allowExpected}
                   />
                 </Suspense>
@@ -994,12 +1000,14 @@ async function MatchLineupDetails({
   b,
   matchId,
   cutoff,
+  revision,
   allowExpected,
 }: {
   a: React.ComponentProps<typeof MatchLineupComparison>["a"];
   b: React.ComponentProps<typeof MatchLineupComparison>["b"];
   matchId: string;
   cutoff: Date | null;
+  revision: string | null;
   allowExpected: boolean;
 }) {
   const careers =
@@ -1013,8 +1021,7 @@ async function MatchLineupDetails({
                   .flatMap((player) => (player.userId ? [player.userId] : [])),
               ),
             ].sort(),
-            matchId,
-            cutoff?.toISOString() ?? null,
+            { matchId, cutoff: cutoff?.toISOString() ?? null, revision, scheduled: allowExpected },
           ),
         )
       : [];

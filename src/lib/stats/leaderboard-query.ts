@@ -2,7 +2,11 @@ import "server-only";
 
 import { db, type DB, type TxDb } from "@/db/client";
 import { sql } from "drizzle-orm";
-import type { EffectiveMatchRosterIdentity } from "@/lib/match-rosters/effective";
+import {
+  effectiveMatchRosterIdentitiesQuery,
+  type EffectiveMatchRosterIdentity,
+} from "@/lib/match-rosters/effective";
+import { lineupPopulationState } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getCurrentStatsSelectionInTx } from "./tournament-scope";
 import {
@@ -292,13 +296,32 @@ function unambiguousScoreboardRow(currentImportIds: string[]) {
   )`;
 }
 
+export const LINEUP_POPULATION_CHANGED = "RIVALHUB_LINEUP_POPULATION_CHANGED";
+export const lineupPopulationRevision = sql<
+  string | null
+>`(select ${lineupPopulationState.revision} from ${lineupPopulationState})`;
+
 /** Keep selection and aggregation on one snapshot, including the historical cutoff. */
-export async function getLineupStatsPopulation(matchId: string, before: Date, database: DB) {
+export async function getLineupStatsPopulation(
+  excludeMatchId: string | null,
+  before: Date,
+  database: DB,
+  revision?: string,
+) {
   return database.transaction(
     async (tx) => {
-      const { currentImportIds, roster } = await getCurrentStatsSelectionInTx(tx, {
+      if (revision) {
+        const [state] = await tx
+          .select({ revision: lineupPopulationState.revision })
+          .from(lineupPopulationState);
+        if (state?.revision !== revision)
+          throw Object.assign(new Error("Lineup population revision changed."), {
+            digest: LINEUP_POPULATION_CHANGED,
+          });
+      }
+      const { currentImportIds, matchIds } = await getCurrentStatsSelectionInTx(tx, {
         before,
-        excludeMatchId: matchId,
+        excludeMatchId: excludeMatchId ?? undefined,
         requireVerifiedDemo: true,
       });
       if (!currentImportIds.length) return [];
@@ -310,8 +333,9 @@ export async function getLineupStatsPopulation(matchId: string, before: Date, da
       FROM match_player_stats mps
       JOIN users u ON u.id = mps.user_id AND u.status = 'active'
       JOIN match_maps mm ON mm.id = mps.map_id AND mm.match_id = mps.match_id
-      JOIN jsonb_to_recordset(${JSON.stringify(roster.map(({ matchId, userId }) => ({ match_id: matchId, user_id: userId })))}::jsonb)
-        AS lineup(match_id uuid, user_id uuid) ON lineup.match_id = mps.match_id AND lineup.user_id = mps.user_id
+      JOIN (${effectiveMatchRosterIdentitiesQuery(tx, matchIds)})
+        AS lineup(match_id, entry_id, event_roster_member_id, user_id, steam64, is_starter)
+        ON lineup.match_id = mps.match_id AND lineup.user_id = mps.user_id
       WHERE mps.verified_by_admin IS NOT NULL
         AND ${scoreboardImportCondition("mps", currentImportIds, true)}
         AND ${unambiguousScoreboardRow(currentImportIds)}

@@ -1,5 +1,15 @@
 import { sql } from "drizzle-orm";
-import { check, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  boolean,
+  check,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import type { TournamentMapFacts, TournamentPerformanceMapProjection } from "@cs2dak/tournament";
 import type { CompactRecordFacts } from "@/lib/stats/record-facts";
 import { matchDemoImports } from "./demo-integration";
@@ -69,3 +79,20 @@ export const statisticsProjectionRepairCursors = pgTable("statistics_projection_
   afterMapId: uuid("after_map_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** The revision of the public lineup population, independent of application builds. */
+export const lineupPopulationState = pgTable(
+  "lineup_population_state",
+  {
+    id: boolean("id").primaryKey().default(true),
+    revision: uuid("revision").notNull().defaultRandom(),
+    recentChanges: jsonb("recent_changes")
+      .$type<{ revision: string; affectedFrom: string | null }[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    lastTransactionId: bigint("last_transaction_id", { mode: "bigint" })
+      .notNull()
+      .default(sql`0`),
+  },
+  (t) => ({ singleton: check("lineup_population_state_singleton", sql`${t.id}`) }),
+);
