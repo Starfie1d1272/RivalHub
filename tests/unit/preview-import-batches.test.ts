@@ -13,6 +13,10 @@ describe("preview snapshot import", () => {
     expect(inserts.every(([sql]) => sql.includes('"extra"'))).toBe(true);
     expect(inserts.flatMap(([, params]) => JSON.parse(params![0]))).toEqual(rows);
     expect(query.mock.calls[0][0]).toBe("BEGIN");
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("tablename <> ALL"),
+      [["preview_mirror_state", "lineup_population_state"]],
+    );
     expect(query.mock.calls.at(-1)?.[0]).toBe("COMMIT");
   });
 

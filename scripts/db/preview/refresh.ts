@@ -124,7 +124,11 @@ type RefreshDataPhases = {
 export async function importSnapshot(client: Pick<PoolClient, "query">, snapshot: MirrorSnapshot): Promise<void> {
   await client.query("BEGIN");
   await client.query("SET LOCAL session_replication_role = 'replica'");
-  const tables = await client.query<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> $1", [MIRROR_STATE_TABLE]);
+  // The source migrations already initialized a Dev-owned lineup revision.
+  const tables = await client.query<{ tablename: string }>(
+    "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> ALL($1::text[])",
+    [[MIRROR_STATE_TABLE, "lineup_population_state"]],
+  );
   if (tables.rows.length) await client.query(`TRUNCATE ${tables.rows.map(({ tablename }) => `public.${quoteIdentifier(tablename)}`).join(", ")} CASCADE`);
   for (const [table, rows] of Object.entries(snapshot.tables)) {
     if (!rows.length) continue;
