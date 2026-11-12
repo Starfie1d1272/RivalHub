@@ -8,7 +8,7 @@ RivalHub 的服务器预览站固定连接 `rivalhub-dev`，不连接 production
 
 ## 刷新边界
 
-- 需要更新 Preview 时从受保护的 `main` 手动 dispatch，导出与导入程序使用该次 dispatch 的同一个 SHA。默认恢复生产所用的 migration prefix。只有显式启用 `apply_current_migrations` 时，才应用 `migration_ref` 的追加迁移。备用分支只 checkout migration 目录，导入程序在重置 dev 前验证它包含镜像的完整 source prefix。Preview 与 staging rehearsal 各有入口。
+- 打开 Preview、启动开发和切换分支沿用现有可读写镜像。需要覆盖 staging 并获取生产的新脱敏镜像时，在 checkout 运行 `pnpm db:preview:refresh`。命令使用已登录的 GitHub CLI，从受保护的 `main` 发起并等待对应 run。默认按当前 checkout 的迁移目录选择冻结提交。仅恢复源 schema 时使用 `--source-only`。成功后命令输出预览站和运行记录。
 - production job 通过受限 SSH 命令读取一致的生产投影，用公开 Storage URL 读取允许的公开素材。runner 在临时目录压缩快照，用独立 Preview age recipient 加密，Actions artifact 只含密文。staging runner 用 staging Environment 的独立 identity 解密，导入后清理临时明文。发布和每日备份独立运行。
 - `refresh-dev` 失败且密文仍在一天保留期内时，优先使用 GitHub Actions 的 **Re-run failed jobs**。确认原 run 的 source SHA 和 staging 目标。导出失败、密文过期或需要更新数据时重新 dispatch。
 - 导出保留经过列审查的赛事与统计数据。Auth identity、真实邮箱、教育核验记录和核验引用、私有材料、审计、私人招募意向不导出。历史 DAK facts 保留不可用的配对 lineage，配对凭据 hash、权限与使用信息用固定的预览投影替换。资格赛历史保留格式、名额、状态、预排名和比赛关系。内部 actor 和裁决理由用预览占位值。公共资产经明确路径范围及 MIME/大小检查后导入固定 dev bucket。
@@ -17,9 +17,11 @@ RivalHub 的服务器预览站固定连接 `rivalhub-dev`，不连接 production
 - 个人纪律只镜像已生效、非草稿赛事中的公开记录（active / expired / revoked），保留公开说明、能力与生效窗口；`internal_evidence`、撤销内部理由与真实 actor 不导出，必填 `issued_by` 固定为 `preview:redacted`。导入前再次拒绝草稿、未来生效、草稿赛事、内部字段和未脱敏 actor。队伍裁决仍是独立事实，不转成成员处罚。
 - 镜像不复制 Pick’Em 用户参与、预测单或积分。导入后的 schema 与当前代码一致（或显式应用当前 migrations）时，刷新流程通过 canonical `syncAutomaticPickEmInTx` 从开放赛事的官方名单幂等重建阶段窗口；截止与锁定仍按官方赛况判定。旧 source-only schema 跳过这一步，避免当前业务代码读取未来列。
 - `preview_mirror_state` 只记录 source tag/commit、refresh 时间和计数，供 Preview banner 诊断；它不是 availability 状态机。
-- refresh 先完成 dev Storage preflight，再 reset 并应用 snapshot source migrations。reset 同时移除本应用在 `realtime.messages` 上的 `rivalhub_match_live_receive` policy，由 active migration chain 重建，保留 provider 管理的表和其它 policies；随后，导入脱敏 production snapshot 并验证外键。手工 dispatch 可通过 `apply_current_migrations` 选择是否把 `migration_ref` 的当前 migration 应用到这份 production-derived 数据并再次验证，最后才 provision persona、公共 assets 与 mirror state。命令只输出固定的 phase 名称和完成/失败状态，不输出 row value、asset path、credential 或 provider 原始错误。共享 staging 上的 Preview 测试数据会被本次刷新覆盖。
+- refresh 先完成 dev Storage preflight，再 reset 并应用 snapshot source migrations。reset 同时移除本应用在 `realtime.messages` 上的 `rivalhub_match_live_receive` policy，由 active migration chain 重建，保留 provider 管理的表和其它 policies；随后，导入脱敏 production snapshot 并验证外键。导入前核对源 ledger 与冻结迁移目录的完整前缀，应用兼容的追加迁移后再次验证，最后才 provision persona、公共 assets 与 mirror state。命令只输出固定的 phase 名称和完成/失败状态，不输出 row value、asset path、credential 或 provider 原始错误。共享 staging 上的 Preview 测试数据会被本次刷新覆盖。
 
 从 `0106_vengeful_paibok` 起，`match_demo_imports.validated_revision` 随统计镜像保留。它是网站最近一次完整校验通过的比赛上下文 SHA-256，不是 credential 或原始身份材料；它与同次 snapshot 的统计投影 revision 一起保留，避免重检后的 Demo 在 Preview 中被错误回退到原始 `evidence_revision`。空值保持空值，继续由既有旧记录兼容逻辑解释；尚未应用该 migration 的 source 不查询或接受这个未来列。其余未知列、Auth identity、私有证据与生产运行状态仍按现有策略拒绝或排除。
+
+导出成功且导入失败时，命令在加密产物有效期内自动重跑一次失败任务，复用同一 run、源镜像和迁移提交。用 `pnpm db:preview:refresh --retry` 可继续最近一次失败导入。较新的刷新请求会阻止旧 run 覆盖 dev。
 
 ## 离线消费者安全计量
 
