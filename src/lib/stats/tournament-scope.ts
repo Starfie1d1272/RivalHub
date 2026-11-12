@@ -57,6 +57,11 @@ const statsMapFields = {
   completedAt: matchMaps.completedAt,
 };
 
+type StatsMatchMapRow = {
+  match: Pick<typeof matches.$inferSelect, keyof typeof statsMatchFields>;
+  map: Pick<typeof matchMaps.$inferSelect, keyof typeof statsMapFields> | null;
+};
+
 /** Lightweight canonical selection for public directory/scouting aggregates. */
 export async function getCurrentStatsSelectionInTx(
   tx: TxDb,
@@ -69,10 +74,11 @@ export async function getCurrentStatsSelectionInTx(
   },
 ) {
   if (scope.userIds?.length === 0) return { currentImportIds: [], roster: [], matchIds: [] };
-  const candidates = await tx
-    .select({ id: matches.id })
+  const matchMapRows = await tx
+    .select({ match: statsMatchFields, map: statsMapFields })
     .from(matches)
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
+    .leftJoin(matchMaps, eq(matchMaps.matchId, matches.id))
     .where(
       and(
         officialMatchCondition(),
@@ -96,8 +102,7 @@ export async function getCurrentStatsSelectionInTx(
         ),
       ),
     );
-  const candidateIds = candidates.map((row) => row.id);
-  const context = await loadStatsContext(tx, {}, { matchIds: candidateIds, skipLabels: true });
+  const context = await loadStatsContext(tx, {}, { matchMapRows, skipLabels: true });
   const refs = await loadCurrentProjectionRefs(tx, context);
   return {
     currentImportIds: refs.map(({ current }) => current.id),
@@ -114,6 +119,7 @@ export async function loadStatsContext(
     teamId?: string;
     teamIds?: readonly string[];
     matchIds?: readonly string[];
+    matchMapRows?: readonly StatsMatchMapRow[];
     includeTestMatch?: boolean;
     effectiveRoster?: readonly EffectiveMatchRosterIdentity[];
     skipLabels?: boolean;
@@ -121,7 +127,8 @@ export async function loadStatsContext(
   } = {},
 ) {
   const selectedMapRows =
-    options.mapName && options.matchIds?.length !== 0
+    options.matchMapRows ??
+    (options.mapName && options.matchIds?.length !== 0
       ? await tx
           .select({ match: statsMatchFields, map: statsMapFields })
           .from(matchMaps)
@@ -145,7 +152,7 @@ export async function loadStatsContext(
                 : undefined,
             ),
           )
-      : undefined;
+      : undefined);
   const matchRows = selectedMapRows
     ? [...new Map(selectedMapRows.map(({ match }) => [match.id, match])).values()]
     : options.matchIds
@@ -240,7 +247,7 @@ export async function loadStatsContext(
   );
   const participantEntries = entries.filter((entry) => participantIds.has(entry.id));
   const maps = selectedMapRows
-    ? selectedMapRows.filter(({ match }) => matchesById.has(match.id)).map(({ map }) => map)
+    ? selectedMapRows.flatMap(({ match, map }) => (map && matchesById.has(match.id) ? [map] : []))
     : matchIds.length
       ? await tx.select(statsMapFields).from(matchMaps).where(inArray(matchMaps.matchId, matchIds))
       : [];

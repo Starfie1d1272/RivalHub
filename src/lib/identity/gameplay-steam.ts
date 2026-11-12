@@ -38,39 +38,36 @@ function isSteam64(value: string): boolean {
   return STEAM64_PATTERN.test(value);
 }
 
-function gameplayIdentityLookupQueries(
-  database: GameplayIdentityExecutor,
-  values: readonly string[],
-) {
+async function loadGameplayIdentityRows(database: GameplayIdentityExecutor, values: string[]) {
+  const steam64Values = sql.param(values);
+  const primary = database
+    .select({
+      steam64: users.steam64,
+      userId: users.id,
+      source: sql<GameplayUserResolution["source"]>`'primary'::text`,
+    })
+    .from(users)
+    .where(and(eq(users.status, "active"), sql`${users.steam64} = ANY(${steam64Values}::text[])`));
+  const aliases = database
+    .select({
+      steam64: userGameplaySteamIds.steam64,
+      userId: userGameplaySteamIds.userId,
+      source: sql<GameplayUserResolution["source"]>`'gameplay_alias'::text`,
+    })
+    .from(userGameplaySteamIds)
+    .where(
+      and(
+        eq(userGameplaySteamIds.status, "active"),
+        sql`${userGameplaySteamIds.steam64} = ANY(${steam64Values}::text[])`,
+      ),
+    );
+  const rows = await primary.unionAll(aliases);
   return [
-    () =>
-      database
-        .select({ steam64: users.steam64, userId: users.id })
-        .from(users)
-        .where(and(eq(users.status, "active"), inArray(users.steam64, [...values]))),
-    () =>
-      database
-        .select({ steam64: userGameplaySteamIds.steam64, userId: userGameplaySteamIds.userId })
-        .from(userGameplaySteamIds)
-        .where(
-          and(
-            eq(userGameplaySteamIds.status, "active"),
-            inArray(userGameplaySteamIds.steam64, [...values]),
-          ),
-        ),
+    rows.filter(({ source }) => source === "primary"),
+    rows.flatMap(({ source, steam64, userId }) =>
+      source === "gameplay_alias" && steam64 ? [{ steam64, userId }] : [],
+    ),
   ] as const;
-}
-
-async function loadGameplayIdentityRows(database: DB, values: readonly string[]) {
-  const queries = gameplayIdentityLookupQueries(database, values);
-  return Promise.all([queries[0](), queries[1]()]);
-}
-
-async function loadGameplayIdentityRowsInTx(tx: TxDb, values: readonly string[]) {
-  const queries = gameplayIdentityLookupQueries(tx, values);
-  const primaryRows = await queries[0]();
-  const aliasRows = await queries[1]();
-  return [primaryRows, aliasRows] as const;
 }
 
 function resolveGameplayIdentityRows(
@@ -111,7 +108,7 @@ function resolveGameplayIdentityRows(
  * A dirty cross-user mapping fails closed instead of choosing an arbitrary row.
  */
 export async function resolveGameplayUsersBySteam64(
-  database: DB,
+  database: GameplayIdentityExecutor,
   steam64Values: readonly string[],
 ): Promise<Map<string, GameplayUserResolution>> {
   const values = [...new Set(steam64Values.filter(isSteam64))];
@@ -120,14 +117,11 @@ export async function resolveGameplayUsersBySteam64(
   return resolveGameplayIdentityRows(values, primaryRows, aliasRows);
 }
 
-export async function resolveGameplayUsersBySteam64InTx(
+export function resolveGameplayUsersBySteam64InTx(
   tx: TxDb,
   steam64Values: readonly string[],
 ): Promise<Map<string, GameplayUserResolution>> {
-  const values = [...new Set(steam64Values.filter(isSteam64))];
-  if (values.length === 0) return new Map();
-  const [primaryRows, aliasRows] = await loadGameplayIdentityRowsInTx(tx, values);
-  return resolveGameplayIdentityRows(values, primaryRows, aliasRows);
+  return resolveGameplayUsersBySteam64(tx, steam64Values);
 }
 
 export async function resolveGameplayUserBySteam64(
@@ -159,7 +153,7 @@ function steam64ConflictFromRows(
  * receives whether another user owns the value; no other account is disclosed.
  */
 export async function findSteam64Conflict(
-  database: DB,
+  database: GameplayIdentityExecutor,
   steam64: string,
   excludeUserId?: string,
 ): Promise<Steam64Conflict | null> {
@@ -168,35 +162,12 @@ export async function findSteam64Conflict(
   return steam64ConflictFromRows(primaryRows, aliasRows, excludeUserId);
 }
 
-async function findSteam64ConflictInTx(
-  tx: TxDb,
-  steam64: string,
-  excludeUserId?: string,
-): Promise<Steam64Conflict | null> {
-  if (!isSteam64(steam64)) return null;
-  const [primaryRows, aliasRows] = await loadGameplayIdentityRowsInTx(tx, [steam64]);
-  return steam64ConflictFromRows(primaryRows, aliasRows, excludeUserId);
-}
-
 export async function assertSteam64Available(
-  database: DB,
+  database: GameplayIdentityExecutor,
   steam64: string,
   excludeUserId?: string,
 ): Promise<void> {
   if (await findSteam64Conflict(database, steam64, excludeUserId)) {
-    throw new AppError(
-      ErrorCode.STEAM_PROFILE_CONFLICT,
-      "该 Steam64 ID 已关联其他账户，请联系管理员处理。",
-    );
-  }
-}
-
-async function assertSteam64AvailableInTx(
-  tx: TxDb,
-  steam64: string,
-  excludeUserId?: string,
-): Promise<void> {
-  if (await findSteam64ConflictInTx(tx, steam64, excludeUserId)) {
     throw new AppError(
       ErrorCode.STEAM_PROFILE_CONFLICT,
       "该 Steam64 ID 已关联其他账户，请联系管理员处理。",
@@ -239,7 +210,7 @@ export async function recordGameplaySteamIdentityInTx(
   }
 
   await lockSteam64(tx, input.steam64);
-  await assertSteam64AvailableInTx(tx, input.steam64, input.userId);
+  await assertSteam64Available(tx, input.steam64, input.userId);
 
   const [existing] = await tx
     .select({ id: userGameplaySteamIds.id })
@@ -341,10 +312,10 @@ export async function changePrimarySteam64InTx(
   for (const steam64 of valuesToLock) await lockSteam64(tx, steam64);
 
   if (input.nextSteam64) {
-    await assertSteam64AvailableInTx(tx, input.nextSteam64, input.userId);
+    await assertSteam64Available(tx, input.nextSteam64, input.userId);
   }
   if (user.steam64 && user.steam64 !== input.nextSteam64) {
-    const oldIdentityConflict = await findSteam64ConflictInTx(tx, user.steam64, input.userId);
+    const oldIdentityConflict = await findSteam64Conflict(tx, user.steam64, input.userId);
     if (oldIdentityConflict) {
       throw new AppError(
         ErrorCode.STEAM_PROFILE_CONFLICT,
