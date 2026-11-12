@@ -75,6 +75,7 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
 
   serverOnly("application_sessions", "账号认证", "服务端会话注册表", "src/lib/auth/session-registry.ts", "只经 cookie 加注册表校验，不开放 Data API。"),
   serverOnly("application_session_controls", "账号认证", "撤销边界与密码更新阻断状态", "src/lib/auth/session-registry.ts", "跨请求撤销与并发颁发边界，只允许服务端操作。"),
+  serverOnly("lineup_population_state", "赛事统计", "公开阵容历史总体版本", "src/lib/matches/lineup-comparison-query.ts", "事务内推进的缓存版本，无历史正文或身份资料。"),
   serverOnly("statistics_projection_repair_cursors", "赛事统计", "后台修复进度", "src/lib/stats/projection-backfill.ts", "后台有界扫描游标，不是统计或发布验收事实。"),
   serverOnly("match_demo_stat_projections", "赛事统计", "版本化每图统计与身份绑定", "src/lib/stats/projection.ts; src/lib/stats/tournament-query.ts", "只经服务端验证当前来源与身份后返回公开统计 DTO。"),
   serverOnly("bet_programs", "BET", "服务端积分预测事实", "src/lib/bet/", "仅经授权服务端操作；不开放浏览器 Data API。"),
@@ -522,7 +523,7 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "match_veto_invalidations",
     "比赛 / BP 缓存交付",
     "按比赛合并的失效 generation 与已交付 watermark，不含身份或申诉正文",
-    "src/lib/matches/veto-room/invalidation.ts; src/lib/scheduler/runners.ts",
+    "src/lib/matches/projection-invalidation/delivery.ts; src/lib/scheduler/runners.ts",
     "同事务登记 BP 事实失效，提交后幂等交付；随比赛删除，不向 Data API 或 Realtime 开放。",
   ),
   serverOnly(

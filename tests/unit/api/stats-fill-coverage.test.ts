@@ -21,7 +21,7 @@ const resource = () => getRuntimeResourceSnapshot().find(row => row.name === "st
 it.each([
   ["platform", () => getPlatformStatsPage({}), reads.tournament],
   ["lineup style", () => getPublicLineupStyle([{ userId: "fixture", name: "Fixture", avatarUrl: null, hasActivePublicSanction: false }]), reads.careers],
-  ["lineup comparison", () => getLineupCareers(["fixture"], "fixture-match", null), reads.lineup],
+  ["lineup comparison", () => getLineupCareers(["fixture"], { matchId: "fixture-match", cutoff: null, revision: "fixture-revision", scheduled: true }), reads.lineup],
 ] as const)("counts the real %s body and releases it after a failed dependency", async (_label, read, dependency) => {
   const before = resource();
   let fail!: (error: Error) => void;

@@ -97,6 +97,8 @@ Preview 先验证 401 访问保护；Production 验证公开入口可访问。�
 
 运行日志从服务 journal 核对，应用不配置外部日志/trace exporter。产品统计密钥轮换同时更新 Worker `SIGNING_KEY` 与应用 `PRODUCT_TELEMETRY_SIGNING_KEY`；`PRODUCT_TELEMETRY_ACCOUNT_KEY` 轮换会改变账号匿名标识，须按当次授权执行。Worker 的查询凭据、保留策略和清理任务保持原配置。
 
+生产服务在自己的 `StateDirectory` 下保留可重建的阵容历史总体。目录跨进程重启和 release 切换复用，由 systemd 创建并限制为服务用户访问。缓存损坏或缺失会按当前数据库版本回填。
+
 ## Production 更新
 
 正式更新使用 [Release workflow](./release.md#3-protected-release-workflow) 的 Linux 路径，保持 migration、checkpoint 与 exact-SHA CI 门槛。构建公开配置写入 production Environment 的 `RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION`；`LINUX_DEPLOY_SSH_KEY` 为专用部署私钥，`LINUX_DEPLOY_KNOWN_HOSTS` 固定已验证主机公钥。SSH root 部署权限须经 owner 授权后建立，禁止把个人 SSH key 上传到 GitHub。安装采用单实例短暂停机切换，公网 canonical 检查失败也会回退上一包；制品、快照及 SSH 事务目录保留作恢复证据。

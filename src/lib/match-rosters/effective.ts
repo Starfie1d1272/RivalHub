@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import type { DB, TxDb } from "@/db/client";
 import type { SelectedFields } from "drizzle-orm/pg-core";
@@ -53,12 +53,18 @@ export function effectiveMatchRosterQuery(
   matchIds: readonly string[],
   includeSubstitutes = false,
 ) {
-  return rosterQuery(database, matchIds, includeSubstitutes, {
-    rosterId: matchRosters.id,
-    displayName: users.displayName,
-    personaName: steamProfiles.personaName,
-    perfectName: users.perfectName,
-  });
+  return rosterQuery(
+    database,
+    matchIds,
+    includeSubstitutes,
+    {
+      rosterId: matchRosters.id,
+      displayName: users.displayName,
+      personaName: steamProfiles.personaName,
+      perfectName: users.perfectName,
+    },
+    true,
+  );
 }
 
 /** Same effective-lineup rules with the avatar needed by the broadcast manifest. */
@@ -66,13 +72,19 @@ export function effectiveMatchRosterWithAvatarQuery(
   database: MatchRosterExecutor,
   matchIds: readonly string[],
 ) {
-  return rosterQuery(database, matchIds, true, {
-    rosterId: matchRosters.id,
-    displayName: users.displayName,
-    personaName: steamProfiles.personaName,
-    perfectName: users.perfectName,
-    avatarUrl: steamProfiles.avatarUrl,
-  });
+  return rosterQuery(
+    database,
+    matchIds,
+    true,
+    {
+      rosterId: matchRosters.id,
+      displayName: users.displayName,
+      personaName: steamProfiles.personaName,
+      perfectName: users.perfectName,
+      avatarUrl: steamProfiles.avatarUrl,
+    },
+    true,
+  );
 }
 
 export async function loadEffectiveMatchRosterIdentities(
@@ -80,7 +92,14 @@ export async function loadEffectiveMatchRosterIdentities(
   matchIds: readonly string[],
 ): Promise<EffectiveMatchRosterIdentity[]> {
   if (!matchIds.length) return [];
-  return rosterQuery(database, matchIds, false, {});
+  return effectiveMatchRosterIdentitiesQuery(database, matchIds);
+}
+
+export function effectiveMatchRosterIdentitiesQuery(
+  database: MatchRosterExecutor,
+  matchIds: readonly string[],
+) {
+  return rosterQuery(database, matchIds, false, {}, false);
 }
 
 function rosterQuery<T extends SelectedFields>(
@@ -88,8 +107,9 @@ function rosterQuery<T extends SelectedFields>(
   matchIds: readonly string[],
   includeSubstitutes: boolean,
   extra: T,
+  withDisplayProfile: boolean,
 ) {
-  return database
+  const query = database
     .select({
       matchId: matchRosters.matchId,
       entryId: matchRosters.entryId,
@@ -105,11 +125,15 @@ function rosterQuery<T extends SelectedFields>(
       eventRosterMembers,
       eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId),
     )
-    .innerJoin(users, eq(users.id, eventRosterMembers.userId))
-    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .innerJoin(users, eq(users.id, eventRosterMembers.userId));
+  return (
+    withDisplayProfile
+      ? query.leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      : query
+  )
     .where(
       and(
-        inArray(matchRosters.matchId, [...matchIds]),
+        sql`${matchRosters.matchId} = ANY(${sql.param(matchIds)}::uuid[])`,
         inArray(matchRosters.status, ["submitted", "confirmed"]),
         ...(includeSubstitutes ? [] : [eq(matchRosterPlayers.isStarter, true)]),
       ),

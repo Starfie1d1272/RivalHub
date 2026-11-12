@@ -10,8 +10,9 @@ Type=simple
 User=rivalhub-production
 Group=rivalhub-production
 WorkingDirectory=/opt/rivalhub-production/current
-StateDirectory=rivalhub-production/db-traffic
+StateDirectory=rivalhub-production/db-traffic rivalhub-production/lineup-population
 StateDirectoryMode=0700
+Environment=RIVALHUB_LINEUP_CACHE_DIRECTORY=/var/lib/rivalhub-production/lineup-population
 Environment=DB_TRAFFIC_SPOOL_DIRECTORY=/var/lib/rivalhub-production/db-traffic
 EnvironmentFile=/etc/rivalhub-production/production.env
 ExecStart=/opt/rivalhub-production/current/runtime/node /opt/rivalhub-production/current/scripts/standby/start-production.mjs
