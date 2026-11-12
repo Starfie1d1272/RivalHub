@@ -19,11 +19,11 @@
 
 赛果、正式名单、当前 Demo 采纳、统计投影与已核实记分板在事务内更新按场 watermark。同场同事务合并事实类别和代次；同值保存、审核时间戳及等价的统计传输 sidecar 跳过统计登记。Demo 原样重传继续核对当前依赖，已有待办由投递 owner 接手。比赛时间与展示路径的刷新独立于统计 tag。
 
-`src/lib/matches/projection-invalidation/` 负责已提交事实的投递。前台写入口和既有 scheduler 共用同一查询、失效计划及按场代次确认。补发按现有 pending index 取最多 50 场；同一批中的平台、赛事及共享展示 tag 各投递一次。Server Action 用 `updateTag`，Route Handler 用 `{ expire: 0 }`。Next 在请求完成时执行 tag 更新，`after` 回调观察当前 handler 的硬过期标记推进后，用一次 CAS 确认已捕获的代次。失败项轮转，未确认项由 scheduler 恢复。重试只投递缓存义务。
+`src/lib/matches/projection-invalidation/` 负责已提交事实的投递。前台写入口和既有 scheduler 共用同一查询、失效计划及按场代次确认。补发按现有 pending index 取最多 50 场，同批共享 tag 各投递一次。Server Action 用 `updateTag`，Route Handler 用 `{ expire: 0 }`。`next-adapter.ts` 是读取 Next 内部 handler 的唯一入口。它在 `after` 中核对各 tag 的硬过期标记，再用一次 CAS 确认捕获的代次。观测失败或无确认依据时保留待办并轮转，重试只投递缓存义务。升级 Next 时用生产构建复核 Action 和 Route Handler 的硬过期回读、失败轮转及调度补发。
 
 单场结果、赛事及平台的统计依赖按范围显式传入。跨赛事身份修改使用全局身份 tag；公开范围由读入口 fresh 校验。普通 season/page 刷新仅更新展示。进行中的 BP 会继续立即过期对应赛事的 BET；仅 lineup、appeal 和普通 veto step 的开赛前及直播变化保留历史统计。旧或未知类别保守处理。
 
-Steam 昵称、站内昵称与完美昵称由展示投影按 UUID 批量读取，附加到已计算的公开 DTO。头像和资料链接继续通过个人资料缓存更新。Steam 身份绑定、退役和账号归并保留跨赛事统计失效。队伍名称仅刷新其变更的 active entry 和平台展示。
+公开统计和荣誉 DTO 通过显式、带类型的展示投影指定选手字段，按 UUID 一次批量读取 Steam 昵称、站内昵称与完美昵称。头像和资料链接通过个人资料缓存更新。Steam 身份绑定、退役和账号归并保留跨赛事统计失效。队伍名称仅刷新其变更的 active entry 和平台展示。
 
 ## 测量边界
 

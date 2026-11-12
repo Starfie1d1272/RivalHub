@@ -71,7 +71,7 @@ session、authorization、admin 与 draft facts 不进入共享 public cache；�
 
 ### Persistence
 
-- `src/db/schema/` 表达当前应用 schema；`drizzle/migrations/` 是唯一 active migration chain。
+- `src/db/schema/` 表达当前应用 schema；`drizzle/migrations/` 是唯一 active migration chain。架构检查按解析后的模块路径约束赛制与资格依赖，schema 使用各自的持久化值契约。
 - `pnpm db:push` 被阻止；远程 schema write 只能走受保护的 staging/release path。
 - 常驻 Node 与 Vercel serverless 使用各自有界的应用连接池；连接获取覆盖普通查询与显式事务，慢获取/失败保留耗时、入队前池计数及复用/建连/排队状态。事务内读取优先合并 SQL，避免跨区往返长期占用连接。
 - 应用代码通过 server-only DB facade 取得 Drizzle client；CLI/runtime exception 使用显式共享 runtime boundary。Pool query 仅对明确建立连接前的失败自动重试一次；连接中断导致结果不明时记录告警并向调用方抛错，不依据 SQL 首词重放，后续恢复由 command 的幂等/状态回读契约负责。显式事务不自动重跑。

@@ -16,7 +16,7 @@ const cacheMock = vi.hoisted(() => ({ revalidatePath: vi.fn(), revalidateTag: vi
 vi.mock("next/cache", () => cacheMock);
 vi.mock("@/lib/matches/projection-invalidation/next-adapter", async (original) => ({
   ...await original<typeof import("@/lib/matches/projection-invalidation/next-adapter")>(),
-  acknowledgeAfterExpiry: async (_tags: string[], acknowledge: () => Promise<void>) => acknowledge(),
+  observeHardExpiry: async (_tags: string[], settle: (confirmed: boolean) => Promise<void>) => settle(true),
 }));
 vi.mock("@/lib/auth/session", async original => ({
   ...await original<typeof import("@/lib/auth/session")>(),

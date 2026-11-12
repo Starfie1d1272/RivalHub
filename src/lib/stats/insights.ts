@@ -50,6 +50,7 @@ type ComparableObservation = InsightObservation & { coverage: string };
 export interface Insight {
   rule: InsightRule;
   family: InsightFamily;
+  entityType: InsightEntity["type"];
   entityKey: string;
   entityName: string;
   entityHref: string;
@@ -182,6 +183,7 @@ export function buildInsights(entities: readonly InsightEntity[], scope: string)
       candidates.push({
         rule,
         family,
+        entityType: entity.type,
         entityKey: entity.key,
         entityName: entity.name,
         entityHref: entity.href,

@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { getCacheHandler } from "next/dist/server/use-cache/handlers";
+import { captureException } from "@/lib/observability/server";
 import { expirePublicTag, revalidateMatchPaths } from "@/lib/revalidation";
 import { planMatchProjectionInvalidation } from "./plan";
 
@@ -29,20 +30,36 @@ export function revalidateMatchProjectionPaths(
   expirePublicTag(plan.immediateTag, options.mode ?? "action", options.seenTags);
 }
 
-/** Observe the actual Next handler. A request can close before its queued revalidations run. */
-export async function acknowledgeAfterExpiry(
+/** Next's public revalidation calls enqueue work. Keep its handler observation here. */
+export async function observeHardExpiry(
   tags: readonly string[],
-  acknowledge: () => Promise<void>,
+  settle: (confirmed: boolean) => Promise<void>,
 ) {
-  const handler = getCacheHandler("remote");
-  if (!handler) throw new Error("Public cache handler is unavailable.");
-  const expirations = () => Promise.all(tags.map((tag) => handler.getExpiration([tag])));
-  const before = await expirations();
-  after(async () => {
-    const applied = await expirations();
-    // Hard expiry can replace a previous SWR deadline that was in the future.
-    const now = Date.now() + 1;
-    if (applied.every((value, index) => value > 0 && value <= now && value !== before[index]))
-      await acknowledge();
-  });
+  const report = (error: unknown) =>
+    captureException("match.projection_invalidation.expiry_observation_failed", error, {
+      scope: "match",
+      operation: "projection-invalidation.observe-expiry",
+      retryable: true,
+    });
+  try {
+    const handler = getCacheHandler("remote");
+    if (!handler || !tags.length) throw new Error("Hard-expiry observation is unavailable.");
+    const expirations = async () => Promise.all(tags.map((tag) => handler.getExpiration([tag])));
+    const before = await expirations();
+    after(async () => {
+      const applied = await expirations().catch((error: unknown) => {
+        report(error);
+        return [];
+      });
+      // Next rounds its monotonic clock to milliseconds. Hard expiry can replace a future SWR deadline.
+      const now = Date.now() + 1;
+      await settle(
+        applied.length === before.length &&
+          applied.every((value, index) => value > 0 && value <= now && value !== before[index]),
+      );
+    });
+  } catch (error) {
+    report(error);
+    await settle(false);
+  }
 }

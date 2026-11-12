@@ -111,6 +111,14 @@ it("retries committed match statistics invalidation through the scheduler for ar
   await expect(runMatchVetoScheduledJob()).rejects.toThrow("cache delivery unavailable");
   expect((await watermark(f.matchId))!.generation).toBeGreaterThan((await watermark(f.matchId))!.publishedGeneration);
   cache.revalidateTag.mockReset();
+  await db.update(schema.matchVetoInvalidations).set({ updatedAt: new Date(0) })
+    .where(eq(schema.matchVetoInvalidations.matchId, f.matchId));
+  expect(await runMatchVetoScheduledJob()).toMatchObject({ businessTransitions: 0, result: { changed: 0, deliveryProcessed: 1 } });
+  const unconfirmed = (await watermark(f.matchId))!;
+  await flushProjectionAcknowledgements(false);
+  const rotated = (await watermark(f.matchId))!;
+  expect(rotated.publishedGeneration).toBe(unconfirmed.publishedGeneration);
+  expect(rotated.updatedAt.getTime()).toBeGreaterThan(unconfirmed.updatedAt.getTime());
   expect(await runMatchVetoScheduledJob()).toMatchObject({ businessTransitions: 0, result: { changed: 0, deliveryProcessed: 1 } });
   await flushProjectionAcknowledgements();
   expect((await watermark(f.matchId))!.generation).toBe((await watermark(f.matchId))!.publishedGeneration);
