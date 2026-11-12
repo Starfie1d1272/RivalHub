@@ -5,6 +5,19 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.46]
+
+### Fixed
+
+- 比赛统计按本场、赛事和平台的实际依赖刷新。原样重传 Demo 保留原回执，批量投递合并共享失效，未确认的待办继续由调度补发。
+- 公开统计和荣誉独立更新选手展示名称。头像、昵称和资料链接变更时复用数值统计，Steam 身份更正继续更新历史归属。
+- Preview 将大型 Demo 证据和统计投影分批导出，保留完整脱敏镜像。
+
+### Changed
+
+- 两场待开赛比赛共享公开阵容总体，减少冷读往返和数据库传输。历史总体按数据与计算版本持久复用，正式更正、撤销身份及公开范围变化继续更新结果。
+- 使用 `pnpm db:preview:refresh` 按需刷新 Preview，导入失败时复用同一加密制品。
+
 ## [2.25.45]
 
 ### Security
@@ -3658,6 +3671,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.46]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.45...v2.25.46
 [2.25.45]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.44...v2.25.45
 [2.25.44]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.43...v2.25.44
 [2.25.43]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.42...v2.25.43
