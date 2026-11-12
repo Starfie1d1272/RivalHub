@@ -69,7 +69,7 @@ jobs:
           printf '%s\n' "$RIVALHUB_PREVIEW_SSH_KEY" > "$key"
           printf '%s\n' "$LINUX_DEPLOY_KNOWN_HOSTS" > "$hosts"
           unset RIVALHUB_PREVIEW_SSH_KEY LINUX_DEPLOY_KNOWN_HOSTS
-          timeout 150s ssh -n -T -C -p 52222 -i "$key" -o BatchMode=yes -o IdentitiesOnly=yes \
+          timeout 740s ssh -n -T -C -p 52222 -i "$key" -o BatchMode=yes -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null \
             -o "UserKnownHostsFile=$hosts" -o ConnectTimeout=10 root@47.103.131.158 > "$projection"
           unlink "$key"

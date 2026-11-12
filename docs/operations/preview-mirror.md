@@ -2,7 +2,7 @@
 
 RivalHub 的服务器预览站固定连接 `rivalhub-dev`，不连接 production，也不读取 #569 的正式 R2 灾备 artifact。`rivalhub-dev` 是可牺牲 shared staging：Preview 可完整读写，下一次 refresh 覆盖测试数据。镜像由受保护的 `Refresh Preview Mirror` workflow 生成：production job 只读导出，dev job 在固定的 `dtdzxnzjtohzjmfkighg` 上重置和导入。
 
-生产导出通过主机上的受限 SSH 命令读取。专用公钥只允许执行生产包内的 `scripts/standby/preview-export.sh`。命令拒绝传入的远程命令，限制并发和总时长，以应用用户运行，在同一个只读快照内读取迁移前缀、表列清单和审核过的投影。GitHub runner 核对主机包与公开部署身份、迁移前缀和投影列。公开 Storage 读取限于允许的对象路径和总字节数。
+生产导出通过主机上的受限 SSH 命令读取。专用公钥只允许执行生产包内的 `scripts/standby/preview-export.sh`。命令拒绝传入的远程命令，串行运行并限制总时长，以应用用户在同一个只读快照中读取迁移前缀、表列清单和审核过的投影。Demo 原始证据、统计投影与紧凑表按各自批量读取，保留全部镜像字段。GitHub runner 核对主机包与公开部署身份、迁移前缀和投影列。公开 Storage 读取限于允许的对象路径和总字节数。
 
 `rivalhub_preview_exporter` 保持 `NOLOGIN`。托管 Supabase 的 `pg_net` 通过 `PUBLIC` 向直连数据库角色授予请求队列权限。更新投影时通过 `pnpm exec tsx scripts/db/preview/reader-sql.ts` 为 active chain 生成新的 `*_preview_reader.sql` custom migration，使用 `--check` 核对最新定义。
 
