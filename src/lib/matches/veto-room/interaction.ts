@@ -5,7 +5,7 @@ import { getCurrentUserAuthorization } from "@/lib/auth/session";
 import { logEvent } from "@/lib/observability/server";
 import { assertVetoRoomReadable } from "./access";
 import { getVetoRoomView } from "./read-model";
-import { deliverMatchProjectionInvalidation } from "@/lib/matches/projection-invalidation/delivery";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
 import {
   reconcileVetoRoomReceipt,
   requestVetoStartReceipt,
@@ -83,7 +83,8 @@ export async function finishVetoInteraction<T>(
 ) {
   let invalidation: "complete" | "pending" = "pending";
   try {
-    invalidation = await deliverMatchProjectionInvalidation(matchId, mode);
+    await deliverMatchProjectionInvalidations(mode, [matchId]);
+    invalidation = "complete";
   } catch {
     // The durable generation stays pending. Even a no-op reconcile retries it.
     logEvent({

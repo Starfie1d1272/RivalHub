@@ -4,13 +4,13 @@ import { writeAuditInTx } from "@/lib/audit/write";
 
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchRosters, matchRosterPlayers, matches, seasons } from "@/db/schema";
+import { matchRosters, matchRosterPlayers, matches } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { getMatchOrThrow, actionError } from "@/lib/action-utils";
 import { captureException } from "@/lib/observability/server";
-import { revalidateMatchPaths } from "@/lib/revalidation";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
 import { confirmMatchRosterInTx, persistMatchRosterInTx } from "@/lib/match-rosters/service";
 import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { getReadbackMatchOrThrow } from "@/lib/matches/readback-scope";
@@ -18,17 +18,9 @@ import { rosterReadbackVersion, type RosterReadback } from "@/lib/matches/operat
 import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { getEntryIdForRepresentative } from "./_shared";
 
-async function revalidateAfterRosterChange(match: {
-  seasonId: string;
-  id: string;
-}): Promise<boolean> {
+async function revalidateAfterRosterChange(matchId: string): Promise<boolean> {
   try {
-    const season = await db.query.seasons.findFirst({
-      where: eq(seasons.id, match.seasonId),
-      columns: { slug: true },
-    });
-    if (!season) throw new Error("Roster refresh season is unavailable");
-    revalidateMatchPaths(season.slug, match.id);
+    await deliverMatchProjectionInvalidations("action", [matchId]);
     return false;
   } catch (error) {
     captureException("action.roster_refresh_failure", error, {
@@ -98,7 +90,7 @@ export async function submitMatchRoster(
       return summary.rosterId;
     });
 
-    const refreshPending = await revalidateAfterRosterChange(match);
+    const refreshPending = await revalidateAfterRosterChange(match.id);
 
     return ok({ rosterId, refreshPending });
   } catch (e) {
@@ -172,7 +164,7 @@ export async function adminSelectMatchRoster(
       return summary.rosterId;
     });
 
-    const refreshPending = await revalidateAfterRosterChange(match);
+    const refreshPending = await revalidateAfterRosterChange(match.id);
 
     return ok({ rosterId, refreshPending });
   } catch (e) {
@@ -212,10 +204,7 @@ export async function confirmMatchRoster(rosterId: string): Promise<
       }),
     );
 
-    const refreshPending = await revalidateAfterRosterChange({
-      seasonId: match.seasonId,
-      id: match.id,
-    });
+    const refreshPending = await revalidateAfterRosterChange(match.id);
 
     return ok({
       refreshPending,
@@ -265,7 +254,7 @@ export async function unlockMatchRoster(
       });
     });
 
-    const refreshPending = await revalidateAfterRosterChange(match);
+    const refreshPending = await revalidateAfterRosterChange(match.id);
 
     return ok({ refreshPending });
   } catch (e) {
@@ -280,7 +269,7 @@ export async function retryMatchRosterRefresh(matchId: string): Promise<ActionRe
     const match = await getMatchOrThrow(matchId);
     if (!(await getEntryIdForRepresentative(session.userId, match)))
       await requireSeasonAdmin(match.seasonId);
-    if (await revalidateAfterRosterChange(match))
+    if (await revalidateAfterRosterChange(match.id))
       return fail({
         code: ErrorCode.INTERNAL_ERROR,
         message: "名单已提交，刷新仍未完成，请稍后重试刷新。",

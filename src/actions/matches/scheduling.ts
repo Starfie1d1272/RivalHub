@@ -47,7 +47,7 @@ export async function proposeMatchTime(
       coverageSlotId,
     );
 
-    revalidateMatchPaths(season.slug, matchId, { statistics: false });
+    revalidateMatchPaths(season.slug, matchId);
 
     return ok({ proposalId: proposal.id });
   } catch (e) {
@@ -71,7 +71,7 @@ export async function respondToTimeProposal(
 
     let refreshPending = false;
     try {
-      revalidateMatchPaths(outcome.seasonSlug, outcome.matchId, { statistics: false });
+      revalidateMatchPaths(outcome.seasonSlug, outcome.matchId);
     } catch (error) {
       refreshPending = true;
       captureException("action.scheduling_refresh_failure", error, {
@@ -155,7 +155,7 @@ export async function retryTimeProposalRefresh(proposalId: string): Promise<Acti
       .from(seasons)
       .where(eq(seasons.id, match.seasonId));
     if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
-    revalidateMatchPaths(season.slug, match.id, { statistics: false });
+    revalidateMatchPaths(season.slug, match.id);
     return ok(undefined);
   } catch (error) {
     return actionError("retryTimeProposalRefresh", error);
@@ -179,7 +179,7 @@ async function saveAdminSchedule(
     const admin = await requireSeasonAdmin(match.seasonId);
     await setAdminSchedule(matchId, match.seasonId, admin.userId, admin.email, time, intent);
     const season = await getSeasonOrThrow(match.seasonId);
-    revalidateMatchPaths(season.slug, matchId, { statistics: false });
+    revalidateMatchPaths(season.slug, matchId);
     return ok(undefined);
   } catch (error) {
     return actionError("setMatchScheduledAt", error);

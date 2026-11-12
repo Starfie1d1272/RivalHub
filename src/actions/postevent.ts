@@ -33,9 +33,9 @@ async function seasonAndAdminOrThrow(seasonId: string) {
   return { season, admin: await requireSeasonAdmin(seasonId) };
 }
 
-function revalidatePostEvent(slug: string): void {
+function revalidatePostEvent({ slug, id }: { slug: string; id: string }): void {
   updatePublicHomeTag();
-  updatePublicStatsTag();
+  updatePublicStatsTag("season_or_other", { seasonId: id });
   revalidatePath(`/admin/${slug}`);
   revalidatePath(`/${slug}`);
   revalidatePath(`/${slug}/matches`);
@@ -52,7 +52,7 @@ export async function confirmMajorFinalResult(
     const result = await db.transaction((tx) =>
       confirmMajorFinalResultInTx(tx, { seasonId: season.id, actorId: auditActorId(admin) }),
     );
-    revalidatePostEvent(season.slug);
+    revalidatePostEvent(season);
     return ok(result);
   } catch (error) {
     return actionError("confirmMajorFinalResult", error);
@@ -87,7 +87,7 @@ export async function createPostEventAdjudication(
         actorId: auditActorId(admin),
       }),
     );
-    revalidatePostEvent(season.slug);
+    revalidatePostEvent(season);
     return ok(result);
   } catch (error) {
     return actionError("createPostEventAdjudication", error);
@@ -115,7 +115,7 @@ export async function revokePostEventAdjudication(
         reason: parsed.data.reason,
       }),
     );
-    revalidatePostEvent(season.slug);
+    revalidatePostEvent(season);
     return ok(result);
   } catch (error) {
     return actionError("revokePostEventAdjudication", error);
@@ -150,7 +150,7 @@ export async function grantTournamentHonor(
         actorId: auditActorId(admin),
       }),
     );
-    revalidatePostEvent(season.slug);
+    revalidatePostEvent(season);
     return ok(result);
   } catch (error) {
     return actionError("grantTournamentHonor", error);
@@ -178,7 +178,7 @@ export async function revokeTournamentHonor(
         reason: parsed.data.reason,
       }),
     );
-    revalidatePostEvent(season.slug);
+    revalidatePostEvent(season);
     return ok(result);
   } catch (error) {
     return actionError("revokeTournamentHonor", error);
@@ -195,7 +195,7 @@ export async function archiveMajorTournament(
     const result = await db.transaction((tx) =>
       archiveTournamentInTx(tx, { seasonId: season.id, actorId: auditActorId(admin) }),
     );
-    revalidatePostEvent(season.slug);
+    revalidatePostEvent(season);
     return ok(result);
   } catch (error) {
     return actionError("archiveMajorTournament", error);

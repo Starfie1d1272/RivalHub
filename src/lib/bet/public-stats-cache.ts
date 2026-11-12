@@ -5,7 +5,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
-import { PUBLIC_STATS_TAG, publicSeasonTag, publicBetTag } from "@/lib/cache/tags";
+import { ALL_EVENT_STATS_TAG, eventStatsTag, publicSeasonTag, publicBetTag } from "@/lib/cache/tags";
 import { preserveBetPublicFillFailure } from "./public-stats-failure";
 import type { UnifiedBoardScope } from "./board-read";
 import {
@@ -18,7 +18,7 @@ async function cachedStats(seasonId: string, slug: string, scope: BetPublicStats
   "use cache: remote";
   // Public aggregates stay warm until their domain tags are invalidated.
   cacheLife({ stale: 0, revalidate: Infinity, expire: Infinity });
-  cacheTag(publicBetTag(seasonId), publicSeasonTag(slug), PUBLIC_STATS_TAG);
+  cacheTag(publicBetTag(seasonId), publicSeasonTag(slug), eventStatsTag(seasonId), ALL_EVENT_STATS_TAG);
   const done = beginRuntimeResource("stats.public.fill");
   try {
     return await withDbTrafficSource("bet.fill", async () => {

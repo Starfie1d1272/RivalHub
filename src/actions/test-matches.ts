@@ -8,7 +8,8 @@ import { db } from "@/db/client";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { actionError, getMatchOrThrow, getSeasonOrThrow } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { revalidateMatchPaths, updatePublicSeasonTags } from "@/lib/revalidation";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
+import { updatePublicSeasonTags } from "@/lib/revalidation";
 import { revalidatePath } from "next/cache";
 import { ok } from "@/types/action";
 import { createTestMatchInTx, testMatchInput } from "@/lib/matches/test-matches";
@@ -55,7 +56,7 @@ export async function createTestMatch(input: unknown) {
     const values = testMatchInput.parse(input);
     const admin = await requireSeasonAdmin(values.seasonId);
     const result = await db.transaction((tx) => createTestMatchInTx(tx, values, admin.userId));
-    updatePublicSeasonTags(result.seasonSlug, values.seasonId, { statistics: false });
+    updatePublicSeasonTags(result.seasonSlug, values.seasonId);
     revalidatePath(`/admin/${result.seasonSlug}/test-matches`);
     revalidatePath("/my/competitions");
     return ok(result);
@@ -126,7 +127,7 @@ export async function concludeTestMatch(
           : concludeUnassociatedMatchInTx(tx, { matchId, actorId: admin.userId, conclusion }),
     );
     const season = await getSeasonOrThrow(match.seasonId);
-    revalidateMatchPaths(season.slug, matchId);
+    await deliverMatchProjectionInvalidations("action", [matchId]);
     revalidatePath(`/admin/${season.slug}/test-matches`);
     revalidatePath("/my/competitions");
     return ok(undefined);

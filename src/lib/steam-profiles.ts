@@ -164,7 +164,7 @@ export async function loadOrFetchSteamProfiles(
   if (changed.length > 0)
     after(() => {
       revalidatePublicHomeTag();
-      revalidatePublicStatsTag("identity");
+      revalidatePublicStatsTag("identity", "all");
     });
   // A concurrent insert may have already stored identical display fields.
   // Preserve the successful fetch time without counting it as a display change.

@@ -1,3 +1,6 @@
+vi.mock("@/lib/matches/projection-invalidation/delivery", () => ({
+  deliverMatchProjectionInvalidations: vi.fn(async () => ({ processed: 0 })),
+}));
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";

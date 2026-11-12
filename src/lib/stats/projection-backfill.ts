@@ -416,6 +416,7 @@ export async function reconcileMissingStatisticsProjections(
     wrapped: false,
     budgetExhausted: false,
   };
+  const affectedMatchIds = new Set<string>();
   while (report.scanned < scanLimit) {
     if (report.rebuilt + report.invalid + report.failed >= limit || Date.now() >= deadline) {
       report.budgetExhausted = true;
@@ -423,9 +424,9 @@ export async function reconcileMissingStatisticsProjections(
     }
     // Claim one map at a time: advancing past an unprocessed batch suffix can
     // starve it forever when the same early maps repeatedly exhaust the budget.
-    let matchMapId: string | null;
+    let candidate: Awaited<ReturnType<typeof claimNextProjectionRepairMap>>;
     try {
-      matchMapId = await claimNextProjectionRepairMap(database);
+      candidate = await claimNextProjectionRepairMap(database);
     } catch (error) {
       captureException("stats.projection_repair.failure", error, {
         scope: "stats",
@@ -437,11 +438,12 @@ export async function reconcileMissingStatisticsProjections(
       report.failed++;
       break;
     }
-    report.afterMapId = matchMapId;
-    if (!matchMapId) {
+    report.afterMapId = candidate?.matchMapId ?? null;
+    if (!candidate) {
       report.wrapped = true;
       break;
     }
+    const { matchMapId, matchId } = candidate;
     report.candidates++;
     report.scanned++;
     try {
@@ -453,6 +455,7 @@ export async function reconcileMissingStatisticsProjections(
           quarantineInvalid: true,
         });
       });
+      if (outcome === "rebuilt" || outcome === "invalid") affectedMatchIds.add(matchId);
       if (outcome === "rebuilt") report.rebuilt++;
       else if (outcome === "invalid") report.invalid++;
       else report.skipped++;
@@ -467,13 +470,14 @@ export async function reconcileMissingStatisticsProjections(
   }
   return {
     ...report,
+    affectedMatchIds: [...affectedMatchIds],
     budgetExhausted: report.budgetExhausted || report.scanned === scanLimit,
     durationMs: Date.now() - startedAt,
   };
 }
 
 /** Claims commit before identity locks; a lost claim is revisited on wrap. */
-async function claimNextProjectionRepairMap(database: DB): Promise<string | null> {
+async function claimNextProjectionRepairMap(database: DB) {
   return database.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL statement_timeout = '5s'`);
     await tx
@@ -509,7 +513,7 @@ async function claimNextProjectionRepairMap(database: DB): Promise<string | null
       )
       .as("current_demo_import");
     const candidates = await tx
-      .select({ matchMapId: latest.matchMapId })
+      .select({ matchMapId: latest.matchMapId, matchId: matchMaps.matchId })
       .from(latest)
       .innerJoin(matchMaps, eq(matchMaps.id, latest.matchMapId))
       .leftJoin(
@@ -537,7 +541,7 @@ async function claimNextProjectionRepairMap(database: DB): Promise<string | null
       .where(
         eq(statisticsProjectionRepairCursors.projectionVersion, STATISTICS_PROJECTION_VERSION),
       );
-    return afterMapId;
+    return candidates[0];
   });
 }
 

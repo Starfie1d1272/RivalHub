@@ -391,7 +391,7 @@ export async function moveSeasonContact(
 }
 
 function revalidateSeasonLogo(seasonId: string, slug: string): void {
-  updatePublicSeasonTags(slug, undefined, { statistics: false });
+  updatePublicSeasonTags(slug);
   revalidateSeasonInfo(seasonId, slug);
   revalidatePath(`/admin/${slug}/settings`);
   revalidatePath(`/${slug}`, "layout");

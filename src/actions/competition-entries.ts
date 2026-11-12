@@ -31,8 +31,7 @@ import { updatePublicSeasonTags, updatePublicStatsTag } from "@/lib/revalidation
 const uuid = z.guid();
 
 function revalidateEntry(seasonSlug: string, entryId?: string): void {
-  updatePublicStatsTag();
-  updatePublicSeasonTags(seasonSlug, undefined, { statistics: false });
+  updatePublicSeasonTags(seasonSlug);
   revalidatePath(`/${seasonSlug}/register`);
   revalidatePath(`/admin/${seasonSlug}/registrations`);
   revalidatePath("/my/competitions");
@@ -313,6 +312,7 @@ export async function reviewCompetitionEntry(input: {
         actorId: auditActorId(admin),
       }),
     );
+    updatePublicStatsTag("season_or_other", { seasonId: existing.competitionId });
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
   } catch (error) {

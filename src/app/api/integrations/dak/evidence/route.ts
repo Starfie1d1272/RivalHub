@@ -7,8 +7,8 @@ import {
 } from "@/lib/demo-integration/http";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { BoundedJsonError, readBoundedRequestJson } from "@/lib/integrations/http-body";
-import type { RivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
-import { revalidatePublicStatsTag } from "@/lib/revalidation";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
+import { captureException } from "@/lib/observability/server";
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 
@@ -44,18 +44,25 @@ export async function POST(request: Request): Promise<Response> {
         );
       }
       diagnostics.phase = "domain";
-      const result = await submitRivalHubEvidence({
+      const { response, pendingMatchId } = await submitRivalHubEvidence({
         input,
         pairingId: principal.pairing.id,
         pairingScope: principal.pairing,
         idempotencyKey: request.headers.get("idempotency-key"),
       });
-      // A newer needs_attention import also changes which lineage is current and
-      // can remove an older confirmed sample from public statistics.
       diagnostics.phase = "revalidation";
-      // The submission command already validated the complete Evidence payload.
-      revalidatePublicStatsTag("dak.evidence", (input as RivalHubDemoEvidenceV1).target.seasonId);
-      return integrationJson(request, result);
+      if (pendingMatchId) {
+        try {
+          await deliverMatchProjectionInvalidations("route", [pendingMatchId]);
+        } catch (error) {
+          captureException("demo.evidence.invalidation_pending", error, {
+            scope: "demo",
+            operation: "evidence.invalidate",
+            retryable: true,
+          });
+        }
+      }
+      return integrationJson(request, response);
     },
   );
 }

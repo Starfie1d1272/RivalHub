@@ -1,3 +1,6 @@
+vi.mock("@/lib/matches/projection-invalidation/delivery", () => ({
+  deliverMatchProjectionInvalidations: vi.fn(async () => ({ processed: 0 })),
+}));
 /**
  * PR G1 — Major 阵容安全真实 PostgreSQL 集成测试。
  *

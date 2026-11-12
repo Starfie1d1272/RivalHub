@@ -14,6 +14,10 @@ const updateMock = vi.hoisted(() => vi.fn());
 const cacheMock = vi.hoisted(() => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn(), updateTag: vi.fn() }));
 
 vi.mock("next/cache", () => cacheMock);
+vi.mock("@/lib/matches/projection-invalidation/next-adapter", async (original) => ({
+  ...await original<typeof import("@/lib/matches/projection-invalidation/next-adapter")>(),
+  acknowledgeAfterExpiry: async (_tags: string[], acknowledge: () => Promise<void>) => acknowledge(),
+}));
 vi.mock("@/lib/auth/session", async original => ({
   ...await original<typeof import("@/lib/auth/session")>(),
   getCurrentUserAuthorization: authorizationMock,
@@ -78,12 +82,17 @@ beforeEach(() => {
     chain.from.mockImplementation(table => { selectedTable = String(table[Symbol.for("drizzle:Name")]); return chain; });
     chain.innerJoin.mockReturnValue(chain);
     chain.leftJoin.mockReturnValue(chain);
-    chain.where.mockReturnValue(chain);
+    chain.where.mockImplementation(() => selectedTable === "match_veto_invalidations" ? chain.limit() : chain);
     chain.limit.mockImplementation(async () => selectedTable === "match_veto_invalidations"
-      ? deliveryState.pending ? [{ generation: BigInt(7), slug: "draft-season", seasonId: "season-1", matchStatus: "finished", affectedFacts: ["veto"] }] : []
+      ? deliveryState.pending ? [{ matchId, generation: BigInt(7), slug: "draft-season", seasonId: "season-1", matchStatus: "finished", affectedFacts: ["veto"] }] : []
       : [{ id: "season-1", slug: "draft-season", seasonId: "season-1", entryAId: "entry-a", entryBId: "entry-b", stage: "stage" }]);
-    const updateChain = { set: vi.fn(), where: vi.fn(), returning: vi.fn(async () => { deliveryState.pending = false; return [{ matchId }]; }) };
-    updateChain.set.mockReturnValue(updateChain); updateChain.where.mockReturnValue(updateChain);
+    const updateChain = { set: vi.fn(), where: vi.fn() };
+    updateChain.set.mockImplementation((patch) => {
+      updateChain.where.mockImplementation(async () => {
+        if ("publishedGeneration" in patch) deliveryState.pending = false;
+      });
+      return updateChain;
+    });
     updateMock.mockReturnValue(updateChain);
     selectMock.mockReturnValue(chain);
     publicSeasonMock.mockResolvedValue(null);

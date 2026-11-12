@@ -43,7 +43,7 @@ const teamName = teamNameSchema;
 const description = z.string().trim().max(500);
 
 function revalidateTeam(slug?: string, options: { statistics?: boolean } = {}): void {
-  if (options.statistics !== false) updatePublicStatsTag();
+  if (options.statistics !== false) updatePublicStatsTag("season_or_other", "all");
   revalidatePath("/teams");
   revalidatePath("/teams/recruitment");
   revalidatePath("/my/teams");

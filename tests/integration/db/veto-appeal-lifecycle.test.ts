@@ -1,11 +1,11 @@
-import { deliverExistingFixtureVetoInvalidations } from "./harness/veto-delivery";
+import { deliverExistingFixtureVetoInvalidations, flushProjectionAcknowledgements } from "./harness/veto-delivery";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 // Future immutable producer build; production remains reader1/publisher0.
 vi.mock("@/lib/matches/veto-room/lifecycle-contract.json", () => ({ default: { readerVersion: 1, publisherVersion: 1 } }));
 vi.mock("@/lib/matches/projection-invalidation/next-adapter", () => ({ revalidateMatchProjectionPaths: vi.fn() }));
-vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
+vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), expirePublicTag: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { lockMatchInTx } from "@/lib/matches/locking";
@@ -110,6 +110,7 @@ describe("BP appeal gameplay lifecycle", () => {
     // A worker can contain earlier reader0 history. Drain it through the real
     // future producer before asserting this fixture's global due transition.
     await runMatchVetoScheduledJob();
+    await flushProjectionAcknowledgements();
     const f = await fixture();
     await submit(f);
     const pool = createLocalPool();
@@ -122,6 +123,7 @@ describe("BP appeal gameplay lifecycle", () => {
       await db.update(schema.matchMaps).set({ startedAt: NOW }).where(eq(schema.matchMaps.id, f.mapOneId));
       expect(await due()).toBe(true);
       expect(await runMatchVetoScheduledJob()).toMatchObject({ result: { changed: 1 }, businessTransitions: 1 });
+      await flushProjectionAcknowledgements();
       expect(await reconcileVetoRoom(f.matchId)).toBe("idempotent");
       expect((await appeals(f))[0]!.status).toBe("closed");
       expect(await due()).toBe(false);

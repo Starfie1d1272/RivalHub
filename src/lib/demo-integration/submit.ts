@@ -76,7 +76,7 @@ function parseSubmission(input: unknown): RivalHubEvidenceSubmission {
 }
 
 async function validateEvidenceForTarget(tx: TxDb, evidence: RivalHubEvidenceSubmission) {
-  const target = await loadCanonicalTarget(tx, evidence.target);
+  const target = await loadCanonicalTarget(tx, evidence.target, true);
   const validation = await validateCanonicalTarget(tx, evidence, target);
   const currentRevision = buildEvidenceRevisionForTarget(target);
   const issues = [...validation.issues];
@@ -94,7 +94,7 @@ async function validateEvidenceForTarget(tx: TxDb, evidence: RivalHubEvidenceSub
 
 export async function submitRivalHubEvidence(
   args: SubmitEvidenceArgs,
-): Promise<EvidenceSubmissionResponse> {
+): Promise<{ response: EvidenceSubmissionResponse; pendingMatchId?: string }> {
   const evidence = parseSubmission(args.input);
   assertEvidenceSeasonInPairingScope(args.pairingScope, evidence.target.seasonId);
   if (args.idempotencyKey && (args.idempotencyKey.length < 8 || args.idempotencyKey.length > 200)) {
@@ -132,6 +132,10 @@ export async function submitRivalHubEvidence(
       tx,
       evidence,
     );
+    const receipt = (response: EvidenceSubmissionResponse, changed = false) => ({
+      response,
+      pendingMatchId: changed || target.pendingInvalidation ? target.match.id : undefined,
+    });
     const lineage = await resolveDemoImportLineageInTx(tx, {
       matchMapId: target.map.id,
       demoSha256: evidence.source.demoSha256,
@@ -168,8 +172,8 @@ export async function submitRivalHubEvidence(
             ),
           );
         }
-        if (confirmedIssues.length === 0) return responseFor(same, []);
-        return { ...responseFor(same, confirmedIssues), status: "needs_attention" };
+        if (confirmedIssues.length === 0) return receipt(responseFor(same, []));
+        return receipt({ ...responseFor(same, confirmedIssues), status: "needs_attention" });
       }
       if (same.status === "needs_attention" && issues.length === 0) {
         await promoteDemoImportInTx({
@@ -183,14 +187,11 @@ export async function submitRivalHubEvidence(
           auditAction: "match.demo.auto_confirm",
           retryPromotion: true,
         });
-        return {
-          ...responseFor({ ...same, status: "confirmed", issues: [] }),
-          status: "synced",
-          issues: [],
-        };
+        return receipt(responseFor({ ...same, status: "confirmed", issues: [] }), true);
       }
-      await tx.update(matchDemoImports).set({ issues }).where(eq(matchDemoImports.id, same.id));
-      return responseFor({ ...same, issues }, issues);
+      if (sha256Json(same.issues) !== sha256Json(issues))
+        await tx.update(matchDemoImports).set({ issues }).where(eq(matchDemoImports.id, same.id));
+      return receipt(responseFor(same, issues));
     }
 
     const now = new Date();
@@ -245,12 +246,12 @@ export async function submitRivalHubEvidence(
         },
       });
     }
-    return {
+    return receipt({
       status: status === "confirmed" ? "synced" : "needs_attention",
       importId: created.id,
       matchMapId: created.matchMapId,
       demoSha256: created.demoSha256,
       issues,
-    };
+    }, true);
   });
 }

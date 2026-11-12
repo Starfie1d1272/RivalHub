@@ -85,7 +85,7 @@ describe("post-match action revalidation", () => {
   it("cancels only as the session user, rejects forged identities and preserves authorization failures", async () => {
     expect(await cancelMatchCommentary({ matchId })).toEqual({ success: true, data: undefined });
     expect(cancelMatchCommentaryInTxMock).toHaveBeenCalledExactlyOnceWith({}, { matchId, userId: "admin-1" });
-    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId, { statistics: false });
+    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId);
     vi.clearAllMocks();
     for (const input of [{ matchId, userId: matchId }, { matchId, seasonId: matchId }, { matchId: "invalid" }]) {
       expect(await cancelMatchCommentary(input)).toMatchObject({ success: false, error: { code: "VALIDATION_FAILED" } });
@@ -123,7 +123,7 @@ describe("post-match action revalidation", () => {
     expect(await action({ matchId, userId, actorId: "forged" })).toEqual({ success: true, data: { refreshPending: false } });
     expect(requireSeasonAdminMock).toHaveBeenLastCalledWith("season-1");
     expect(service).toHaveBeenCalledExactlyOnceWith({}, { matchId, userId, actorId: "admin-1" });
-    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId, { statistics: false });
+    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId);
   });
 
   it("validates recording data and derives the actor from the current season session", async () => {

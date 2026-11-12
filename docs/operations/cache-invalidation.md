@@ -6,10 +6,10 @@
 
 | 读模型 | 缓存依赖 | 必须保留的 fresh 边界 |
 | --- | --- | --- |
-| 平台/赛事统计、地图/选手/队伍详情与 MVP 摘要 | 全局统计安全 tag；scope、公开赛事集合及投影版本进入 key | 公开赛事/entry 可见性；统计只使用 canonical 当前证据及冻结人口 |
+| 平台/赛事统计、地图/选手/队伍详情与 MVP 摘要 | 平台使用平台统计 tag，赛事使用赛事 tag 与跨赛事身份 tag，单场表现使用比赛 tag 与跨赛事身份 tag；公开范围及投影版本进入对应 key | 公开赛事/entry 可见性；统计只使用 canonical 当前证据及冻结人口 |
 | career、benchmark、lineup style | 全局统计安全 tag | 身份归属、完整历史人口与当前证据选择 |
 | lineup comparison | 全局统计安全 tag | 导入确认时校验；读取复用已确认逐图结果，覆盖完整历史人口并排除当前比赛 |
-| BET 公共池与免费预测支持率 | 单赛事 BET、公开 season、全局统计安全 tag | 每次请求的个人资金/选择、准入、封盘与事实签名；草稿不共享 |
+| BET 公共池与免费预测支持率 | 单赛事 BET、公开 season、赛事统计 tag 与跨赛事身份 tag | 每次请求的个人资金/选择、准入、封盘与事实签名；草稿不共享 |
 | 进行中 BP 房间 | 无跨请求共享 room cache；no-store transport | fresh 权限、DB 时钟、revision、实际 lineup 与命令状态 |
 | 公共玩家基础资料 | public player tag；统计支路使用统计安全 tag | viewer overlay、资格与当前身份授权 |
 
@@ -17,11 +17,11 @@
 
 ## Mutation 合同
 
-`src/lib/matches/projection-invalidation/` 的 planner 与 Next adapter 共同拥有 BP 投影失效；`revalidateMatchProjectionPaths(context, receipt, options)` 接收服务端读取的 slug/seasonId/matchId/matchStatus，以及领域 owner 的 changed/affectedFacts。没有真实变化时不失效。仅 scheduled/in_progress 且事实集合非空、全部属于 lineups/appeals/veto_step 时，允许跳过全局统计失效；finished、cancelled、缺失/未知事实继续宽失效。`statistics:true` 是明确的紧急回退。
+赛果、正式名单、当前 Demo 采纳、统计投影与已核实记分板在事务内更新按场 watermark。同场同事务合并事实类别和代次；同值保存、审核时间戳及等价的统计传输 sidecar 跳过统计登记。Demo 原样重传继续核对当前依赖，已有待办由投递 owner 接手。比赛时间与展示路径的刷新独立于统计 tag。
 
-该 BP 专用合同保留现有 match/season 页面刷新，并立即失效单届 BET tag。Server Action 用 updateTag 保持 read-your-writes；Route Handler 用 `{ expire: 0 }`，不将 generic season 的 SWR 语义套到实时支持率。
+`src/lib/matches/projection-invalidation/` 负责已提交事实的投递。前台写入口和既有 scheduler 共用同一查询、失效计划及按场代次确认。补发按现有 pending index 取最多 50 场；同一批中的平台、赛事及共享展示 tag 各投递一次。Server Action 用 `updateTag`，Route Handler 用 `{ expire: 0 }`。Next 在请求完成时执行 tag 更新，`after` 回调观察当前 handler 的硬过期标记推进后，用一次 CAS 确认已捕获的代次。失败项轮转，未确认项由 scheduler 恢复。重试只投递缓存义务。
 
-官方赛果、地图、首发/证据更正、身份归并、Steam 绑定/退休、公开撤回仍使用全局统计硬失效和 fresh public guard。名称/logo 改变需要失效嵌入 label 的投影；worker settlement/reversal/credits 需要覆盖其公共结算/排名消费者，不只依赖公共池的 TTL。未知提交先安全回读，不重放业务写入。
+单场结果、赛事及平台的统计依赖按范围显式传入。跨赛事身份修改使用全局身份 tag；公开范围由读入口 fresh 校验。普通 season/page 刷新仅更新展示。进行中的 BP 会继续立即过期对应赛事的 BET；仅 lineup、appeal 和普通 veto step 的开赛前及直播变化保留历史统计。旧或未知类别保守处理。
 
 ## 测量边界
 

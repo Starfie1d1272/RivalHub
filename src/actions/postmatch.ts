@@ -48,7 +48,7 @@ async function run(
     await work(auditActorId(admin));
     let refreshPending = false;
     try {
-      revalidateMatchPaths(season.slug, match.id, { statistics: false });
+      revalidateMatchPaths(season.slug, match.id);
     } catch (error) {
       refreshPending = true;
       captureException("action.postmatch_refresh_failure", error, {
@@ -65,7 +65,7 @@ async function run(
 export async function retryPostMatchRefresh(matchId: string): Promise<ActionResult<void>> {
   try {
     const { match, season } = await matchAndAdminOrThrow(matchId);
-    revalidateMatchPaths(season.slug, match.id, { statistics: false });
+    revalidateMatchPaths(season.slug, match.id);
     return ok(undefined);
   } catch (error) {
     return actionError("retryPostMatchRefresh", error);
@@ -87,7 +87,7 @@ export async function claimMatchCommentary(input: unknown): Promise<ActionResult
     await db.transaction((tx) =>
       claimMatchCommentaryInTx(tx, { matchId: match.id, userId: admin.userId }),
     );
-    revalidateMatchPaths(season.slug, match.id, { statistics: false });
+    revalidateMatchPaths(season.slug, match.id);
     return ok(undefined);
   } catch (error) {
     return actionError("postmatch", error);
@@ -101,7 +101,7 @@ export async function cancelMatchCommentary(input: unknown): Promise<ActionResul
     await db.transaction((tx) =>
       cancelMatchCommentaryInTx(tx, { matchId: match.id, userId: admin.userId }),
     );
-    revalidateMatchPaths(season.slug, match.id, { statistics: false });
+    revalidateMatchPaths(season.slug, match.id);
     return ok(undefined);
   } catch (error) {
     return actionError("postmatch", error);

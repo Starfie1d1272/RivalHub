@@ -1,7 +1,25 @@
 import { gt, sql } from "drizzle-orm";
-import { db } from "@/db/client";
+import { vi } from "vitest";
+import { db, type DB } from "@/db/client";
 import { matches, matchVetoInvalidations } from "@/db/schema";
-import { deliverMatchProjectionInvalidation } from "@/lib/matches/projection-invalidation/delivery";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
+
+const acknowledgements = vi.hoisted(() => [] as Array<() => Promise<void>>);
+vi.mock("@/lib/matches/projection-invalidation/next-adapter", async (original) => ({
+  ...await original<typeof import("@/lib/matches/projection-invalidation/next-adapter")>(),
+  acknowledgeAfterExpiry: async (_tags: string[], acknowledge: () => Promise<void>) => {
+    acknowledgements.push(acknowledge);
+  },
+}));
+
+export async function flushProjectionAcknowledgements() {
+  for (const acknowledge of acknowledgements.splice(0)) await acknowledge();
+}
+
+export async function deliverFixtureInvalidation(matchId: string, database?: DB) {
+  await deliverMatchProjectionInvalidations("route", [matchId], database);
+  await flushProjectionAcknowledgements();
+}
 
 /** Workers retain fixtures from earlier specs. A scheduler pass drains only 50
  * rows, so establish cache quiescence via the actual delivery owner before a
@@ -16,11 +34,8 @@ export async function deliverExistingFixtureVetoInvalidations() {
   )`);
   const pending = await db.select({ matchId: matchVetoInvalidations.matchId }).from(matchVetoInvalidations)
     .where(gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration));
-  for (const row of pending) {
-    if (await deliverMatchProjectionInvalidation(row.matchId, "route") !== "complete") {
-      throw new Error("Fixture cache generation changed during delivery; lifecycle test is not isolated");
-    }
-  }
+  await deliverMatchProjectionInvalidations("route", pending.map(({ matchId }) => matchId));
+  await flushProjectionAcknowledgements();
   const [remaining] = await db.select({ matchId: matchVetoInvalidations.matchId }).from(matchVetoInvalidations)
     .where(gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration)).limit(1);
   if (remaining) throw new Error("Fixture cache delivery remained pending");

@@ -9,7 +9,7 @@ import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
-import { revalidateMatchPaths } from "@/lib/revalidation";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { VetoActionType } from "@/types/match";
 import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
@@ -126,7 +126,7 @@ export async function saveVetoSteps(
       });
     });
 
-    revalidateMatchPaths(season.slug, matchId);
+    await deliverMatchProjectionInvalidations("action", [matchId]);
 
     return ok(undefined);
   } catch (e) {

@@ -4,7 +4,10 @@ import { AppError, ErrorCode } from "@/lib/errors";
 const mocks = vi.hoisted(() => ({ importRow: vi.fn(), identity: vi.fn(), season: vi.fn(), transaction: vi.fn(), authorize: vi.fn(), confirm: vi.fn(), reject: vi.fn(), retire: vi.fn() }));
 vi.mock("@/db/client", () => ({ db: { query: { matchDemoImports: { findFirst: mocks.importRow }, userGameplaySteamIds: { findFirst: mocks.identity }, seasons: { findFirst: mocks.season } }, transaction: mocks.transaction } }));
 vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: mocks.authorize, auditActorId: vi.fn() }));
-vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn() }));
+vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), updatePublicStatsTag: vi.fn() }));
+vi.mock("@/lib/matches/projection-invalidation/delivery", () => ({
+  deliverMatchProjectionInvalidations: vi.fn(async () => ({ processed: 0 })),
+}));
 vi.mock("@/lib/demo-integration/review", () => ({ confirmStoredDemoParticipantIdentityInTx: mocks.confirm, rejectStoredDemoImportInTx: mocks.reject, retireSeasonGameplaySteamIdentityInTx: mocks.retire }));
 vi.mock("@/lib/demo-integration/revalidation", () => ({ revalidateStoredDemoImportInTx: vi.fn(), revalidateSeasonNeedsAttentionImports: vi.fn(), revalidateNeedsAttentionImportsForSteam64: vi.fn() }));
 
