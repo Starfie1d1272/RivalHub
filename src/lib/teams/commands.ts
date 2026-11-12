@@ -147,7 +147,7 @@ export async function updateTeamProfileInTx(
     name: string;
     description?: string | null;
   },
-): Promise<{ oldSlug: string; slug: string }> {
+): Promise<{ oldSlug: string; slug: string; affectedSeasonIds?: string[] }> {
   const team = await requireLockedCaptain(tx, input.teamId, input.userId);
   const nameChanged = team.name !== input.name;
   const nextSlug = nameChanged ? slugFor(input.name, team.id) : team.slug;
@@ -169,9 +169,10 @@ export async function updateTeamProfileInTx(
     .update(teams)
     .set({ name: input.name, slug: nextSlug, description: input.description || null, updatedAt })
     .where(eq(teams.id, team.id));
+  let affectedSeasonIds: string[] | undefined;
   if (nameChanged) {
     const activeEntries = await tx
-      .select({ id: competitionEntries.id })
+      .select({ id: competitionEntries.id, seasonId: competitionEntries.competitionId })
       .from(competitionEntries)
       .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
       .where(
@@ -180,6 +181,7 @@ export async function updateTeamProfileInTx(
           sql`${seasons.status} NOT IN ('finished', 'archived')`,
         ),
       );
+    affectedSeasonIds = [...new Set(activeEntries.map(({ seasonId }) => seasonId))];
     if (activeEntries.length > 0) {
       await tx
         .update(competitionEntries)
@@ -196,7 +198,7 @@ export async function updateTeamProfileInTx(
     fromName: team.name,
     toName: input.name,
   });
-  return { oldSlug: team.slug, slug: nextSlug };
+  return { oldSlug: team.slug, slug: nextSlug, affectedSeasonIds };
 }
 
 export async function updateTeamLogoInTx(

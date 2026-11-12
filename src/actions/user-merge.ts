@@ -12,7 +12,11 @@ import {
   selectSelfServiceMergePair,
 } from "@/lib/identity/self-service";
 import { fail, ok, type ActionResult } from "@/types/action";
-import { updatePublicPlayerTag } from "@/lib/revalidation";
+import {
+  updatePublicPlayerTag,
+  updatePublicStatsPlayerNames,
+  updatePublicStatsTag,
+} from "@/lib/revalidation";
 import { safeRegistrationReturnPath } from "@/lib/registrations/return-path";
 
 const selfServiceMergeSchema = z.object({
@@ -50,6 +54,8 @@ export async function executeSelfServiceUserMerge(
     await destroyUserSession();
     updatePublicPlayerTag(pair.canonicalUserId);
     updatePublicPlayerTag(pair.mergedUserId);
+    updatePublicStatsPlayerNames();
+    updatePublicStatsTag("identity", "all");
     revalidatePath("/settings/security");
     revalidatePath("/settings/education");
     revalidatePath(`/players/${pair.canonicalUserId}`);

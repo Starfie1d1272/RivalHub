@@ -18,7 +18,11 @@ import {
   normalizePlayerDeclaredProfile,
   playerDeclaredProfileSchema,
 } from "@/lib/player-declared-profile";
-import { updatePublicPlayerTag } from "@/lib/revalidation";
+import {
+  updatePublicPlayerTag,
+  updatePublicStatsPlayerNames,
+  updatePublicStatsTag,
+} from "@/lib/revalidation";
 import {
   changePrimarySteam64InTx,
   assertSteam64Available,
@@ -130,8 +134,8 @@ export async function updateProfile(input: ProfileInput): Promise<ActionResult<v
       profile = await getSteamProfileForPrimary(db, currentUser.steam64, nextSteam64);
     }
 
-    await db.transaction(async (tx) => {
-      await changePrimarySteam64InTx(tx, {
+    const identity = await db.transaction(async (tx) => {
+      const identity = await changePrimarySteam64InTx(tx, {
         userId: session.userId,
         nextSteam64,
         actorId: session.userId,
@@ -148,9 +152,12 @@ export async function updateProfile(input: ProfileInput): Promise<ActionResult<v
           updatedAt: new Date(),
         })
         .where(eq(users.id, session.userId));
+      return identity;
     });
 
+    if (identity.previousSteam64 !== identity.steam64) updatePublicStatsTag("identity", "all");
     updatePublicPlayerTag(session.userId);
+    updatePublicStatsPlayerNames();
     revalidatePath("/settings");
     return ok(undefined);
   } catch (e) {
@@ -188,6 +195,7 @@ export async function lookupSteamProfile(
         .from(users)
         .where(eq(users.steam64, steam64));
       for (const owner of owners) updatePublicPlayerTag(owner.id);
+      if (owners.length) updatePublicStatsPlayerNames();
     }
     return ok(result);
   } catch (e) {
