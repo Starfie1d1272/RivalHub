@@ -20,6 +20,7 @@ import { ingestMizarReliable } from "@/lib/mizar/reliable";
 import { admitLiveIngress, tryAdmitLiveRequest } from "@/lib/mizar/live-admission";
 import { ingestMizarLive } from "@/lib/mizar/live";
 import { withMizarRequest, mizarContextResponse, readBoundedMizarJson } from "@/lib/mizar/http";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import { db } from "@/db/client";
 import { eq } from "drizzle-orm";
@@ -200,24 +201,23 @@ export async function POST(request: Request, context: Context) {
           envelope.lineupSteam64,
         );
         diagnostics.phase = "revalidation";
-        const [season] = await db
-          .select({ slug: seasons.slug })
-          .from(seasons)
-          .where(eq(seasons.id, installation.competitionId));
         const { matchId } = z.object({ matchId: z.uuid() }).parse(envelope.event);
-        if (season) {
-          if (outcome.outcome === "canonicalized") {
-            revalidateMatchPaths(season.slug, matchId, {
-              mode: "route",
-              statisticsSeasonId: installation.competitionId,
-              statisticsReason: outcome.duplicate
-                ? "mizar.canonicalized_duplicate"
-                : "mizar.canonicalized_new",
-            });
-          } else if (!outcome.duplicate) {
-            // Source health/telemetry changes do not alter the statistical corpus.
-            revalidatePath(`/admin/${season.slug}/matches/${matchId}`);
-            revalidatePath(`/${season.slug}/matches/${matchId}`);
+        const delivery =
+          outcome.outcome === "canonicalized"
+            ? await deliverMatchProjectionInvalidations("route", [matchId])
+            : undefined;
+        if (!outcome.duplicate && !delivery?.processed) {
+          const [season] = await db
+            .select({ slug: seasons.slug })
+            .from(seasons)
+            .where(eq(seasons.id, installation.competitionId));
+          if (season) {
+            if (outcome.outcome === "canonicalized")
+              revalidateMatchPaths(season.slug, matchId, { mode: "route" });
+            else {
+              revalidatePath(`/admin/${season.slug}/matches/${matchId}`);
+              revalidatePath(`/${season.slug}/matches/${matchId}`);
+            }
           }
         }
         return Response.json(outcome);

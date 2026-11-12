@@ -29,11 +29,10 @@ import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registra
 import {
   revalidateMatchPaths,
   revalidatePublicSeasonTags,
-  revalidatePublicStatsTag,
   revalidateSeasonPaths,
 } from "@/lib/revalidation";
 import { reconcileVetoRoom } from "@/lib/matches/veto-room/service";
-import { dispatchMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/dispatcher";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
 import { settleExpiredMatchMvpVotes } from "@/lib/matches/mvp";
 import { reconcileMissingStatisticsProjections } from "@/lib/stats/projection-backfill";
 import type { SchedulerJobKey } from "./definitions";
@@ -203,9 +202,9 @@ export async function runMatchVetoScheduledJob() {
   } catch (error) {
     firstFailure = error;
   }
-  let delivery: Awaited<ReturnType<typeof dispatchMatchProjectionInvalidations>> | undefined;
+  let delivery: Awaited<ReturnType<typeof deliverMatchProjectionInvalidations>> | undefined;
   try {
-    delivery = await dispatchMatchProjectionInvalidations();
+    delivery = await deliverMatchProjectionInvalidations("route");
   } catch (error) {
     firstFailure ??= error;
   }
@@ -214,7 +213,6 @@ export async function runMatchVetoScheduledJob() {
     result: {
       ...lifecycle!.result,
       deliveryProcessed: delivery!.processed,
-      deliveryPending: delivery!.pending,
     },
     businessTransitions: lifecycle!.businessTransitions,
   };
@@ -247,9 +245,10 @@ export async function runSchedulerJobByKey(
 
 export async function runMatchMvpSettlementJob() {
   const { affectedMatches, failures, ...result } = await settleExpiredMatchMvpVotes();
-  for (const { seasonSlug, matchId } of affectedMatches) {
-    revalidateMatchPaths(seasonSlug, matchId, { mode: "route" });
-  }
+  await deliverMatchProjectionInvalidations(
+    "route",
+    affectedMatches.map(({ matchId }) => matchId),
+  );
   // Invalidate committed successes even when another match failed. Pending
   // matches remain due, and scheduler health must report the failed batch.
   if (failures.length > 0) throw new AggregateError(failures, "MVP settlement failed");
@@ -259,9 +258,9 @@ export async function runMatchMvpSettlementJob() {
 }
 
 export async function runStatisticsProjectionRebuildJob() {
-  const result = await reconcileMissingStatisticsProjections(db);
+  const { affectedMatchIds, ...result } = await reconcileMissingStatisticsProjections(db);
   const transitions = result.rebuilt + result.invalid;
-  if (transitions > 0) revalidatePublicStatsTag("stats.projection_rebuild");
+  await deliverMatchProjectionInvalidations("route", affectedMatchIds);
   if (result.failed > 0)
     throw new Error(`Failed to rebuild ${result.failed} statistics projections`);
   return { result, businessTransitions: transitions } satisfies SchedulerRunnerResult<

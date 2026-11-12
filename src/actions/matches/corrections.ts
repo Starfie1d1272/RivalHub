@@ -1,13 +1,11 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { getMatchOrThrow, actionError } from "@/lib/action-utils";
-import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
 import {
   applyResultCorrectionInTx,
   planResultCorrectionInTx,
@@ -72,14 +70,7 @@ export async function applyMatchResultCorrection(
       }),
     );
 
-    const season = await db.query.seasons.findFirst({
-      where: eq(seasons.id, match.seasonId),
-      columns: { slug: true },
-    });
-    if (season) {
-      revalidateMatchPaths(season.slug, matchId);
-      revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
-    }
+    await deliverMatchProjectionInvalidations("action", [matchId]);
 
     return ok({
       alreadyApplied: applied.alreadyApplied,

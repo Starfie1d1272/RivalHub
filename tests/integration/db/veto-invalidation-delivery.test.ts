@@ -1,4 +1,4 @@
-import { deliverExistingFixtureVetoInvalidations } from "./harness/veto-delivery";
+import { deliverExistingFixtureVetoInvalidations, deliverFixtureInvalidation, flushProjectionAcknowledgements } from "./harness/veto-delivery";
 import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -8,7 +8,7 @@ import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { finishVetoInteraction } from "@/lib/matches/veto-room/interaction";
 import { reconcileVetoRoomReceipt, readVetoRoomSnapshot, rewindVetoRoom } from "@/lib/matches/veto-room/service";
-import { deliverMatchProjectionInvalidation } from "@/lib/matches/projection-invalidation/delivery";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
 import { runMatchVetoScheduledJob } from "@/lib/scheduler/runners";
 import { PUBLIC_STATS_TAG, publicBetTag } from "@/lib/cache/tags";
 import { seedFixture } from "./harness/mizar";
@@ -19,7 +19,7 @@ const watermark = (matchId: string) => db.query.matchVetoInvalidations.findFirst
 
 it("persists failed invalidation across a response and recovers on a no-change reconcile", async () => {
   const f = await seedFixture();
-  await deliverMatchProjectionInvalidation(f.matchId, "route");
+  await deliverFixtureInvalidation(f.matchId);
   cache.revalidateTag.mockClear();
   await db.update(schema.matchVetoSessions).set({ revision: 1 }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
   const before = await watermark(f.matchId);
@@ -35,7 +35,7 @@ it("persists failed invalidation across a response and recovers on a no-change r
   expect(receipt.changed).toBe(false);
   const recovered = await finishVetoInteraction(f.matchId, receipt.outcome, false, "route", null);
   expect(recovered.postCommit).toEqual({ invalidation: "complete", projection: "complete" });
-  expect(recovered.room!.pendingInvalidation).toBe(false);
+  await flushProjectionAcknowledgements();
   const after = (await watermark(f.matchId))!;
   expect(after.publishedGeneration).toBe(after.generation);
   expect(cache.revalidateTag.mock.calls.filter(call => call[0] === publicBetTag(f.seasonId))).toHaveLength(2);
@@ -59,11 +59,13 @@ it("does not acknowledge a generation committed while cache invalidation was in 
   }) as typeof client.query;
   try {
     const measured = drizzle(client, { schema });
-    expect(await deliverMatchProjectionInvalidation(f.matchId, "route", measured)).toBe("pending");
+    await deliverMatchProjectionInvalidations("route", [f.matchId], measured);
+    expect((await watermark(f.matchId))!.publishedGeneration).toBe(initial.publishedGeneration);
+    await flushProjectionAcknowledgements();
     const raced = (await watermark(f.matchId))!;
     expect(raced.generation).toBeGreaterThan(initial.generation);
     expect(raced.publishedGeneration).toBe(initial.publishedGeneration);
-    expect(await deliverMatchProjectionInvalidation(f.matchId, "route", measured)).toBe("complete");
+    await deliverFixtureInvalidation(f.matchId, measured);
     expect((await watermark(f.matchId))!.publishedGeneration).toBe(raced.generation);
   } finally { client.release(); await pool.end(); }
 });
@@ -82,7 +84,7 @@ it("coalesces BP facts once per transaction and rolls the delivery obligation ba
   expect(committed.generation).toBe(initial.generation + BigInt(1));
   expect(committed.affectedFacts).toEqual(expect.arrayContaining(["veto", "veto_step"]));
   cache.revalidateTag.mockClear();
-  await deliverMatchProjectionInvalidation(f.matchId, "route");
+  await deliverFixtureInvalidation(f.matchId);
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === PUBLIC_STATS_TAG)).toBe(true);
   const delivered = (await watermark(f.matchId))!;
   await expect(db.transaction(async tx => {
@@ -95,7 +97,7 @@ it("coalesces BP facts once per transaction and rolls the delivery obligation ba
 it("retries committed match statistics invalidation through the scheduler for archived events", async () => {
   await deliverExistingFixtureVetoInvalidations();
   const f = await seedFixture();
-  await deliverMatchProjectionInvalidation(f.matchId, "route");
+  await deliverFixtureInvalidation(f.matchId);
   await db.update(schema.matches).set({ status: "finished", scoreA: 2, scoreB: 0, completedAt: new Date() })
     .where(eq(schema.matches.id, f.matchId));
   expect((await watermark(f.matchId))?.affectedFacts).toEqual(["statistics"]);
@@ -109,7 +111,8 @@ it("retries committed match statistics invalidation through the scheduler for ar
   await expect(runMatchVetoScheduledJob()).rejects.toThrow("cache delivery unavailable");
   expect((await watermark(f.matchId))!.generation).toBeGreaterThan((await watermark(f.matchId))!.publishedGeneration);
   cache.revalidateTag.mockReset();
-  expect(await runMatchVetoScheduledJob()).toMatchObject({ businessTransitions: 0, result: { changed: 0, deliveryPending: 0 } });
+  expect(await runMatchVetoScheduledJob()).toMatchObject({ businessTransitions: 0, result: { changed: 0, deliveryProcessed: 1 } });
+  await flushProjectionAcknowledgements();
   expect((await watermark(f.matchId))!.generation).toBe((await watermark(f.matchId))!.publishedGeneration);
   expect((await readVetoRoomSnapshot(f.matchId)).session).toEqual(before);
   expect(await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "match.veto.timeout")))).toHaveLength(0);
@@ -117,12 +120,12 @@ it("retries committed match statistics invalidation through the scheduler for ar
 
 it("hard-invalidates map catalog consumers when a BP plan is rewound or maps are replaced before finish", async () => {
   const f = await seedFixture();
-  await deliverMatchProjectionInvalidation(f.matchId, "route");
+  await deliverFixtureInvalidation(f.matchId);
   cache.revalidateTag.mockClear();
   const actor = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, f.entryAId) }))!.representativeUserId;
   await rewindVetoRoom({ matchId: f.matchId, actorId: actor, targetTurnKey: "choose-veto-team-a", reason: "fixture map plan rewind" });
   expect((await watermark(f.matchId))!.affectedFacts).toContain("map_plan");
-  expect(await deliverMatchProjectionInvalidation(f.matchId, "route")).toBe("complete");
+  await deliverFixtureInvalidation(f.matchId);
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === PUBLIC_STATS_TAG)).toBe(true);
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === publicBetTag(f.seasonId))).toBe(true);
   cache.revalidateTag.mockClear();
@@ -131,7 +134,7 @@ it("hard-invalidates map catalog consumers when a BP plan is rewound or maps are
     await tx.update(schema.matchVetoSessions).set({ revision: sql`${schema.matchVetoSessions.revision}+1` }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
   });
   expect((await watermark(f.matchId))!.affectedFacts).toEqual(expect.arrayContaining(["map_plan", "veto_step"]));
-  expect(await deliverMatchProjectionInvalidation(f.matchId, "route")).toBe("complete");
+  await deliverFixtureInvalidation(f.matchId);
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === PUBLIC_STATS_TAG)).toBe(true);
 });
 
@@ -150,6 +153,7 @@ it("delivers pending obligations when an archived room has a rejected lifecycle 
   expect(before.generation).toBeGreaterThan(before.publishedGeneration);
   cache.revalidateTag.mockClear();
   await expect(runMatchVetoScheduledJob()).rejects.toThrow("赛季已归档");
+  await flushProjectionAcknowledgements();
   const after = (await watermark(f.matchId))!;
   expect(after.publishedGeneration).toBe(after.generation);
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === publicBetTag(f.seasonId))).toBe(true);
@@ -158,7 +162,7 @@ it("delivers pending obligations when an archived room has a rejected lifecycle 
   // candidate for another spec reusing this worker database.
   await db.update(schema.matchVetoSessions).set({ completedAt: new Date(), entryAStartRequestedAt: null, entryAStartRequestedBy: null })
     .where(eq(schema.matchVetoSessions.matchId, f.matchId));
-  await deliverMatchProjectionInvalidation(f.matchId, "route");
+  await deliverFixtureInvalidation(f.matchId);
 });
 
 it("restores the watermark cascade skipped by another fixture's replica teardown", async () => {

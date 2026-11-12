@@ -1,6 +1,7 @@
+import { flushProjectionAcknowledgements } from "./harness/veto-delivery";
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import type { DB } from "@/db/client";
 const state = vi.hoisted(() => ({ actor: "", allowed: true, loseAcknowledgement: false }));
 vi.mock("@/db/client", async importOriginal => {
@@ -193,3 +194,5 @@ it("keeps confirmed DAK gameplay above provisional data when OCR later enriches 
   const [stored] = await db.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.mapId, f.mapOneId));
   expect(stored).toMatchObject({ dakImportId: importId, verifiedByAdmin: "dak", kills: 20 });
 });
+
+afterEach(flushProjectionAcknowledgements);

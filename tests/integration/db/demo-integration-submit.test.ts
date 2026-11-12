@@ -32,7 +32,7 @@ import {
   rejectStoredDemoImportInTx,
   retireSeasonGameplaySteamIdentityInTx,
 } from "../../../src/lib/demo-integration/review";
-import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
+import { dakStableScoreboardValues, submitRivalHubEvidence as submitEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
 import { getCurrentStatsSelectionInTx } from "../../../src/lib/stats/tournament-scope";
 import { getMatchMvpSummary, getTournamentPerformancePopulations, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
@@ -2054,3 +2054,7 @@ describe("DAK evidence submit persistence", () => {
     }
   });
 });
+
+async function submitRivalHubEvidence(args: Parameters<typeof submitEvidence>[0]) {
+  return (await submitEvidence(args)).response;
+}

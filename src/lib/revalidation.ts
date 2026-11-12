@@ -11,6 +11,7 @@ import {
   PUBLIC_STATS_TAG,
   ALL_EVENT_STATS_TAG,
   eventStatsTag,
+  matchStatsTag,
   publicPlayerTag,
   publicAnnouncementsSeasonTag,
   publicSeasonTag,
@@ -36,28 +37,29 @@ const seasonPages = {
 
 type SeasonPage = keyof typeof seasonPages;
 type RevalidationMode = "action" | "route";
-type StatisticsRevalidationOptions = {
-  statistics?: boolean;
+type StatisticsScope = "all" | { seasonId: string; matchId?: string };
+type RevalidationOptions = {
+  mode?: RevalidationMode;
+  statistics?: StatisticsScope;
   statisticsReason?: StatsInvalidationReason;
-  statisticsSeasonId?: string;
+  seenTags?: Map<string, boolean>;
 };
-type RevalidationOptions = StatisticsRevalidationOptions & { mode?: RevalidationMode };
 
 /** Server Action semantics: invalidate immediately for read-your-own-writes. */
 export function updatePublicSeasonTags(
   slug: string,
   seasonId?: string,
-  options: StatisticsRevalidationOptions = {},
+  options: RevalidationOptions = {},
 ): void {
-  if (options.statistics !== false)
-    updatePublicStatsTag(options.statisticsReason, options.statisticsSeasonId);
-  updateTag(PUBLIC_SEASON_CATALOG_TAG);
-  updateTag(publicSeasonTag(slug));
-  updatePublicHomeTag();
+  if (options.statistics)
+    expirePublicStatsTags(options.statistics, "action", options.statisticsReason, options.seenTags);
+  expirePublicTag(PUBLIC_SEASON_CATALOG_TAG, "action", options.seenTags);
+  expirePublicTag(publicSeasonTag(slug), "action", options.seenTags);
+  expirePublicTag(PUBLIC_HOME_TAG, "action", options.seenTags);
   if (seasonId) {
-    updateTag(seasonParticipantsTag(seasonId));
-    updateTag(seasonMatchesTag(seasonId));
-    updateTag(seasonStandingsTag(seasonId));
+    expirePublicTag(seasonParticipantsTag(seasonId), "action", options.seenTags);
+    expirePublicTag(seasonMatchesTag(seasonId), "action", options.seenTags);
+    expirePublicTag(seasonStandingsTag(seasonId), "action", options.seenTags);
   }
 }
 
@@ -65,17 +67,17 @@ export function updatePublicSeasonTags(
 export function revalidatePublicSeasonTags(
   slug: string,
   seasonId?: string,
-  options: StatisticsRevalidationOptions = {},
+  options: RevalidationOptions = {},
 ): void {
-  if (options.statistics !== false)
-    revalidatePublicStatsTag(options.statisticsReason, options.statisticsSeasonId);
-  revalidateTag(PUBLIC_SEASON_CATALOG_TAG, { expire: 0 });
-  revalidateTag(publicSeasonTag(slug), "max");
-  revalidatePublicHomeTag();
+  if (options.statistics)
+    expirePublicStatsTags(options.statistics, "route", options.statisticsReason, options.seenTags);
+  expirePublicTag(PUBLIC_SEASON_CATALOG_TAG, "route", options.seenTags);
+  expirePublicTag(publicSeasonTag(slug), "route", options.seenTags, "max");
+  expirePublicTag(PUBLIC_HOME_TAG, "route", options.seenTags);
   if (seasonId) {
-    revalidateTag(seasonParticipantsTag(seasonId), "max");
-    revalidateTag(seasonMatchesTag(seasonId), "max");
-    revalidateTag(seasonStandingsTag(seasonId), "max");
+    expirePublicTag(seasonParticipantsTag(seasonId), "route", options.seenTags, "max");
+    expirePublicTag(seasonMatchesTag(seasonId), "route", options.seenTags, "max");
+    expirePublicTag(seasonStandingsTag(seasonId), "route", options.seenTags, "max");
   }
 }
 
@@ -100,45 +102,61 @@ export function revalidatePublicPlayerTags(userIds: readonly string[]): void {
   if (!userIds.length) return;
   for (const userId of userIds) revalidateTag(publicPlayerTag(userId), "max");
   revalidatePublicHomeTag();
-  revalidatePublicStatsTag("identity");
+  revalidatePublicStatsTag("identity", "all");
 }
 
 export function updatePublicPlayerTag(userId: string): void {
   updateTag(publicPlayerTag(userId));
   updatePublicHomeTag();
-  updatePublicStatsTag("identity");
+  updatePublicStatsTag("identity", "all");
 }
 
-/** Includes removals and identity corrections; never serve a stale statistical attribution. */
+export function expirePublicTag(
+  tag: string,
+  mode: RevalidationMode,
+  seen?: Map<string, boolean>,
+  profile?: "max",
+): void {
+  if (seen?.has(tag)) return;
+  if (mode === "action") updateTag(tag);
+  else revalidateTag(tag, profile ?? { expire: 0 });
+  seen?.set(tag, mode === "action" || !profile);
+}
+
+function expirePublicStatsTags(
+  scope: StatisticsScope,
+  mode: RevalidationMode,
+  reason: StatsInvalidationReason = "season_or_other",
+  seen?: Map<string, boolean>,
+): void {
+  const tags = [
+    PUBLIC_STATS_TAG,
+    scope === "all" ? ALL_EVENT_STATS_TAG : eventStatsTag(scope.seasonId),
+  ];
+  if (scope !== "all" && scope.matchId) tags.push(matchStatsTag(scope.matchId));
+  if (tags.every((tag) => seen?.has(tag))) return;
+  recordStatsInvalidation(reason, "attempted");
+  try {
+    for (const tag of tags) expirePublicTag(tag, mode, seen);
+    recordStatsInvalidation(reason, "completed");
+  } catch (error) {
+    recordStatsInvalidation(reason, "failed");
+    throw error;
+  }
+}
+
 export function updatePublicStatsTag(
-  reason: StatsInvalidationReason = "season_or_other",
-  seasonId?: string,
+  reason: StatsInvalidationReason,
+  scope: StatisticsScope,
 ): void {
-  recordStatsInvalidation(reason, "attempted");
-  try {
-    updateTag(PUBLIC_STATS_TAG);
-    updateTag(seasonId ? eventStatsTag(seasonId) : ALL_EVENT_STATS_TAG);
-    recordStatsInvalidation(reason, "completed");
-  } catch (error) {
-    recordStatsInvalidation(reason, "failed");
-    throw error;
-  }
+  expirePublicStatsTags(scope, "action", reason);
 }
 
-/** Route/webhook equivalent of updateTag, which is only legal inside Server Actions. */
 export function revalidatePublicStatsTag(
-  reason: StatsInvalidationReason = "season_or_other",
-  seasonId?: string,
+  reason: StatsInvalidationReason,
+  scope: StatisticsScope,
 ): void {
-  recordStatsInvalidation(reason, "attempted");
-  try {
-    revalidateTag(PUBLIC_STATS_TAG, { expire: 0 });
-    revalidateTag(seasonId ? eventStatsTag(seasonId) : ALL_EVENT_STATS_TAG, { expire: 0 });
-    recordStatsInvalidation(reason, "completed");
-  } catch (error) {
-    recordStatsInvalidation(reason, "failed");
-    throw error;
-  }
+  expirePublicStatsTags(scope, "route", reason);
 }
 
 export function revalidateSeasonPaths(

@@ -93,29 +93,19 @@ are retained until delivery. In particular, map creation, replacement and
 rewind deletion register `map_plan`, which always retains broad statistics
 invalidation because map catalog/options also consume unfinished match maps.
 
-The postcommit owner reads current server season/status and persisted facts,
-then invokes the canonical revalidation owner. It acknowledges only the
-captured generation with CAS after all invalidations return successfully. A
-new concurrent generation, cache exception or acknowledgement failure remains
-pending. No user command is replayed. The HTTP response distinguishes cache
-`invalidation: pending` from room `projection: pending`; a safe reconcile can
-recover delivery even when its domain outcome is idempotent.
+The postcommit owner reads current season/status and persisted facts in one query.
+It coalesces shared tag requests and confirms captured generations in one CAS
+after observing hard expiry in the Next.js cache handler. A new concurrent
+generation, cache exception or acknowledgement failure stays pending. The
+response reports whether the expiry request was accepted and whether room
+projection succeeded. A safe reconcile can retry an outstanding obligation
+with an idempotent domain outcome.
 
-Ordinary GET remains read-only and exposes only a pending boolean, allowing a
-visible client to retry reconcile with its existing in-flight/backoff gate.
-The existing veto scheduler composes the BP timeout runner with a match projection dispatcher that drains at most fifty pending deliveries per
-invocation, independently of paused/completed/archived lifecycle transitions.
-A larger backlog can defer cache refresh until subsequent invocations. The result
-reports `deliveryProcessed` as the number selected in this batch and
-`deliveryPending` as the number in that batch still unacknowledged, not the
-total backlog. After each selected delivery attempt, a still-pending captured generation moves
-behind older pending work using its `updated_at` ordering timestamp. A successful
-acknowledgement or a concurrent newer generation is not moved by that attempt;
-`updated_at` therefore reflects either fact registration or a pending retry.
-Delivery exceptions remain durable and cause scheduler execution to fail;
-they are not reported as a successful cache publication. Old applications can
-ignore the additive table; old workers do not acknowledge it. Rollback keeps
-the obligation for a compatible forward worker rather than deleting facts.
+Ordinary GET exposes the persisted pending flag. The veto scheduler processes
+up to fifty pending matches per invocation alongside timeout handling.
+`deliveryProcessed` counts selected rows. Only failed publication attempts
+rotate their captured pending generation using `updated_at`; successful
+acknowledgement and newer generations leave that ordering untouched.
 
 Canonical BP invalidation categories are defined in `src/types/veto-room.ts`:
 `lineups`, `appeals`, `veto_step`, `map_plan`, and legacy `veto`. Session,

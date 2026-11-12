@@ -20,7 +20,8 @@ import {
   revalidateSeasonNeedsAttentionImports,
   revalidateStoredDemoImportInTx,
 } from "@/lib/demo-integration/revalidation";
-import { revalidateMatchPaths } from "@/lib/revalidation";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
+import { revalidateMatchPaths, updatePublicStatsTag } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 
 // Preserve the canonical boundary's cause projection and request id while the
@@ -77,7 +78,7 @@ export async function confirmStoredDemoParticipantIdentity(
     .safeParse(input);
   if (!parsed.success) return failValidation("比赛 Steam 身份确认参数无效。");
   try {
-    const { row, season } = await loadImportContext(parsed.data.importId);
+    const { row } = await loadImportContext(parsed.data.importId);
     const admin = await requireSeasonAdmin(row.seasonId);
     const actorId = auditActorId(admin);
     const result = await db.transaction((tx) =>
@@ -111,9 +112,11 @@ export async function confirmStoredDemoParticipantIdentity(
         requestId,
       };
     }
-    revalidateMatchPaths(season.slug, row.matchId);
-    for (const matchId of relatedRechecks.affectedMatchIds)
-      revalidateMatchPaths(season.slug, matchId);
+    if (result.aliasCreated) updatePublicStatsTag("identity", "all");
+    await deliverMatchProjectionInvalidations("action", [
+      row.matchId,
+      ...relatedRechecks.affectedMatchIds,
+    ]);
     return ok({
       ...result,
       relatedRechecks: {
@@ -136,7 +139,7 @@ export async function recheckSeasonStoredDemoImports(
   if (!parsed.success) return failValidation("批量重新检查 Demo 数据的参数无效。");
   let phase = "read";
   try {
-    const { row, season } = await loadImportContext(parsed.data.importId);
+    const { row } = await loadImportContext(parsed.data.importId);
     const admin = await requireSeasonAdmin(row.seasonId);
     phase = "recheck";
     const result = await revalidateSeasonNeedsAttentionImports({
@@ -144,7 +147,7 @@ export async function recheckSeasonStoredDemoImports(
       actorId: auditActorId(admin),
     });
     phase = "revalidation";
-    for (const matchId of result.affectedMatchIds) revalidateMatchPaths(season.slug, matchId);
+    await deliverMatchProjectionInvalidations("action", result.affectedMatchIds);
     return ok(result);
   } catch (error) {
     return demoRecheckError("recheckSeasonStoredDemoImports", error, phase);
@@ -170,7 +173,8 @@ export async function recheckStoredDemoImport(
       }),
     );
     phase = "revalidation";
-    revalidateMatchPaths(season.slug, row.matchId);
+    const delivery = await deliverMatchProjectionInvalidations("action", [row.matchId]);
+    if (!delivery.processed) revalidateMatchPaths(season.slug, row.matchId);
     return ok(result);
   } catch (error) {
     return demoRecheckError("recheckStoredDemoImport", error, phase);
@@ -183,7 +187,7 @@ export async function rejectStoredDemoImport(
   const parsed = z.object({ importId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("拒绝 Demo 数据的参数无效。");
   try {
-    const { row, season } = await loadImportContext(parsed.data.importId);
+    const { row } = await loadImportContext(parsed.data.importId);
     const admin = await requireSeasonAdmin(row.seasonId);
     const result = await db.transaction((tx) =>
       rejectStoredDemoImportInTx(tx, {
@@ -191,7 +195,7 @@ export async function rejectStoredDemoImport(
         actorId: auditActorId(admin),
       }),
     );
-    revalidateMatchPaths(season.slug, row.matchId);
+    await deliverMatchProjectionInvalidations("action", [row.matchId]);
     return ok(result);
   } catch (error) {
     return actionError("rejectStoredDemoImport", error);
@@ -232,7 +236,8 @@ export async function retireGameplaySteamIdentity(
       where: eq(matches.id, source.matchId),
       columns: { id: true },
     });
-    if (sourceMatch) revalidateMatchPaths(season.slug, sourceMatch.id);
+    if (result.retired) updatePublicStatsTag("identity", "all");
+    if (sourceMatch) await deliverMatchProjectionInvalidations("action", [sourceMatch.id]);
     return ok(result);
   } catch (error) {
     return actionError("retireGameplaySteamIdentity", error);

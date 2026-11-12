@@ -1,3 +1,4 @@
+import { flushProjectionAcknowledgements } from "./harness/veto-delivery";
 /**
  * Real PostgreSQL protects the shared match lock, timeout safety, participant
  * permission and Play-in discovery; mocked DB/component tests cannot prove these.
@@ -5,7 +6,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, ne } from "drizzle-orm";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { seedFixture } from "./harness/mizar";
@@ -23,7 +24,7 @@ vi.mock("@/lib/auth/session", () => ({
   requireSeasonAdmin: async () => ({ userId: auth.userId, email: "operator@example.test" }),
   auditActorId: ({ userId }: { userId: string }) => userId,
 }));
-vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn() }));
+vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), expirePublicTag: vi.fn() }));
 import { proposeMatchTime, respondToTimeProposal } from "@/actions/matches/scheduling";
 import { updateMatchCompletionDeadline, updateMatchCompletedAt } from "@/actions/matches/results";
 import { getSeasonPersonalNextStep } from "@/lib/seasons/public-next-step";
@@ -260,3 +261,5 @@ it("allows short-notice mutual consent without a lineup, protects permissions an
   await runMatchTimeAutoAwardCron();
   expect(await db.query.matchRosters.findMany({ where: eq(schema.matchRosters.matchId, fixture.matchId) })).toHaveLength(2);
 });
+
+afterEach(flushProjectionAcknowledgements);

@@ -26,7 +26,7 @@ import type { PlayerRowOCR } from "@/lib/ocr";
 import { OCRFailure, presentOCRFailure } from "@/lib/ocr/errors";
 import { requireSeasonAdmin, auditActorId, requireAuth } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
-import { updatePublicStatsTag } from "@/lib/revalidation";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
 import { isStatOutOfRange } from "@/lib/config/stat-ranges";
 import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
 import { z } from "zod";
@@ -103,10 +103,9 @@ async function loadAuthorizedScoreboardContext(mapId: string) {
 }
 
 /** COMMIT is already confirmed; cache failure must not turn it into an apparent rejected write. */
-function refreshScoreboardAfterCommit(): boolean {
+async function refreshScoreboardAfterCommit(matchId: string): Promise<boolean> {
   try {
-    updatePublicStatsTag("scoreboard");
-    revalidatePath("/[seasonSlug]/matches/[matchId]", "page");
+    await deliverMatchProjectionInvalidations("action", [matchId]);
     return false;
   } catch (error) {
     captureException("action.scoreboard_refresh_failure", error, {
@@ -120,9 +119,8 @@ function refreshScoreboardAfterCommit(): boolean {
 /** Explicit recovery of invalidation only; never replays the scoreboard mutation. */
 export async function retryPlayerStatsRefresh(mapId: string): Promise<ActionResult<void>> {
   try {
-    await loadAuthorizedScoreboardContext(mapId);
-    updatePublicStatsTag("scoreboard");
-    revalidatePath("/[seasonSlug]/matches/[matchId]", "page");
+    const match = await loadAuthorizedScoreboardContext(mapId);
+    await deliverMatchProjectionInvalidations("action", [match.id]);
     return ok(undefined);
   } catch (error) {
     return actionError("retryPlayerStatsRefresh", error);
@@ -438,7 +436,11 @@ export async function savePlayerStats(
       return { receipt, replayed: false };
     });
 
-    return ok({ saved: stats.length, ...outcome, refreshPending: refreshScoreboardAfterCommit() });
+    return ok({
+      saved: stats.length,
+      ...outcome,
+      refreshPending: await refreshScoreboardAfterCommit(match.id),
+    });
   } catch (e) {
     return scoreboardFailure("savePlayerStats", e);
   }
@@ -732,7 +734,7 @@ export async function deletePlayerStatsByMap(mapId: string, command: ScoreboardC
       return { receipt, replayed: false };
     });
 
-    return ok({ ...outcome, refreshPending: refreshScoreboardAfterCommit() });
+    return ok({ ...outcome, refreshPending: await refreshScoreboardAfterCommit(match.id) });
   } catch (e) {
     return scoreboardFailure("deletePlayerStatsByMap", e);
   }

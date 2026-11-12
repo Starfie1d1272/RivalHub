@@ -1,9 +1,15 @@
 import { isCompetitionMatch, type CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { matchDemoImports, matchMaps, matches, userGameplaySteamIds } from "@/db/schema";
+import {
+  matchDemoImports,
+  matchMaps,
+  matches,
+  matchVetoInvalidations,
+  userGameplaySteamIds,
+} from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import {
   resolveGameplayUsersBySteam64InTx,
@@ -20,6 +26,7 @@ export interface CanonicalTarget {
   match: CompetitionMatch<typeof matches.$inferSelect>;
   map: typeof matchMaps.$inferSelect;
   roster: EffectiveMatchRosterPlayer[];
+  pendingInvalidation?: boolean;
 }
 
 export interface CanonicalValidationResult {
@@ -50,17 +57,28 @@ export class CanonicalTargetUnavailableError extends AppError {}
 export async function loadCanonicalTarget(
   tx: TxDb,
   target: Pick<RivalHubEvidenceSubmission["target"], "seasonId" | "matchId" | "matchMapId">,
+  checkPendingInvalidation = false,
 ): Promise<CanonicalTarget> {
-  const [match] = await tx
-    .select()
+  const [row] = await tx
+    .select({
+      match: getTableColumns(matches),
+      pendingInvalidation: checkPendingInvalidation
+        ? sql<boolean>`exists (
+        select 1 from ${matchVetoInvalidations}
+        where ${matchVetoInvalidations.matchId} = ${matches.id}
+        and ${matchVetoInvalidations.generation} > ${matchVetoInvalidations.publishedGeneration}
+      )`
+        : sql<boolean>`false`,
+    })
     .from(matches)
     .where(and(eq(matches.id, target.matchId), eq(matches.seasonId, target.seasonId)))
     .for("update");
-  if (!match)
+  if (!row)
     throw new CanonicalTargetUnavailableError(
       ErrorCode.NOT_FOUND,
       "目标比赛不存在或不属于该赛季。",
     );
+  const { match, pendingInvalidation } = row;
   if (!isCompetitionMatch(match))
     throw new CanonicalTargetUnavailableError(ErrorCode.VALIDATION_FAILED, "该操作需要赛事比赛。");
 
@@ -75,7 +93,7 @@ export async function loadCanonicalTarget(
     );
 
   const roster = await loadEffectiveMatchRoster(tx, [match.id]);
-  return { match, map, roster };
+  return { match, map, roster, pendingInvalidation };
 }
 
 export async function validateCanonicalTarget(

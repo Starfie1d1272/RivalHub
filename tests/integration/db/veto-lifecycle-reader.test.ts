@@ -1,9 +1,9 @@
-import { deliverExistingFixtureVetoInvalidations } from "./harness/veto-delivery";
+import { deliverExistingFixtureVetoInvalidations, flushProjectionAcknowledgements } from "./harness/veto-delivery";
 import { randomUUID } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/matches/projection-invalidation/next-adapter", () => ({ revalidateMatchProjectionPaths: vi.fn() }));
-vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
+vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), expirePublicTag: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { loadBetFacts } from "@/lib/bet/facts";
@@ -90,6 +90,7 @@ describe("veto lifecycle shipped reader1/publisher0", () => {
     expect((await db.select().from(schema.matchVetoInvalidations).where(gt(schema.matchVetoInvalidations.generation, schema.matchVetoInvalidations.publishedGeneration))).length).toBeGreaterThan(50);
     await deliverExistingFixtureVetoInvalidations();
     expect(await runMatchVetoScheduledJob()).toMatchObject({ result: { changed: 0 } });
+    await flushProjectionAcknowledgements();
     expect(await runMatchVetoScheduledJob()).toMatchObject({ result: { processed: 0, changed: 0 } });
     const pool = createLocalPool();
     try {

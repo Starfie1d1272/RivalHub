@@ -38,8 +38,7 @@ validation with full statistics reads, within the same read-only snapshot.
 Match map score segments use the current confirmed import and evidence revision
 for that match, then read its relational round facts in one bounded batch. They
 require a continuous sequence whose cumulative score matches the official map
-result; absent or inconsistent rounds do not supply segment scores. The shared
-public-statistics tag invalidates the cached result after source changes.
+result; absent or inconsistent rounds do not supply segment scores. The match statistics tag expires the cached result after source changes.
 
 Full-performance and full-tournament reads may reuse PostgreSQL's original text
 representations in a shared process-local LRU cache (16 MiB total including keys,
@@ -148,7 +147,7 @@ recovery and billing quota are separate from code deployment.
 `use cache: remote` uses Next.js's process-local handler on the current Linux
 production service. Entries and tag invalidation are not shared across instances;
 restart clears the cache. See [Linux hosting](./standby.md#公共缓存与验收). Fresh public event membership is read outside the cache and enters normalized platform/event keys; archived public events remain eligible and withdrawn drafts cannot reuse the previous aggregate. Statistics and compiled historical
-benchmarks use the platform statistics tag. Event statistics also have a per-event tag and a tag for cross-event identity or policy changes. Match delivery expires the affected event and the platform results together. Fresh public-event membership still gates visibility. Authorized draft queries and
+benchmarks use the platform statistics tag. Event statistics also have a per-event tag and a tag for cross-event identity or policy changes. Match delivery expires the affected match, event and platform results together. Fresh public-event membership still gates visibility. Authorized draft queries and
 viewer membership/invitation state bypass public caches. Mutations expire the tag
 immediately: Server Actions use `updateTag`, HTTP entrypoints use
 `revalidateTag(tag, { expire: 0 })`. General metadata may retain its existing SWR

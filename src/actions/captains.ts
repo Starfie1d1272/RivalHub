@@ -335,5 +335,5 @@ async function revalidateCaptainPaths(registrationId: string) {
     columns: { slug: true },
   });
   if (!season) return;
-  revalidateSeasonPaths(season.slug, ["captains", "adminCaptains"], { statistics: false });
+  revalidateSeasonPaths(season.slug, ["captains", "adminCaptains"]);
 }

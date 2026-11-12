@@ -1,17 +1,20 @@
 import "server-only";
-import { and, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db, type DB } from "@/db/client";
 import { matchVetoInvalidations, matches, seasons } from "@/db/schema";
-import { revalidateMatchProjectionPaths } from "./next-adapter";
+import { captureException } from "@/lib/observability/server";
+import { acknowledgeAfterExpiry, revalidateMatchProjectionPaths } from "./next-adapter";
 
-/** Match projection postcommit delivery. Never replays a domain command. */
-export async function deliverMatchProjectionInvalidation(
-  matchId: string,
+/** The foreground path and scheduler use the same committed watermark and delivery plan. */
+export async function deliverMatchProjectionInvalidations(
   mode: "action" | "route",
+  matchIds?: readonly string[],
   database: DB = db,
-): Promise<"complete" | "pending"> {
-  const [pending] = await database
+) {
+  if (matchIds?.length === 0) return { processed: 0 };
+  const pending = database
     .select({
+      matchId: matchVetoInvalidations.matchId,
       generation: matchVetoInvalidations.generation,
       affectedFacts: matchVetoInvalidations.affectedFacts,
       slug: seasons.slug,
@@ -23,30 +26,64 @@ export async function deliverMatchProjectionInvalidation(
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
     .where(
       and(
-        eq(matchVetoInvalidations.matchId, matchId),
         gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration),
+        matchIds ? inArray(matchVetoInvalidations.matchId, [...matchIds]) : undefined,
       ),
-    )
-    .limit(1);
-  if (!pending) return "complete";
-  // All existing hard-expire dependencies, including correction/withdrawal,
-  // remain owned by revalidation. A thrown call leaves the watermark pending.
-  revalidateMatchProjectionPaths(
-    { slug: pending.slug, seasonId: pending.seasonId, matchId, matchStatus: pending.matchStatus },
-    { changed: true, affectedFacts: pending.affectedFacts },
-    { mode },
-  );
-  const acknowledged = await database
-    .update(matchVetoInvalidations)
-    .set({ publishedGeneration: pending.generation })
-    .where(
-      and(
-        eq(matchVetoInvalidations.matchId, matchId),
-        eq(matchVetoInvalidations.generation, pending.generation),
-      ),
-    )
-    .returning({ matchId: matchVetoInvalidations.matchId });
-  // A fact committed during invalidation gets a newer generation. CAS must not
-  // acknowledge it; an authorized reconcile or the scheduler will deliver it.
-  return acknowledged.length ? "complete" : "pending";
+    );
+  const rows = await (matchIds
+    ? pending
+    : pending.orderBy(asc(matchVetoInvalidations.updatedAt)).limit(50));
+  if (!rows.length) return { processed: 0 };
+
+  const seenTags = new Map<string, boolean>();
+  const delivered: typeof rows = [];
+  const failures: typeof rows = [];
+  let firstFailure: unknown;
+  for (const row of rows) {
+    try {
+      revalidateMatchProjectionPaths(
+        row,
+        { changed: true, affectedFacts: row.affectedFacts },
+        { mode, seenTags },
+      );
+      delivered.push(row);
+    } catch (error) {
+      failures.push(row);
+      firstFailure ??= error;
+    }
+  }
+
+  const captured = (batch: typeof rows) =>
+    and(
+      gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration),
+      sql`(${matchVetoInvalidations.matchId}, ${matchVetoInvalidations.generation}) IN (${sql.join(
+        batch.map(({ matchId, generation }) => sql`(${matchId}::uuid, ${generation}::bigint)`),
+        sql`, `,
+      )})`,
+    );
+  if (delivered.length) {
+    const hardTags = [...seenTags].filter(([, hard]) => hard).map(([tag]) => tag);
+    await acknowledgeAfterExpiry(hardTags, async () => {
+      try {
+        await database
+          .update(matchVetoInvalidations)
+          .set({ publishedGeneration: sql`${matchVetoInvalidations.generation}` })
+          .where(captured(delivered));
+      } catch (error) {
+        captureException("match.projection_invalidation.ack_failed", error, {
+          scope: "match",
+          operation: "projection-invalidation.acknowledge",
+          retryable: true,
+        });
+      }
+    });
+  }
+  if (failures.length) {
+    await database
+      .update(matchVetoInvalidations)
+      .set({ updatedAt: sql`clock_timestamp()` })
+      .where(captured(failures));
+    throw firstFailure;
+  }
+  return { processed: rows.length };
 }

@@ -24,6 +24,7 @@ import {
   revalidateSeasonPaths,
   updatePublicSeasonTags,
 } from "@/lib/revalidation";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { validateMapScore } from "@/lib/matches/result-rules";
@@ -65,7 +66,7 @@ export async function updateMatchStatus(
       }
     });
 
-    revalidateMatchPaths(seasonForStatus.slug, matchId, { statisticsSeasonId: match.seasonId });
+    revalidateMatchPaths(seasonForStatus.slug, matchId);
     if (finishedSlug) {
       updatePublicSeasonTags(finishedSlug, match.seasonId);
       revalidatePath(`/${finishedSlug}`);
@@ -145,7 +146,7 @@ export async function recordMapResult(
       finishedSlug = result.finishedSlug;
     });
 
-    revalidateMatchPaths(season.slug, matchId, { statisticsSeasonId: season.id });
+    await deliverMatchProjectionInvalidations("action", [matchId]);
     if (finishedSlug) {
       updatePublicSeasonTags(finishedSlug, match.seasonId);
       revalidatePath(`/${finishedSlug}`);
@@ -207,7 +208,7 @@ export async function updateMatchCompletionDeadline(
       });
     });
 
-    revalidateMatchPaths(season.slug, matchId, { statisticsSeasonId: season.id });
+    revalidateMatchPaths(season.slug, matchId);
 
     return ok(undefined);
   } catch (e) {
@@ -325,7 +326,7 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
       });
     });
 
-    revalidateMatchPaths(season.slug, matchId, { statisticsSeasonId: season.id });
+    revalidateMatchPaths(season.slug, matchId, { statistics: { seasonId: season.id, matchId } });
     return ok(undefined);
   } catch (e) {
     return actionError("deleteMatch", e);
@@ -357,8 +358,6 @@ export async function updateMatchCompletedAt(
       return failValidation("请输入有效的实际完成时间。");
     }
 
-    const season = await getSeasonOrThrow(match.seasonId);
-
     await db.transaction(async (tx) => {
       const locked = await lockMatchInTx(tx, matchId);
       if (locked.seasonId !== match.seasonId)
@@ -380,7 +379,7 @@ export async function updateMatchCompletedAt(
       });
     });
 
-    revalidateMatchPaths(season.slug, matchId, { statisticsSeasonId: season.id });
+    await deliverMatchProjectionInvalidations("action", [matchId]);
     return ok(undefined);
   } catch (e) {
     return actionError("updateMatchCompletedAt", e);
@@ -403,7 +402,6 @@ export async function correctMapScore(
     if (!map) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
     const match = await getMatchOrThrow(map.matchId);
     const session = await requireSeasonAdmin(match.seasonId);
-    const season = await getSeasonOrThrow(match.seasonId);
     await db.transaction((tx) =>
       correctMapScoreInTx(tx, {
         matchId: match.id,
@@ -414,7 +412,7 @@ export async function correctMapScore(
         actorId: auditActorId(session),
       }),
     );
-    revalidateMatchPaths(season.slug, match.id, { statisticsSeasonId: match.seasonId });
+    await deliverMatchProjectionInvalidations("action", [match.id]);
     return ok(undefined);
   } catch (error) {
     return actionError("correctMapScore", error);
@@ -450,7 +448,6 @@ export async function forfeitMatch(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "弃赛队伍不属于本场比赛");
     }
 
-    const season = await getSeasonOrThrow(match.seasonId);
     let finishedSlug: string | null = null;
 
     await db.transaction(async (tx) => {
@@ -486,7 +483,7 @@ export async function forfeitMatch(
       });
     });
 
-    revalidateMatchPaths(season.slug, matchId, { statisticsSeasonId: season.id });
+    await deliverMatchProjectionInvalidations("action", [matchId]);
     if (finishedSlug) {
       updatePublicSeasonTags(finishedSlug, match.seasonId);
       revalidatePath(`/${finishedSlug}`);

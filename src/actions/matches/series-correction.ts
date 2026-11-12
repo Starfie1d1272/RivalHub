@@ -2,9 +2,10 @@
 
 import { db } from "@/db/client";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
-import { actionError, getMatchOrThrow, getSeasonOrThrow } from "@/lib/action-utils";
+import { actionError, getMatchOrThrow } from "@/lib/action-utils";
 import { ok, type ActionResult } from "@/types/action";
-import { revalidateMatchPaths, updatePublicSeasonTags } from "@/lib/revalidation";
+import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
+import { updatePublicSeasonTags } from "@/lib/revalidation";
 import { revalidatePath } from "next/cache";
 import {
   seriesCorrectionRequestSchema,
@@ -32,11 +33,10 @@ export async function confirmSeriesMapCorrection(raw: unknown): Promise<ActionRe
     const input = seriesCorrectionConfirmationSchema.parse(raw);
     const match = await getMatchOrThrow(input.matchId);
     const admin = await requireSeasonAdmin(match.seasonId);
-    const season = await getSeasonOrThrow(match.seasonId);
     const result = await db.transaction((tx) =>
       correctSeriesAfterMapScoreChangeInTx(tx, input, auditActorId(admin)),
     );
-    revalidateMatchPaths(season.slug, match.id);
+    await deliverMatchProjectionInvalidations("action", [match.id]);
     if (result.finishedSlug) {
       updatePublicSeasonTags(result.finishedSlug, match.seasonId);
       revalidatePath(`/${result.finishedSlug}`);

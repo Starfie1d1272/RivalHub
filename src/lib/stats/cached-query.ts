@@ -9,7 +9,12 @@ import { cache } from "react";
 import { db } from "@/db/client";
 import { competitionEntries, matches, seasons } from "@/db/schema";
 import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
-import { ALL_EVENT_STATS_TAG, PUBLIC_STATS_TAG, eventStatsTag } from "@/lib/cache/tags";
+import {
+  ALL_EVENT_STATS_TAG,
+  PUBLIC_STATS_TAG,
+  eventStatsTag,
+  matchStatsTag,
+} from "@/lib/cache/tags";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import { AppError, ErrorCode } from "@/lib/errors";
 import {
@@ -195,17 +200,19 @@ export async function getPublicLongTeamCareerDetail(teamId: string) {
 // Share only the public visibility probe within a server render; never cache draft access.
 const isPublicMatch = cache(async (matchId: string) => {
   const [match] = await db
-    .select({ id: matches.id })
+    .select({ seasonId: seasons.id })
     .from(matches)
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
     .where(and(eq(matches.id, matchId), ne(seasons.status, "draft")))
     .limit(1);
-  return Boolean(match);
+  return match?.seasonId;
 });
 
-async function cachedMatchPerformance(matchId: string) {
+async function cachedMatchPerformance(matchId: string, seasonId: string) {
   "use cache: remote";
-  statsCachePolicy();
+  cacheTag(ALL_EVENT_STATS_TAG, matchStatsTag(matchId));
+  cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
+  void seasonId;
   return observePublicStatsFill("stats.match", () =>
     preservePublicStatsDependencyFailure(() => getMatchPerformance(matchId)),
   );
@@ -214,5 +221,6 @@ async function cachedMatchPerformance(matchId: string) {
 /** One match-scoped cache entry is shared by the scoreboard, all players and MVP. */
 export async function getPublicMatchPerformance(matchId: string, visibility: Visibility) {
   if (visibility === "draft") return getMatchPerformance(matchId);
-  return (await isPublicMatch(matchId)) ? cachedMatchPerformance(matchId) : null;
+  const seasonId = await isPublicMatch(matchId);
+  return seasonId ? cachedMatchPerformance(matchId, seasonId) : null;
 }

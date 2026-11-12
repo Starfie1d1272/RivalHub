@@ -44,6 +44,7 @@ import {
   updatePublicAnnouncementTags,
   updatePublicSeasonInfoTag,
   updatePublicSeasonTags,
+  updatePublicStatsTag,
 } from "@/lib/revalidation";
 
 export type { SeasonFormInput };
@@ -180,6 +181,7 @@ export async function updateSeason(
     updatePublicSeasonTags(updated.oldSlug);
     if (updated.slug !== updated.oldSlug) updatePublicSeasonTags(updated.slug);
     if (updated.publicMetadataChanged) {
+      updatePublicStatsTag("season_or_other", { seasonId: updated.id });
       updatePublicAnnouncementTags(updated.id);
       updatePublicSeasonInfoTag(updated.id);
     }
@@ -289,7 +291,7 @@ export async function publishSeason(
       return locked;
     });
 
-    updatePublicSeasonTags(season.slug);
+    updatePublicSeasonTags(season.slug, seasonId, { statistics: { seasonId } });
     updatePublicAnnouncementTags(seasonId);
     updatePublicSeasonInfoTag(seasonId);
     revalidatePath("/admin");
@@ -425,7 +427,7 @@ export async function revertSeasonToDraft(
       return locked;
     });
 
-    updatePublicSeasonTags(season.slug);
+    updatePublicSeasonTags(season.slug, seasonId, { statistics: { seasonId } });
     updatePublicAnnouncementTags(seasonId);
     updatePublicSeasonInfoTag(seasonId);
     revalidatePath("/admin");

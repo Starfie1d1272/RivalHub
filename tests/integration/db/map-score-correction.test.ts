@@ -1,6 +1,7 @@
+import { flushProjectionAcknowledgements } from "./harness/veto-delivery";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { correctMapScore } from "@/actions/matches/results";
@@ -54,3 +55,5 @@ describe("map-score correction PostgreSQL contract", () => {
     }
   });
 });
+
+afterEach(flushProjectionAcknowledgements);

@@ -8,7 +8,7 @@ import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { issueLiveViewerToken } from "@/lib/mizar/live";
 import evidenceFixture from "../../fixtures/demo-evidence/normal-map-v1.json";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
-import { submitRivalHubEvidence } from "@/lib/demo-integration/submit";
+import { submitRivalHubEvidence as submitEvidence } from "@/lib/demo-integration/submit";
 import { loadCanonicalTarget } from "@/lib/demo-integration/validation";
 import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
 import { getMatchPlayerDetail, getTournamentPlayerDetail } from "@/lib/stats/tournament-query";
@@ -285,3 +285,7 @@ describe("event test matches", () => {
     await expect(db.transaction(tx => concludeUnassociatedMatchInTx(tx, { matchId: f.matchId, actorId: f.captainA, conclusion: { kind: "omitted" } }))).rejects.toThrow("正式赛事");
   });
 });
+
+async function submitRivalHubEvidence(args: Parameters<typeof submitEvidence>[0]) {
+  return (await submitEvidence(args)).response;
+}
