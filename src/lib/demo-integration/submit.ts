@@ -246,12 +246,15 @@ export async function submitRivalHubEvidence(
         },
       });
     }
-    return receipt({
-      status: status === "confirmed" ? "synced" : "needs_attention",
-      importId: created.id,
-      matchMapId: created.matchMapId,
-      demoSha256: created.demoSha256,
-      issues,
-    }, true);
+    return receipt(
+      {
+        status: status === "confirmed" ? "synced" : "needs_attention",
+        importId: created.id,
+        matchMapId: created.matchMapId,
+        demoSha256: created.demoSha256,
+        issues,
+      },
+      true,
+    );
   });
 }

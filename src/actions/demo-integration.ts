@@ -113,7 +113,10 @@ export async function confirmStoredDemoParticipantIdentity(
       };
     }
     if (result.aliasCreated) updatePublicStatsTag("identity", "all");
-    await deliverMatchProjectionInvalidations("action", [row.matchId, ...relatedRechecks.affectedMatchIds]);
+    await deliverMatchProjectionInvalidations("action", [
+      row.matchId,
+      ...relatedRechecks.affectedMatchIds,
+    ]);
     return ok({
       ...result,
       relatedRechecks: {

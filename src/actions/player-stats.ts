@@ -436,7 +436,11 @@ export async function savePlayerStats(
       return { receipt, replayed: false };
     });
 
-    return ok({ saved: stats.length, ...outcome, refreshPending: await refreshScoreboardAfterCommit(match.id) });
+    return ok({
+      saved: stats.length,
+      ...outcome,
+      refreshPending: await refreshScoreboardAfterCommit(match.id),
+    });
   } catch (e) {
     return scoreboardFailure("savePlayerStats", e);
   }

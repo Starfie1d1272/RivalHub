@@ -129,7 +129,10 @@ function expirePublicStatsTags(
   reason: StatsInvalidationReason = "season_or_other",
   seen?: Map<string, boolean>,
 ): void {
-  const tags = [PUBLIC_STATS_TAG, scope === "all" ? ALL_EVENT_STATS_TAG : eventStatsTag(scope.seasonId)];
+  const tags = [
+    PUBLIC_STATS_TAG,
+    scope === "all" ? ALL_EVENT_STATS_TAG : eventStatsTag(scope.seasonId),
+  ];
   if (scope !== "all" && scope.matchId) tags.push(matchStatsTag(scope.matchId));
   if (tags.every((tag) => seen?.has(tag))) return;
   recordStatsInvalidation(reason, "attempted");
@@ -142,11 +145,17 @@ function expirePublicStatsTags(
   }
 }
 
-export function updatePublicStatsTag(reason: StatsInvalidationReason, scope: StatisticsScope): void {
+export function updatePublicStatsTag(
+  reason: StatsInvalidationReason,
+  scope: StatisticsScope,
+): void {
   expirePublicStatsTags(scope, "action", reason);
 }
 
-export function revalidatePublicStatsTag(reason: StatsInvalidationReason, scope: StatisticsScope): void {
+export function revalidatePublicStatsTag(
+  reason: StatsInvalidationReason,
+  scope: StatisticsScope,
+): void {
   expirePublicStatsTags(scope, "route", reason);
 }
 

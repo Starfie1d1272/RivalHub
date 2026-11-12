@@ -3,7 +3,13 @@ import "server-only";
 
 import { and, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { matchDemoImports, matchMaps, matches, matchVetoInvalidations, userGameplaySteamIds } from "@/db/schema";
+import {
+  matchDemoImports,
+  matchMaps,
+  matches,
+  matchVetoInvalidations,
+  userGameplaySteamIds,
+} from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import {
   resolveGameplayUsersBySteam64InTx,
@@ -56,11 +62,13 @@ export async function loadCanonicalTarget(
   const [row] = await tx
     .select({
       match: getTableColumns(matches),
-      pendingInvalidation: checkPendingInvalidation ? sql<boolean>`exists (
+      pendingInvalidation: checkPendingInvalidation
+        ? sql<boolean>`exists (
         select 1 from ${matchVetoInvalidations}
         where ${matchVetoInvalidations.matchId} = ${matches.id}
         and ${matchVetoInvalidations.generation} > ${matchVetoInvalidations.publishedGeneration}
-      )` : sql<boolean>`false`,
+      )`
+        : sql<boolean>`false`,
     })
     .from(matches)
     .where(and(eq(matches.id, target.matchId), eq(matches.seasonId, target.seasonId)))

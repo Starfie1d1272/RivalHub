@@ -202,12 +202,15 @@ export async function POST(request: Request, context: Context) {
         );
         diagnostics.phase = "revalidation";
         const { matchId } = z.object({ matchId: z.uuid() }).parse(envelope.event);
-        const delivery = outcome.outcome === "canonicalized"
-          ? await deliverMatchProjectionInvalidations("route", [matchId])
-          : undefined;
+        const delivery =
+          outcome.outcome === "canonicalized"
+            ? await deliverMatchProjectionInvalidations("route", [matchId])
+            : undefined;
         if (!outcome.duplicate && !delivery?.processed) {
-          const [season] = await db.select({ slug: seasons.slug })
-            .from(seasons).where(eq(seasons.id, installation.competitionId));
+          const [season] = await db
+            .select({ slug: seasons.slug })
+            .from(seasons)
+            .where(eq(seasons.id, installation.competitionId));
           if (season) {
             if (outcome.outcome === "canonicalized")
               revalidateMatchPaths(season.slug, matchId, { mode: "route" });

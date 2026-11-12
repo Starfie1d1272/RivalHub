@@ -30,7 +30,9 @@ export async function deliverMatchProjectionInvalidations(
         matchIds ? inArray(matchVetoInvalidations.matchId, [...matchIds]) : undefined,
       ),
     );
-  const rows = await (matchIds ? pending : pending.orderBy(asc(matchVetoInvalidations.updatedAt)).limit(50));
+  const rows = await (matchIds
+    ? pending
+    : pending.orderBy(asc(matchVetoInvalidations.updatedAt)).limit(50));
   if (!rows.length) return { processed: 0 };
 
   const seenTags = new Map<string, boolean>();
@@ -39,7 +41,11 @@ export async function deliverMatchProjectionInvalidations(
   let firstFailure: unknown;
   for (const row of rows) {
     try {
-      revalidateMatchProjectionPaths(row, { changed: true, affectedFacts: row.affectedFacts }, { mode, seenTags });
+      revalidateMatchProjectionPaths(
+        row,
+        { changed: true, affectedFacts: row.affectedFacts },
+        { mode, seenTags },
+      );
       delivered.push(row);
     } catch (error) {
       failures.push(row);
@@ -47,18 +53,20 @@ export async function deliverMatchProjectionInvalidations(
     }
   }
 
-  const captured = (batch: typeof rows) => and(
-    gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration),
-    sql`(${matchVetoInvalidations.matchId}, ${matchVetoInvalidations.generation}) IN (${sql.join(
-      batch.map(({ matchId, generation }) => sql`(${matchId}::uuid, ${generation}::bigint)`),
-      sql`, `,
-    )})`,
-  );
+  const captured = (batch: typeof rows) =>
+    and(
+      gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration),
+      sql`(${matchVetoInvalidations.matchId}, ${matchVetoInvalidations.generation}) IN (${sql.join(
+        batch.map(({ matchId, generation }) => sql`(${matchId}::uuid, ${generation}::bigint)`),
+        sql`, `,
+      )})`,
+    );
   if (delivered.length) {
     const hardTags = [...seenTags].filter(([, hard]) => hard).map(([tag]) => tag);
     await acknowledgeAfterExpiry(hardTags, async () => {
       try {
-        await database.update(matchVetoInvalidations)
+        await database
+          .update(matchVetoInvalidations)
           .set({ publishedGeneration: sql`${matchVetoInvalidations.generation}` })
           .where(captured(delivered));
       } catch (error) {
@@ -71,7 +79,8 @@ export async function deliverMatchProjectionInvalidations(
     });
   }
   if (failures.length) {
-    await database.update(matchVetoInvalidations)
+    await database
+      .update(matchVetoInvalidations)
       .set({ updatedAt: sql`clock_timestamp()` })
       .where(captured(failures));
     throw firstFailure;

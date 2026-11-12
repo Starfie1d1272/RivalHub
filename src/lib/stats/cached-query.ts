@@ -9,7 +9,12 @@ import { cache } from "react";
 import { db } from "@/db/client";
 import { competitionEntries, matches, seasons } from "@/db/schema";
 import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
-import { ALL_EVENT_STATS_TAG, PUBLIC_STATS_TAG, eventStatsTag, matchStatsTag } from "@/lib/cache/tags";
+import {
+  ALL_EVENT_STATS_TAG,
+  PUBLIC_STATS_TAG,
+  eventStatsTag,
+  matchStatsTag,
+} from "@/lib/cache/tags";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import { AppError, ErrorCode } from "@/lib/errors";
 import {

@@ -358,7 +358,6 @@ export async function updateMatchCompletedAt(
       return failValidation("请输入有效的实际完成时间。");
     }
 
-
     await db.transaction(async (tx) => {
       const locked = await lockMatchInTx(tx, matchId);
       if (locked.seasonId !== match.seasonId)

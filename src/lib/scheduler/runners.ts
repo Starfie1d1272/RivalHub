@@ -245,7 +245,10 @@ export async function runSchedulerJobByKey(
 
 export async function runMatchMvpSettlementJob() {
   const { affectedMatches, failures, ...result } = await settleExpiredMatchMvpVotes();
-  await deliverMatchProjectionInvalidations("route", affectedMatches.map(({ matchId }) => matchId));
+  await deliverMatchProjectionInvalidations(
+    "route",
+    affectedMatches.map(({ matchId }) => matchId),
+  );
   // Invalidate committed successes even when another match failed. Pending
   // matches remain due, and scheduler health must report the failed batch.
   if (failures.length > 0) throw new AggregateError(failures, "MVP settlement failed");
