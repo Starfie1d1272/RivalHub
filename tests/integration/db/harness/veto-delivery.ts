@@ -4,16 +4,16 @@ import { db, type DB } from "@/db/client";
 import { matches, matchVetoInvalidations } from "@/db/schema";
 import { deliverMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/delivery";
 
-const acknowledgements = vi.hoisted(() => [] as Array<() => Promise<void>>);
+const acknowledgements = vi.hoisted(() => [] as Array<(confirmed: boolean) => Promise<void>>);
 vi.mock("@/lib/matches/projection-invalidation/next-adapter", async (original) => ({
   ...await original<typeof import("@/lib/matches/projection-invalidation/next-adapter")>(),
-  acknowledgeAfterExpiry: async (_tags: string[], acknowledge: () => Promise<void>) => {
-    acknowledgements.push(acknowledge);
+  observeHardExpiry: async (_tags: string[], settle: (confirmed: boolean) => Promise<void>) => {
+    acknowledgements.push(settle);
   },
 }));
 
-export async function flushProjectionAcknowledgements() {
-  for (const acknowledge of acknowledgements.splice(0)) await acknowledge();
+export async function flushProjectionAcknowledgements(confirmed = true) {
+  for (const settle of acknowledgements.splice(0)) await settle(confirmed);
 }
 
 export async function deliverFixtureInvalidation(matchId: string, database?: DB) {

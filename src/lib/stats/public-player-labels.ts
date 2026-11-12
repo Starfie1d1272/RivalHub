@@ -7,6 +7,8 @@ import { steamProfiles, users } from "@/db/schema";
 import { PUBLIC_STATS_PLAYER_NAMES_TAG } from "@/lib/cache/tags";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { preservePublicStatsDependencyFailure } from "./availability";
+import type { PublicStatsData } from "./public-view";
+import { isPlayerRecord } from "./record-facts";
 
 async function readPlayerNames(ids: string[]) {
   "use cache: remote";
@@ -29,56 +31,119 @@ async function readPlayerNames(ids: string[]) {
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Public DTOs carry stable IDs next to their display fields. Relabel only those fields. */
-function visitPlayerLabels(
-  value: unknown,
-  field: string,
-  label: (id: string, current: string) => string,
-): unknown {
-  if (Array.isArray(value)) {
-    const mapped = value.map((item) => visitPlayerLabels(item, field, label));
-    return mapped.some((item, index) => item !== value[index]) ? mapped : value;
-  }
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  )
-    return value;
-  const row = value as Record<string, unknown>;
-  let copy: Record<string, unknown> | undefined;
-  function replace(key: string, next: unknown) {
-    if (next !== row[key]) (copy ??= { ...row })[key] = next;
-  }
-  function relabel(key: string, id: unknown) {
-    const name = row[key];
-    if (typeof id === "string" && uuid.test(id) && typeof name === "string")
-      replace(key, label(id, name));
-  }
-  if (field === "player" || field === "topPlayer") relabel("displayName", row.entityKey);
-  relabel("perfectName", row.userId);
-  if (row.entryId === null) relabel("name", row.userId);
-  if (typeof row.href === "string" && row.href.startsWith("/players/")) relabel("name", row.id);
-  if (
-    (typeof row.entityHref === "string" && row.entityHref.startsWith("/players/")) ||
-    "victimName" in row
-  )
-    relabel("entityName", row.entityId ?? row.entityKey);
-  relabel("victimName", row.victimId);
-  for (const [key, item] of Object.entries(row)) {
-    if (item !== null && typeof item === "object")
-      replace(key, visitPlayerLabels(item, key, label));
-  }
-  return copy ?? row;
+export type PlayerLabel = <Name extends string | null | undefined>(
+  id: string | null | undefined,
+  current: Name,
+) => string | Name;
+
+/** The caller selects the display fields of its DTO. Resolve all selected names in one batch. */
+export async function withPublicPlayerLabels<T>(project: (label: PlayerLabel) => T): Promise<T> {
+  const ids = new Set<string>();
+  const fallback = project((id, current) => {
+    if (id && current != null && uuid.test(id)) ids.add(id);
+    return current;
+  });
+  if (!ids.size) return fallback;
+  const names = await readPlayerNames([...ids].sort());
+  return project((id, current) =>
+    id && current != null && ids.has(id) ? (names[id] ?? current) : current,
+  );
 }
 
-export async function withPublicPlayerLabels<T>(value: T): Promise<T> {
-  const ids = new Set<string>();
-  visitPlayerLabels(value, "", (id, name) => {
-    ids.add(id);
-    return name;
-  });
-  if (!ids.size) return value;
-  const names = await readPlayerNames([...ids].sort());
-  return visitPlayerLabels(value, "", (id, name) => names[id] ?? name) as T;
+export function labelScoreboardPlayer<T extends { userId: string | null; perfectName: string }>(
+  row: T,
+  label: PlayerLabel,
+): T {
+  const perfectName = label(row.userId, row.perfectName);
+  return perfectName === row.perfectName ? row : { ...row, perfectName };
+}
+
+export function labelPerformancePlayer<
+  T extends { player: { entityKey: string; displayName: string } },
+>(row: T, label: PlayerLabel): T {
+  const { player } = row;
+  const displayName = label(player.entityKey, player.displayName);
+  return displayName === player.displayName ? row : { ...row, player: { ...player, displayName } };
+}
+
+export function labelPublicStatsView(data: PublicStatsData, label: PlayerLabel): PublicStatsData {
+  switch (data.tab) {
+    case "overview":
+      return {
+        ...data,
+        overview: {
+          ...data.overview,
+          topPlayers: data.overview.topPlayers.map((row) => labelScoreboardPlayer(row, label)),
+          insights: data.overview.insights.map((row) =>
+            row.entityType === "player"
+              ? { ...row, entityName: label(row.entityKey, row.entityName) }
+              : row,
+          ),
+        },
+      };
+    case "players":
+      return {
+        ...data,
+        leaderboard: data.leaderboard.map((row) => labelScoreboardPlayer(row, label)),
+        performance: {
+          ...data.performance,
+          players: data.performance.players.map((row) => labelPerformancePlayer(row, label)),
+        },
+      };
+    case "teams":
+      return data;
+    case "weapons":
+      return {
+        ...data,
+        performance: {
+          weapons: data.performance.weapons.map((row) => {
+            const topPlayer = row.topPlayer;
+            if (!topPlayer) return row;
+            const displayName = label(topPlayer.entityKey, topPlayer.displayName);
+            return displayName === topPlayer.displayName
+              ? row
+              : { ...row, topPlayer: { ...topPlayer, displayName } };
+          }),
+        },
+      };
+    case "records":
+      return {
+        ...data,
+        records: data.records?.map((record) =>
+          isPlayerRecord(record.kind)
+            ? {
+                ...record,
+                holders: record.holders.map((row) => ({ ...row, name: label(row.id, row.name) })),
+                occurrences: record.occurrences.map((row) => ({
+                  ...row,
+                  entityName: label(row.entityId, row.entityName),
+                })),
+              }
+            : record,
+        ),
+        recordEvents: data.recordEvents && {
+          ...data.recordEvents,
+          rows: data.recordEvents.rows.map((row) => ({
+            ...row,
+            entityName: label(row.entityId, row.entityName),
+            victimName: label(row.victimId, row.victimName),
+          })),
+        },
+      };
+    case "maps":
+      return data.mapDetail
+        ? {
+            ...data,
+            mapDetail: {
+              ...data.mapDetail,
+              performance: {
+                ...data.mapDetail.performance,
+                players: data.mapDetail.performance.players.map((row) =>
+                  labelPerformancePlayer(row, label),
+                ),
+              },
+            },
+          }
+        : data;
+  }
 }

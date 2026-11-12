@@ -3,7 +3,7 @@ import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db, type DB } from "@/db/client";
 import { matchVetoInvalidations, matches, seasons } from "@/db/schema";
 import { captureException } from "@/lib/observability/server";
-import { acknowledgeAfterExpiry, revalidateMatchProjectionPaths } from "./next-adapter";
+import { observeHardExpiry, revalidateMatchProjectionPaths } from "./next-adapter";
 
 /** The foreground path and scheduler use the same committed watermark and delivery plan. */
 export async function deliverMatchProjectionInvalidations(
@@ -63,16 +63,20 @@ export async function deliverMatchProjectionInvalidations(
     );
   if (delivered.length) {
     const hardTags = [...seenTags].filter(([, hard]) => hard).map(([tag]) => tag);
-    await acknowledgeAfterExpiry(hardTags, async () => {
+    await observeHardExpiry(hardTags, async (confirmed) => {
       try {
         await database
           .update(matchVetoInvalidations)
-          .set({ publishedGeneration: sql`${matchVetoInvalidations.generation}` })
+          .set(
+            confirmed
+              ? { publishedGeneration: sql`${matchVetoInvalidations.generation}` }
+              : { updatedAt: sql`clock_timestamp()` },
+          )
           .where(captured(delivered));
       } catch (error) {
-        captureException("match.projection_invalidation.ack_failed", error, {
+        captureException("match.projection_invalidation.settle_failed", error, {
           scope: "match",
-          operation: "projection-invalidation.acknowledge",
+          operation: "projection-invalidation.settle",
           retryable: true,
         });
       }

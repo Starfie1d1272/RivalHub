@@ -4,7 +4,7 @@ import { PageHeader, PageLayout } from "@/components/rivalhub";
 import { TournamentStatsView } from "@/components/stats/TournamentStats";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
-import { getPublicTournamentMapDetail, getPublicTournamentStats } from "@/lib/stats/cached-query";
+import { getTournamentMapDetail, getTournamentStats } from "@/lib/stats/tournament-query";
 import { getTournamentRecordEvents } from "@/lib/stats/record-events-query";
 import { buildRecords } from "@/lib/stats/records";
 import { publicStatsView } from "@/lib/stats/public-view";
@@ -47,7 +47,6 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     stage: query.stage || undefined,
     format: query.format || undefined,
   };
-  const visibility = season.status === "draft" ? "draft" : "public";
 
   let data;
   let mapDetail;
@@ -55,26 +54,23 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     if (query.tab === "maps" && query.map) {
       mapDetail =
         (await readOptionalPublicStats("tournament_map", () =>
-          getPublicTournamentMapDetail({ ...scope, map: query.map }, visibility),
+          getTournamentMapDetail({ ...scope, map: query.map }),
         )) ?? undefined;
     } else {
       data =
         (await readOptionalPublicStats("tournament", () =>
-          getPublicTournamentStats(
-            {
-              ...scope,
-              view: query.tab,
-              mapFilter:
-                query.tab === "players" ||
-                query.tab === "teams" ||
-                query.tab === "weapons" ||
-                query.tab === "records"
-                  ? query.mapFilter || undefined
-                  : undefined,
-              weaponTeamId: query.tab === "weapons" ? query.teamFilter || undefined : undefined,
-            },
-            visibility,
-          ),
+          getTournamentStats({
+            ...scope,
+            view: query.tab,
+            mapFilter:
+              query.tab === "players" ||
+              query.tab === "teams" ||
+              query.tab === "weapons" ||
+              query.tab === "records"
+                ? query.mapFilter || undefined
+                : undefined,
+            weaponTeamId: query.tab === "weapons" ? query.teamFilter || undefined : undefined,
+          }),
         )) ?? undefined;
       if (data && query.tab === "records") {
         data = {

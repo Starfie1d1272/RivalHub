@@ -34,7 +34,7 @@ import {
   type RecordOccurrence,
   type RecordSummary,
 } from "./records";
-import { RECORD_EVENT_NAMES, type RecordEventKind } from "./record-facts";
+import { isPlayerRecord, RECORD_EVENT_NAMES, type RecordEventKind } from "./record-facts";
 import type { RecordEventPage } from "./record-events-query";
 import type { StatsTab } from "./view-state";
 import type {
@@ -524,7 +524,7 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
       const match = matchesById.get(map.matchId)!;
       return (row.facts.records?.candidates ?? []).map((candidate) => {
         const entry = entriesById.get(candidate.entryId)!;
-        const isTeam = candidate.kind === "economy";
+        const isTeam = !isPlayerRecord(candidate.kind);
         const id = isTeam ? remap(candidate.entityId) : candidate.entityId;
         const opponent =
           entriesById.get(candidate.entryId === match.entryAId ? match.entryBId : match.entryAId)

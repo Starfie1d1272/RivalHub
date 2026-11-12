@@ -24,7 +24,7 @@ import { getTournamentStats } from "./tournament-query";
 import { getTournamentRecordEvents } from "./record-events-query";
 import type { PlatformStatsScope } from "./types";
 import { buildRecords } from "./records";
-import { withPublicPlayerLabels } from "./public-player-labels";
+import { labelPublicStatsView, withPublicPlayerLabels } from "./public-player-labels";
 import { publicStatsView } from "./public-view";
 import { parseStatsQuery, type StatsSearch } from "./view-state";
 
@@ -263,8 +263,9 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
         : await getCachedPublicRecordEvents(scope, eventFilter);
       data = { ...data, recordEvents };
     }
+    const view = publicStatsView(data, query);
     return {
-      data: await withPublicPlayerLabels(publicStatsView(data, query)),
+      data: await withPublicPlayerLabels((label) => labelPublicStatsView(view, label)),
       query,
       event,
       stages,

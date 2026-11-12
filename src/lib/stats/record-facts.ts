@@ -16,6 +16,11 @@ export const RECORD_NAMES = {
   acesTotal: "范围内累计 Ace",
 } as const;
 export type RecordKind = keyof typeof RECORD_NAMES;
+
+export function isPlayerRecord(kind: RecordKind) {
+  return kind !== "economy";
+}
+
 export interface RecordCandidate {
   kind: RecordKind;
   entityId: string;

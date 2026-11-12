@@ -193,7 +193,16 @@ async function readResultFacts(seasonList: readonly PublicSeason[], compact: boo
 /** Historical output uses actual completed matches and explicit final/honor facts. */
 export async function getPublicSeasonResults(season: PublicSeason) {
   const results = (await getPublicSeasonResultsBatch([season])).get(season.id)!;
-  return season.status === "draft" ? results : withPublicPlayerLabels(results);
+  if (season.status === "draft") return results;
+  return withPublicPlayerLabels((label) => ({
+    ...results,
+    honors: results.honors.map((row) =>
+      row.entryId === null ? { ...row, name: label(row.userId, row.name) } : row,
+    ),
+    honorHistory: results.honorHistory.map((row) =>
+      row.entryId === null ? { ...row, name: label(row.userId, row.name) } : row,
+    ),
+  }));
 }
 
 /** Share fact reads across historical profiles while keeping the same per-season projection. */

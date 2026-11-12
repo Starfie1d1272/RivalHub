@@ -81,9 +81,13 @@ export function checkArchitecture(options: ArchitectureCheckOptions = {}): Archi
   for (const record of records.values()) {
     for (const edge of record.allEdges) {
       checkCanonicalProvider(record, edge.specifier, report);
-      if (record.path.startsWith("src/db/schema/") &&
-          (edge.specifier === "@/lib/bracket" || edge.specifier === "@/lib/competition-qualification/eligibility")) {
-        report({ ruleId: "ARCH_SCHEMA_CONTRACT", file: record.path, target: edge.specifier,
+      if (!record.path.startsWith("src/db/schema/")) continue;
+      const target = resolveLocalModule(record.path, edge.specifier, graph.records, graph.resolver);
+      if (target && (
+        (target.path.startsWith("src/lib/bracket/") && target.path !== "src/lib/bracket/storage-contract.ts") ||
+        target.path === "src/lib/competition-qualification/eligibility.ts"
+      )) {
+        report({ ruleId: "ARCH_SCHEMA_CONTRACT", file: record.path, target: target.path,
           message: "Schema 只依赖持久化值契约。" });
       }
     }
