@@ -131,7 +131,10 @@ export async function getPublicTournamentTeamDetail(scope: TeamScope, visibility
   if (visibility === "draft") return getTournamentTeamDetail(scope);
   const season = await requirePublicSeason(scope.seasonId);
   await requirePublicEntry(scope.seasonId, scope.teamId);
-  const detail = await cachedTournamentTeam({ ...(await normalizeScope(scope, season)), teamId: scope.teamId });
+  const detail = await cachedTournamentTeam({
+    ...(await normalizeScope(scope, season)),
+    teamId: scope.teamId,
+  });
   return withPublicPlayerLabels((label) => labelTeamPlayers(detail, label));
 }
 
@@ -218,9 +221,11 @@ export async function getPublicMatchPerformance(matchId: string, visibility: Vis
   return withPublicPlayerLabels((label) => ({
     ...performance,
     overall: performance.overall.map((row) => labelPerformancePlayer(row, label)),
-    byMap: Object.fromEntries(Object.entries(performance.byMap).map(([key, rows]) => [
-      key,
-      rows.map((row) => labelPerformancePlayer(row, label)),
-    ])),
+    byMap: Object.fromEntries(
+      Object.entries(performance.byMap).map(([key, rows]) => [
+        key,
+        rows.map((row) => labelPerformancePlayer(row, label)),
+      ]),
+    ),
   }));
 }

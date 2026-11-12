@@ -67,9 +67,11 @@ export async function deliverMatchProjectionInvalidations(
       try {
         await database
           .update(matchVetoInvalidations)
-          .set(confirmed
-            ? { publishedGeneration: sql`${matchVetoInvalidations.generation}` }
-            : { updatedAt: sql`clock_timestamp()` })
+          .set(
+            confirmed
+              ? { publishedGeneration: sql`${matchVetoInvalidations.generation}` }
+              : { updatedAt: sql`clock_timestamp()` },
+          )
           .where(captured(delivered));
       } catch (error) {
         captureException("match.projection_invalidation.settle_failed", error, {

@@ -196,12 +196,12 @@ export async function getPublicSeasonResults(season: PublicSeason) {
   if (season.status === "draft") return results;
   return withPublicPlayerLabels((label) => ({
     ...results,
-    honors: results.honors.map((row) => row.entryId === null
-      ? { ...row, name: label(row.userId, row.name) }
-      : row),
-    honorHistory: results.honorHistory.map((row) => row.entryId === null
-      ? { ...row, name: label(row.userId, row.name) }
-      : row),
+    honors: results.honors.map((row) =>
+      row.entryId === null ? { ...row, name: label(row.userId, row.name) } : row,
+    ),
+    honorHistory: results.honorHistory.map((row) =>
+      row.entryId === null ? { ...row, name: label(row.userId, row.name) } : row,
+    ),
   }));
 }
 
