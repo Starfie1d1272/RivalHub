@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 平台/赛事统计、地图/选手/队伍详情与 MVP 摘要 | 平台使用平台统计 tag，赛事使用赛事 tag 与跨赛事身份 tag，单场表现使用比赛 tag 与跨赛事身份 tag；公开范围及投影版本进入对应 key | 公开赛事/entry 可见性；统计只使用 canonical 当前证据及冻结人口 |
 | career、benchmark、lineup style | 全局统计安全 tag | 身份归属、完整历史人口与当前证据选择 |
-| lineup comparison | 全局统计安全 tag | 导入确认时校验；读取复用已确认逐图结果，覆盖完整历史人口并排除当前比赛 |
+| lineup comparison | 事务内推进的公开总体版本；固定 cutoff 和必要的比赛排除进入 key | 比赛与公开权限 fresh 校验；总体回填在同一只读快照校验采纳 Demo、名单与身份 |
 | BET 公共池与免费预测支持率 | 单赛事 BET、公开 season、赛事统计 tag 与跨赛事身份 tag | 每次请求的个人资金/选择、准入、封盘与事实签名；草稿不共享 |
 | 进行中 BP 房间 | 无跨请求共享 room cache；no-store transport | fresh 权限、DB 时钟、revision、实际 lineup 与命令状态 |
 | 公共玩家资料及统计里的玩家名称 | public player tag；名称批量投影按统计展示 tag 更新 | viewer overlay、资格与当前身份授权；统计计算复用原有数值结果 |
