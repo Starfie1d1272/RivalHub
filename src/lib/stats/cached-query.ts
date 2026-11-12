@@ -1,3 +1,4 @@
+import { withPublicPlayerLabels } from "./public-player-labels";
 import { getMatchPerformance } from "./match-performance-query";
 import { preservePublicStatsDependencyFailure } from "./availability";
 import { observePublicStatsFill } from "./public-fill";
@@ -135,19 +136,23 @@ export async function getPublicTournamentStats(scope: TournamentViewScope, visib
   const season = await requirePublicSeason(scope.seasonId);
   if (scope.teamFilter) await requirePublicEntry(scope.seasonId, scope.teamFilter);
   if (scope.weaponTeamId) await requirePublicEntry(scope.seasonId, scope.weaponTeamId);
-  return cachedTournamentStats({
-    ...(await normalizeScope(scope, season)),
-    view: scope.view,
-    mapDetail: scope.mapDetail,
-    weaponTeamId: scope.weaponTeamId,
-  });
+  return withPublicPlayerLabels(
+    await cachedTournamentStats({
+      ...(await normalizeScope(scope, season)),
+      view: scope.view,
+      mapDetail: scope.mapDetail,
+      weaponTeamId: scope.weaponTeamId,
+    }),
+  );
 }
 
 export async function getPublicTournamentTeamDetail(scope: TeamScope, visibility: Visibility) {
   if (visibility === "draft") return getTournamentTeamDetail(scope);
   const season = await requirePublicSeason(scope.seasonId);
   await requirePublicEntry(scope.seasonId, scope.teamId);
-  return cachedTournamentTeam({ ...(await normalizeScope(scope, season)), teamId: scope.teamId });
+  return withPublicPlayerLabels(
+    await cachedTournamentTeam({ ...(await normalizeScope(scope, season)), teamId: scope.teamId }),
+  );
 }
 
 export async function getPublicTournamentMapDetail(scope: MapScope, visibility: Visibility) {
@@ -155,7 +160,9 @@ export async function getPublicTournamentMapDetail(scope: MapScope, visibility: 
   const season = await requirePublicSeason(scope.seasonId);
   if (!knownMaps.has(scope.map)) throw new AppError(ErrorCode.NOT_FOUND, "地图不存在。");
   const { seasonId, stage, format } = await normalizeScope(scope, season);
-  return cachedTournamentMap({ seasonId, stage, format, map: scope.map });
+  return withPublicPlayerLabels(
+    await cachedTournamentMap({ seasonId, stage, format, map: scope.map }),
+  );
 }
 
 /** The canonical career queries themselves restrict the corpus to public events. */
@@ -186,15 +193,21 @@ export async function getPublicPlayerCareerDetail(scope: PlayerCareerScope) {
     mapFilter =
       scope.mapFilter && allowedMaps.includes(scope.mapFilter) ? scope.mapFilter : undefined;
   }
-  return cachedPlayerCareerDetail({ playerId: scope.playerId, eventSlug, mapFilter });
+  return withPublicPlayerLabels(
+    await cachedPlayerCareerDetail({ playerId: scope.playerId, eventSlug, mapFilter }),
+  );
 }
 
-export async function getPublicLongTeamCareerDetail(teamId: string) {
+async function cachedLongTeamCareerDetail(teamId: string) {
   "use cache: remote";
   statsCachePolicy();
   return observePublicStatsFill("stats.career", async () =>
     preservePublicStatsDependencyFailure(() => getLongTeamCareerDetail(teamId)),
   );
+}
+
+export async function getPublicLongTeamCareerDetail(teamId: string) {
+  return withPublicPlayerLabels(await cachedLongTeamCareerDetail(teamId));
 }
 
 // Share only the public visibility probe within a server render; never cache draft access.
@@ -208,11 +221,10 @@ const isPublicMatch = cache(async (matchId: string) => {
   return match?.seasonId;
 });
 
-async function cachedMatchPerformance(matchId: string, seasonId: string) {
+async function cachedMatchPerformance({ matchId }: { matchId: string; seasonId: string }) {
   "use cache: remote";
   cacheTag(ALL_EVENT_STATS_TAG, matchStatsTag(matchId));
   cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
-  void seasonId;
   return observePublicStatsFill("stats.match", () =>
     preservePublicStatsDependencyFailure(() => getMatchPerformance(matchId)),
   );
@@ -222,5 +234,7 @@ async function cachedMatchPerformance(matchId: string, seasonId: string) {
 export async function getPublicMatchPerformance(matchId: string, visibility: Visibility) {
   if (visibility === "draft") return getMatchPerformance(matchId);
   const seasonId = await isPublicMatch(matchId);
-  return seasonId ? cachedMatchPerformance(matchId, seasonId) : null;
+  return seasonId
+    ? withPublicPlayerLabels(await cachedMatchPerformance({ matchId, seasonId }))
+    : null;
 }

@@ -14,7 +14,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import {
   revalidatePublicHomeTag,
   revalidatePublicPlayerTags,
-  revalidatePublicStatsTag,
+  revalidatePublicStatsPlayerNames,
 } from "@/lib/revalidation";
 
 type SteamProfileDatabase = DB | TxDb;
@@ -164,7 +164,7 @@ export async function loadOrFetchSteamProfiles(
   if (changed.length > 0)
     after(() => {
       revalidatePublicHomeTag();
-      revalidatePublicStatsTag("identity", "all");
+      revalidatePublicStatsPlayerNames();
     });
   // A concurrent insert may have already stored identical display fields.
   // Preserve the successful fetch time without counting it as a display change.
@@ -241,6 +241,7 @@ export async function refreshSteamProfiles() {
 
   const cached = await loadSteamProfilesBySteam64(db, steam64s);
   const changedSteam64s = new Set<string>();
+  let namesChanged = false;
   let unresolved = 0;
   let failed = 0;
   try {
@@ -272,6 +273,7 @@ export async function refreshSteamProfiles() {
         });
       for (const profile of profiles) {
         const previous = cached.get(profile.steam64);
+        if (previous?.personaName !== profile.personaName) namesChanged = true;
         if (
           previous?.personaName !== profile.personaName ||
           previous?.profileUrl !== profile.profileUrl ||
@@ -285,6 +287,7 @@ export async function refreshSteamProfiles() {
       candidates
         .filter((candidate) => candidate.steam64 && changedSteam64s.has(candidate.steam64))
         .map((candidate) => candidate.id),
+      namesChanged,
     );
   }
   if (failed) throw new Error(`STEAM_PROFILE_PROVIDER_FAILED: ${failed} batches`);

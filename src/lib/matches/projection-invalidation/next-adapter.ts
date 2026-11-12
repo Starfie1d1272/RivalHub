@@ -40,6 +40,9 @@ export async function acknowledgeAfterExpiry(
   const before = await expirations();
   after(async () => {
     const applied = await expirations();
-    if (applied.every((value, index) => value > before[index]!)) await acknowledge();
+    // Hard expiry can replace a previous SWR deadline that was in the future.
+    const now = Date.now() + 1;
+    if (applied.every((value, index) => value > 0 && value <= now && value !== before[index]))
+      await acknowledge();
   });
 }

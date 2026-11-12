@@ -9,6 +9,7 @@ import {
   PUBLIC_HOME_TAG,
   PUBLIC_SEASON_CATALOG_TAG,
   PUBLIC_STATS_TAG,
+  PUBLIC_STATS_PLAYER_NAMES_TAG,
   ALL_EVENT_STATS_TAG,
   eventStatsTag,
   matchStatsTag,
@@ -37,7 +38,8 @@ const seasonPages = {
 
 type SeasonPage = keyof typeof seasonPages;
 type RevalidationMode = "action" | "route";
-type StatisticsScope = "all" | { seasonId: string; matchId?: string };
+type StatisticsScope =
+  "all" | { seasonId: string; matchId?: string } | { seasonIds: readonly string[] };
 type RevalidationOptions = {
   mode?: RevalidationMode;
   statistics?: StatisticsScope;
@@ -98,17 +100,24 @@ export function updatePublicSeasonInfoTag(seasonId: string): void {
   updateTag(publicSeasonInfoTag(seasonId));
 }
 
-export function revalidatePublicPlayerTags(userIds: readonly string[]): void {
+export function revalidatePublicPlayerTags(userIds: readonly string[], namesChanged = false): void {
   if (!userIds.length) return;
   for (const userId of userIds) revalidateTag(publicPlayerTag(userId), "max");
   revalidatePublicHomeTag();
-  revalidatePublicStatsTag("identity", "all");
+  if (namesChanged) revalidatePublicStatsPlayerNames();
 }
 
 export function updatePublicPlayerTag(userId: string): void {
   updateTag(publicPlayerTag(userId));
   updatePublicHomeTag();
-  updatePublicStatsTag("identity", "all");
+}
+
+export function revalidatePublicStatsPlayerNames(): void {
+  revalidateTag(PUBLIC_STATS_PLAYER_NAMES_TAG, { expire: 0 });
+}
+
+export function updatePublicStatsPlayerNames(): void {
+  updateTag(PUBLIC_STATS_PLAYER_NAMES_TAG);
 }
 
 export function expirePublicTag(
@@ -129,11 +138,13 @@ function expirePublicStatsTags(
   reason: StatsInvalidationReason = "season_or_other",
   seen?: Map<string, boolean>,
 ): void {
-  const tags = [
-    PUBLIC_STATS_TAG,
-    scope === "all" ? ALL_EVENT_STATS_TAG : eventStatsTag(scope.seasonId),
-  ];
-  if (scope !== "all" && scope.matchId) tags.push(matchStatsTag(scope.matchId));
+  const tags = [PUBLIC_STATS_TAG];
+  if (scope === "all") tags.push(ALL_EVENT_STATS_TAG);
+  else if ("seasonIds" in scope) tags.push(...scope.seasonIds.map(eventStatsTag));
+  else {
+    tags.push(eventStatsTag(scope.seasonId));
+    if (scope.matchId) tags.push(matchStatsTag(scope.matchId));
+  }
   if (tags.every((tag) => seen?.has(tag))) return;
   recordStatsInvalidation(reason, "attempted");
   try {
@@ -150,13 +161,6 @@ export function updatePublicStatsTag(
   scope: StatisticsScope,
 ): void {
   expirePublicStatsTags(scope, "action", reason);
-}
-
-export function revalidatePublicStatsTag(
-  reason: StatsInvalidationReason,
-  scope: StatisticsScope,
-): void {
-  expirePublicStatsTags(scope, "route", reason);
 }
 
 export function revalidateSeasonPaths(

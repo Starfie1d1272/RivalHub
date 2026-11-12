@@ -3,7 +3,7 @@ import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
-import { PUBLIC_HOME_TAG, PUBLIC_STATS_TAG } from "@/lib/cache/tags";
+import { ALL_EVENT_STATS_TAG, eventStatsTag } from "@/lib/cache/tags";
 import { and, asc, eq, inArray, count, max, or, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
@@ -28,6 +28,7 @@ import { parseMajorRunPresentation } from "@/lib/major/run-snapshot";
 import { majorRunPresentationSelection } from "@/lib/major/run-snapshot-query";
 import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
 import { resolvePublicStagePlan } from "@/lib/seasons/public-stage";
+import { withPublicPlayerLabels } from "@/lib/stats/public-player-labels";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import type { PublicSeason } from "@/lib/data/public-seasons";
 
@@ -191,7 +192,8 @@ async function readResultFacts(seasonList: readonly PublicSeason[], compact: boo
 
 /** Historical output uses actual completed matches and explicit final/honor facts. */
 export async function getPublicSeasonResults(season: PublicSeason) {
-  return (await getPublicSeasonResultsBatch([season])).get(season.id)!;
+  const results = (await getPublicSeasonResultsBatch([season])).get(season.id)!;
+  return season.status === "draft" ? results : withPublicPlayerLabels(results);
 }
 
 /** Share fact reads across historical profiles while keeping the same per-season projection. */
@@ -218,7 +220,7 @@ async function cachedPublicSeasonResults(
 ): Promise<Map<string, PublicSeasonResults>> {
   "use cache: remote";
   cacheLife({ stale: 0, revalidate: Infinity, expire: Infinity });
-  cacheTag(PUBLIC_STATS_TAG, PUBLIC_HOME_TAG);
+  cacheTag(ALL_EVENT_STATS_TAG, ...seasonList.map(({ id }) => eventStatsTag(id)));
   return readSeasonResults(seasonList);
 }
 
@@ -405,7 +407,7 @@ async function cachedPublicSeasonResultSummaries(
 ): Promise<Map<string, PublicSeasonResultSummary>> {
   "use cache: remote";
   cacheLife({ stale: 0, revalidate: Infinity, expire: Infinity });
-  cacheTag(PUBLIC_STATS_TAG, PUBLIC_HOME_TAG);
+  cacheTag(ALL_EVENT_STATS_TAG, ...seasonList.map(({ id }) => eventStatsTag(id)));
   return readSeasonResultSummaries(seasonList);
 }
 

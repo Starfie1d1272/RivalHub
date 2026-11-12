@@ -42,8 +42,7 @@ const uuid = z.guid();
 const teamName = teamNameSchema;
 const description = z.string().trim().max(500);
 
-function revalidateTeam(slug?: string, options: { statistics?: boolean } = {}): void {
-  if (options.statistics !== false) updatePublicStatsTag("season_or_other", "all");
+function revalidateTeam(slug?: string): void {
   revalidatePath("/teams");
   revalidatePath("/teams/recruitment");
   revalidatePath("/my/teams");
@@ -96,7 +95,9 @@ export async function updateTeamProfile(input: {
       }),
     );
     updatePublicHomeTag();
-    revalidateTeam(result.oldSlug);
+    if (result.affectedSeasonIds)
+      updatePublicStatsTag("season_or_other", { seasonIds: result.affectedSeasonIds });
+    if (result.oldSlug !== result.slug) revalidateTeam(result.oldSlug);
     revalidateTeam(result.slug);
     return ok({ slug: result.slug });
   } catch (error) {
@@ -161,7 +162,7 @@ export async function inviteTeamMember(input: {
         actorId: auditActorId(session),
       }),
     );
-    revalidateTeam(undefined, { statistics: false });
+    revalidateTeam();
     return ok(undefined);
   } catch (error) {
     if (isPgUniqueViolation(error, PENDING_DIRECT_INVITATION_CONSTRAINT))
@@ -188,7 +189,7 @@ export async function inviteTeamMemberByUserId(input: {
       }),
     );
     revalidatePath(`/players/${parsed.data.userId}`);
-    revalidateTeam(undefined, { statistics: false });
+    revalidateTeam();
     return ok(undefined);
   } catch (error) {
     if (isPgUniqueViolation(error, PENDING_DIRECT_INVITATION_CONSTRAINT))
@@ -261,7 +262,7 @@ export async function declineTeamInvitation(input: {
         actorId: auditActorId(session),
       }),
     );
-    revalidateTeam(undefined, { statistics: false });
+    revalidateTeam();
     return ok(undefined);
   } catch (error) {
     return actionError("declineTeamInvitation", error);
@@ -283,7 +284,7 @@ export async function revokeTeamInvitation(input: {
         actorId: auditActorId(session),
       }),
     );
-    revalidateTeam(undefined, { statistics: false });
+    revalidateTeam();
     return ok(undefined);
   } catch (error) {
     return actionError("revokeTeamInvitation", error);
