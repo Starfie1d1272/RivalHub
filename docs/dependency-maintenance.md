@@ -16,7 +16,9 @@ TypeScript 7 用于原生编译/类型检查。TypeScript 6 的最新稳定 API 
 
 ## GitHub graph 与 updater
 
-GitHub 静态解析可能只读取 pnpm 12 bootstrap document。`scripts/dependencies/graph.ts` 是本仓 dependency submission owner：读取所有 canonical YAML document，以 importer roots 遍历 resolved snapshots，保留 peer/optional 实际边；合并同一 npm 版本的上下文时并集依赖，runtime 优先于 development，直接声明优先于传递。npm alias 使用实际 package identity；pnpm 下载的 Node runtime 使用 generic purl，不冒称 npm node 包。未解析引用或不支持的 lock identity 失败关闭，不改写锁文件。
+GitHub 原生解析已能读取 pnpm 12 的项目依赖 document，但这不证明完整锁文件、环境工具链和 runtime/development 分类均已覆盖。停用兼容层前，在没有本仓 submission 覆盖的新 manifest 路径核对原生依赖差异，并分别验证完整版本集合、scope、依赖关系与直接依赖；只看上游 Issue 关闭、Dependabot 版本更新成功或默认分支 SBOM 完整，不能作为退出依据。具体执行状态见 [#493](https://github.com/Starfie1d1272/RivalHub/issues/493)，一次隔离核验见 [归档](archive/dependency-graph-2026-11-13/README.md)。
+
+`scripts/dependencies/graph.ts` 继续作为本仓 dependency submission owner：读取所有 canonical YAML document，以 importer roots 遍历 resolved snapshots，保留 peer/optional 实际边；合并同一 npm 版本的上下文时并集依赖，runtime 优先于 development，直接声明优先于传递。npm alias 使用实际 package identity；pnpm 下载的 Node runtime 使用 generic purl，不冒称 npm node 包。未解析引用或不支持的 lock identity 失败关闭，不改写锁文件。
 
 PR CI 保留只读 dependency review。
 
