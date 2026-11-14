@@ -95,6 +95,19 @@ async function main() {
       async start() {
         const manifest = await clients[0].matchSource(f.matchId).load();
         revision = manifest.revision;
+        const frame = snapshot();
+        const binding = { origin: "online", freshness: "fresh", manifest, context: {
+          matchId: f.matchId, competition: { competitionId: f.seasonId },
+          entrants: { a: { entryId: f.entryAId }, b: { entryId: f.entryBId } },
+        } };
+        for (const output of outputs) output.setCurrent({
+          program: { cursor: frame.cursor, match: { matchId: f.matchId },
+            status: { context: "fresh", telemetry: "fresh", identity: "matched" },
+            map: { phase: "live", name: "de_ancient" }, players: frame.players,
+            series: { status: "live", currentMapOrder: 1, maps: [] } },
+          operator: { activeLineup: { ctCount: 5, tCount: 5 }, identity: { state: "ok" } },
+          identity: { issues: [] },
+        }, binding);
         await clients[0].claimAutomatically(snapshot(), revision, () => true);
         assert.equal(clients[0].view().activeSourceMatchId, f.matchId);
         await clients[1].claimAutomatically(snapshot(), revision, () => true);

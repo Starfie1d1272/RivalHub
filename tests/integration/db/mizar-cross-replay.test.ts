@@ -12,7 +12,7 @@ import { seedFixture, NOW } from "./harness/mizar";
 
 const checkout = process.env.RIVALHUB_MIZAR_CHECKOUT;
 describe.skipIf(!checkout)("Mizar real connection and RivalHub receiver", () => {
-  it("replays two boundaries with their original lineups after the first end is delayed", async () => {
+  it("replays a delayed result and requires a fresh start after each boundary acknowledgement", async () => {
     const f = await seedFixture();
     const mapThreeId = randomUUID();
     await db.insert(schema.matchMaps).values({ id: mapThreeId, matchId: f.matchId, mapOrder: 3, mapName: "de_nuke" });
@@ -36,8 +36,7 @@ describe.skipIf(!checkout)("Mizar real connection and RivalHub receiver", () => 
         if (typeof init?.body !== "string") throw new Error("fixture missing body");
         const body = JSON.parse(init.body);
         try {
-          await ingestMizarReliable(f.installationId, f.seasonId, body.event, f.authorityRevision, body.lineupSteam64);
-          return new Response(null, { status: 204 });
+          return Response.json(await ingestMizarReliable(f.installationId, f.seasonId, body.event, f.authorityRevision, body.lineupSteam64));
         } catch (error) { errors.push(error instanceof Error ? error.message : "unknown"); return new Response(null, { status: 400 }); }
       };
       connection = new RivalHubConnection(path, receiver);
@@ -45,26 +44,36 @@ describe.skipIf(!checkout)("Mizar real connection and RivalHub receiver", () => 
       const cursor = { producerInstanceId: f.producerInstanceId, liveSessionId: f.liveSessionId, runtimeSeq: 1, programSourceGeneration: 0, programReceiveSequence: 1, mapEpoch: 1 };
       const initial = { matchId: f.matchId, competitionId: f.seasonId, cursor, players: f.steam64.map(sourcePlayerId => ({ sourcePlayerId, lineupEvidence: "current" })) };
       await connection.claim(initial, f.contextRevision, false);
-      const current = { ...initial, cursor: { ...cursor, mapEpoch: 3, runtimeSeq: 7 } };
+      let current = initial;
       box = new ReliableOutbox(join(directory, "outbox.json"));
       await box.load();
       const make = (kind: string, epoch: number, seq: number, mapId: string, mapName: string, payload: object) => ({ schemaVersion: "mizar.reliable-event.v1", idempotencyKey: randomUUID(), kind, cursor: { ...cursor, mapEpoch: epoch, runtimeSeq: seq, programReceiveSequence: seq }, observedAt: NOW.toISOString(), matchId: f.matchId, competitionId: f.seasonId, contextRevision: f.contextRevision, mapId, mapName, entryAId: f.entryAId, entryBId: f.entryBId, evidence: { identity: "matched", telemetryFresh: true, contextFresh: true, source: "runtime-transition" }, payload });
       const firstStart = make("map_started", 1, 1, f.mapOneId, "de_ancient", {});
       const endOne = make("map_ended", 1, 2, f.mapOneId, "de_ancient", { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9 });
       const epochTwo = make("map_epoch_changed", 2, 3, f.mapTwoId, "de_mirage", { previousMapEpoch: 1, reason: "next" });
-      const startTwo = make("map_started", 2, 4, f.mapTwoId, "de_mirage", {});
-      const endTwo = make("map_ended", 2, 5, f.mapTwoId, "de_mirage", { scoreA: 9, scoreB: 13, scoreCT: 9, scoreT: 13 });
-      const epochThree = make("map_epoch_changed", 3, 6, mapThreeId, "de_nuke", { previousMapEpoch: 2, reason: "next" });
-      const startThree = make("map_started", 3, 7, mapThreeId, "de_nuke", {});
+      const staleStart = make("map_started", 2, 4, f.mapTwoId, "de_mirage", {});
+      const startTwo = make("map_started", 2, 5, f.mapTwoId, "de_mirage", {});
+      const endTwo = make("map_ended", 2, 6, f.mapTwoId, "de_mirage", { scoreA: 9, scoreB: 13, scoreCT: 9, scoreT: 13 });
+      const epochThree = make("map_epoch_changed", 3, 7, mapThreeId, "de_nuke", { previousMapEpoch: 2, reason: "next" });
+      const startThree = make("map_started", 3, 8, mapThreeId, "de_nuke", {});
       const sink = { send: (event: unknown, signal: AbortSignal, lineup: string[]) => connection.sendReliable(event, current, signal, lineup) };
       const at = NOW;
       await box.enqueue(firstStart, at, undefined, f.steam64);
       await box.flush({ sink, now: at, isCurrent: () => true });
       offline = true;
-      for (const event of [endOne, epochTwo, startTwo, endTwo, epochThree, startThree]) await box.enqueue(event, at, undefined, event.kind === "map_started" ? f.steam64 : undefined);
+      current = { ...initial, cursor: staleStart.cursor };
+      for (const event of [endOne, epochTwo, staleStart]) await box.enqueue(event, at, undefined, event.kind === "map_started" ? f.steam64 : undefined);
       await box.flush({ sink, now: at, isCurrent: () => true });
       offline = false;
       await box.flush({ sink, now: new Date(at.getTime() + 2000), isCurrent: () => true });
+      expect(box.getRecords().find((record: { event: { idempotencyKey: string } }) => record.event.idempotencyKey === staleStart.idempotencyKey)).toMatchObject({ status: "superseded", supersessionReason: "boundary_unconfirmed_start" });
+      // A current observation after the ACK supplies a new start; old queued
+      // observations must never acquire authority merely by reconnecting.
+      for (const event of [startTwo, endTwo, epochThree, startThree]) {
+        current = { ...initial, cursor: event.cursor };
+        await box.enqueue(event, at, undefined, event.kind === "map_started" ? f.steam64 : undefined);
+        await box.flush({ sink, now: new Date(at.getTime() + 3000), isCurrent: () => true });
+      }
       expect(errors).toEqual([]);
       // The client compacts old terminal records. Receiver receipts and final
       // map results are the independent oracle for delivery, not its cache size.
@@ -73,7 +82,10 @@ describe.skipIf(!checkout)("Mizar real connection and RivalHub receiver", () => 
         [firstStart, endOne, epochTwo, startTwo, endTwo, epochThree, startThree].map(event => event.idempotencyKey).sort(),
       );
       const [source] = await db.select().from(schema.matchLiveSessions).where(eq(schema.matchLiveSessions.id, f.sessionId));
-      expect(source).toMatchObject({ mapEpoch: 3, currentMapId: mapThreeId, lastReliableSeq: 7 });
+      expect(source).toMatchObject({ mapEpoch: 3, currentMapId: mapThreeId, lastReliableSeq: 8 });
+      const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+      expect(maps.find(map => map.id === f.mapOneId)).toMatchObject({ scoreA: 13, scoreB: 9 });
+      expect(maps.find(map => map.id === f.mapTwoId)).toMatchObject({ scoreA: 9, scoreB: 13 });
     } finally {
       await box?.close();
       await connection?.abortSourceCaptureStartup();
