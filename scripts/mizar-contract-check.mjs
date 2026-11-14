@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
+import { readFile, rm, mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -9,8 +10,14 @@ import { pathToFileURL } from "node:url";
 const mizarRoot = resolve(process.argv[2] ?? "../Mizar");
 const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: mizarRoot, encoding: "utf8" }).trim();
 const dirty = Boolean(execFileSync("git", ["status", "--porcelain", "--untracked-files=no"], { cwd: mizarRoot, encoding: "utf8" }).trim());
-execFileSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["install", "--frozen-lockfile"], { cwd: mizarRoot, stdio: "pipe" });
-execFileSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", ["--filter", "@mizar/rivalhub...", "build"], { cwd: mizarRoot, stdio: "pipe" });
+const packageManager = process.env.npm_execpath ?? "pnpm";
+const runPnpm = (args) => execFileSync(
+  /\.[cm]?js$/.test(packageManager) ? process.execPath : packageManager,
+  /\.[cm]?js$/.test(packageManager) ? [packageManager, ...args] : args,
+  { cwd: mizarRoot, stdio: "pipe" },
+);
+runPnpm(["install", "--frozen-lockfile"]);
+runPnpm(["--filter", "@mizar/rivalhub...", "--fail-if-no-match", "run", "build"]);
 process.stdout.write(`Mizar compatibility commit: ${sha}${dirty ? " + local changes" : ""} (rebuilt adapter/parser)\n`);
 const pick = (...candidates) => candidates.find((candidate) => existsSync(candidate));
 const adapterPath = pick(
@@ -235,7 +242,9 @@ process.stdout.write("legacy score contract and separate snapshot parser agree\n
 // Verify against real Mizar companion consumer
 const connUrl = pathToFileURL(resolve(mizarRoot, "apps/companion/src/match-context/rivalhub-connection.ts")).href;
 const { RivalHubConnection } = await import(connUrl);
-const tmpPath = resolve("/tmp", `test-mizar-connection-${Date.now()}.json`);
+const directory = await mkdtemp(resolve(tmpdir(), "rivalhub-mizar-contract-"));
+const tmpPath = resolve(directory, "connection.json");
+let conn;
 try {
   let pollCount = 0;
   const recordedRequests = [];
@@ -267,7 +276,8 @@ try {
     throw new Error(`Unexpected url: ${rawUrl}`);
   };
 
-  const conn = new RivalHubConnection(tmpPath, mockFetch, "https://match.starfie1d.top");
+  conn = new RivalHubConnection(tmpPath, mockFetch, "https://match.starfie1d.top");
+  await conn.load();
   const started = await conn.startPairing();
   if (!started.authorizeUrl || !started.expiresAt) throw new Error("Mizar startPairing failed to return authorizeUrl/expiresAt");
   const firstPoll = await conn.pollPairing();
@@ -300,5 +310,6 @@ try {
   }
   process.stdout.write("Mizar consumer RivalHubConnection verified against pairing and canonical disconnect contract\n");
 } finally {
-  await rm(tmpPath, { force: true }).catch(() => null);
+  await conn?.abortSourceCaptureStartup();
+  await rm(directory, { recursive: true, force: true });
 }

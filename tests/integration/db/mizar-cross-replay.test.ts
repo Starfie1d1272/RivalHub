@@ -21,6 +21,8 @@ describe.skipIf(!checkout)("Mizar real connection and RivalHub receiver", () => 
     const { RivalHubConnection, OFFICIAL_RIVALHUB_URL } = await import(/* @vite-ignore */ connectionUrl);
     const { ReliableOutbox } = await import(/* @vite-ignore */ outboxUrl);
     const directory = await mkdtemp(join(tmpdir(), "rival-mizar-replay-"));
+    let connection: InstanceType<typeof RivalHubConnection> | undefined;
+    let box: InstanceType<typeof ReliableOutbox> | undefined;
     try {
       const path = join(directory, "connection.json");
       await writeFile(path, JSON.stringify({ baseUrl: OFFICIAL_RIVALHUB_URL, credential: "test", installationId: f.installationId, competitionId: f.seasonId, displayName: "Test" }));
@@ -38,13 +40,13 @@ describe.skipIf(!checkout)("Mizar real connection and RivalHub receiver", () => 
           return new Response(null, { status: 204 });
         } catch (error) { errors.push(error instanceof Error ? error.message : "unknown"); return new Response(null, { status: 400 }); }
       };
-      const connection = new RivalHubConnection(path, receiver);
+      connection = new RivalHubConnection(path, receiver);
       await connection.load();
       const cursor = { producerInstanceId: f.producerInstanceId, liveSessionId: f.liveSessionId, runtimeSeq: 1, programSourceGeneration: 0, programReceiveSequence: 1, mapEpoch: 1 };
       const initial = { matchId: f.matchId, competitionId: f.seasonId, cursor, players: f.steam64.map(sourcePlayerId => ({ sourcePlayerId, lineupEvidence: "current" })) };
       await connection.claim(initial, f.contextRevision, false);
       const current = { ...initial, cursor: { ...cursor, mapEpoch: 3, runtimeSeq: 7 } };
-      const box = new ReliableOutbox(join(directory, "outbox.json"));
+      box = new ReliableOutbox(join(directory, "outbox.json"));
       const make = (kind: string, epoch: number, seq: number, mapId: string, mapName: string, payload: object) => ({ schemaVersion: "mizar.reliable-event.v1", idempotencyKey: randomUUID(), kind, cursor: { ...cursor, mapEpoch: epoch, runtimeSeq: seq, programReceiveSequence: seq }, observedAt: NOW.toISOString(), matchId: f.matchId, competitionId: f.seasonId, contextRevision: f.contextRevision, mapId, mapName, entryAId: f.entryAId, entryBId: f.entryBId, evidence: { identity: "matched", telemetryFresh: true, contextFresh: true, source: "runtime-transition" }, payload });
       const firstStart = make("map_started", 1, 1, f.mapOneId, "de_ancient", {});
       const endOne = make("map_ended", 1, 2, f.mapOneId, "de_ancient", { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9 });
@@ -66,6 +68,10 @@ describe.skipIf(!checkout)("Mizar real connection and RivalHub receiver", () => 
       expect(box.getRecords().filter((r: { status: string }) => r.status === "accepted")).toHaveLength(7);
       const [source] = await db.select().from(schema.matchLiveSessions).where(eq(schema.matchLiveSessions.id, f.sessionId));
       expect(source).toMatchObject({ mapEpoch: 3, currentMapId: mapThreeId, lastReliableSeq: 7 });
-    } finally { await rm(directory, { recursive: true, force: true }); }
+    } finally {
+      await box?.close();
+      await connection?.abortSourceCaptureStartup();
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });
