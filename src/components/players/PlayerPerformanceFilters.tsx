@@ -7,6 +7,7 @@ import {
   playerPerformanceHref,
   type PlayerPerformanceEventOption,
   type PlayerPerformanceQuery,
+  type PlayerProfileSection,
 } from "@/lib/players/performance-view-state";
 
 function mapLabel(map: string) {
@@ -18,20 +19,25 @@ export function PlayerPerformanceFilters({
   events,
   query,
   fromStats,
+  section = "overview",
 }: {
   userId: string;
   events: readonly (PlayerPerformanceEventOption & { id: string; name: string })[];
   query: PlayerPerformanceQuery;
   fromStats?: string | null;
+  section?: PlayerProfileSection;
 }) {
   const router = useRouter();
   const maps = query.event
     ? (events.find((event) => event.slug === query.event)?.maps ?? [])
     : [...new Set(events.flatMap((event) => event.maps))].sort();
   const navigate = (updates: Partial<PlayerPerformanceQuery>) => {
-    router.push(playerPerformanceHref(userId, query, updates, events, fromStats) as Route, {
-      scroll: false,
-    });
+    router.push(
+      playerPerformanceHref(userId, query, updates, events, fromStats, section) as Route,
+      {
+        scroll: false,
+      },
+    );
   };
 
   return (
