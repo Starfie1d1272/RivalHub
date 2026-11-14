@@ -60,7 +60,9 @@ export async function PlayerRecentMatches({
           查看全部比赛 →
         </Link>
       </div>
-      <p className="text-xs text-[var(--color-fg-dim)]">最近 5 场已完成系列赛 · 当场出场阵容</p>
+      <p className="text-xs text-[var(--color-fg-dim)]">
+        全生涯最近 5 场已完成系列赛 · 当场出场阵容
+      </p>
       {matches === null ? (
         <p role="status" className="py-5 text-sm text-[var(--color-fg-mid)]">
           近期比赛暂时读取失败，请稍后重试。

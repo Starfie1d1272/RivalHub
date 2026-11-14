@@ -1,3 +1,5 @@
+import { ProfileSectionNav } from "@/components/rivalhub/ProfileSectionNav";
+import { teamProfileSectionHref, type TeamProfileSection } from "@/lib/teams/profile-view-state";
 import { PublicAdjudications } from "@/components/season/PublicAdjudications";
 import { HONOR_STATE_LABELS } from "@/lib/postevent/presentation";
 import { TeamLineupStyle } from "./TeamLineupStyle";
@@ -24,6 +26,8 @@ import { presentTeamMembershipStatus, presentTeamStatus } from "@/lib/teams/pres
 
 export interface TeamPublicProfileProps {
   team: PublicTeamProfile | null;
+  section?: TeamProfileSection;
+  fromStats?: string | null;
   linkedTeam?: { name: string; slug: string } | null;
   lineupStyle?: LineupStyleMember[] | null;
   mapProfile?: PublicTeamMapProfile;
@@ -41,6 +45,8 @@ export interface TeamPublicProfileProps {
 
 export function TeamPublicProfile({
   lineupStyle,
+  section = "overview",
+  fromStats,
   team,
   linkedTeam,
   event = null,
@@ -105,8 +111,8 @@ export function TeamPublicProfile({
 
   return (
     <div className="min-w-0 space-y-6">
-      <div className="overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]">
-        <div className="p-4">
+      <div>
+        <div>
           <PageHeader
             className="border-0 pb-0"
             title={
@@ -120,8 +126,7 @@ export function TeamPublicProfile({
                 <span className="min-w-0 break-words">{identity.name}</span>
               </span>
             }
-            eyebrow={event ? event.season.name : "Team"}
-            description={event ? null : (team?.team.description ?? "暂无队伍简介。")}
+            description={event?.season.name}
             status={
               event ? (
                 eventPlacement ? (
@@ -183,10 +188,32 @@ export function TeamPublicProfile({
                 </p>
               ))}
         </div>
-        {summaryContent ?? (
-          <TeamProfileMetrics team={team} event={event} performance={performance} />
-        )}
       </div>
+      <ProfileSectionNav
+        label="队伍档案导航"
+        items={(
+          [
+            ["overview", "概览"],
+            ["matches", "比赛"],
+            ["stats", "统计"],
+            ["roster", "阵容与资料"],
+          ] as const
+        ).map(([key, label]) => ({
+          label,
+          href: teamProfileSectionHref(key, fromStats),
+          active: section === key,
+        }))}
+      />
+      {(section === "overview" || section === "stats") && (
+        <section aria-label="队伍核心表现" className="space-y-3">
+          <p className="text-xs text-[var(--color-fg-mid)]">
+            {event ? `${event.season.name} · 本届正式比赛` : "全生涯 · 正式比赛"}
+          </p>
+          {summaryContent ?? (
+            <TeamProfileMetrics team={team} event={event} performance={performance} />
+          )}
+        </section>
+      )}
 
       {statsUnavailable && (
         <p role="status" className="text-sm text-[var(--color-fg-mid)]">
@@ -223,53 +250,88 @@ export function TeamPublicProfile({
           seasonSlug={event.season.slug}
         />
       )}
-      <TeamRoster title={event ? eventRosterHeading : "当前成员"} members={members} />
-      {lineupContent ?? <TeamLineupStyle members={lineupStyle} />}
-      {!event && team && <TeamRecruitment team={team} />}
-      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        {mapContent ??
-          (detail && (
-            <TeamMapProfile
-              title={event ? "本届地图画像" : "生涯地图画像"}
-              maps={detail.maps.map(({ mapName, results, selection }) => ({
-                mapName,
-                results,
-                selection,
-              }))}
-              samples={detail.vetoActionSamples}
-            />
-          ))}
-        <TeamMatches matches={matchRows} />
-      </div>
-      {advancedContent ?? (
-        <>
-          {detail && (
-            <section className="space-y-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">
-                  PERFORMANCE
-                </p>
-                <h2 className="mt-1 text-lg font-semibold">竞技表现</h2>
-              </div>
-              <TeamWorkspace
-                detail={{
-                  teamId: detail.teamId,
-                  analytics: detail.analytics,
-                  performance: detail.performance,
-                  economyMatrix: detail.economyMatrix,
-                  selection: detail.selection,
-                  maps: detail.maps,
-                  scoreboard: detail.scoreboard,
-                  detailedPlayers: detail.detailedPlayers,
-                }}
-              />
-            </section>
-          )}
-          {mapProfile && <TeamRosterMapContext mapProfile={mapProfile} hasOwnMaps={hasOwnMaps} />}
-        </>
+      {(section === "overview" || section === "roster") && (
+        <TeamRoster
+          title={event ? eventRosterHeading : "当前成员"}
+          members={members}
+          groups={
+            event
+              ? [
+                  { label: "首发", members: members.filter((member) => member.label === "首发") },
+                  { label: "替补", members: members.filter((member) => member.label === "替补") },
+                ]
+              : undefined
+          }
+          action={
+            section === "overview" ? (
+              <Link
+                href={teamProfileSectionHref("roster", fromStats) as import("next").Route}
+                className="text-xs text-[var(--color-accent)]"
+              >
+                阵容与资料 →
+              </Link>
+            ) : null
+          }
+        />
       )}
-      {!event && team && (
+      {section === "overview" && (lineupContent ?? <TeamLineupStyle members={lineupStyle} />)}
+      {(section === "overview" || section === "roster") && !event && team && (
+        <TeamRecruitment team={team} />
+      )}
+      {section === "matches" && <TeamMatches matches={matchRows} showAll />}
+      {section === "overview" && (
+        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-2">
+          {mapContent ??
+            (detail && (
+              <TeamMapProfile
+                title={event ? "本届地图画像" : "生涯地图画像"}
+                maps={detail.maps.map(({ mapName, results, selection }) => ({
+                  mapName,
+                  results,
+                  selection,
+                }))}
+                samples={detail.vetoActionSamples}
+              />
+            ))}
+          <TeamMatches matches={matchRows} allHref={teamProfileSectionHref("matches", fromStats)} />
+        </div>
+      )}
+      {section === "stats" &&
+        (advancedContent ?? (
+          <>
+            {detail && (
+              <section className="space-y-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">
+                    PERFORMANCE
+                  </p>
+                  <h2 className="mt-1 text-lg font-semibold">竞技表现</h2>
+                </div>
+                <TeamWorkspace
+                  detail={{
+                    teamId: detail.teamId,
+                    analytics: detail.analytics,
+                    performance: detail.performance,
+                    economyMatrix: detail.economyMatrix,
+                    selection: detail.selection,
+                    maps: detail.maps,
+                    scoreboard: detail.scoreboard,
+                    detailedPlayers: detail.detailedPlayers,
+                  }}
+                />
+              </section>
+            )}
+            {mapProfile && <TeamRosterMapContext mapProfile={mapProfile} hasOwnMaps={hasOwnMaps} />}
+          </>
+        ))}
+      {section === "roster" && !event && team && (
         <>
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold">队伍简介</h2>
+            <p className="max-w-3xl whitespace-pre-line text-sm leading-6 text-[var(--color-fg-mid)]">
+              {team.team.description ?? "暂无队伍简介。"}
+            </p>
+          </section>
           <TeamCareer career={career} />
           <TeamHistory team={team} />
         </>
@@ -304,7 +366,7 @@ export function TeamProfileMetrics({
         mapCount: longDetail?.results.maps ?? "—",
       };
   return (
-    <div className="grid grid-cols-2 border-t border-[var(--color-border)] sm:grid-cols-4">
+    <div className="grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
       {[
         { label: "Match W-L", value: headline.matches },
         { label: "Map W-L", value: headline.maps },
@@ -321,7 +383,7 @@ export function TeamProfileMetrics({
           <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-fg-dim)]">
             {label}
           </div>
-          <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+          <div className="mt-1 font-mono text-2xl font-semibold tabular-nums">{value}</div>
         </div>
       ))}
     </div>

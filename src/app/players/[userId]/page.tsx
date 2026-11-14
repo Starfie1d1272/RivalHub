@@ -14,6 +14,7 @@ import Link from "next/link";
 import { PageLayout, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
+import { PlayerProfileNav } from "@/components/players/PlayerProfileNav";
 import { PlayerRecentMatches } from "@/components/players/PlayerMatches";
 import { canonicalPlayerHref } from "@/lib/players/matches-view-state";
 import { PlayerPerformanceFilters } from "@/components/players/PlayerPerformanceFilters";
@@ -33,6 +34,9 @@ import {
 } from "@/lib/players/public-profile";
 import {
   parsePlayerPerformanceQuery,
+  parsePlayerProfileSection,
+  playerProfileHref,
+  type PlayerProfileSection,
   type PlayerPerformanceSearch,
 } from "@/lib/players/performance-view-state";
 import { db } from "@/db/client";
@@ -74,6 +78,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
     redirect(canonicalPlayerHref(canonicalUserId, rawSearch) as import("next").Route);
 
   const query = parsePlayerPerformanceQuery(rawSearch);
+  const section = parsePlayerProfileSection(rawSearch.section);
   const [user, sanctions] = await Promise.all([
     getPublicPlayerById(userId),
     getPublicPlayerSanctions(userId),
@@ -93,37 +98,42 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
         user={user}
         hasActivePublicSanction={sanctions.some((sanction) => sanction.status === "active")}
       />
-      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        <div className="min-w-0 space-y-4">
+      <Suspense fallback={null}>
+        <PlayerCurrentTeams sections={sections} />
+      </Suspense>
+      <PlayerProfileNav userId={userId} query={query} section={section} fromStats={fromStats} />
+      <PlayerActiveSanctions sanctions={sanctions} />
+      {section === "overview" && (
+        <Suspense fallback={<ProfileSectionSkeleton label="选手概览" height="min-h-96" />}>
+          <PlayerOverview sections={sections} userId={userId} query={query} fromStats={fromStats} />
+        </Suspense>
+      )}
+      {section === "stats" && (
+        <Suspense fallback={<ProfileSectionSkeleton label="竞技表现" height="min-h-96" />}>
+          <PlayerPerformance
+            sections={sections}
+            userId={userId}
+            query={query}
+            fromStats={fromStats}
+          />
+        </Suspense>
+      )}
+      {section === "profile" && (
+        <>
           <Suspense fallback={<ProfileSectionSkeleton label="基本资料" height="min-h-40" />}>
             <PlayerBasics sections={sections} />
           </Suspense>
-          <PlayerActiveSanctions sanctions={sanctions} />
-          <Suspense fallback={<ProfileSectionSkeleton label="Career Stats" height="min-h-28" />}>
-            <PlayerCareerOverview sections={sections} />
+          <Suspense fallback={<ProfileSectionSkeleton label="赛事履历" height="min-h-40" />}>
+            <PlayerCareerHistory sections={sections} />
           </Suspense>
-        </div>
-        <Suspense fallback={<ProfileSectionSkeleton label="近期比赛" height="min-h-40" />}>
-          <PlayerRecentMatches userId={userId} fromStats={fromStats} />
-        </Suspense>
-      </div>
-      <Suspense fallback={<ProfileSectionSkeleton label="赛事履历" height="min-h-40" />}>
-        <PlayerCareerHistory sections={sections} />
-      </Suspense>
-      <Suspense fallback={<ProfileSectionSkeleton label="竞技表现" height="min-h-96" />}>
-        <PlayerPerformance
-          sections={sections}
-          userId={userId}
-          query={query}
-          fromStats={fromStats}
-        />
-      </Suspense>
-      <PlayerDisciplineHistory sanctions={sanctions} />
-      <Suspense fallback={<ProfileSectionSkeleton label="长期资料" height="min-h-48" />}>
-        <PlayerDeclaredProfile sections={sections} />
-      </Suspense>
+          <PlayerDisciplineHistory sanctions={sanctions} />
+          <Suspense fallback={<ProfileSectionSkeleton label="个人资料" height="min-h-48" />}>
+            <PlayerDeclaredProfile sections={sections} />
+          </Suspense>
+        </>
+      )}
       <Suspense fallback={null}>
-        <PlayerProfileReady sections={sections} />
+        <PlayerProfileReady sections={sections} section={section} />
       </Suspense>
     </PageLayout>
   );
@@ -235,44 +245,129 @@ async function PlayerBasics({ sections }: SectionProps) {
   );
 }
 
-async function PlayerCareerOverview({ sections }: SectionProps) {
-  const { careerOverview: overview } = await sections.overview;
+async function PlayerCurrentTeams({ sections }: SectionProps) {
+  const { currentTeams, currentEventTeams } = await sections.basic;
+  if (!currentTeams.length && !currentEventTeams.length) return null;
   return (
-    <div data-profile-section="overview">
-      <h2 className="text-base font-semibold">Career Stats</h2>
-      <dl
-        aria-label="Career Stats"
-        className="mt-2 grid grid-cols-4 border-y border-[var(--color-border)]"
-      >
-        <div className="px-3 py-3 sm:first:pl-0">
-          <dt className="text-[11px] text-[var(--color-fg-mid)]">
-            <StatsMetricLabel metric="rating">Rating</StatsMetricLabel>
-          </dt>
-          <dd className="mt-1 text-lg font-semibold tabular-nums">
-            <MetricValue metric="rating" value={overview.rating} />
-          </dd>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-fg-mid)]">
+      {currentTeams.map((team) => (
+        <TeamProfileLink key={team.slug} slug={team.slug}>
+          {team.name} →
+        </TeamProfileLink>
+      ))}
+      {currentEventTeams.map((entry) => (
+        <TeamProfileLink key={entry.teamId} seasonSlug={entry.seasonSlug} entryId={entry.teamId}>
+          {entry.seasonName} · {entry.teamName} →
+        </TeamProfileLink>
+      ))}
+    </div>
+  );
+}
+
+function validatePlayerScope(
+  career: Awaited<PublicPlayerProfileSections["performance"]>["career"],
+  userId: string,
+  query: ReturnType<typeof parsePlayerPerformanceQuery>,
+  section: PlayerProfileSection,
+  fromStats: ReturnType<typeof safeStatsReturn>,
+) {
+  if (!career) return;
+  if (query.event && !career.selectedEvent)
+    redirect(
+      playerProfileHref(userId, { event: "", map: "" }, section, fromStats) as import("next").Route,
+    );
+  if (query.map && !career.mapFilter)
+    redirect(
+      playerProfileHref(userId, { ...query, map: "" }, section, fromStats) as import("next").Route,
+    );
+}
+
+async function PlayerOverview({
+  sections,
+  userId,
+  query,
+  fromStats,
+}: SectionProps & {
+  userId: string;
+  query: ReturnType<typeof parsePlayerPerformanceQuery>;
+  fromStats: ReturnType<typeof safeStatsReturn>;
+}) {
+  const { career } = await sections.performance;
+  validatePlayerScope(career, userId, query, "overview", fromStats);
+  const statsHref = playerProfileHref(userId, query, "stats", fromStats);
+  const row = career?.scoreboard[0];
+  return (
+    <div className="space-y-7" data-profile-section="overview">
+      {career ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1 text-xs text-[var(--color-fg-mid)]">
+              <p>
+                {career.selectedEvent?.name ?? "全生涯"} · {career.mapFilter ?? "全部地图"}
+              </p>
+              <p>
+                {career.summary.matches} 场 · {career.summary.maps} 图 · {career.summary.rounds}{" "}
+                回合
+              </p>
+            </div>
+            <PlayerPerformanceFilters
+              userId={userId}
+              events={career.events}
+              query={query}
+              fromStats={fromStats}
+            />
+          </div>
+          <dl
+            aria-label="核心表现"
+            className="grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4"
+          >
+            {(
+              [
+                ["rating", "Rating", row?.avgRating ?? null],
+                ["adr", "ADR", row?.avgAdr ?? null],
+                ["kd", "K/D", row?.kdRatio ?? null],
+                ["maps", "Maps", career.summary.maps],
+              ] as const
+            ).map(([metric, label, value]) => (
+              <div
+                key={metric}
+                className="border-[var(--color-border)] py-3 odd:pr-4 even:border-l even:pl-4 sm:border-l sm:px-5 sm:first:border-l-0 sm:first:pl-0"
+              >
+                <dt className="mb-2 text-xs text-[var(--color-fg-mid)]">
+                  {metric === "maps" ? (
+                    label
+                  ) : (
+                    <StatsMetricLabel metric={metric}>{label}</StatsMetricLabel>
+                  )}
+                </dt>
+                <dd className="font-mono text-2xl font-semibold tabular-nums">
+                  {metric === "maps" ? value : <MetricValue metric={metric} value={value} />}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      ) : (
+        <p role="status" className="text-sm text-[var(--color-fg-mid)]">
+          竞技统计暂时无法加载，请稍后重试。
+        </p>
+      )}
+      <div className="grid min-w-0 items-start gap-8 lg:grid-cols-2">
+        <div className="min-w-0 space-y-4">
+          <Suspense fallback={<ProfileSectionSkeleton label="打法画像" height="min-h-64" />}>
+            <PlayerAttributeSection sections={sections} compact />
+          </Suspense>
+          <Link
+            href={statsHref as import("next").Route}
+            className="inline-flex min-h-8 items-center text-sm text-[var(--color-accent)]"
+          >
+            完整画像与统计 →
+          </Link>
         </div>
-        <div className="border-l border-[var(--color-border)] px-3 py-3">
-          <dt className="text-[11px] text-[var(--color-fg-mid)]">
-            <StatsMetricLabel metric="adr">ADR</StatsMetricLabel>
-          </dt>
-          <dd className="mt-1 text-lg font-semibold tabular-nums">
-            <MetricValue metric="adr" value={overview.adr} />
-          </dd>
-        </div>
-        <div className="border-l border-[var(--color-border)] px-3 py-3">
-          <dt className="text-[11px] text-[var(--color-fg-mid)]">
-            <StatsMetricLabel metric="kd">K/D</StatsMetricLabel>
-          </dt>
-          <dd className="mt-1 text-lg font-semibold tabular-nums">
-            <MetricValue metric="kd" value={overview.kd} />
-          </dd>
-        </div>
-        <div className="border-l border-[var(--color-border)] px-3 py-3">
-          <dt className="text-[11px] text-[var(--color-fg-mid)]">Maps</dt>
-          <dd className="mt-1 text-lg font-semibold tabular-nums">{overview.maps ?? "—"}</dd>
-        </div>
-      </dl>
+        <Suspense fallback={<ProfileSectionSkeleton label="近期比赛" height="min-h-64" />}>
+          <PlayerRecentMatches userId={userId} fromStats={fromStats} />
+        </Suspense>
+      </div>
     </div>
   );
 }
@@ -435,14 +530,7 @@ async function PlayerPerformance({
   fromStats: ReturnType<typeof safeStatsReturn>;
 }) {
   const { career } = await sections.performance;
-  if (career && query.event && !career.selectedEvent) redirect(`/players/${userId}`);
-  if (career && query.map && !career.mapFilter) {
-    redirect(
-      query.event
-        ? `/players/${userId}?event=${encodeURIComponent(query.event)}`
-        : `/players/${userId}`,
-    );
-  }
+  validatePlayerScope(career, userId, query, "stats", fromStats);
 
   return (
     <div data-profile-section="performance">
@@ -463,6 +551,7 @@ async function PlayerPerformance({
               events={career.events}
               query={query}
               fromStats={fromStats}
+              section="stats"
             />
           </div>
 
@@ -519,12 +608,18 @@ async function PlayerPerformance({
   );
 }
 
-async function PlayerAttributeSection({ sections }: SectionProps) {
+async function PlayerAttributeSection({
+  sections,
+  compact = false,
+}: SectionProps & { compact?: boolean }) {
   const profile = await sections.attributes();
-  if (!profile.attributes && !profile.benchmarkUnavailable) return null;
+  if (!profile.attributes && !profile.benchmarkUnavailable)
+    return compact ? (
+      <p className="py-4 text-sm text-[var(--color-fg-mid)]">当前范围暂无可用画像。</p>
+    ) : null;
   return (
     <div data-profile-section="attributes">
-      {profile.attributes && <PlayerAttributes profile={profile.attributes} />}
+      {profile.attributes && <PlayerAttributes profile={profile.attributes} compact={compact} />}
       {profile.benchmarkUnavailable && (
         <p role="status" className="text-sm text-[var(--color-fg-mid)]">
           选手属性暂时无法加载，请稍后重试。
@@ -617,15 +712,13 @@ async function PlayerDeclaredProfile({ sections }: SectionProps) {
   );
 }
 
-async function PlayerProfileReady({ sections }: SectionProps) {
-  // Preserve navigation-first full-profile ready while demand basis emission is disabled.
-  await Promise.all([
-    sections.basic,
-    sections.overview,
-    sections.history,
-    sections.performance,
-    sections.attributes(),
-  ]);
+async function PlayerProfileReady({
+  sections,
+  section,
+}: SectionProps & { section: PlayerProfileSection }) {
+  await sections.basic;
+  if (section === "profile") await sections.history;
+  else await Promise.all([sections.performance, sections.attributes()]);
   return <ContentReady module="player" phase="primary" />;
 }
 

@@ -1,3 +1,4 @@
+import { parseTeamProfileSection } from "@/lib/teams/profile-view-state";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import { TeamLineupStyle } from "@/components/teams/TeamLineupStyle";
 import { TeamMapProfile } from "@/components/teams/TeamMapProfile";
@@ -25,7 +26,7 @@ export default function CompetitionEntryDetailPage(props: {
   return (
     <Suspense
       fallback={
-        <PageLayout variant="wide">
+        <PageLayout variant="standard">
           <p role="status">正在加载…</p>
         </PageLayout>
       }
@@ -63,9 +64,11 @@ export async function CompetitionEntryDetailPageContent({
     getPublicSeasonResults(season),
   ]);
   return (
-    <PageLayout as="div" variant="wide" className="space-y-8">
+    <PageLayout as="div" variant="standard" className="space-y-8">
       <StatsReturnLink href={fromStats} />
       <TeamPublicProfile
+        section={parseTeamProfileSection(rawSearch.section)}
+        fromStats={fromStats}
         team={null}
         linkedTeam={team}
         event={event}

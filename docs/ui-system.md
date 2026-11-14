@@ -148,9 +148,11 @@ Records 按 Performance / Clutch / Rounds 分组，以当前范围内完整有�
 
 `TeamPublicProfile` 的本届名单只展示 Player identity 与首发/替补标记；区分当前、已审核或最终名单时使用 public read model 提供的自然标题，不渲染流程状态 pill，也不从长期资料或 `seasonRegistrations` 补写本届位置。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
 
-公开队伍 Profile 共用 `PageLayout wide` 与 `TeamPublicProfile` 的一套 section composition：**Hero → 当前赛事（长期页）→ 名单 → 招募（长期页有需求时）→ 地图画像 / 近期比赛 → Performance → 阵容地图参考（有内容时）→ Career / 队伍历史（长期页）**。`TeamRoster` 统一紧凑成员排列，赛事 context 提供本届首发/替补，长期资料提供当前成员、队长及非活跃成员状态；禁止从长期成员补写赛事名单。`TeamMapProfile` 共用胜率/Pick/Ban 图表，本届与生涯标题区分统计范围；`TeamMatches` 共用比赛排序、比分与链接展示，长期页由 public read model 注入各比赛所属赛事与己方视角。两种入口只在数据范围及专属模块上有差异，不维护两套布局。
+公开选手与队伍主页采用 `PageLayout standard` 的紧凑概览，以真实链接提供概览、比赛、统计、资料四个任务入口。主入口与有效筛选保存在 URL，刷新和前后退可恢复；Opening、Teamplay 等指标 family 保留在完整统计内部。选手比赛继续使用 `/players/[userId]/matches` 的既有完整记录与分页；宽表保持 `PageLayout wide`。概览的核心表现与紧凑七维画像使用同一赛事/地图范围的 projection，Limited、缺失值与说明不因缩短展示而消失；完整画像链接携带当前范围和合法的 `fromStats`。近期比赛独立标明全生涯最近五场，不受上方竞技统计筛选影响。基本资料、已结束赛事履历、公开纪律历史和自填资料在资料入口保留，当前队伍与公开有效处罚在概览仍可发现。
 
-Hero 展示队伍身份、已确认名次/荣誉和 Match W-L、Map W-L、Maps、Rating；赛事页不重复摆放 Record、名单人数、seed 或 Next match 摘要。一级 section 使用 eyebrow + 中文 heading + whitespace/divider 建立层级；Hero 保留连续 surface 与紧凑 headline strip，Career、Matches 等不使用独立大卡墙。长期招募复用既有 viewer state 与权限入口，未登录、感兴趣、已邀请及当前成员状态不因布局变化而重新判断。
+公开队伍详情只有一个 `TeamPublicProfile` composition owner：概览按紧凑身份、任务导航、范围与 headline、名单、三张阵容打法图、地图画像/近期比赛组织。队名下不显示「长期队伍主页」等内部分类；当前参赛和原队伍入口继续承接上下文。三张打法图直接展示并保留成员点选；它们的成员个人生涯/全站历史基准与本届队伍战绩分开标注。地图画像展示全部地图，按地图数降序，胜率/Pick/Ban 控制不变；桌面地图与近期比赛等宽，窄屏自然纵排。完整比赛、Performance 与阵容地图参考、阵容/资料/履历分别进入对应任务入口。
+
+`TeamRoster` 统一紧凑成员排列：赛事页按本届首发/替补分组，长期资料保留当前成员、队长与非活跃成员状态，不从长期成员补写赛事名单。队伍身份、已确认名次/荣誉、公开裁定与合法管理入口保留；赛事页不额外生成 seed 或报名流程状态。招募沿用既有 viewer state 与权限入口。概览不再叠加完整统计长表和大块空履历；资料入口保留简介、历史、招募和已确认赛事经历。两种队伍入口仅在数据范围与专属内容上有差异，不维护两套布局。
 
 Team Performance 固定使用 **Overview / Rounds & Economy / Teamplay / Maps / Players / Weapons**。Long Team scope 固定 All-time，不增加赛事 selector；赛事队伍 scope 固定本届。Overview 与 Hero 必须互补而非机械复读；指标 family 使用 shared `MetricSection`、`MetricValue`、metric help contract，collection grain 使用 `StatsDataTable`。Players 的长期队伍语义是“实际代表 linked 赛事队伍出战时的表现”，不混入其它队伍样本。专业指标解释使用 shared tooltip；常驻正文表达页面事实，不解释聚合实现、来源步骤或开发 contract。
 
