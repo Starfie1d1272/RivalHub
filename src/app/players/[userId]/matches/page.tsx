@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { PageLayout } from "@/components/rivalhub";
 import { PageHeader } from "@/components/rivalhub/PageHeader";
 import { ListToolbar } from "@/components/rivalhub/ListToolbar";
+import { PlayerProfileNav } from "@/components/players/PlayerProfileNav";
 import { PlayerMatchHistoryTable } from "@/components/players/PlayerMatches";
 import { StatsReturnLink } from "@/components/stats/StatsNavigationContext";
 import { db } from "@/db/client";
@@ -118,6 +119,7 @@ async function PlayerMatchesContent({ params, searchParams }: Props) {
         title={`${getPublicDisplayName(user)} · 比赛记录`}
         description="逐图表现与系列赛记录"
       />
+      <PlayerProfileNav userId={userId} query={query} section="matches" fromStats={fromStats} />
       {result === null ? (
         <p role="alert" className="py-8 text-sm text-[var(--color-fg-mid)]">
           比赛记录暂时读取失败，请稍后刷新重试。

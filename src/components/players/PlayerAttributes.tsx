@@ -221,9 +221,52 @@ function AttributeCard({
   );
 }
 
-export function PlayerAttributes({ profile }: { profile: PlayerAttributeProfile }) {
+export function PlayerAttributes({
+  profile,
+  compact = false,
+}: {
+  profile: PlayerAttributeProfile;
+  compact?: boolean;
+}) {
   const firepower = profile.attributes.find((attribute) => attribute.key === "firepower");
   const others = profile.attributes.filter((attribute) => attribute.key !== "firepower");
+
+  if (compact)
+    return (
+      <section className="space-y-3" aria-label="打法画像摘要">
+        <div className="flex items-center gap-1.5">
+          <h2 className="text-base font-semibold">打法画像</h2>
+          <StatsTooltip label="打法画像评分说明" content={profileHelp} />
+        </div>
+        <p className="text-xs text-[var(--color-fg-mid)]">{profile.benchmarkLabel}</p>
+        <div className="divide-y divide-[var(--color-border)]">
+          {profile.attributes.map((attribute) => (
+            <div
+              key={attribute.key}
+              className="grid min-h-11 grid-cols-[7rem_minmax(0,1fr)_2rem] items-center gap-3 py-2"
+            >
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm">
+                <span>{attribute.label}</span>
+                <AttributeHelp attribute={attribute} />
+                <LimitedTag attribute={attribute} />
+              </div>
+              <div className="h-1 overflow-hidden bg-[var(--color-border)]" aria-hidden="true">
+                <div
+                  className="h-full bg-[var(--color-accent)]"
+                  style={{ width: scoreWidth(attribute.score) }}
+                />
+              </div>
+              <span className="text-right font-mono text-sm tabular-nums">
+                {attribute.score ?? "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-[var(--color-fg-mid)]">
+          高分表示该特征更突出；打法倾向不等同于实力。
+        </p>
+      </section>
+    );
 
   return (
     <section className="space-y-3" aria-labelledby="player-attributes-heading">
