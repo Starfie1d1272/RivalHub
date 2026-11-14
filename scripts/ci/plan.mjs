@@ -59,6 +59,8 @@ const LIVE_SURFACES = [
   "src/app/integrations/mizar/",
   "scripts/db/mizar-live-fixture",
   "scripts/mizar-contract-check.mjs",
+  "tests/e2e/helpers/mizar-producer.ts",
+  "tests/e2e/flows/mizar-live-chain.spec.ts",
   "tests/fixtures/contracts/",
   "drizzle/migrations/0066_mizar_backend_contracts",
 ];
@@ -79,9 +81,9 @@ const SYSTEM_FLOW_MAP = [
   { prefixes: ["src/components/matches/SeriesScoreCorrection"], specs: ["tests/e2e/flows/series-score-correction.spec.ts"] },
   { prefixes: ["src/components/teams/TeamInvitationsSection"], specs: ["tests/e2e/flows/team-invitations.spec.ts"] },
   {
-    // LIVE keeps its provider evidence without a permanent browser flow.
-    prefixes: ["src/lib/mizar/", "src/components/matches/MatchLiveProvider", "src/components/matches/MatchRealtime", "src/components/matches/MatchListLiveScore", "src/components/matches/MatchRadar", "src/app/api/matches/"],
-    specs: [],
+    // One integrated oracle connects the pinned current producer to the public UI.
+    prefixes: ["src/lib/mizar/", "src/components/matches/MatchLiveProvider", "src/components/matches/MatchRealtime", "src/components/matches/MatchListLiveScore", "src/components/matches/MatchRadar", "src/app/api/matches/", "src/app/api/mizar/", "scripts/mizar-contract-check.mjs", "tests/e2e/helpers/mizar-producer.ts"],
+    specs: ["tests/e2e/flows/mizar-live-chain.spec.ts"],
   },
   {
     prefixes: ["src/actions/season-public-info.ts", "src/lib/season-public-info/", "src/components/admin/SeasonLogoEditor.tsx", "src/components/season/EventLogo.tsx"],
@@ -114,6 +116,7 @@ const BROWSER_GROUPS = {
   "admin-query": ["admin-immediate-boundaries"],
   predictions: ["bet", "free-predictions", "predictions"],
   matches: ["mizar-source-lifecycle", "ocr-receipt-recovery", "series-score-correction"],
+  live: ["mizar-live-chain"],
   events: ["event-logo", "major-qualification"],
   teams: ["major-entry", "team-invitations", "test-matches"],
 };
@@ -607,7 +610,7 @@ export function systemMatrixFor(plan, liveEvidence) {
     const selected = names.map(name => `tests/e2e/flows/${name}.spec.ts`).filter(spec => specs.delete(spec));
     if (selected.length) {
       const needsStorage = selected.includes("tests/e2e/flows/event-logo.spec.ts");
-      matrix.push({ task: `browser-${group}`, specs: selected, live: false, profile: needsStorage ? "full" : "auth" });
+      matrix.push({ task: `browser-${group}`, specs: selected, live: group === "live", profile: needsStorage || group === "live" ? "full" : "auth" });
     }
   }
   if (specs.size) matrix.push({ task: "browser-mixed", specs: [...specs].sort(), live: false, profile: "full" });

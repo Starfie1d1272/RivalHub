@@ -1,0 +1,3 @@
+# pnpm's patch parser requires LF even in Windows checkouts.
+patches/*.patch text eol=lf
+src/lib/mizar/protocol.ts text eol=lf

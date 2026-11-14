@@ -94,7 +94,7 @@ BET 六视图的匿名、未加入与已加入数据隔离及读取规则由真�
 
 `mizar-live-real-derived.json` retains the source Mizar commit and sanitized capture provenance. It was produced from Mizar's `real-live-rich` program and matching `dense-utility` radar fixture through `projectLiveSnapshotV1`. The fixture is available for targeted LIVE verification through production ingest/public projection; the capture does not prove that an NJU match was played.
 
-公开比赛 LIVE 不保留独立常驻浏览器 E2E。相关交互改动按需人工验收真实 Broadcast、实时比分、断流与恢复、详情与赛程导航、刷新后的上次画面、跨场隔离及换图；数据库或 provider 检查不替代这份 UI 验收。既有确定性测试继续保护 authoritative proof、context/map/source/login/schema 匹配、撤销 scope 清理，以及私有 token 的更新与释放。PostgreSQL 继续保护 source revision、identity/lineup/epoch fencing、已结束地图拒绝与 scoped token admission；跨仓 adapter/parser 和受迫 Local Supabase provider contract 继续按受影响 surface 执行。精确 age matrix、全部 delivery-reducer transition、storage-denial/two-match bound 和详细 receiver-sharing lifecycle 没有常驻确定性 oracle；这些证据不认证生产部署、真实赛务交接或持续容量。
+公开比赛 LIVE 保留一条跨仓浏览器流程：CI 固定的当前 Mizar 客户端经真实 HTTP 自动认领、双解说互斥、可靠开图确认、Local Supabase 私有 Broadcast、网页比分更新、断流恢复及刷新，最终验证正式比分落库和来源释放。该流程的游戏观测为合成输入，不认证真实 CS2 或生产网络。跨场隔离、赛程导航与换图按相关改动补充验收；数据库或 provider 检查不替代 UI 证据。既有确定性测试继续保护 authoritative proof、context/map/source/login/schema 匹配、撤销 scope 清理，以及私有 token 的更新与释放。PostgreSQL 继续保护 source revision、identity/lineup/epoch fencing、已结束地图拒绝与 scoped token admission；跨仓 adapter/parser 和受迫 Local Supabase provider contract 继续按受影响 surface 执行。精确 age matrix、全部 delivery-reducer transition、storage-denial/two-match bound 和详细 receiver-sharing lifecycle 没有常驻确定性 oracle；这些证据不认证生产部署、真实赛务交接或持续容量。
 
 
 ### 比赛领域命令的 production 检查根

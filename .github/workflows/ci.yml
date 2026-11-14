@@ -251,14 +251,14 @@ jobs:
         if: matrix.task == 'provider'
         run: node scripts/ci/timing.mjs "system/provider verify" -- pnpm db:local:verify-supabase
       - name: Checkout Mizar
-        if: matrix.task == 'provider' && matrix.live
+        if: matrix.live
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Starfie1d1272/Mizar
-          ref: 5958ccc9d09d9cc013f62556839b78088c465918 # Mizar PR 639 consumer with broadcast stats parser
+          ref: 31f887a7842165187e1307504999920d10964ea7 # Current Mizar source, including durable output and diagnostic fixes
           path: .mizar-checkout
       - name: Mizar cross-repo contract
-        if: matrix.task == 'provider' && matrix.live
+        if: matrix.live
         run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
       - name: Mizar replay against RivalHub receiver
         if: matrix.task == 'provider' && matrix.live
@@ -273,6 +273,7 @@ jobs:
           PLAYWRIGHT_CHANNEL: chrome
           PLAYWRIGHT_WORKERS: 2
           RIVALHUB_E2E_SPECS: ${{ toJSON(matrix.specs) }}
+          RIVALHUB_MIZAR_CHECKOUT: ${{ github.workspace }}/.mizar-checkout
         run: node scripts/ci/timing.mjs "system/E2E body" -- pnpm test:e2e
 
       - name: Production browser smoke

@@ -18,6 +18,7 @@
     "namespaceMembers": "warn"
   },
   "entry": [
+    "tests/e2e/helpers/mizar-producer.ts!",
     "drizzle.config.ts!",
     "drizzle.local.config.ts!",
     "drizzle.staging.config.ts!",
