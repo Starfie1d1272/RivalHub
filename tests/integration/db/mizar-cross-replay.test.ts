@@ -47,6 +47,7 @@ describe.skipIf(!checkout)("Mizar real connection and RivalHub receiver", () => 
       await connection.claim(initial, f.contextRevision, false);
       const current = { ...initial, cursor: { ...cursor, mapEpoch: 3, runtimeSeq: 7 } };
       box = new ReliableOutbox(join(directory, "outbox.json"));
+      await box.load();
       const make = (kind: string, epoch: number, seq: number, mapId: string, mapName: string, payload: object) => ({ schemaVersion: "mizar.reliable-event.v1", idempotencyKey: randomUUID(), kind, cursor: { ...cursor, mapEpoch: epoch, runtimeSeq: seq, programReceiveSequence: seq }, observedAt: NOW.toISOString(), matchId: f.matchId, competitionId: f.seasonId, contextRevision: f.contextRevision, mapId, mapName, entryAId: f.entryAId, entryBId: f.entryBId, evidence: { identity: "matched", telemetryFresh: true, contextFresh: true, source: "runtime-transition" }, payload });
       const firstStart = make("map_started", 1, 1, f.mapOneId, "de_ancient", {});
       const endOne = make("map_ended", 1, 2, f.mapOneId, "de_ancient", { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9 });
