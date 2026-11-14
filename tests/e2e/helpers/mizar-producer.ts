@@ -22,10 +22,13 @@ async function main() {
   assert(["localhost", "127.0.0.1"].includes(new URL(baseUrl).hostname));
   assert(process.env.RIVALHUB_MIZAR_CHECKOUT, "Current Mizar checkout is required");
   const { RivalHubConnection } = await import(pathToFileURL(resolve(process.env.RIVALHUB_MIZAR_CHECKOUT, "apps/companion/src/match-context/rivalhub-connection.ts")).href);
+  const { OutputService } = await import(pathToFileURL(resolve(process.env.RIVALHUB_MIZAR_CHECKOUT, "apps/companion/src/output/service.ts")).href);
+  const { ReliableOutbox } = await import(pathToFileURL(resolve(process.env.RIVALHUB_MIZAR_CHECKOUT, "apps/companion/src/output/reliable-outbox.ts")).href);
   const directory = await mkdtemp(join(tmpdir(), "rivalhub-mizar-browser-"));
   const f = await seedFixture({ unboundSource: true });
   await db.delete(schema.matchLiveSessions).where(eq(schema.matchLiveSessions.id, f.sessionId));
   const clients: InstanceType<typeof RivalHubConnection>[] = [];
+  const outputs: InstanceType<typeof OutputService>[] = [];
   let running = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let pending: Promise<void> = Promise.resolve();
@@ -73,6 +76,20 @@ async function main() {
       const client = new RivalHubConnection(path, transport, baseUrl);
       clients.push(client);
       await client.load();
+      // The connection requires its actual output owner to prove a settled
+      // capture before release, even when these fixture events are sent directly.
+      const output = new OutputService({ outbox: new ReliableOutbox(join(directory, String(index), "outbox.json")) });
+      outputs.push(output);
+      await output.start();
+      await client.setSourceCaptureLifecycle({
+        createReference: (cursor: LiveSnapshotV1["cursor"]) => output.createCaptureReference(cursor),
+        arm: (...args: unknown[]) => output.armSourceCapture(...args),
+        activate: (...args: unknown[]) => output.activateSourceCapture(...args),
+        restore: (...args: unknown[]) => output.restoreSourceCapture(...args),
+        seal: (...args: unknown[]) => output.sealSourceCapture(...args),
+        coverage: (...args: unknown[]) => output.sourceCaptureCoverage(...args),
+      });
+      client.setSourceSettlement((...args: unknown[]) => output.settleSourceForRelease(...args), (...args: unknown[]) => output.resumeSource(...args));
     }
     const commands: Record<string, () => Promise<unknown>> = {
       async start() {
@@ -118,6 +135,7 @@ async function main() {
   } finally {
     await stop();
     for (const client of clients) await client.abortSourceCaptureStartup();
+    for (const output of outputs) await output.close();
     // Same local-only fixture cleanup policy as major-browser-fixture. Every
     // statement is scoped to this generated competition; never a remote DB.
     await db.transaction(async tx => {

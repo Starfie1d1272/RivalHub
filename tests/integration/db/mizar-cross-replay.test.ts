@@ -66,7 +66,12 @@ describe.skipIf(!checkout)("Mizar real connection and RivalHub receiver", () => 
       offline = false;
       await box.flush({ sink, now: new Date(at.getTime() + 2000), isCurrent: () => true });
       expect(errors).toEqual([]);
-      expect(box.getRecords().filter((r: { status: string }) => r.status === "accepted")).toHaveLength(7);
+      // The client compacts old terminal records. Receiver receipts and final
+      // map results are the independent oracle for delivery, not its cache size.
+      const receipts = await db.select().from(schema.mizarReliableReceipts).where(eq(schema.mizarReliableReceipts.sessionId, f.sessionId));
+      expect(receipts.map(receipt => receipt.idempotencyKey).sort()).toEqual(
+        [firstStart, endOne, epochTwo, startTwo, endTwo, epochThree, startThree].map(event => event.idempotencyKey).sort(),
+      );
       const [source] = await db.select().from(schema.matchLiveSessions).where(eq(schema.matchLiveSessions.id, f.sessionId));
       expect(source).toMatchObject({ mapEpoch: 3, currentMapId: mapThreeId, lastReliableSeq: 7 });
     } finally {

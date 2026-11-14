@@ -17,7 +17,7 @@ const runPnpm = (args) => execFileSync(
   { cwd: mizarRoot, stdio: "pipe" },
 );
 runPnpm(["install", "--frozen-lockfile"]);
-runPnpm(["--filter", "@mizar/rivalhub...", "--fail-if-no-match", "run", "build"]);
+runPnpm(["--filter", "@mizar/companion...", "--fail-if-no-match", "run", "build"]);
 process.stdout.write(`Mizar compatibility commit: ${sha}${dirty ? " + local changes" : ""} (rebuilt adapter/parser)\n`);
 const pick = (...candidates) => candidates.find((candidate) => existsSync(candidate));
 const adapterPath = pick(
