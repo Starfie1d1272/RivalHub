@@ -45,6 +45,7 @@ async function main() {
     const frame: LiveSnapshotV1 = mizarSnapshot(f, ++sequence);
     frame.map = { ...frame.map, name: mapName, mapId, scoreCT: score, scoreT: 2, roundNumber: score + 3 };
     frame.series.currentMapOrder = mapOrder;
+    if (lateJoin) { frame.series.scoreA = null; frame.series.scoreB = null; }
     frame.players = frame.players.map((p, i) => ({ ...p, sourcePlayerId: f.steam64[i]!, canonicalPlayerId: f.fixtureUserIds[i]! }));
     frame.radar = null;
     frame.capability.radarCurrent = false;
