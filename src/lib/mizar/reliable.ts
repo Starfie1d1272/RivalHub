@@ -346,6 +346,10 @@ export async function ingestMizarReliable(
           expectedMap &&
           candidate.mapOrder > expectedMap.mapOrder &&
           (!boundMap || candidate.mapOrder >= boundMap.mapOrder) &&
+          (!boundMap ||
+            candidate.id === boundMap.id ||
+            source.mapExecutionPhase === "waiting" ||
+            source.mapExecutionPhase === "awaiting_next_map") &&
           source.mapExecutionPhase !== "inter_map" &&
           (source.mapExecutionPhase !== "awaiting_next_map" ||
             !boundMap ||
@@ -576,7 +580,8 @@ export async function ingestMizarReliable(
             : {}),
           sessionId: source.id,
           mapEpoch: source.mapEpoch,
-          currentMapId: updates.currentMapId ?? source.currentMapId,
+          currentMapId:
+            updates.currentMapId === undefined ? source.currentMapId : updates.currentMapId,
           receivedMapId: event.mapId,
           receivedMapName: event.mapName,
           continuityHealth: updates.continuityHealth ?? source.continuityHealth,

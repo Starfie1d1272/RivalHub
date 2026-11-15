@@ -24,6 +24,7 @@ import { RELIABLE_EVENT_SCHEMA_VERSION } from "../../../src/lib/mizar/protocol";
 import { seedFixture, NOW, type Fixture } from "./harness/mizar";
 import { mizarSnapshot } from "./harness/mizar-snapshot";
 import { loadPublicMatchPhase } from "@/lib/matches/public-phase";
+import { projectOperatorSource } from "@/lib/admin/matches/source-state";
 import { testSteam64 } from "./harness/database";
 
 function reliableEvent(fixture: Fixture, overrides: Record<string, unknown> = {}) {
@@ -67,10 +68,14 @@ it("shows a late second-map observation without completing the missing first map
   const cursor = { ...start.cursor, runtimeSeq: 2 };
   expect(await ingestMizarReliable(f.installationId, f.seasonId, { ...start, cursor }, f.authorityRevision, f.steam64)).toMatchObject({ outcome: "needs_attention" });
   expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: f.mapTwoId, mapExecutionPhase: "gameplay", continuityHealth: "history_incomplete", identityHealth: "healthy", lineupHealth: "healthy", autoCanonicalizationArmed: false });
+  expect(projectOperatorSource(await loadSource(f.sessionId)).reviewReasons).toEqual(["history_incomplete"]);
   expect(await loadPublicMatchPhase(matchBefore, mapsBefore)).toMatchObject({ phase: "gameplay", currentMapId: f.mapTwoId, lastCompletedMap: null });
   const snapshot = mizarSnapshot(f, 3);
   snapshot.map = { ...snapshot.map, mapId: f.mapTwoId, name: "de_mirage" };
   snapshot.series.currentMapOrder = 2;
+  snapshot.roundHistory = null;
+  snapshot.radar = null;
+  snapshot.capability.radarCurrent = false;
   await expect(ingestMizarLive(f.credentialHash, { ...snapshot, map: { ...snapshot.map, mapId: f.mapOneId } }, f.authorityRevision)).rejects.toBeInstanceOf(AppError);
   const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const previousKey = process.env.SUPABASE_SECRET_KEY;
@@ -332,7 +337,7 @@ describe("Mizar reliable event ingest ownership", () => {
 
   it("recovers an unbound invalid start only by explicitly confirming the canonical pending map", async () => {
     const fixture = await seedFixture({ unboundSource: true });
-    await ingestMizarReliable(fixture.installationId, fixture.seasonId, reliableEvent(fixture, { mapId: fixture.mapTwoId, mapName: "de_mirage" }), fixture.authorityRevision, fixture.steam64);
+    await ingestMizarReliable(fixture.installationId, fixture.seasonId, reliableEvent(fixture, { mapId: null, mapName: "de_nuke" }), fixture.authorityRevision, fixture.steam64);
     expect(await loadSource(fixture.sessionId)).toMatchObject({ currentMapId: null, continuityHealth: "execution_conflict" });
     const context = await operatorContext(fixture);
     expect(context.workflow.primaryTask).toBe("review");
@@ -941,7 +946,7 @@ function snapshotForAuthority(fixture: Fixture) {
 describe("operator repair before manual fallback", () => {
   it.each([false, true])("revalidates a correct newer start after wrong room (unbound=%s), protects late/duplicate results and rearms next map", async unboundSource => {
     const f = await seedFixture({ unboundSource });
-    const wrong = reliableEvent(f, { mapId: f.mapTwoId, mapName: "de_mirage" });
+    const wrong = reliableEvent(f, { mapId: null, mapName: "de_nuke" });
     await ingestMizarReliable(f.installationId, f.seasonId, wrong, f.authorityRevision, f.steam64);
     const correct = reliableEvent(f);
     // Same-cursor observations cannot erase a recorded conflict.
