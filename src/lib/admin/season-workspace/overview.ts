@@ -235,29 +235,24 @@ export async function loadSeasonWorkspaceOverview(
   if (!season) return null;
 
   const includeReadiness = !["playing", "finished", "archived"].includes(season.status);
-  const [
-    registrationRows,
-    matchCountRows,
-    activeAdjudicationRows,
-    formedTeamCount,
-    majorFacts,
-  ] = await Promise.all([
-    loadRegistrationCounts(season),
-    getOfficialSeasonMatchSummary(season.id).then((summary) => [{ count: summary.total }]),
-    db
-      .select({ count: count() })
-      .from(postEventAdjudications)
-      .where(
-        and(
-          eq(postEventAdjudications.seasonId, season.id),
-          eq(postEventAdjudications.status, "active"),
+  const [registrationRows, matchCountRows, activeAdjudicationRows, formedTeamCount, majorFacts] =
+    await Promise.all([
+      loadRegistrationCounts(season),
+      getOfficialSeasonMatchSummary(season.id).then((summary) => [{ count: summary.total }]),
+      db
+        .select({ count: count() })
+        .from(postEventAdjudications)
+        .where(
+          and(
+            eq(postEventAdjudications.seasonId, season.id),
+            eq(postEventAdjudications.status, "active"),
+          ),
         ),
-      ),
-    season.registrationMode === "solo" ? loadFormedTeamCount(season) : Promise.resolve(null),
-    season.competitionTemplate === "major"
-      ? loadMajorOverviewFacts(season, includeReadiness)
-      : Promise.resolve(null),
-  ]);
+      season.registrationMode === "solo" ? loadFormedTeamCount(season) : Promise.resolve(null),
+      season.competitionTemplate === "major"
+        ? loadMajorOverviewFacts(season, includeReadiness)
+        : Promise.resolve(null),
+    ]);
 
   const registrationSummary = projectRegistrationSummary(
     season.registrationMode,
