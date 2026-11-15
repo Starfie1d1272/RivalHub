@@ -5,6 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.0]
+
+### Added
+
+- 选手主页新增紧凑概览，集中展示当前队伍、核心指标、七维打法画像摘要和近期比赛；完整画像仍可在统计页逐项展开。
+- 队伍主页与赛事队伍页提供统一概览，直接展示三张阵容打法图和全部地图表现；地图按出场数排序，与近期比赛等宽排列，赛事名单区分首发与替补。
+
+### Changed
+
+- 概览、比赛、统计和资料分开导航，赛事与地图筛选可通过链接保留和恢复。已有比赛记录、完整统计、履历和 Limited 样本说明继续保留，队伍各自的当前成员、本届名单与生涯统计范围保持清楚。
+
 ## [2.25.46]
 
 ### Fixed
@@ -3671,6 +3682,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.26.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.46...v2.26.0
 [2.25.46]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.45...v2.25.46
 [2.25.45]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.44...v2.25.45
 [2.25.44]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.43...v2.25.44
