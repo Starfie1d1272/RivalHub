@@ -1,12 +1,10 @@
 import React from "react";
 import Link from "next/link";
 import type { CompetitionTemplate } from "@/lib/competition/templates";
-import { matchLineupReviewHref } from "@/lib/admin/matches/return-context";
 
 export interface AdminExceptionSummaryData {
   competitionTemplate: CompetitionTemplate;
   unconfirmedEntrants: number;
-  lineupReview: { total: number; onlyMatchId: string | null };
   finalResultPendingConfirmation: boolean;
   activeAdjudications: number;
 }
@@ -28,11 +26,6 @@ export function AdminExceptionSummary({
           },
         ]
       : []),
-    {
-      label: "已排期 · 首发待确认",
-      value: data.lineupReview.total,
-      href: matchLineupReviewHref(seasonSlug, data.lineupReview.onlyMatchId),
-    },
     ...(data.competitionTemplate === "major"
       ? [
           {

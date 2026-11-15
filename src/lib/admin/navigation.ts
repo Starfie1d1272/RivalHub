@@ -123,7 +123,7 @@ export function getSeasonAdminNavigation(
         ...(season.hasCaptainVoting ? [{ href: `${root}/captains`, label: "队长确认" }] : []),
         ...(season.hasDraft ? [{ href: `${root}/draft`, label: "选秀与阵容" }] : []),
         { href: `${root}/prestart`, label: "开赛筹备" },
-        { href: `${root}/matches`, label: "比赛与赛程" },
+        { href: `${root}/matches`, label: "比赛执行" },
         ...(season.competitionTemplate === "major"
           ? [{ href: `${root}/bet`, label: "竞猜运营" }]
           : []),

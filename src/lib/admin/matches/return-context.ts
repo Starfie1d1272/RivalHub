@@ -27,20 +27,6 @@ export function matchWorkbenchHref(
   return `/admin/${seasonSlug}/matches/${matchId}${matchWorkbenchContextQuery(returnTo, task)}${anchor ? `#${anchor}` : ""}`;
 }
 
-export function matchLineupQueueHref(seasonSlug: string, page = 1): string {
-  return `/admin/${seasonSlug}/matches?task=lineups${page > 1 ? `&page=${page}` : ""}`;
-}
-
-/** A single alert can open the exact workbench; a group stays scoped to the queue. */
-export function matchLineupReviewHref(seasonSlug: string, onlyMatchId: string | null) {
-  return onlyMatchId
-    ? matchWorkbenchHref(seasonSlug, onlyMatchId, {
-        returnTo: `/admin/${seasonSlug}#workspace-alerts`,
-        task: "lineups",
-      })
-    : matchLineupQueueHref(seasonSlug);
-}
-
 /** Keep return destinations inside this event; never trust an arbitrary URL. */
 export function resolveMatchReturnContext(seasonSlug: string, value: unknown, isTest: boolean) {
   const root = `/admin/${seasonSlug}`;
@@ -55,13 +41,11 @@ export function resolveMatchReturnContext(seasonSlug: string, value: unknown, is
     [`${root}/prestart`, "回到开赛筹备"],
     [
       `${root}/matches`,
-      url.searchParams.get("task") === "lineups"
-        ? "回到待核对首发"
-        : url.searchParams.get("view") === "schedule"
-          ? "回到赛程与阶段"
-          : url.searchParams.get("view") === "materials"
-            ? "回到赛后资料"
-            : "回到比赛执行",
+      url.searchParams.get("view") === "schedule"
+        ? "回到赛程与阶段"
+        : url.searchParams.get("view") === "materials"
+          ? "回到赛后资料"
+          : "回到比赛执行",
     ],
     [`${root}/test-matches`, "回到测试赛"],
     [`${root}/bet`, "回到 BET 管理"],
