@@ -5,6 +5,12 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.1]
+
+### Fixed
+
+- 赛事工作台直接进入比赛执行，移除独立首发核对队列及总览中的首发确认待办，统一比赛管理导航名称。
+
 ## [2.26.0]
 
 ### Added
@@ -3682,6 +3688,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.26.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.0...v2.26.1
 [2.26.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.46...v2.26.0
 [2.25.46]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.45...v2.25.46
 [2.25.45]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.44...v2.25.45
