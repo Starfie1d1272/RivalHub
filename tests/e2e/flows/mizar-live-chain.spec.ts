@@ -3,10 +3,10 @@ import { once } from "node:events";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 
-test("当前 Mizar 双解说认领、HTTP 上传、真实 Broadcast、网页恢复与正式比分", async ({ page, baseURL }) => {
+for (const lateJoin of [false, true]) test(lateJoin ? "图一结果缺失时，Mizar 中途接入图二恢复实时展示且不补写赛果" : "当前 Mizar 双解说认领、HTTP 上传、真实 Broadcast、网页恢复与正式比分", async ({ page, baseURL }) => {
   test.setTimeout(120_000);
   expect(process.env.RIVALHUB_MIZAR_CHECKOUT, "Run with the pinned Mizar checkout and Local Supabase Realtime").toBeTruthy();
-  const worker = fork(resolve("tests/e2e/helpers/mizar-producer.ts"), [baseURL!], {
+  const worker = fork(resolve("tests/e2e/helpers/mizar-producer.ts"), [baseURL!, lateJoin ? "late" : "normal"], {
     execArgv: ["--conditions=react-server", "--import", "tsx"], stdio: ["ignore", "inherit", "inherit", "ipc"],
   });
   const ready = await new Promise<{ matchId: string; slug: string }>((accept, reject) => {
@@ -42,9 +42,10 @@ test("当前 Mizar 双解说认领、HTTP 上传、真实 Broadcast、网页恢�
     await expect(connected).toBeVisible();
     await page.reload();
     await expect(connected).toBeVisible();
-    expect(await command("finish")).toMatchObject({ scoreA: 13, scoreB: 9 });
+    expect(await command("finish")).toMatchObject({ scoreA: lateJoin ? null : 13, scoreB: lateJoin ? null : 9 });
     await page.reload();
-    await expect(live.getByLabel("上一图比分与地图胜场")).toContainText("13:9");
+    if (lateJoin) await expect(connected).not.toBeVisible();
+    else await expect(live.getByLabel("上一图比分与地图胜场")).toContainText("13:9");
   } finally {
     const exited = once(worker, "exit");
     if (worker.connected) worker.send({ command: "close" });

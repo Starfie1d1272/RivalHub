@@ -22,6 +22,8 @@ import { RELIABLE_EVENT_SCHEMA_VERSION } from "../../../src/lib/mizar/protocol";
 // The integration runner provisions a disposable database per worker (see
 // scripts/db/integration-runner.ts), so committed fixtures need no teardown.
 import { seedFixture, NOW, type Fixture } from "./harness/mizar";
+import { mizarSnapshot } from "./harness/mizar-snapshot";
+import { loadPublicMatchPhase } from "@/lib/matches/public-phase";
 import { testSteam64 } from "./harness/database";
 
 function reliableEvent(fixture: Fixture, overrides: Record<string, unknown> = {}) {
@@ -52,6 +54,41 @@ async function loadSource(sessionId: string) {
   const [source] = await db.select().from(schema.matchLiveSessions).where(eq(schema.matchLiveSessions.id, sessionId));
   return source!;
 }
+
+it("shows a late second-map observation without completing the missing first map or authorizing results", async () => {
+  const f = await seedFixture({ unboundSource: true });
+  const mapsBefore = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+  const matchBefore = (await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!;
+  const start = reliableEvent(f, { mapId: f.mapTwoId, mapName: "de_mirage" });
+  // An unplanned map cannot establish display authority. A newer valid start
+  // must also recover from the conflict left by that rejected observation.
+  await ingestMizarReliable(f.installationId, f.seasonId, { ...start, idempotencyKey: randomUUID(), mapId: null, mapName: "de_nuke" }, f.authorityRevision, f.steam64);
+  expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: null, autoCanonicalizationArmed: false });
+  const cursor = { ...start.cursor, runtimeSeq: 2 };
+  expect(await ingestMizarReliable(f.installationId, f.seasonId, { ...start, cursor }, f.authorityRevision, f.steam64)).toMatchObject({ outcome: "needs_attention" });
+  expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: f.mapTwoId, mapExecutionPhase: "gameplay", continuityHealth: "history_incomplete", identityHealth: "healthy", lineupHealth: "healthy", autoCanonicalizationArmed: false });
+  expect(await loadPublicMatchPhase(matchBefore, mapsBefore)).toMatchObject({ phase: "gameplay", currentMapId: f.mapTwoId, lastCompletedMap: null });
+  const snapshot = mizarSnapshot(f, 3);
+  snapshot.map = { ...snapshot.map, mapId: f.mapTwoId, name: "de_mirage" };
+  snapshot.series.currentMapOrder = 2;
+  await expect(ingestMizarLive(f.credentialHash, { ...snapshot, map: { ...snapshot.map, mapId: f.mapOneId } }, f.authorityRevision)).rejects.toBeInstanceOf(AppError);
+  const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const previousKey = process.env.SUPABASE_SECRET_KEY;
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:1";
+  process.env.SUPABASE_SECRET_KEY = "sb_secret_integration-test-service-key";
+  try {
+    // Real PostgreSQL authorization reaches the delivery boundary. The browser
+    // flow owns successful delivery through a real Local Supabase provider.
+    expect(await ingestMizarLive(f.credentialHash, snapshot, f.authorityRevision)).toEqual({ accepted: false, reason: "broadcast_unavailable" });
+  } finally {
+    if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.SUPABASE_SECRET_KEY; else process.env.SUPABASE_SECRET_KEY = previousKey;
+  }
+  await ingestMizarReliable(f.installationId, f.seasonId, { ...start, idempotencyKey: randomUUID(), cursor: { ...cursor, runtimeSeq: 4 }, kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9 } }, f.authorityRevision, f.steam64);
+  expect(await loadSource(f.sessionId)).toMatchObject({ mapExecutionPhase: "inter_map", autoCanonicalizationArmed: false });
+  expect(await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).toEqual(mapsBefore);
+  expect(await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) })).toEqual(matchBefore);
+});
 
 async function operatorContext(fixture: Fixture) {
   const [match] = await db.select().from(schema.matches).where(eq(schema.matches.id, fixture.matchId));

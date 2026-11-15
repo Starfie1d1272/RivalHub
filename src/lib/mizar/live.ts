@@ -127,7 +127,7 @@ export async function ingestMizarLive(
       const observedLineup =
         source?.identityHealth === "healthy" &&
         source.lineupHealth === LINEUP_REVIEW_REQUIRED &&
-        source.continuityHealth === "healthy" &&
+        ["healthy", "history_incomplete"].includes(source.continuityHealth) &&
         !source.autoCanonicalizationArmed &&
         source.mapExecutionPhase === "gameplay" &&
         source.currentMapId === snapshot.map.mapId &&
@@ -158,7 +158,13 @@ export async function ingestMizarLive(
       ) {
         throw new AppError(ErrorCode.FORBIDDEN, "实时数据源或本场首发校验未通过。");
       }
-      if (observedLineup && !mapMatches)
+      if (
+        (observedLineup || source.continuityHealth === "history_incomplete") &&
+        (!mapMatches ||
+          source.mapExecutionPhase !== "gameplay" ||
+          source.currentMapId !== snapshot.map.mapId ||
+          source.manualTakeoverMapEpoch === snapshot.cursor.mapEpoch)
+      )
         throw new AppError(ErrorCode.FORBIDDEN, "实时地图不匹配。");
       if (
         ![match.entryAId, match.entryBId].includes(snapshot.teams.ct.entryId ?? "") ||
