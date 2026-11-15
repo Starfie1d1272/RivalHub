@@ -5,6 +5,12 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.2]
+
+### Fixed
+
+- 修复前一图赛果缺失时，中途接入后续计划地图无法显示实时比分的问题。核验当前地图、首发和来源后恢复实时展示，历史结果仍保留未知，不据此自动补录或结算。
+
 ## [2.26.1]
 
 ### Fixed
@@ -3688,6 +3694,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.26.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.1...v2.26.2
 [2.26.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.0...v2.26.1
 [2.26.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.46...v2.26.0
 [2.25.46]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.45...v2.25.46
