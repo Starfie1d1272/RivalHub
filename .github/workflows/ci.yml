@@ -255,7 +255,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Starfie1d1272/Mizar
-          ref: 31f887a7842165187e1307504999920d10964ea7 # Current Mizar source, including durable output and diagnostic fixes
+          ref: 4d4e8193dda0f8171c7a2c82408beecd5c2bf37d # Mizar late-map binding, unknown history scores and runtime diagnostics
           path: .mizar-checkout
       - name: Mizar cross-repo contract
         if: matrix.live

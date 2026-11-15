@@ -9,6 +9,7 @@ export type ReviewReason =
   | "source_conflict"
   | "continuity_failure"
   | "result_conflict"
+  | "history_incomplete"
   | "execution_mismatch";
 export type AdminPrimaryTask =
   "prepare" | "observe" | "manual_result" | "review" | "source_check" | "post";
@@ -32,6 +33,7 @@ export function projectOperatorSource(source: OperatorSourceFacts | null) {
       ? "manual_map"
       : "mizar_auto";
   const reviewReasons: ReviewReason[] = [];
+  if (source?.continuityHealth === "history_incomplete") reviewReasons.push("history_incomplete");
   if (source?.continuityHealth === "execution_conflict") reviewReasons.push("execution_mismatch");
   if (source?.identityHealth === "conflict") reviewReasons.push("identity_mismatch");
   if (source?.lineupHealth === "conflict" || source?.lineupHealth === LINEUP_REVIEW_REQUIRED)
@@ -57,6 +59,7 @@ export function projectOperatorSource(source: OperatorSourceFacts | null) {
   return { sourceMode, sourceHealth, reviewReasons };
 }
 export const REVIEW_REASON_LABEL: Record<ReviewReason, string> = {
+  history_incomplete: "之前地图的比分尚未确认",
   execution_mismatch: "地图与当前对局不一致",
   identity_mismatch: "采集的比赛需要核对",
   lineup_mismatch: "采集玩家与首发有差异",

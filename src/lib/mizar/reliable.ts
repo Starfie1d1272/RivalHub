@@ -271,7 +271,8 @@ export async function ingestMizarReliable(
         updates.autoCanonicalizationArmed = false;
         updates.continuityHealth = "unknown";
         updates.mapExecutionPhase = "waiting";
-        if (!reviewRequired) updates.currentMapId = null;
+        if (!reviewRequired && source.continuityHealth !== "history_incomplete")
+          updates.currentMapId = null;
         else if (
           source.mapExecutionPhase === "inter_map" ||
           source.mapExecutionPhase === "awaiting_next_map"
@@ -323,7 +324,7 @@ export async function ingestMizarReliable(
         const displayMap = reviewRequired
           ? maps.find((map) => map.id === source.currentMapId)
           : undefined;
-        const map = displayMap
+        const expectedMap = displayMap
           ? source.mapExecutionPhase === "awaiting_next_map"
             ? maps.find(
                 (map) => map.mapOrder === displayMap.mapOrder + 1 && map.completedAt === null,
@@ -332,11 +333,42 @@ export async function ingestMizarReliable(
               ? undefined
               : displayMap
           : maps.find((map) => map.completedAt === null);
+        const boundMap = maps.find((map) => map.id === source.currentMapId);
+        const candidates = maps.filter(
+          (map) => map.completedAt === null && map.mapName === event.mapName,
+        );
+        const candidate = candidates.length === 1 ? candidates[0] : undefined;
+        // A fresh observation may identify a later planned map even when an
+        // earlier result never arrived. It does not complete that missing map.
+        const laterMap =
+          !reviewRequired &&
+          candidate &&
+          expectedMap &&
+          candidate.mapOrder > expectedMap.mapOrder &&
+          (!boundMap || candidate.mapOrder >= boundMap.mapOrder) &&
+          (!boundMap ||
+            candidate.id === boundMap.id ||
+            source.mapExecutionPhase === "waiting" ||
+            source.mapExecutionPhase === "awaiting_next_map") &&
+          source.mapExecutionPhase !== "inter_map" &&
+          (source.mapExecutionPhase !== "awaiting_next_map" ||
+            !boundMap ||
+            candidate.mapOrder > boundMap.mapOrder)
+            ? candidate
+            : undefined;
+        const map = expectedMap?.mapName === event.mapName ? expectedMap : laterMap;
         const validMap = Boolean(
-          map && map.mapName === event.mapName && (event.mapId === null || map.id === event.mapId),
+          map &&
+          candidates.length === 1 &&
+          (!boundMap || map.mapOrder >= boundMap.mapOrder) &&
+          map.mapName === event.mapName &&
+          (event.mapId === null || map.id === event.mapId),
         );
         const lineupValid = await validateObservedLineupInTx(tx, match, lineupSteam64);
         const executionConflict = source.continuityHealth === "execution_conflict";
+        const historyIncomplete = Boolean(
+          map && maps.some((prior) => prior.mapOrder < map.mapOrder && prior.completedAt === null),
+        );
         const veto = await tx.query.matchVetoSessions.findFirst({
           where: eq(matchVetoSessions.matchId, match.id),
           columns: { completedAt: true },
@@ -354,7 +386,7 @@ export async function ingestMizarReliable(
           match.status === "in_progress" &&
           !executionConflict &&
           source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
-        const displayOnly = reviewRequired || observedLineup;
+        const displayOnly = reviewRequired || observedLineup || historyIncomplete;
         const displayReady =
           displayOnly &&
           validMap &&
@@ -362,7 +394,7 @@ export async function ingestMizarReliable(
           Boolean(veto?.completedAt) &&
           match.status === "in_progress" &&
           ((fresh && lineupValid) || observedLineup) &&
-          !executionConflict &&
+          (!executionConflict || event.cursor.runtimeSeq > source.lastReliableSeq) &&
           source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
         const mayArm =
           !displayOnly &&
@@ -376,21 +408,28 @@ export async function ingestMizarReliable(
         updates.autoCanonicalizationArmed = mayArm;
         updates.identityHealth =
           event.evidence.identity === "matched" || displayReady ? "healthy" : "conflict";
-        updates.lineupHealth = displayOnly
-          ? LINEUP_REVIEW_REQUIRED
-          : lineupValid
-            ? "healthy"
-            : "conflict";
+        updates.lineupHealth =
+          reviewRequired || observedLineup
+            ? LINEUP_REVIEW_REQUIRED
+            : lineupValid
+              ? "healthy"
+              : "conflict";
         updates.continuityHealth =
-          !validMap || (executionConflict && !mayArm)
+          !validMap || (executionConflict && !mayArm && !displayReady)
             ? "execution_conflict"
             : !event.evidence.telemetryFresh || !event.evidence.contextFresh
               ? "stale"
-              : "healthy";
+              : historyIncomplete
+                ? "history_incomplete"
+                : "healthy";
         // An invalid observation cannot erase the trusted execution or a manual binding.
         // A complete, current start observation can revalidate AUTO; an explicit
         // manual choice remains authoritative for this epoch. End events never re-arm.
-        if (validMap && (!executionConflict || mayArm)) {
+        if (
+          validMap &&
+          (!laterMap || displayReady) &&
+          (!executionConflict || mayArm || displayReady)
+        ) {
           updates.currentMapId = map!.id;
           if (displayReady) updates.mapExecutionPhase = "gameplay";
           if (!displayOnly && fresh && lineupValid && match.status === "in_progress") {
@@ -407,7 +446,7 @@ export async function ingestMizarReliable(
         const sameExecution = Boolean(
           map && source.currentMapId === map.id && (event.mapId === null || event.mapId === map.id),
         );
-        if (reviewRequired) {
+        if (reviewRequired || source.continuityHealth === "history_incomplete") {
           updates.autoCanonicalizationArmed = false;
           outcome = "needs_attention";
           if (
@@ -541,7 +580,8 @@ export async function ingestMizarReliable(
             : {}),
           sessionId: source.id,
           mapEpoch: source.mapEpoch,
-          currentMapId: source.currentMapId,
+          currentMapId:
+            updates.currentMapId === undefined ? source.currentMapId : updates.currentMapId,
           receivedMapId: event.mapId,
           receivedMapName: event.mapName,
           continuityHealth: updates.continuityHealth ?? source.continuityHealth,

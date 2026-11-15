@@ -65,16 +65,17 @@ function projectPublicContext(
     })),
     gameplayMapId: resolveGameplayMapId(maps, session),
   };
+  const canonicalMapId =
+    [...facts.maps].sort((a, b) => a.order - b.order).find((map) => map.completedAt === null)?.id ??
+    null;
   const displayMapId =
     match.status === "in_progress" &&
-    session?.lineupHealth === LINEUP_REVIEW_REQUIRED &&
+    session?.currentMapId &&
+    (session.lineupHealth === LINEUP_REVIEW_REQUIRED || session.currentMapId !== canonicalMapId) &&
     maps.some((map) => map.id === session.currentMapId && !map.completedAt)
       ? session.currentMapId
       : null;
-  const currentMapId =
-    displayMapId ??
-    [...facts.maps].sort((a, b) => a.order - b.order).find((map) => map.completedAt === null)?.id ??
-    null;
+  const currentMapId = displayMapId ?? canonicalMapId;
   const confirmed = maps.filter(canConfirmMapScoreboard).sort((a, b) => a.mapOrder - b.mapOrder);
   const last = confirmed.at(-1);
   const progress =

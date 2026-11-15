@@ -6,6 +6,8 @@ import { mapLabel } from "@/lib/maps";
 import { formatCSTDateTime } from "@/lib/utils/date";
 
 const steps: Record<ReviewReason, string> = {
+  history_incomplete:
+    "请核对并补齐之前地图的正式比分。当前图的实时展示可继续，缺失结果补齐前不会自动结算。",
   identity_mismatch:
     "在 Mizar 选择下方对阵，并确认游戏已进入本场 Perfect 房间。正确的本图开始数据通过核验后，自动记录恢复。",
   lineup_mismatch:
