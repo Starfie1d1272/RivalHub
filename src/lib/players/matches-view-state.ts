@@ -1,6 +1,10 @@
 import { SUPPORTED_CS2_MAP_KEYS } from "@/lib/config/cs2-maps";
 import { safeStatsReturn } from "@/lib/stats/return-context";
-import type { PlayerPerformanceSearch } from "./performance-view-state";
+import {
+  parsePlayerProfileSection,
+  playerProfileHref,
+  type PlayerPerformanceSearch,
+} from "./performance-view-state";
 
 export interface PlayerMatchesQuery {
   event: string;
@@ -73,11 +77,7 @@ export function canonicalPlayerHref(
   const query = parsePlayerMatchesQuery(search);
   const from = safeStatsReturn(typeof search.fromStats === "string" ? search.fromStats : null);
   if (history) return playerMatchesHref(userId, query, from);
-  const params = new URLSearchParams();
-  if (query.event) params.set("event", query.event);
-  if (query.map) params.set("map", query.map);
-  if (from) params.set("fromStats", from);
-  return `/players/${userId}${params.size ? `?${params}` : ""}`;
+  return playerProfileHref(userId, query, parsePlayerProfileSection(search.section), from);
 }
 
 export function playerMatchDetailHref(

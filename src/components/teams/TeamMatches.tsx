@@ -4,7 +4,15 @@ import { presentMatchStatus } from "@/lib/matches/presentation";
 
 type TeamMatch = PublicEventTeamMatch & { seasonSlug: string; seasonName?: string };
 
-export function TeamMatches({ matches }: { matches: readonly TeamMatch[] }) {
+export function TeamMatches({
+  matches,
+  showAll = false,
+  allHref,
+}: {
+  matches: readonly TeamMatch[];
+  showAll?: boolean;
+  allHref?: string;
+}) {
   const ordered = matches.toSorted((a, b) => {
     const aFinished = a.status === "finished" || a.status === "cancelled";
     const bFinished = b.status === "finished" || b.status === "cancelled";
@@ -15,20 +23,28 @@ export function TeamMatches({ matches }: { matches: readonly TeamMatch[] }) {
   });
   return (
     <section className="min-w-0 space-y-4">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">
-          MATCHES
-        </p>
-        <h2 className="mt-1 text-lg font-semibold">近期比赛</h2>
+      <div className="flex min-h-9 items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">{showAll ? "全部比赛" : "近期比赛"}</h2>
+        {allHref && (
+          <Link
+            href={allHref as import("next").Route}
+            prefetch={false}
+            className="text-xs text-[var(--color-accent)]"
+          >
+            全部比赛 →
+          </Link>
+        )}
       </div>
       <div className="border-y border-[var(--color-border)] divide-y divide-[var(--color-border)]">
         {ordered.length ? (
-          ordered.slice(0, 5).map((match) => <TeamMatchRow key={match.id} match={match} />)
+          (showAll ? ordered : ordered.slice(0, 5)).map((match) => (
+            <TeamMatchRow key={match.id} match={match} />
+          ))
         ) : (
           <p className="py-4 text-sm text-[var(--color-fg-mid)]">暂无比赛。</p>
         )}
       </div>
-      {ordered.length > 5 && (
+      {!showAll && !allHref && ordered.length > 5 && (
         <details className="border-t border-[var(--color-border)] pt-3">
           <summary className="cursor-pointer text-sm text-[var(--color-fg-mid)]">
             其余比赛 · {ordered.length - 5} 场
