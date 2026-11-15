@@ -41,7 +41,7 @@ it("restores the conflict queue and original row after navigating back", () => {
 
 const data: SeasonWorkspaceOverviewData = {
   season: { id: "event", slug: "custom", name: "Custom", status: "registration", competitionTemplate: "custom", registrationMode: "team", registrationOpenedAt: null, registrationOpensAt: null, registrationClosesAt: null, rosterChangeClosesAt: null, endAt: null },
-  summary: { pendingApplications: 0, approvedEntries: 4, formedTeamCount: 4, entrantCount: 0, frozenEntrantCount: 0, matchCount: 0, lineupReview: { total: 0, onlyMatchId: null }, finalResultPendingConfirmation: false, activeAdjudications: 0 },
+  summary: { pendingApplications: 0, approvedEntries: 4, formedTeamCount: 4, entrantCount: 0, frozenEntrantCount: 0, matchCount: 0, finalResultPendingConfirmation: false, activeAdjudications: 0 },
   registrationFunnel: null, readiness: null, prestartPhase: null,
   nextAction: { label: "进入开赛筹备", detail: "", href: "/admin/custom/prestart" },
 };

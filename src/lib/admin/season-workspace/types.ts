@@ -25,7 +25,6 @@ export interface SeasonWorkspaceOverviewSummary {
   entrantCount: number;
   frozenEntrantCount: number;
   matchCount: number;
-  lineupReview: { total: number; onlyMatchId: string | null };
   finalResultPendingConfirmation: boolean;
   activeAdjudications: number;
 }
