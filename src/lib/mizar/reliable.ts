@@ -471,7 +471,10 @@ export async function ingestMizarReliable(
         const sameExecution = Boolean(
           map && source.currentMapId === map.id && (event.mapId === null || event.mapId === map.id),
         );
-        if (reviewRequired || (source.continuityHealth === "history_incomplete" && !source.autoCanonicalizationArmed)) {
+        if (
+          reviewRequired ||
+          (source.continuityHealth === "history_incomplete" && !source.autoCanonicalizationArmed)
+        ) {
           updates.autoCanonicalizationArmed = false;
           outcome = "needs_attention";
           if (
