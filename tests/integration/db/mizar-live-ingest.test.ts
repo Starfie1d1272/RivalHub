@@ -16,7 +16,6 @@ import { claimMizarSource, releaseMizarSource, takeOverCurrentMap } from "../../
 import { loadOperatorEvidence } from "../../../src/lib/admin/matches/operator-evidence";
 import { loadOperatorContext } from "../../../src/lib/admin/matches/operator-context";
 import { loadEffectiveMatchRoster } from "../../../src/lib/match-rosters/effective";
-import { loadPublicMatchPhase } from "../../../src/lib/matches/public-phase";
 import { recordManualMapResultInTx } from "../../../src/lib/matches/manual-result";
 import { RELIABLE_EVENT_SCHEMA_VERSION } from "../../../src/lib/mizar/protocol";
 
