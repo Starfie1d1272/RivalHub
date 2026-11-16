@@ -42,7 +42,7 @@ for (const lateJoin of [false, true]) test(lateJoin ? "图一结果缺失时，M
     await expect(connected).toBeVisible();
     await page.reload();
     await expect(connected).toBeVisible();
-    expect(await command("finish")).toMatchObject({ scoreA: lateJoin ? null : 13, scoreB: lateJoin ? null : 9 });
+    expect(await command("finish")).toMatchObject({ scoreA: 13, scoreB: 9 });
     await page.reload();
     if (lateJoin) await expect(connected).not.toBeVisible();
     else await expect(live.getByLabel("上一图比分与地图胜场")).toContainText("13:9");
