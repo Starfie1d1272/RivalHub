@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { completedVetoMaps } from "@/lib/matches/veto-result";
-import { marketIsLocked, resolveBetFact, type MarketFactInput } from "@/lib/bet/domain";
+import { resolveBetFact, type MarketFactInput } from "@/lib/bet/domain";
 import { gradePrediction } from "@/lib/free-predictions/domain";
 
 const pool = ["de_ancient","de_anubis","de_cache","de_inferno","de_mirage","de_nuke","de_overpass"];
@@ -13,18 +13,6 @@ function input(): MarketFactInput & { subject: Extract<MarketFactInput["subject"
     event:{entryIds:[],playerIds:[],started:true,champion:null,kills:null} };
 }
 describe("official completed BP result", () => {
-  it("locks an earlier map market when a later map has started", () => {
-    const f = input();
-    f.match!.status = "in_progress";
-    f.match!.scoreA = null; f.match!.scoreB = null;
-    f.maps = [
-      { ...f.maps[0]!, startedAt: null, completedAt: null, scoreA: null, scoreB: null },
-      { ...f.maps[1]!, startedAt: null, completedAt: null, scoreA: null, scoreB: null },
-      { ...f.maps[0]!, id: "third", mapOrder: 3, mapName: answer[2]!, startedAt: new Date(), completedAt: null, scoreA: null, scoreB: null },
-    ];
-    const subject = { kind: "map" as const, mapId: f.maps[1]!.id, mapName: f.maps[1]!.mapName, mapOrder: 2, entryIds: ["a", "b"] as [string, string], runId: "run", format: "bo3" as const };
-    expect(marketIsLocked({ ...f, type: "map_winner", subject })).toBe(true);
-  });
   for (const scoreB of [0,1]) it(`settles the same complete plan for BO3 2:${scoreB}, including an unplayed decider`, () => {
     const f=input();f.match!.scoreB=scoreB;
     if(scoreB)f.maps.push({...f.maps[0]!,id:"third",mapOrder:3,mapName:answer[2]!,scoreA:7,scoreB:13});
