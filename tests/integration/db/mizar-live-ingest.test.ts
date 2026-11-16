@@ -16,6 +16,7 @@ import { claimMizarSource, releaseMizarSource, takeOverCurrentMap } from "../../
 import { loadOperatorEvidence } from "../../../src/lib/admin/matches/operator-evidence";
 import { loadOperatorContext } from "../../../src/lib/admin/matches/operator-context";
 import { loadEffectiveMatchRoster } from "../../../src/lib/match-rosters/effective";
+import { loadPublicMatchPhase } from "../../../src/lib/matches/public-phase";
 import { recordManualMapResultInTx } from "../../../src/lib/matches/manual-result";
 import { RELIABLE_EVENT_SCHEMA_VERSION } from "../../../src/lib/mizar/protocol";
 
@@ -56,7 +57,7 @@ async function loadSource(sessionId: string) {
   return source!;
 }
 
-it("shows a late second-map observation without completing the missing first map or authorizing results", async () => {
+it("accepts a verified second map after an invalid observation without inventing the first result", async () => {
   const f = await seedFixture({ unboundSource: true });
   const mapsBefore = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
   const matchBefore = (await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!;
@@ -66,9 +67,9 @@ it("shows a late second-map observation without completing the missing first map
   await ingestMizarReliable(f.installationId, f.seasonId, { ...start, idempotencyKey: randomUUID(), mapId: null, mapName: "de_nuke" }, f.authorityRevision, f.steam64);
   expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: null, autoCanonicalizationArmed: false });
   const cursor = { ...start.cursor, runtimeSeq: 2 };
-  expect(await ingestMizarReliable(f.installationId, f.seasonId, { ...start, cursor }, f.authorityRevision, f.steam64)).toMatchObject({ outcome: "needs_attention" });
-  expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: f.mapTwoId, mapExecutionPhase: "gameplay", continuityHealth: "history_incomplete", identityHealth: "healthy", lineupHealth: "healthy", autoCanonicalizationArmed: false });
-  expect(projectOperatorSource(await loadSource(f.sessionId)).reviewReasons).toEqual(["history_incomplete"]);
+  expect(await ingestMizarReliable(f.installationId, f.seasonId, { ...start, cursor }, f.authorityRevision, f.steam64)).toMatchObject({ outcome: "armed" });
+  expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: f.mapTwoId, mapExecutionPhase: "gameplay", continuityHealth: "history_incomplete", identityHealth: "healthy", lineupHealth: "healthy", autoCanonicalizationArmed: true });
+  expect(projectOperatorSource(await loadSource(f.sessionId)).reviewReasons).toEqual([]);
   expect(await loadPublicMatchPhase(matchBefore, mapsBefore)).toMatchObject({ phase: "gameplay", currentMapId: f.mapTwoId, lastCompletedMap: null });
   const snapshot = mizarSnapshot(f, 3);
   snapshot.map = { ...snapshot.map, mapId: f.mapTwoId, name: "de_mirage" };
@@ -89,10 +90,12 @@ it("shows a late second-map observation without completing the missing first map
     if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
     if (previousKey === undefined) delete process.env.SUPABASE_SECRET_KEY; else process.env.SUPABASE_SECRET_KEY = previousKey;
   }
-  await ingestMizarReliable(f.installationId, f.seasonId, { ...start, idempotencyKey: randomUUID(), cursor: { ...cursor, runtimeSeq: 4 }, kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9 } }, f.authorityRevision, f.steam64);
-  expect(await loadSource(f.sessionId)).toMatchObject({ mapExecutionPhase: "inter_map", autoCanonicalizationArmed: false });
-  expect(await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).toEqual(mapsBefore);
-  expect(await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) })).toEqual(matchBefore);
+  expect(await ingestMizarReliable(f.installationId, f.seasonId, { ...start, idempotencyKey: randomUUID(), cursor: { ...cursor, runtimeSeq: 4 }, kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9 } }, f.authorityRevision, f.steam64)).toMatchObject({ outcome: "canonicalized" });
+  expect(await loadSource(f.sessionId)).toMatchObject({ mapExecutionPhase: "inter_map" });
+  const mapsAfter = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+  expect(mapsAfter.find((map) => map.id === f.mapOneId)).toMatchObject({ scoreA: null, scoreB: null, completedAt: null });
+  expect(mapsAfter.find((map) => map.id === f.mapTwoId)).toMatchObject({ scoreA: 13, scoreB: 9 });
+  expect((await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!.status).toBe("in_progress");
 });
 
 async function operatorContext(fixture: Fixture) {
@@ -117,6 +120,29 @@ async function nextEpoch(fixture: Fixture, sequence = 10) {
 }
 
 describe("Mizar reliable event ingest ownership", () => {
+
+  it.each([true, false])("accepts a uniquely identified later map with explicit ID %s while earlier results remain unknown", async (explicitId) => {
+    const f = await seedFixture({ unboundSource: true });
+    const start = reliableEvent(f, { mapId: explicitId ? f.mapTwoId : null, mapName: "de_mirage" });
+    expect(await ingestMizarReliable(f.installationId, f.seasonId, start, f.authorityRevision, f.steam64)).toMatchObject({ outcome: "armed" });
+    expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: f.mapTwoId, autoCanonicalizationArmed: true });
+    const [during] = await db.select().from(schema.matches).where(eq(schema.matches.id, f.matchId));
+    const duringMaps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+    expect(await loadPublicMatchPhase(during!, duringMaps)).toMatchObject({ phase: "gameplay", currentMapId: f.mapTwoId, seriesProgress: null });
+    const end = reliableEvent(f, { kind: "map_ended", mapId: explicitId ? f.mapTwoId : null, mapName: "de_mirage", payload: { scoreA: 13, scoreB: 10, scoreCT: 13, scoreT: 10 } });
+    end.cursor.runtimeSeq = 2;
+    expect(await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision)).toMatchObject({ outcome: "canonicalized" });
+    const roster = await loadEffectiveMatchRoster(db, [f.matchId]);
+    const players = roster.map((p) => ({ sourcePlayerId: p.steam64!, canonicalPlayerId: p.userId, kills: 1, deaths: 1, assists: 0 }));
+    const snapshot = { ...end, kind: "map_player_snapshot", idempotencyKey: randomUUID(), payload: { mapEndedKey: end.idempotencyKey, players } };
+    expect(await ingestMizarReliable(f.installationId, f.seasonId, snapshot, f.authorityRevision)).toMatchObject({ outcome: "observed" });
+    const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+    expect(maps.find((map) => map.id === f.mapOneId)).toMatchObject({ scoreA: null, scoreB: null, completedAt: null });
+    expect(maps.find((map) => map.id === f.mapTwoId)).toMatchObject({ scoreA: 13, scoreB: 10, provisionalPlayers: expect.arrayContaining([expect.objectContaining({ kills: 1 })]) });
+    const [match] = await db.select().from(schema.matches).where(eq(schema.matches.id, f.matchId));
+    expect(match!.status).toBe("in_progress");
+    expect(await loadPublicMatchPhase(match!, maps)).toMatchObject({ seriesProgress: null });
+  });
 
   it("classifies authenticated route failures without exposing authentication details", async () => {
     const f = await seedFixture();
@@ -189,7 +215,9 @@ describe("Mizar reliable event ingest ownership", () => {
     await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision);
     expect(await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision)).toMatchObject({ duplicate: true });
     const snapshot = { ...end, kind: "map_player_snapshot", idempotencyKey: randomUUID(), payload: { mapEndedKey: end.idempotencyKey, players } };
+    await expect(ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, payload: { ...snapshot.payload, mapEndedKey: "missing" } }, f.authorityRevision)).rejects.toMatchObject({ reason: "snapshot_parent_unavailable" });
     await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, idempotencyKey: randomUUID(), mapId: f.mapTwoId }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
+    await expect(ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, idempotencyKey: randomUUID(), mapId: f.mapTwoId }, f.authorityRevision)).rejects.toMatchObject({ reason: "snapshot_scope_mismatch" });
     await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, idempotencyKey: randomUUID(), cursor: { ...snapshot.cursor, runtimeSeq: 3 } }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
     await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, idempotencyKey: randomUUID(), cursor: { ...snapshot.cursor, programReceiveSequence: 99 } }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
     const context = await db.transaction(tx => loadMizarMatchDocumentInTx(tx, f.matchId, f.seasonId));

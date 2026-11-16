@@ -140,7 +140,7 @@ async function recordMapResultInTx(
     .sort((a, b) => a - b);
   const completePrefix = scoredOrders.every((order, index) => order === index + 1);
   // A late map can arrive before an earlier map. Unknown games are not zero wins.
-  const seriesFinished = seriesScore.seriesFinished && (!hasIndependentResult || completePrefix);
+  const seriesFinished = seriesScore.seriesFinished && completePrefix;
 
   if (
     hasIndependentResult &&
