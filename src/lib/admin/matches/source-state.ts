@@ -52,7 +52,8 @@ export function projectOperatorSource(source: OperatorSourceFacts | null) {
       : source.freshness === "stale" || source.continuityHealth === "stale"
         ? "stale"
         : source.autoCanonicalizationArmed &&
-            source.identityHealth === "healthy" && source.lineupHealth === "healthy" &&
+            source.identityHealth === "healthy" &&
+            source.lineupHealth === "healthy" &&
             ["healthy", "history_incomplete"].includes(source.continuityHealth)
           ? "healthy"
           : "unknown";
