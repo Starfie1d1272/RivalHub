@@ -8,6 +8,10 @@ export type ReliableReason =
   | "epoch_fence"
   | "authority_changed"
   | "idempotency_conflict"
+  | "snapshot_duplicate"
+  | "snapshot_parent_unavailable"
+  | "snapshot_scope_mismatch"
+  | "snapshot_map_unavailable"
   | "invalid_schema";
 export type ReliableRecovery = "refresh_context" | "reconcile" | "none";
 

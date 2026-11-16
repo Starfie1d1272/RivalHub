@@ -33,7 +33,8 @@ export function projectOperatorSource(source: OperatorSourceFacts | null) {
       ? "manual_map"
       : "mizar_auto";
   const reviewReasons: ReviewReason[] = [];
-  if (source?.continuityHealth === "history_incomplete") reviewReasons.push("history_incomplete");
+  if (source?.continuityHealth === "history_incomplete" && !source.autoCanonicalizationArmed)
+    reviewReasons.push("history_incomplete");
   if (source?.continuityHealth === "execution_conflict") reviewReasons.push("execution_mismatch");
   if (source?.identityHealth === "conflict") reviewReasons.push("identity_mismatch");
   if (source?.lineupHealth === "conflict" || source?.lineupHealth === LINEUP_REVIEW_REQUIRED)
@@ -51,9 +52,8 @@ export function projectOperatorSource(source: OperatorSourceFacts | null) {
       : source.freshness === "stale" || source.continuityHealth === "stale"
         ? "stale"
         : source.autoCanonicalizationArmed &&
-            [source.identityHealth, source.lineupHealth, source.continuityHealth].every(
-              (health) => health === "healthy",
-            )
+            source.identityHealth === "healthy" && source.lineupHealth === "healthy" &&
+            ["healthy", "history_incomplete"].includes(source.continuityHealth)
           ? "healthy"
           : "unknown";
   return { sourceMode, sourceHealth, reviewReasons };

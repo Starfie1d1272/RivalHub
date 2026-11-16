@@ -83,12 +83,10 @@ export function marketIsLocked(input: MarketFactInput): boolean {
     );
   }
   if (input.subject.kind === "map") {
-    const id = input.subject.mapId;
-    const selected = input.maps.find((m) => m.id === id);
+    const order = input.subject.mapOrder;
     return (
-      !!selected?.startedAt ||
-      !!selected?.completedAt ||
-      (input.subject.mapOrder === 1 && (match.status === "finished" || !!match.startedAt))
+      input.maps.some((m) => m.mapOrder >= order && (m.startedAt || m.completedAt)) ||
+      (order === 1 && (match.status === "finished" || !!match.startedAt))
     );
   }
   return !!match.startedAt;

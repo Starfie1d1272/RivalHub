@@ -153,9 +153,12 @@ export function projectOperatorWorkflow(input: {
       nextStep: "回到比赛总览查看其它场次。",
     };
   const nextMap = maps.find((map) => map.completedAt === null);
+  const gameplayMap = maps.find(
+    (map) => map.id === input.observedGameplayMapId && map.completedAt === null,
+  );
   const gameplayTitle =
-    phase === "gameplay" && nextMap
-      ? `Map ${nextMap.order} · ${mapLabel(nextMap.name)} 进行中`
+    phase === "gameplay" && gameplayMap
+      ? `Map ${gameplayMap.order} · ${mapLabel(gameplayMap.name)} 进行中`
       : null;
   if (source.reviewReasons.length) {
     const prepareNext = input.vetoComplete && phase === "inter_map" && nextMap;

@@ -29,12 +29,12 @@ export function projectMatchPresentationPhase(facts: MatchPhaseFacts): MatchPres
   if (facts.veto === "in_progress") return "veto";
   if (facts.veto !== "completed") return facts.scheduledAt ? "awaiting_veto" : "preparation";
   const maps = [...facts.maps].sort((a, b) => a.order - b.order);
-  const current = maps.find((map) => map.completedAt === null);
-  if (current && current.id === facts.gameplayMapId) return "gameplay";
+  if (maps.some((map) => map.completedAt === null && map.id === facts.gameplayMapId))
+    return "gameplay";
   return maps.some((map) => map.completedAt !== null) ? "inter_map" : "awaiting_gameplay";
 }
 
-/** An unfinished map with an official start takes precedence over live observation. */
+/** An active observed execution takes precedence over earlier incomplete maps. */
 export function resolveGameplayMapId(
   maps: readonly {
     id: string;
@@ -43,8 +43,20 @@ export function resolveGameplayMapId(
   }[],
   session: { currentMapId: string | null; mapExecutionPhase: string } | null | undefined,
 ): string | null {
+  if (session?.currentMapId) {
+    return session.mapExecutionPhase === "gameplay" &&
+      maps.some((map) => map.id === session.currentMapId && !map.completedAt)
+      ? session.currentMapId
+      : null;
+  }
+  const latestCompletion = Math.max(
+    0,
+    ...maps.map((map) => (map.completedAt ? new Date(map.completedAt).getTime() : 0)),
+  );
   return (
-    maps.find((map) => map.startedAt && !map.completedAt)?.id ??
-    (session?.mapExecutionPhase === "gameplay" ? session.currentMapId : null)
+    maps.find(
+      (map) =>
+        map.startedAt && !map.completedAt && new Date(map.startedAt).getTime() > latestCompletion,
+    )?.id ?? null
   );
 }
