@@ -29,6 +29,7 @@ import { materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
 import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { applyMatchStatusTransitionInTx } from "@/lib/matches/lifecycle";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
+import { isCompetitionVetoPool } from "@/lib/config/cs2-maps";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { logEvent } from "@/lib/observability/server";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -49,7 +50,6 @@ import {
   type VetoStepFact,
 } from "../veto-sequence";
 
-const MAP_POOL_SIZE = 7;
 const TIMEOUT_SETTLEMENT_MS = 2_000;
 const MAX_RECONCILE_TURNS = 16;
 const SYSTEM_ACTOR_ID = "veto-system";
@@ -460,11 +460,7 @@ async function getMapPoolInTx(tx: TxDb, match: VetoMatch): Promise<string[]> {
     .limit(1);
   if (!season) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在。");
   const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
-  if (
-    mapPool.length !== MAP_POOL_SIZE ||
-    new Set(mapPool).size !== MAP_POOL_SIZE ||
-    mapPool.some((mapName) => !mapName.trim())
-  ) {
+  if (!isCompetitionVetoPool(mapPool)) {
     throw new AppError(
       ErrorCode.VALIDATION_FAILED,
       "当前赛事地图池必须包含七张不重复地图，才能开始 BP。",

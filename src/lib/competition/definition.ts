@@ -1,4 +1,5 @@
 import { isStageExecutorSupported } from "@/lib/formats/supported";
+import { isCompetitionVetoPool } from "@/lib/config/cs2-maps";
 import { createMajorTemplate } from "@/lib/competition/templates";
 import {
   normalizeAffiliationRules,
@@ -349,6 +350,7 @@ export function validateCompetitionDefinition(
     SeasonCapabilities,
     | "stagePlan"
     | "positions"
+    | "registrationMode"
     | "registrationConfig"
     | "minTeamSize"
     | "maxTeamSize"
@@ -426,7 +428,9 @@ export function validateCompetitionDefinition(
       message: `${firstStage.name || "首阶段"} 的种子数量必须等于参赛队伍数。`,
     });
   }
-  if (capabilities.positions.length === 0)
+  if (capabilities.registrationMode === "solo" && capabilities.positions.length < 2)
+    issues.push({ path: "positions", message: "个人报名至少需要两个位置供主选和次选使用。" });
+  else if (capabilities.positions.length === 0)
     issues.push({ path: "positions", message: "请至少启用一个位置。" });
   if (
     new Set(capabilities.positions.map((position) => position.trim())).size !==
@@ -434,12 +438,11 @@ export function validateCompetitionDefinition(
   ) {
     issues.push({ path: "positions", message: "位置不能重复。" });
   }
-  if (
-    new Set(capabilities.registrationConfig.mapPool).size !==
-    capabilities.registrationConfig.mapPool.length
-  ) {
-    issues.push({ path: "registrationConfig.mapPool", message: "图池不能包含重复地图。" });
-  }
+  if (!isCompetitionVetoPool(capabilities.registrationConfig.mapPool))
+    issues.push({
+      path: "registrationConfig.mapPool",
+      message: "当前赛事 BP 需要七张不重复地图，请先修正草稿图池。",
+    });
   if (
     capabilities.minTeamSize > capabilities.maxTeamSize ||
     capabilities.starterCount > capabilities.maxTeamSize

@@ -63,6 +63,7 @@ function assertRunnableCustomDefinition(
     typeof seasons.$inferSelect,
     | "stagePlan"
     | "positions"
+    | "registrationMode"
     | "registrationConfig"
     | "minTeamSize"
     | "maxTeamSize"
@@ -72,6 +73,7 @@ function assertRunnableCustomDefinition(
   const issues = validateCompetitionDefinition({
     stagePlan: season.stagePlan as StagePlan,
     positions: season.positions,
+    registrationMode: season.registrationMode,
     registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
     minTeamSize: season.minTeamSize,
     maxTeamSize: season.maxTeamSize,

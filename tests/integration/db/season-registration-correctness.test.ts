@@ -51,6 +51,48 @@ function seasonValues(
 }
 
 describe("season registration correctness PostgreSQL", () => {
+  it.each([
+    ["单位置个人报名", { registrationMode: "solo", positions: ["anchor"] }, "至少需要两个位置"],
+    ["三张图的 BP 图池", {
+      registrationConfig: {
+        ...CUSTOM_TEMPLATE.registrationConfig,
+        mapPool: CUSTOM_TEMPLATE.registrationConfig.mapPool.slice(0, 3),
+      },
+    }, "七张不重复地图"],
+  ] satisfies Array<[string, Partial<typeof schema.seasons.$inferInsert>, string]>)(
+    "拒绝发布无法执行的自定义赛事配置：%s",
+    async (_label, invalidConfig, message) => {
+      const pool = createLocalPool();
+      const database = drizzle(pool, { schema });
+      const seasonId = randomUUID();
+      const readSeason = () => database.query.seasons.findFirst({ where: eq(schema.seasons.id, seasonId) });
+      const publishSaved = async () => publishSeason({
+        seasonId, expectedVersion: getSeasonConfirmationVersion((await readSeason())!),
+      });
+      try {
+        await database.insert(schema.seasons).values(seasonValues(seasonId, {
+          status: "draft",
+          stagePlan: [{ key: "group", name: "循环赛", type: "round_robin", teamCount: 2, matchFormat: "bo1", advanceTiers: [] }],
+          ...invalidConfig,
+        }));
+        await expect(publishSaved()).resolves.toMatchObject({
+          success: false,
+          error: { code: "VALIDATION_FAILED", message: expect.stringContaining(message) },
+        });
+        expect((await readSeason())?.status).toBe("draft");
+
+        await database.update(schema.seasons).set({
+          positions: CUSTOM_TEMPLATE.positions,
+          registrationConfig: CUSTOM_TEMPLATE.registrationConfig,
+        }).where(eq(schema.seasons.id, seasonId));
+        await expect(publishSaved()).resolves.toMatchObject({ success: true });
+      } finally {
+        await pool.query("DELETE FROM seasons WHERE id=$1", [seasonId]);
+        await pool.end();
+      }
+    },
+  );
+
   it("separates due schedule catch-up, unscheduled immediate open, and early force-open", async () => {
     const pool = createLocalPool();
     const database = drizzle(pool, { schema });

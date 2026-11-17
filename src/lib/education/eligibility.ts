@@ -27,6 +27,16 @@ export interface SeasonAffiliationResolution {
   eligibilityState: "missing" | "pending" | "rejected" | "approved" | "unmatched";
 }
 
+function matchesAffiliationRule(
+  verification: SeasonEducationVerification,
+  rule: InstitutionAffiliationRule,
+): boolean {
+  return (
+    rule.institutionCode === verification.institutionCode &&
+    rule.eligibleAcademicStatuses.includes(verification.academicStatus)
+  );
+}
+
 /**
  * Pick the education assertion that applies to this season. A matching
  * approved assertion always wins over a newer unrelated assertion; otherwise
@@ -41,19 +51,11 @@ export function resolveSeasonEducationVerification(
   );
   const approved = newestFirst.filter((item) => item.status === "approved");
   const matching = approved.find((item) =>
-    rules.some(
-      (rule) =>
-        rule.institutionCode === item.institutionCode &&
-        rule.eligibleAcademicStatuses.includes(item.academicStatus),
-    ),
+    rules.some((rule) => matchesAffiliationRule(item, rule)),
   );
   const selectedVerification = matching ?? approved[0] ?? newestFirst[0] ?? null;
   const matchedRule = selectedVerification
-    ? (rules.find(
-        (rule) =>
-          rule.institutionCode === selectedVerification.institutionCode &&
-          rule.eligibleAcademicStatuses.includes(selectedVerification.academicStatus),
-      ) ?? null)
+    ? (rules.find((rule) => matchesAffiliationRule(selectedVerification, rule)) ?? null)
     : null;
   if (!selectedVerification)
     return { selectedVerification, matchedRule, eligibilityState: "missing" };
@@ -86,6 +88,7 @@ export function evaluateRosterEducationEligibility(
   const blockers: string[] = [];
   const selectedVerificationIds = new Map<string, string>();
   const affiliationCounts = new Map<string, number>();
+  const approvedVerifications: SeasonEducationVerification[] = [];
 
   for (const member of members) {
     if (!member.emailVerifiedAt) {
@@ -110,6 +113,7 @@ export function evaluateRosterEducationEligibility(
       continue;
     }
     selectedVerificationIds.set(member.userId, verification.id);
+    approvedVerifications.push(verification);
     if (verification.institutionCode) {
       affiliationCounts.set(
         verification.institutionCode,
@@ -119,15 +123,9 @@ export function evaluateRosterEducationEligibility(
   }
 
   for (const rule of rules) {
-    const count = members.filter(
-      (member) =>
-        member.emailVerifiedAt !== null &&
-        resolveSeasonEducationVerification(
-          member.verificationHistory ?? (member.verification ? [member.verification] : []),
-          rules,
-        ).matchedRule === rule,
+    const count = approvedVerifications.filter((verification) =>
+      matchesAffiliationRule(verification, rule),
     ).length;
-    affiliationCounts.set(rule.institutionCode, count);
     if (count < rule.minRosterMembers) {
       const shortfall = rule.minRosterMembers - count;
       const label = rule.institutionCode === "4132010284" ? "南京大学" : rule.institutionCode;
