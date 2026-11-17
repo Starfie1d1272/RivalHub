@@ -2,8 +2,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { extname, join, posix, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
+import { checkDomainDependencies, type DomainModule, type DomainReport } from "./domain-dependencies";
 
-const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mts", ".cts"]);
+const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"]);
 const CLIENT_BOUNDARY_PATHS = ["src/db/"];
 const SERVER_OWNER_PATHS = [
   "src/lib/auth/supabase-server.ts",
@@ -16,7 +17,11 @@ export type ArchitectureRuleId =
   | "ARCH_CANONICAL_PROVIDER"
   | "ARCH_SCHEMA_CONTRACT"
   | "ARCH_AUDIT_WRITER"
-  | "ARCH_PAGE_AGGREGATE";
+  | "ARCH_PAGE_AGGREGATE"
+  | "ARCH_DOMAIN_DEPENDENCY"
+  | "ARCH_RUNTIME_CYCLE"
+  | "ARCH_UNKNOWN_MODULE"
+  | "ARCH_STALE_EXCEPTION";
 
 export interface ArchitectureViolation {
   ruleId: ArchitectureRuleId;
@@ -29,6 +34,7 @@ export interface ArchitectureCheckOptions {
   rootDir?: string;
   /** In-memory source map used by unit tests; keys are repository-relative paths. */
   files?: Record<string, string>;
+  onDomainReport?: (report: DomainReport) => void;
 }
 
 interface SourceRecord {
@@ -40,6 +46,7 @@ interface SourceRecord {
   serverOnly: boolean;
   allEdges: ModuleEdge[];
   runtimeEdges: ModuleEdge[];
+  computedImports: number[];
 }
 
 interface ModuleEdge {
@@ -57,6 +64,7 @@ interface ModuleResolver {
   rootDir: string;
   compilerOptions: ts.CompilerOptions;
   host: ts.ModuleResolutionHost;
+  moduleCache: ts.ModuleResolutionCache;
   cache: Map<string, string | null>;
 }
 
@@ -106,6 +114,34 @@ export function checkArchitecture(options: ArchitectureCheckOptions = {}): Archi
     if (!root.useClient) continue;
     traverseClient(root, graph, clientVisited, report);
   }
+
+  const domainModules = new Map<string, DomainModule>();
+  for (const record of records.values()) {
+    for (const line of record.computedImports) {
+      report({ ruleId: "ARCH_UNKNOWN_MODULE", file: record.path,
+        message: `第 ${line} 行的动态 import/require 必须使用可解析的字面量。` });
+    }
+    const externalRuntime: string[] = [];
+    const edges = record.allEdges.flatMap(edge => {
+      const target = resolveLocalModule(record.path, edge.specifier, records, graph.resolver);
+      if (!target) {
+        if (edge.runtime && (edge.specifier.startsWith("@/") || /^\.\.?\//.test(edge.specifier))
+          && !/\.(css|json|png|svg|woff2|jpe?g|webp)$/.test(edge.specifier)) {
+          report({ ruleId: "ARCH_UNKNOWN_MODULE", file: record.path, target: edge.specifier,
+            message: "运行时本地模块必须解析到检查范围内的源码。" });
+        } else if (edge.runtime) {
+          externalRuntime.push(edge.specifier);
+        }
+        return [];
+      }
+      const serverActionProxy = clientVisited.has(record.path) && target.useServer;
+      const kind = !edge.runtime ? "type" : serverActionProxy ? "proxy" : "runtime";
+      return [{ target: target.path, kind } as const];
+    });
+    domainModules.set(record.path, { serverOnly: isClientForbiddenTarget(record) || record.useServer, edges, externalRuntime });
+  }
+  const domainReport = checkDomainDependencies(domainModules, report, !options.files);
+  options.onDomainReport?.(domainReport);
 
   return graph.violations.sort((a, b) =>
     `${a.file}|${a.ruleId}|${a.target ?? ""}`.localeCompare(`${b.file}|${b.ruleId}|${b.target ?? ""}`),
@@ -166,12 +202,11 @@ function loadRecords(options: ArchitectureCheckOptions, rootDir: string): Map<st
 
   return new Map(
     [...files.entries()]
-      .filter(([path]) => path.startsWith("src/") && isSourcePath(path) && !path.endsWith(".d.ts"))
-      .filter(([path]) => !path.includes("/test/") && !path.endsWith(".test.ts") && !path.endsWith(".test.tsx"))
+      .filter(([path]) => path.startsWith("src/") && isSourcePath(path) && !/\.d\.[cm]?ts$/.test(path))
+      .filter(([path]) => !/\/(?:__tests__|test|tests)\//.test(path) && !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path))
       .map(([path, source]) => {
         const ast = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, scriptKind(path));
-        const baseRecord = { path, source, ast, useClient: false, useServer: false, serverOnly: false };
-        const allEdges = moduleEdges(baseRecord, false);
+        const { edges: allEdges, computedImports } = moduleEdges(ast);
         const runtimeEdges = allEdges.filter((edge) => edge.runtime);
         return [path, {
           path,
@@ -182,20 +217,21 @@ function loadRecords(options: ArchitectureCheckOptions, rootDir: string): Map<st
           serverOnly: runtimeEdges.some((edge) => edge.specifier === "server-only"),
           allEdges,
           runtimeEdges,
+          computedImports,
         } satisfies SourceRecord];
       }),
   );
 }
 
 function createModuleResolver(rootDir: string, files?: Record<string, string>): ModuleResolver {
+  const normalizeAbsolutePath = (path: string) => normalizePath(resolve(path));
   const inMemoryFiles = new Map<string, string>();
   if (files) {
     for (const [path, source] of Object.entries(files)) {
-      inMemoryFiles.set(resolve(rootDir, normalizePath(path)), source);
+      inMemoryFiles.set(normalizeAbsolutePath(resolve(rootDir, normalizePath(path))), source);
     }
   }
 
-  const normalizeAbsolutePath = (path: string) => resolve(path);
   const hasInMemoryFileUnder = (directory: string) => {
     const normalizedDirectory = normalizeAbsolutePath(directory).replace(/[\\/]$/, "");
     return [...inMemoryFiles.keys()].some((fileName) => fileName.startsWith(`${normalizedDirectory}/`));
@@ -226,7 +262,9 @@ function createModuleResolver(rootDir: string, files?: Record<string, string>): 
     throw new Error(`Architecture checker could not parse ${configPath}`);
   }
 
-  return { rootDir, compilerOptions: parsed.options, host, cache: new Map() };
+  const canonicalName = ts.sys.useCaseSensitiveFileNames ? (name: string) => name : (name: string) => name.toLowerCase();
+  const moduleCache = ts.createModuleResolutionCache(rootDir, canonicalName, parsed.options);
+  return { rootDir, compilerOptions: parsed.options, host, moduleCache, cache: new Map() };
 }
 
 function readRepositoryFiles(sourceDir: string): Map<string, string> {
@@ -251,7 +289,9 @@ function isSourcePath(path: string): boolean {
 }
 
 function scriptKind(path: string): ts.ScriptKind {
-  return path.endsWith(".tsx") || path.endsWith(".jsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  if (path.endsWith(".tsx")) return ts.ScriptKind.TSX;
+  if (path.endsWith(".jsx")) return ts.ScriptKind.JSX;
+  return /\.[cm]?js$/.test(path) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
 }
 
 function normalizePath(path: string): string {
@@ -266,36 +306,39 @@ function hasDirective(ast: ts.SourceFile, directive: string): boolean {
   return false;
 }
 
-function moduleEdges(record: Pick<SourceRecord, "ast">, runtimeOnly: boolean): ModuleEdge[] {
+function moduleEdges(ast: ts.SourceFile) {
   const edges: ModuleEdge[] = [];
+  const computedImports: number[] = [];
   const add = (specifier: string, runtime: boolean) => {
-    if (!runtimeOnly || runtime) edges.push({ specifier, runtime });
+    edges.push({ specifier, runtime });
   };
 
-  for (const statement of record.ast.statements) {
+  for (const statement of ast.statements) {
     if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
       add(statement.moduleSpecifier.text, isRuntimeImport(statement));
     } else if (ts.isExportDeclaration(statement) && statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
       add(statement.moduleSpecifier.text, isRuntimeExport(statement));
     } else if (ts.isImportEqualsDeclaration(statement) && ts.isExternalModuleReference(statement.moduleReference)) {
       const expression = statement.moduleReference.expression;
-      if (expression && ts.isStringLiteral(expression)) add(expression.text, true);
+      if (expression && ts.isStringLiteral(expression)) add(expression.text, !statement.isTypeOnly);
     }
   }
 
   const visit = (node: ts.Node) => {
-    if (ts.isCallExpression(node)) {
-      const expression = node.expression;
+    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+      || ts.isIdentifier(node.expression) && node.expression.text === "require")) {
       const argument = node.arguments[0];
-      if (argument && ts.isStringLiteral(argument)) {
-        if (expression.kind === ts.SyntaxKind.ImportKeyword) add(argument.text, true);
-        if (ts.isIdentifier(expression) && expression.text === "require") add(argument.text, true);
-      }
+      if (argument && ts.isStringLiteralLike(argument)) add(argument.text, true);
+      else computedImports.push(ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1);
+    }
+    if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)
+      && ts.isStringLiteral(node.argument.literal)) {
+      add(node.argument.literal.text, false);
     }
     ts.forEachChild(node, visit);
   };
-  ts.forEachChild(record.ast, visit);
-  return dedupeEdges(edges);
+  ts.forEachChild(ast, visit);
+  return { edges: dedupeEdges(edges), computedImports };
 }
 
 function isRuntimeImport(statement: ts.ImportDeclaration): boolean {
@@ -431,6 +474,7 @@ function resolveLocalModule(
       resolve(resolver.rootDir, importer),
       resolver.compilerOptions,
       resolver.host,
+      resolver.moduleCache,
     ).resolvedModule;
     const resolvedPath = resolved
       ? normalizePath(relative(resolver.rootDir, resolved.resolvedFileName))
@@ -442,7 +486,11 @@ function resolveLocalModule(
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const violations = checkArchitecture();
+  const violations = checkArchitecture({
+    onDomainReport: process.argv.includes("--report")
+      ? (report) => console.log(JSON.stringify(report, null, 2))
+      : undefined,
+  });
   if (violations.length > 0) {
     console.error(`Architecture contract failed with ${violations.length} violation(s):`);
     for (const violation of violations) console.error(formatArchitectureViolation(violation));

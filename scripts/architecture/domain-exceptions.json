@@ -1,0 +1,168 @@
+[
+  {
+    "rule": "ARCH_DOMAIN_DEPENDENCY",
+    "owner": "BET 公开榜",
+    "reason": "复用统计排名语义以形成公开支持排名。",
+    "exit": "共享排名值契约明确后改为依赖该契约。",
+    "edges": [
+      ["src/lib/bet/free-ranking.ts", "src/lib/stats/ranking.ts"]
+    ]
+  },
+  {
+    "rule": "ARCH_DOMAIN_DEPENDENCY",
+    "owner": "赛事归档",
+    "reason": "归档状态与行锁由既有赛后 guard 统一持有。赛事、比赛、统计和预测写入必须在对应事务复核。",
+    "exit": "归档锁迁入统一的赛事生命周期入口后，逐个验证调用侧的原子性及锁序。",
+    "edges": [
+      ["src/lib/bet/service.ts", "src/lib/postevent/guard.ts"],
+      ["src/lib/demo-integration/promotion.ts", "src/lib/postevent/guard.ts"],
+      ["src/lib/major/playoff-runtime.ts", "src/lib/postevent/guard.ts"],
+      ["src/lib/major/stage-transition.ts", "src/lib/postevent/guard.ts"],
+      ["src/lib/major/start.ts", "src/lib/postevent/guard.ts"],
+      ["src/lib/major/swiss-runtime.ts", "src/lib/postevent/guard.ts"],
+      ["src/lib/matches/locking.ts", "src/lib/postevent/guard.ts"],
+      ["src/lib/matches/map-score-correction.ts", "src/lib/postevent/guard.ts"],
+      ["src/lib/matches/series-score-correction.ts", "src/lib/postevent/guard.ts"],
+      ["src/lib/mizar/installation.ts", "src/lib/postevent/guard.ts"],
+      ["src/lib/predictions/service.ts", "src/lib/postevent/guard.ts"]
+    ]
+  },
+  {
+    "rule": "ARCH_DOMAIN_DEPENDENCY",
+    "owner": "报名与正式名单",
+    "reason": "名单命令消耗 Major / Play-in 的冻结及名单窗口权威数据。",
+    "exit": "按 #1560 / #1561 收敛为事务内名单采用与窗口读取合同。",
+    "edges": [
+      ["src/lib/competition-entries/commands.ts", "src/lib/major/eliminated-entry.ts"],
+      ["src/lib/competition-entries/commands.ts", "src/lib/major/roster-window.ts"],
+      ["src/lib/competition-entries/roster-change.ts", "src/lib/major/roster-window.ts"],
+      ["src/lib/event-rosters/owner.ts", "src/lib/competition-qualification/eligibility.ts"],
+      ["src/lib/registrations/admin-review.ts", "src/lib/major/roster-window.ts"],
+      ["src/lib/teams/commands.ts", "src/lib/major/eliminated-entry.ts"]
+    ]
+  },
+  {
+    "rule": "ARCH_DOMAIN_DEPENDENCY",
+    "owner": "CompetitionEntry 公共读模型",
+    "reason": "赛事队伍公共视图组合已授权的正式比赛及统计。",
+    "exit": "在 #1560 / #1563 中收敛到公共读模型组合入口后移除。",
+    "edges": [
+      ["src/lib/competition-entries/public-directory.ts", "src/lib/matches/read-official.ts"],
+      ["src/lib/competition-entries/public-player-projection.ts", "src/lib/stats/public-query.ts"],
+      ["src/lib/competition-entries/public-team-context.ts", "src/lib/matches/competition-context.ts"],
+      ["src/lib/competition-entries/public-team-context.ts", "src/lib/matches/display-score-data.ts"],
+      ["src/lib/competition-entries/public-team-context.ts", "src/lib/matches/scope.ts"]
+    ]
+  },
+  {
+    "rule": "ARCH_DOMAIN_DEPENDENCY",
+    "owner": "Major / Pick’Em",
+    "reason": "Major 开赛、换阶段或种子调整在同一事务同步自动预测。",
+    "exit": "通过明确的阶段变更消费入口原子保持预测同步后移除。",
+    "edges": [
+      ["src/lib/major/playoff-runtime.ts", "src/lib/predictions/service.ts"],
+      ["src/lib/major/prestart-seeds.ts", "src/lib/predictions/service.ts"],
+      ["src/lib/major/stage-transition.ts", "src/lib/predictions/service.ts"],
+      ["src/lib/major/start.ts", "src/lib/predictions/service.ts"],
+      ["src/lib/major/swiss-runtime.ts", "src/lib/predictions/service.ts"]
+    ]
+  },
+  {
+    "rule": "ARCH_DOMAIN_DEPENDENCY",
+    "owner": "比赛公共读模型",
+    "reason": "比分、阵容对比和比赛统计组合公开统计或竞猜视图。",
+    "exit": "在 #1556 / #1563 中明确比赛详情读取分层并验证相同流式边界。",
+    "edges": [
+      ["src/lib/matches/detail-scoreboard.ts", "src/lib/stats/match-performance-query.ts"],
+      ["src/lib/matches/detail-stats.ts", "src/lib/stats/aggregate.ts"],
+      ["src/lib/matches/lineup-comparison-query.ts", "src/lib/demo-integration/semantic-profile.ts"],
+      ["src/lib/matches/lineup-comparison-query.ts", "src/lib/stats/availability.ts"],
+      ["src/lib/matches/lineup-comparison-query.ts", "src/lib/stats/leaderboard-query.ts"],
+      ["src/lib/matches/lineup-comparison-query.ts", "src/lib/stats/projection-version.ts"],
+      ["src/lib/matches/lineup-comparison-query.ts", "src/lib/stats/public-fill.ts"],
+      ["src/lib/matches/lineup-comparison-query.ts", "src/lib/stats/ranking.ts"],
+      ["src/lib/matches/round-segments-query.ts", "src/lib/stats/tournament-scope.ts"],
+      ["src/lib/matches/scoreboard-view.ts", "src/lib/stats/aggregate.ts"],
+      ["src/lib/matches/stats-view.ts", "src/lib/bet/list-query.ts"],
+      ["src/lib/matches/stats-view.ts", "src/lib/stats/return-context.ts"]
+    ]
+  },
+  {
+    "rule": "ARCH_DOMAIN_DEPENDENCY",
+    "owner": "比赛更正",
+    "reason": "历史系列结果更正要在同一事务更新系列状态并撤销关联 Demo 版本。",
+    "exit": "更正 command 收敛到现有独立工作流后删去反向依赖，保留审计与恢复语义。",
+    "edges": [
+      ["src/lib/matches/series-score-correction.ts", "src/lib/demo-integration/revision.ts"],
+      ["src/lib/matches/series-score-correction.ts", "src/lib/match-corrections/series-completion.ts"]
+    ]
+  },
+  {
+    "rule": "ARCH_DOMAIN_DEPENDENCY",
+    "owner": "参赛资格",
+    "reason": "资格 owner 复用 Major 现有的完美平台实力计算。",
+    "exit": "将共享实力计算移入竞技资格 owner，保持冻结输入和旧版本语义。",
+    "edges": [
+      ["src/lib/qualification/service.ts", "src/lib/major/player-strength.ts"]
+    ]
+  },
+  {
+    "rule": "ARCH_DOMAIN_DEPENDENCY",
+    "owner": "赛事公共读模型",
+    "reason": "赛事详情、赛程和结果页组合运行时、报名与公开统计。",
+    "exit": "当赛事读模型与配置 owner 分离时迁到专用组合入口。",
+    "edges": [
+      ["src/lib/seasons/entries.ts", "src/lib/stats/view-state.ts"],
+      ["src/lib/seasons/overview-read-model.ts", "src/lib/matches/scope.ts"],
+      ["src/lib/seasons/presentation.ts", "src/lib/registration/window.ts"],
+      ["src/lib/seasons/public-next-step.ts", "src/lib/competition-entries/participant-context.ts"],
+      ["src/lib/seasons/public-next-step.ts", "src/lib/matches/presentation.ts"],
+      ["src/lib/seasons/public-results.ts", "src/lib/bracket/index.ts"],
+      ["src/lib/seasons/public-results.ts", "src/lib/competition-entries/public-visibility.ts"],
+      ["src/lib/seasons/public-results.ts", "src/lib/major/placement.ts"],
+      ["src/lib/seasons/public-results.ts", "src/lib/major/run-snapshot-query.ts"],
+      ["src/lib/seasons/public-results.ts", "src/lib/major/run-snapshot.ts"],
+      ["src/lib/seasons/public-results.ts", "src/lib/major/standard.ts"],
+      ["src/lib/seasons/public-results.ts", "src/lib/matches/competition-context.ts"],
+      ["src/lib/seasons/public-results.ts", "src/lib/matches/display-score-data.ts"],
+      ["src/lib/seasons/public-results.ts", "src/lib/matches/scope.ts"],
+      ["src/lib/seasons/public-results.ts", "src/lib/postevent/service.ts"],
+      ["src/lib/seasons/public-results.ts", "src/lib/stats/public-player-labels.ts"],
+      ["src/lib/seasons/public-stage.ts", "src/lib/major/run-snapshot-query.ts"],
+      ["src/lib/seasons/public-stage.ts", "src/lib/major/run-snapshot.ts"],
+      ["src/lib/seasons/public-stage.ts", "src/lib/matches/read-official.ts"]
+    ]
+  },
+  {
+    "rule": "ARCH_DOMAIN_DEPENDENCY",
+    "owner": "赛事生命周期",
+    "reason": "开放、冻结和安全转换依赖现有报名及比赛数据。",
+    "exit": "事务编排收敛到专用 Season workflow 后删去定义到运行事实的依赖。",
+    "edges": [
+      ["src/lib/seasons/lifecycle.ts", "src/lib/qualification/service.ts"],
+      ["src/lib/seasons/transitions.ts", "src/lib/matches/scope.ts"],
+      ["src/lib/seasons/transitions.ts", "src/lib/registration/counts.ts"]
+    ]
+  },
+  {
+    "rule": "ARCH_DOMAIN_DEPENDENCY",
+    "owner": "长期 Team 公共读模型",
+    "reason": "队伍资料组合比赛历史和统计，沿用有界公开读取。",
+    "exit": "在 #1563 中收敛到公共读模型组合入口后移除。",
+    "edges": [
+      ["src/lib/teams/lineup-style-query.ts", "src/lib/stats/availability.ts"],
+      ["src/lib/teams/lineup-style-query.ts", "src/lib/stats/player-attribute-benchmark.ts"],
+      ["src/lib/teams/lineup-style-query.ts", "src/lib/stats/player-attributes.ts"],
+      ["src/lib/teams/lineup-style-query.ts", "src/lib/stats/public-fill.ts"],
+      ["src/lib/teams/lineup-style-query.ts", "src/lib/stats/tournament-query.ts"],
+      ["src/lib/teams/map-profile.ts", "src/lib/matches/competition-context.ts"],
+      ["src/lib/teams/map-profile.ts", "src/lib/matches/scope.ts"],
+      ["src/lib/teams/map-profile.ts", "src/lib/stats/public-query.ts"],
+      ["src/lib/teams/profile-read-model.ts", "src/lib/stats/availability.ts"],
+      ["src/lib/teams/profile-read-model.ts", "src/lib/stats/cached-query.ts"],
+      ["src/lib/teams/profile-view-state.ts", "src/lib/stats/return-context.ts"],
+      ["src/lib/teams/public-profile.ts", "src/lib/matches/competition-context.ts"],
+      ["src/lib/teams/public-profile.ts", "src/lib/matches/scope.ts"]
+    ]
+  }
+]

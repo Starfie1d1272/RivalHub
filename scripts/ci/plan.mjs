@@ -15,6 +15,18 @@ const FULL_STATIC_MATRIX = [
 ];
 
 const TRANSACTION_RULE_SPECS = new Map([
+  ["src/lib/education/eligibility.ts", [
+    "tests/integration/db/competition-qualification-acceptance.test.ts",
+    "tests/integration/db/competition-entry-roster-change.test.ts",
+  ]],
+  ["src/lib/config/cs2-maps.ts", [
+    "tests/integration/db/season-registration-correctness.test.ts",
+    "tests/integration/db/veto-reconcile.test.ts",
+  ]],
+  ["src/lib/match-rosters/lineup.ts", [
+    "tests/integration/db/competition-qualification-acceptance.test.ts",
+    "tests/integration/db/major-roster-safety.test.ts",
+  ]],
   ["src/lib/registration/window.ts", [
     "tests/integration/db/registration-opening.test.ts",
     "tests/integration/db/season-registration-correctness.test.ts",

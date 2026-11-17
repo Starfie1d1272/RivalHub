@@ -37,8 +37,8 @@ export function runCanonicalMigrations(config: string, env: NodeJS.ProcessEnv, m
   const root = resolve(process.cwd());
   // drizzle-kit drops explicit SSL options for URL credentials. Use the same
   // node-postgres connection owner as runtime/preflight, preserving CA + hostname.
-  const result = spawnSync(join(root, `node_modules/.bin/tsx${process.platform === "win32" ? ".cmd" : ""}`),
-    ["scripts/db/canonical-migrate-cli.ts", resolve(root, config), resolve(migrationsFolder)],
+  const result = spawnSync(process.execPath,
+    ["--import", "tsx", "scripts/db/canonical-migrate-cli.ts", resolve(root, config), resolve(migrationsFolder)],
     { cwd: root, env, stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.signal || result.status !== 0) throw new Error("Canonical migration runner failed.");

@@ -1,6 +1,6 @@
 # RivalHub 领域模型
 
-本文件定义跨模块必须共同理解的实体、事实层级和不变量。字段、约束和迁移细节以 `src/db/schema/`、active migrations 与 tests 为准；流程见 [`workflows.md`](./workflows.md)。
+本文件定义跨模块共同使用的实体、事实层级和不变量。入口、owner 与测试见 [领域 Owner 导航](./domain-ownership.md)，生命周期见 [`workflows.md`](./workflows.md)。字段与约束以 `src/db/schema/` 和 active migrations 为准。
 
 ## Identity and long-lived facts
 
@@ -110,13 +110,13 @@ Recruitment 是 Team/Player 的当前意向，不是 membership、invitation 或
 | EventRoster | 本届已确认/冻结的正式赛事名单 |
 | MatchRoster | 本场实际出场阵容 |
 
-报名的持久状态也编码当前名单审核流程；已有批准修订指针与当前修订审核状态是两个只读事实。名单变更或被拒绝时保留原批准记录，但不能据此让待审名单上场：正式名单仍须经过既有同步、确认和冻结。审核应用用例在同一事务中编排 Entry 决定、Major 与资格赛同步及审计。
+Registration 指报名窗口、提交与审核。Rivals 的个人报名保存在 `season_registrations`，队伍报名的审核状态保存在 CompetitionEntry 与 roster revision。已有批准修订指针与当前修订审核状态各自记录。补正或拒绝保留原批准记录，正式名单仍须同步、确认和冻结。报名审核 workflow 在同一事务协调 Entry 决定、Major 赛前名单、Play-in 与审计；各领域仍各自拥有事实。
 
 这些 owner 不能互相替代。尤其 MatchRoster 必须来自本届 EventRoster，而不是回读可变 Team membership 或报名草稿。
 
 EventRoster 的当前成员供后续比赛选择；一旦某个成员行被 MatchRoster 引用，它就成为历史比赛事实。名单获批更新时保留该行并标记为非当前，再写入新版本；没有历史引用的旧成员行可以删除。已有 MatchRoster 始终指向原成员行，不随当前 EventRoster 改写。
 
-Entry qualification 由 canonical qualification owner 计算。只有明确标记为可解除的政策 finding 才能形成 restriction override；资料缺失、身份、确认状态等硬 blocker 不能被管理员“强行通过”。override 绑定当前 roster revision，新 revision 不继承旧解除。
+Participant eligibility 指参赛资格评估，复用 `src/lib/qualification/` 的身份、教育和竞技资料。只有明确标记为可解除的政策 finding 才能形成 restriction override，资料缺失、身份和确认状态等硬 blocker 仍须修复。Override 绑定当前 roster revision。Roster eligibility snapshot 指采用特定名单时冻结的规则、竞技事实与解除记录，供后续首发和历史读取复用。
 
 ## Rivals-specific facts
 
@@ -158,8 +158,8 @@ Major 从“报名通过”到“正式开赛”还需要单独的赛前事实�
 
 ```text
 approved CompetitionEntry candidates
-→ Qualification candidate set / saved preliminary order
-→ Qualification-derived final entrant set
+→ Play-in candidate set / saved preliminary order
+→ Play-in-derived final entrant set
 → EventRoster reconciliation
 → freeze entrants + rosters
 → immutable SeedRecommendationSnapshot
@@ -167,7 +167,7 @@ approved CompetitionEntry candidates
 → start StageRun
 ```
 
-已批准 Entry 只是候选；Qualification 的预排名保存在独立 run entrant 中，正式 entrant set、EventRoster、系统种子建议和管理员最终 seed 都是不同事实。报名截止与最终名单锁定不同：报名截止/Qualification 期间临时关闭自助名单调整，Qualification 完成后仅最终 entrant 可在最终截止前重新调整。`major_prestart_states.main_event_planned_start_at` 是可审计的运营计划，不是实际 StageRun 开始。后台正赛实力参考仅对当前正式 entrant set 重新排序，名单未锁定时使用 current revision，待审核或需补正不阻止资料完整的队伍参与参考；锁定后使用冻结 EventRoster。报名阶段参考、历史 Qualification 预排名、正赛实时参考和最终 seed 分别表达各自阶段。系统建议 snapshot 冻结其输入与 provenance，不能因之后查看排序或人工调整而重算；最终 seed 由独立 seed owner 保存。
+已批准 Entry 是候选。Play-in 指 Major 资格赛运行时，由 `src/lib/competition-qualification/` 管理，预排名保存在独立 run entrant 中；正式 entrant set、EventRoster、系统种子建议和管理员最终 seed 各自持有事实。报名截止和 Play-in 期间临时关闭自助名单调整，Play-in 完成后仅最终 entrant 可在最终截止前重新调整。`major_prestart_states.main_event_planned_start_at` 保存可审计的运营计划，实际启动由 StageRun 记录。后台正赛实力参考仅对当前正式 entrant set 重新排序，名单未锁定时使用 current revision，资料完整的待审核或补正队伍也参与参考；锁定后使用冻结 EventRoster。报名阶段参考、历史 Play-in 预排名、正赛实时参考和最终 seed 分别表达各自阶段。系统建议 snapshot 冻结输入与 provenance，最终 seed 由独立 seed owner 保存。
 
 公开展示区分已确认席位与名单变更审核：已有 approved revision 的 Entry 进入 changes_requested / submitted 时，继续保留公开队伍身份和正赛席位，阵容读取上一份 approved revision。尚未审核的 current revision 不公开；首次报名草稿、拒绝和退出仍受原可见性条件限制。名单变更的资格复核与开赛门禁保持独立。
 

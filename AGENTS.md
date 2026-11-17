@@ -15,9 +15,10 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 
 - 文档入口与冲突处理：[`docs/README.md`](docs/README.md)。当前实现以 code/schema/active migrations/tests 为准；赛事政策在 `docs/rules/`，durable rationale 在 `docs/decisions/`，历史材料在 `docs/archive/`。
 - UI / presentation 与产品语言：[`docs/ui-system.md`](docs/ui-system.md)。
-- 架构边界：[`docs/architecture.md`](docs/architecture.md)；领域事实 ownership：[`docs/domain-model.md`](docs/domain-model.md)；生命周期：[`docs/workflows.md`](docs/workflows.md)。
+- 从 [领域 Owner 导航](docs/domain-ownership.md) 定位入口、事务与测试；架构边界见 [`docs/architecture.md`](docs/architecture.md)，事实语义见 [`docs/domain-model.md`](docs/domain-model.md)，生命周期见 [`docs/workflows.md`](docs/workflows.md)。
 - 测试证据：[`docs/testing.md`](docs/testing.md)；环境/迁移/release：[`docs/deployment.md`](docs/deployment.md) 与 `docs/operations/`；协作规则：[`CONTRIBUTING.md`](CONTRIBUTING.md)。
 - 修改前先搜索 canonical owner。相同 transition、derived fact、validation、formatter 或 query/domain rule 只能有一个业务 owner；transport/presentation 复用它。
+- 开发前按本次改动的路径或 owner 查询当前开放的重构/优化 Issue 与 [#425](https://github.com/Starfie1d1272/RivalHub/issues/425)。命中时按 #425 的触发和退出条件评估授权内、低风险且有直接回归证据的局部收敛；在 PR 写 `Refs #N`、范围和证据。较大或跨域改造留给对应专项；待办不自动授权执行，P0 修复独立推进。无匹配无需报告。
 - 可执行架构契约见 `pnpm architecture:check`；Client 只能经 `use server` action boundary 进入 server workflow，`src/lib/` 不反向依赖 entrypoint/presentation。
 - 仅在执行 release / tag / deploy / production mutation，或修改这些流程时，必须先完整读完 [`docs/operations/release.md`](docs/operations/release.md)；此时 repository search / `rg` 只用于定位，不能替代全文读取。普通本地编辑、检查与 feature branch/PR 操作按各自文档执行。
 
