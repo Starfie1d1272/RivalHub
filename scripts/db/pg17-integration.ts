@@ -6,8 +6,6 @@ import { assertLocalContainerAccess } from "./local-container-guard";
 import { preparePg17Database } from "./prepare-pg17";
 
 const projectRoot = resolve(process.cwd());
-const binSuffix = process.platform === "win32" ? ".cmd" : "";
-const tsxBin = resolve(projectRoot, `node_modules/.bin/tsx${binSuffix}`);
 
 async function main(): Promise<void> {
   assertLocalContainerAccess("pnpm test:integration:pg17");
@@ -17,7 +15,7 @@ async function main(): Promise<void> {
   );
   await preparePg17Database(databaseUrl);
 
-  const result = spawnSync(tsxBin, ["scripts/db/integration-runner.ts", ...integrationArgs()], {
+  const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/db/integration-runner.ts", ...integrationArgs()], {
     cwd: projectRoot,
     env: {
       ...process.env,

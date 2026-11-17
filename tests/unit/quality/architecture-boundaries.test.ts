@@ -38,4 +38,56 @@ describe("architecture import boundaries", () => {
     expect(violations).toHaveLength(3);
   });
 
+  it("checks relative and aliased value re-exports against the owner matrix", () => {
+    const violations = checkArchitecture({ files: {
+      "src/lib/identity/profile.ts": 'export { receipt } from "../mizar/reliable.mjs";',
+      "src/lib/teams/team.ts": 'export * from "@/lib/mizar/reliable.mjs";',
+      "src/lib/mizar/reliable.mjs": "export const receipt = {};",
+    } });
+    expect(violations.map(({ ruleId, file, target }) => [ruleId, file, target])).toEqual([
+      ["ARCH_DOMAIN_DEPENDENCY", "src/lib/identity/profile.ts", "src/lib/mizar/reliable.mjs"],
+      ["ARCH_DOMAIN_DEPENDENCY", "src/lib/teams/team.ts", "src/lib/mizar/reliable.mjs"],
+    ]);
+  });
+
+  it("rejects a concrete cycle through otherwise allowed owners and a dynamic import", () => {
+    const violations = checkArchitecture({ files: {
+      "src/lib/matches/result.ts": 'export * from "@/lib/major/advance";',
+      "src/lib/major/advance.ts": 'export const result = () => import(`../matches/result`);',
+    } });
+    expect(violations.map(({ ruleId, file }) => [ruleId, file])).toEqual([
+      ["ARCH_RUNTIME_CYCLE", "src/lib/major/advance.ts"],
+      ["ARCH_RUNTIME_CYCLE", "src/lib/matches/result.ts"],
+    ]);
+  });
+
+  it("allows type edges, value contracts and a workflow without creating a runtime cycle", () => {
+    expect(checkArchitecture({ files: {
+      "src/lib/identity/profile.ts": [
+        'export type { Receipt } from "@/lib/mizar/reliable";',
+        'import { type Result } from "../matches/result";',
+      ].join("\n"),
+      "src/lib/matches/result.ts": 'import "@/lib/identity/profile"; export type Result = string;',
+      "src/lib/mizar/reliable.ts": 'import "@/lib/matches/result"; export type Receipt = string;',
+      "src/lib/identity/merge.ts": 'import "@/lib/matches/result";',
+      "src/lib/seasons/config.ts": 'import "@/lib/formats/supported";',
+      "src/lib/formats/supported.ts": "export const stages = [];",
+      "src/lib/matches/unused.spec.mjs": 'import "./unknown";',
+    } })).toEqual([]);
+  });
+
+  it("fails closed on opaque imports, missing local implementations and schema runtime barrels", () => {
+    const violations = checkArchitecture({ files: {
+      "src/lib/identity/profile.ts": 'export const load = (path: string) => import(path);',
+      "src/lib/matches/room.cts": 'module.exports = require("../new-runtime/handler");',
+      "src/db/schema/runtime.ts": 'import "@/lib/major/barrel";',
+      "src/lib/major/barrel.ts": 'export * from "./advance";',
+      "src/lib/major/advance.ts": "export const phase = 1;",
+    } });
+    expect(violations.map(({ ruleId, file }) => [ruleId, file])).toEqual([
+      ["ARCH_SCHEMA_CONTRACT", "src/db/schema/runtime.ts"],
+      ["ARCH_UNKNOWN_MODULE", "src/lib/identity/profile.ts"],
+      ["ARCH_UNKNOWN_MODULE", "src/lib/matches/room.cts"],
+    ]);
+  });
 });

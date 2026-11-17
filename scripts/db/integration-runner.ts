@@ -6,9 +6,7 @@ import { assertLocalDatabaseUrl } from "./local-environment";
 import { replayActiveMigrationChain } from "./migration-replay";
 
 const projectRoot = resolve(process.cwd());
-const binSuffix = process.platform === "win32" ? ".cmd" : "";
-const tsxBin = resolve(projectRoot, `node_modules/.bin/tsx${binSuffix}`);
-const vitestBin = resolve(projectRoot, `node_modules/.bin/vitest${binSuffix}`);
+const vitestCli = resolve(projectRoot, "node_modules/vitest/vitest.mjs");
 
 type IsolatedDatabase = {
   name: string;
@@ -56,8 +54,8 @@ async function main(): Promise<void> {
     const testArgs = normalizeArgs(process.argv.slice(2));
     const hasConfig = testArgs.some((arg) => arg === "--config" || arg === "-c" || arg.startsWith("--config="));
     const result = spawnSync(
-      vitestBin,
-      ["run", ...(hasConfig ? [] : ["--config=vitest.integration.config.ts"]), ...testArgs],
+      process.execPath,
+      [vitestCli, "run", ...(hasConfig ? [] : ["--config=vitest.integration.config.ts"]), ...testArgs],
       {
         cwd: projectRoot,
         env: {
@@ -99,9 +97,9 @@ function bootstrapDatabase(databaseUrlValue: string): void {
     RIVALHUB_DB_TARGET: "local",
   };
   runCommand("migrate", () => replayActiveMigrationChain(databaseUrlValue, env));
-  runCommand("seed", tsxBin, ["scripts/seed.ts"], env);
-  runCommand("fixtures", tsxBin, ["scripts/db/seed-local-fixtures.ts"], env);
-  runCommand("verify-db", tsxBin, ["scripts/db/verify-db.ts"], env);
+  runCommand("seed", "scripts/seed.ts", env);
+  runCommand("fixtures", "scripts/db/seed-local-fixtures.ts", env);
+  runCommand("verify-db", "scripts/db/verify-db.ts", env);
 }
 
 async function connectMaintenance(configuredUrl: string): Promise<Client> {
@@ -123,27 +121,26 @@ async function dropDatabases(configuredUrl: string, names: readonly string[]): P
 }
 
 function runCommand(label: string, operation: () => void): void;
-function runCommand(label: string, executable: string, args: readonly string[], env: NodeJS.ProcessEnv): void;
+function runCommand(label: string, script: string, env: NodeJS.ProcessEnv): void;
 function runCommand(
   label: string,
-  executableOrOperation: string | (() => void),
-  args?: readonly string[],
+  scriptOrOperation: string | (() => void),
   env?: NodeJS.ProcessEnv,
 ): void {
   const startedAt = Date.now();
   try {
-    if (typeof executableOrOperation === "function") {
-      executableOrOperation();
+    if (typeof scriptOrOperation === "function") {
+      scriptOrOperation();
       return;
     }
-    const result = spawnSync(executableOrOperation, [...(args ?? [])], {
+    const result = spawnSync(process.execPath, ["--import", "tsx", scriptOrOperation], {
       cwd: projectRoot,
       env,
       stdio: "inherit",
     });
     if (result.error) throw result.error;
-    if (result.signal) throw new Error(`${executableOrOperation} 被信号 ${result.signal} 终止。`);
-    if (result.status !== 0) throw new Error(`${executableOrOperation} 执行失败（exit ${result.status ?? "unknown"}）。`);
+    if (result.signal) throw new Error(`${scriptOrOperation} 被信号 ${result.signal} 终止。`);
+    if (result.status !== 0) throw new Error(`${scriptOrOperation} 执行失败（exit ${result.status ?? "unknown"}）。`);
   } finally {
     reportTiming(label, startedAt);
   }

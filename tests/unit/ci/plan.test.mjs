@@ -15,6 +15,19 @@ describe("changed-surface planner", () => {
     expect(migration.runSystem).toBe(false);
   });
 
+  it.each([
+    ["src/lib/education/eligibility.ts", "tests/integration/db/competition-entry-roster-change.test.ts"],
+    ["src/lib/config/cs2-maps.ts", "tests/integration/db/season-registration-correctness.test.ts"],
+    ["src/lib/match-rosters/lineup.ts", "tests/integration/db/competition-qualification-acceptance.test.ts"],
+  ])("selects transaction evidence when the DB-free rule %s changes", (path, spec) => {
+    const draft = classifyChangedFiles([{ status: "M", paths: [path] }], { draft: true });
+    const ready = classifyChangedFiles([{ status: "M", paths: [path] }], { draft: false });
+    expect(ready.requiredJobs).toEqual(["static", "postgres"]);
+    expect(ready.integrationSpecs).toContain(spec);
+    expect(ready.integrationSpecs.length).toBeGreaterThanOrEqual(2);
+    expect(draft.integrationSpecs).toEqual(ready.integrationSpecs);
+  });
+
   it("keeps provider, production and ordinary browser evidence independent", () => {
     const planFor = (path, status = "M") => classifyChangedFiles([{ status, paths: [path] }]);
     const browser = planFor("tests/e2e/flows/series-score-correction.spec.ts");

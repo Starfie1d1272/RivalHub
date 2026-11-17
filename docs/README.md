@@ -12,6 +12,7 @@
 | 独立产品重设计前了解现状 | [2026-10-17 产品事实基线](product-baseline/2026-10-17/README.md)（固定 commit 快照，产品事实与实现索引分开） |
 | 开发、PR、Changeset | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |
 | 系统边界与代码分层 | [`architecture.md`](./architecture.md) |
+| 从业务入口定位 command、read model、数据表和测试 | [领域 Owner 导航](./domain-ownership.md) |
 | 核心领域实体与事实 ownership | [`domain-model.md`](./domain-model.md) |
 | 账号、报名、赛事与比赛生命周期 | [`workflows.md`](./workflows.md) |
 | 鉴权、权限、Data API | [`auth-and-permissions.md`](./auth-and-permissions.md) |

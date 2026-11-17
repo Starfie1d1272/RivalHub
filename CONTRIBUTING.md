@@ -2,6 +2,8 @@
 
 技术架构、测试与部署边界分别见 [`docs/architecture.md`](docs/architecture.md)、[`docs/testing.md`](docs/testing.md)、[`docs/deployment.md`](docs/deployment.md)。Issue/PR 不替代 code、tests、active migrations 或 GitHub ruleset 的实际证据。
 
+按 [领域 Owner 导航](docs/domain-ownership.md) 定位改动与证据。触碰已有热点时遵循 [AGENTS.md 开发前核对](AGENTS.md#先定位-authority)，在关联 PR 记录本次实际收敛的责任、owner 和证据。
+
 ## 交付范围与完成条件
 
 以用户请求及会话中仍有效的授权确定终点，不在每个阶段重复确认，也不自动扩大为发布：

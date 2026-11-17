@@ -1,6 +1,6 @@
 # RivalHub 技术架构
 
-本文件只描述跨模块稳定边界。领域事实见 [`domain-model.md`](./domain-model.md)，生命周期见 [`workflows.md`](./workflows.md)，精确实现以 code/schema/tests 为准。
+本文件描述跨模块稳定边界。从 [领域 Owner 导航](./domain-ownership.md) 查找入口、事务和验证；事实语义见 [`domain-model.md`](./domain-model.md)，生命周期见 [`workflows.md`](./workflows.md)，精确实现以 code/schema/tests 为准。
 
 ## System shape
 
@@ -28,25 +28,13 @@ Entrypoint 负责不可信输入、服务端鉴权、transport result 和 revali
 
 ### Stable dependency direction
 
-跨领域依赖沿着稳定的业务方向收敛：
-
-```text
-Identity / Catalog
-        ↓
-Competition Definition
-        ↓
-Participation
-        ↓
-Tournament Runtime
-        ↓
-Match / Official Result
-        ↓
-History / Analytics / Spectator
-```
+跨领域的运行时依赖由 [owner 矩阵](../scripts/architecture/domain-dependencies.ts) 表达。赛事定义可消费 Identity 的已声明事实，名单与阶段可消费定义，阶段推进与比赛结果可各自调用对方的明确入口。跨领域 workflow 协调命令及锁序，共享值契约保持无运行时实现依赖。模块依赖从实际消费方向判断，业务生命周期顺序不能代替导入规则。
 
 Page、Server Action、Route Handler 和 Client Component 是 entrypoint/presentation 层，只调用 canonical `src/lib/` owner；`src/lib/` domain/library 代码不得反向依赖 `src/actions/`、`src/app/` 或 `src/components/`。Client graph 不能到达数据库、secret/provider owner 或 server-only observability facade。mutation 经 `use server` action boundary；BET/Pick’Em 的高频私有只读通过显式 DTO 的 GET transport 委托同一个 canonical reader，客户端薄封装只持请求参数、取消信号与响应类型，不导入 server workflow。
 
-`pnpm architecture:check` 检查部分依赖边界及 provider、审计写入和页面聚合约束；它不能证明所有领域事实都只有一个 owner，也不验证跨领域事务语义。检查器使用 TypeScript module resolver；Client→Server 泄漏沿 runtime graph 检查，canonical third-party provider ownership 对 type-only edge 也 fail closed。DTO/serializer 字段泄漏由对应 serializer tests 负责。
+`pnpm architecture:check` 使用 TypeScript resolver 解析相对路径、alias、运行时 re-export 及字面量动态 import。门禁检查 Client→Server、lib→entrypoint、provider、schema 持久值契约、审计写入和页面聚合，同时拒绝不在矩阵中的新边、不可解析的本地执行模块和未经批准的模块循环。Client 的 Server Action 代理在边界终止，type-only 引用不计入运行时图，provider 与既有 schema 专项约束仍检查适用的类型引用。
+
+`pnpm architecture:check --report` 输出跨领域运行时模块边及强连通分量（SCC）。按 owner 聚合的 SCC 用于定位互相消费的领域，循环门禁使用实际模块图。既有例外按 [精确的文件边](../scripts/architecture/domain-exceptions.json) 记录责任方、原因与退出条件；边移除或进入允许范围时同步删例外。DTO 字段、事实唯一性和事务不变量由相应领域证据验证，见 [测试策略](./testing.md)。
 
 ### Public data
 
@@ -87,7 +75,7 @@ session、authorization、admin 与 draft facts 不进入共享 public cache；�
 | 体系 | 参与模型 | 专属运行时 |
 | --- | --- | --- |
 | Rivals | 个人报名后形成赛事原生 CompetitionEntry | 投票、选秀、循环赛/双败流程 |
-| Major | 长期 Team 创建 CompetitionEntry | Qualification、赛前冻结、managed StageRun、Swiss/Playoffs、恢复与赛后事实 |
+| Major | 长期 Team 创建 CompetitionEntry | Play-in、赛前冻结、managed StageRun、Swiss/Playoffs、恢复与赛后事实 |
 
 具体赛制属于赛事政策和 stage/runtime owner，不在架构文档复制当前轮次、人数或 BO 数字。
 

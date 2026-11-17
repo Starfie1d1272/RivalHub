@@ -38,6 +38,8 @@ DB unique/FK、transaction、row lock、migration/backfill 不用 mock 代替。
 
 PR 与 `main` CI 按 L0–L4 风险分层选择 `static`、`postgres`、`system`。Draft 与 Ready 采用同一份计划，分别产生 `draft-gate` 与 required `ci-gate`；发布消费 exact tag SHA 在 `main` 的 canonical CI。普通改动把适用的类型、格式、lint、架构和单测放在一个静态 runner。PostgreSQL 使用真实 PG17，受影响的小集合单跑，完整集合保留两片。System 分别按需选择 provider、浏览器路径和 production smoke；桌面与移动的 production smoke 共用一次 build/start，各用独立 fixture 和 browser context。工具链、未知可执行面、merge queue 和手动运行保留 FULL。
 
+[Evidence Planner](../scripts/ci/plan.mjs) 以实际改动路径选证据。即使资格、BP 图池和首发规则本身不访问数据库，只要它们决定持久事务结果，仍应选择对应的 PG17 场景。规则与测试的映射由 planner 拥有；指定 spec 缺失时使用保守的依赖选择或完整 PostgreSQL 检查。架构测试通过小型模块图覆盖允许与禁止的依赖，实际仓库由同一个 [架构检查器](architecture.md#stable-dependency-direction) 扫描。
+
 速度以 required checks 实际等待时间为先。合并门禁另行强制 180 秒执行关键路径预算，扣除 runner 排队和平台调度等待；各环境累计执行时间仅用于诊断。具体选择、失败与计时语义见 [CI 运维](./operations/ci.md)。
 
 ## Staging and production
@@ -72,6 +74,8 @@ System 失败时保存有界、脱敏的 Next 日志和允许的截图、报告�
 
 PostgreSQL harness 按稳定 `VITEST_POOL_ID` 为并发槽位分配独立数据库；不得用按文件递增的 worker ID 取模，无对应槽位必须失败。全库计数/覆盖率比较使用一致性 snapshot，fixture 写入不得依赖其他 suite 的状态。
 
+`pnpm test:integration:pg17` 在已有隔离 PG17 中重放迁移、播种与校验，再从模板克隆 worker 数据库。Windows 和 Linux 都使用当前 Node 直接启动工具入口。需要 Auth、Storage 或真实浏览器时按 [本地开发](operations/local-development.md) 选择 Local Supabase 层级；数据库事务证据可使用 plain PG17。
+
 ## Spectator prediction acceptance
 
 Pure tests retain integer pool conservation, the first-match deadline, and one upstream-choice invalidation/input-immutability oracle. Real PostgreSQL retains submission versions, server locks, idempotency, concurrent ALL IN, append-only records, official settlement/reversal/debt, account merge blockers and public-data isolation. Major runtime regression is required when shared pairing helpers change. Required browsers protect submission, independent draft restoration, real PNG download and point transactions through Local Supabase on mobile; shared flows are not repeated on desktop. Production App Shell navigation covers both viewports. Exhaustive profile/bracket/slot judgement and unrelated-playoff-branch matrices have no permanent oracle; changes to those rules need focused evidence, and ordinary browser success must not be described as replacing those assertions.
@@ -99,7 +103,7 @@ BET 六视图的匿名、未加入与已加入数据隔离及读取规则由真�
 
 ### 比赛领域命令的 production 检查根
 
-独立比赛创建命令尚无产品调用入口，`knip.json` 保留 `src/lib/matches/creation.ts` 显式生产检查根，使 production 模式继续检查其依赖；不为通过检查添加无授权的路由或虚假调用，接入产品调用后再移除该显式根。结束/补录/更正命令已由管理员测试赛工作台经 `TestMatchConclusion` → `concludeTestMatch` 调用 `src/lib/matches/unassociated-result.ts`，随产品引用图纳入 production 检查，无需显式根。命令行为由真实数据库集成回归验证。
+Knip 的普通模式检查应用、工具和测试的引用，production 模式检查生产引用面，两者用于验证入口和依赖可达性；行为证据仍由相应测试提供。`knip.json` 为尚无产品调用入口的 `src/lib/matches/creation.ts` 声明显式生产检查根，接入产品调用后移除。结束、补录和更正已由管理员测试赛工作台经 `TestMatchConclusion` → `concludeTestMatch` 调用 `src/lib/matches/unassociated-result.ts`，随应用引用图进入 production 检查，事务由 PG17 集成测试验证。
 
 浏览器使用原 `/favicon.ico` 探测 Next 进程可用，不证明根布局或业务路由已编译。首页本身由 production smoke 验证。production runner 仅启动 Auth、SQL，provider 与上传路径仍启用 Storage/PostgREST；LIVE provider evidence 继续启用 Realtime。
 
