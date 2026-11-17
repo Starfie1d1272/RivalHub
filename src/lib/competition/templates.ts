@@ -234,7 +234,7 @@ function createBaseCompetitionTemplate(): SeasonCapabilities {
       maxPerPosition: 10,
       screenshotCount: 1,
       maxTotal: 128,
-      mapPool: ["de_mirage", "de_inferno", "de_nuke"],
+      mapPool: [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL],
     },
     teamRegistrationConfig: {
       allowExternal: true,

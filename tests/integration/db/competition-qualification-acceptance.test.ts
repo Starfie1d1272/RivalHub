@@ -378,7 +378,10 @@ async function exerciseDraftConcurrencyAndEligibility(format: "direct_bo3" | "sh
       const members = await database.select({ id: schema.eventRosterMembers.id, userId: schema.eventRosterMembers.userId }).from(schema.eventRosterMembers)
         .innerJoin(schema.eventRosters, eq(schema.eventRosters.id, schema.eventRosterMembers.eventRosterId)).where(eq(schema.eventRosters.entryId, entry.entryId));
       const ids = (users: string[]) => users.map(userId => members.find(member => member.userId === userId)!.id);
-      const preflight = await database.transaction(tx => getStartingLineupPreflightInTx(tx, { match, entryId: entry.entryId, starterIds: ids(entry.userIds.slice(0, 5)) }));
+      const preflight = await database.transaction(
+        tx => getStartingLineupPreflightInTx(tx, { match, entryId: entry.entryId, starterIds: ids(entry.userIds.slice(0, 5)) }),
+        { accessMode: "read only", isolationLevel: "repeatable read" },
+      );
       expect(preflight.valid).toBe(index === 1);
       if (index === 0) {
         expect(preflight.blockers.join(" ")).toContain("外校");

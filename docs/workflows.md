@@ -31,7 +31,7 @@ Major:  draft → registration → playing → finished → archived
 
 关键边界：
 
-- 发布让赛事公开。超管在发布和手动开放报名之前核对已保存的配置，事务锁定赛事后复核同一版本。已保存的配置变化时须刷新并重新核对。
+- 发布让赛事公开。超管在发布和手动开放报名之前核对已保存的配置，事务锁定赛事后复核同一版本。已保存的配置变化时须刷新并重新核对。自定义赛事发布前，图池须满足当前 BP 的七张不重复地图要求；个人报名须提供至少两个不同位置供主选和次选使用。
 - `registrationOpensAt` 是计划开放时间。`registrationOpenedAt` 记录实际开放，赛事在该时点冻结需要的竞技与资格上下文。已到期的计划时间在补开时保留。无计划赛事的手动开放同时记录计划与实际时间，未来计划的提前开放将计划改为实际开放时间。
 - 报名开放后，已经冻结的 policy/context 不随全局目录变化；运营 deadline 只在其允许的生命周期内调整。
 - draft 撤回/删除必须通过无既有业务事实的 guard；不能靠 UI 隐藏按钮代替 server validation。
@@ -93,7 +93,7 @@ Team captain creates Entry
 → approved roster revision
 ```
 
-一个用户在同一赛事不能同时占有多个 active Entry commitment。成员确认、教育/竞技资料和 qualification 都由各自 canonical owner 提供；长期 Team 的成员变化不会自动改写已经提交或冻结的赛事名单。
+一个用户在同一赛事不能同时占有多个 active Entry commitment。成员确认、教育/竞技资料和 participant eligibility 都由各自 canonical owner 提供。同一份已选且获批的教育认证可计入每条与其机构及学籍状态匹配的名单最低人数规则。长期 Team 的成员变化不会自动改写已经提交或冻结的赛事名单。
 
 草稿只表示尚未提交审核，不提供终止报名动作。报名提交窗口仍开放时，负责人可以把 `submitted` 撤回为同一个 Entry 的新 draft revision 后继续编辑和再次提交；既有 submission、roster revision 与 audit 历史保留，成员 active claim 不释放。报名截止后保持 `submitted` 等待审核，不再撤成无法重新提交的草稿。`changes_requested` 继续只表示管理员要求补正，`withdrawn` 不用于普通主动撤回审核。
 

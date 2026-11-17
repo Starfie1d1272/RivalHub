@@ -354,6 +354,7 @@ async function loadTeamLineupContextInTx(
   tx: TxDb,
   match: Match,
   entryId: string,
+  lockRows: boolean,
 ): Promise<TeamLineupContext> {
   return withDbTrafficSource("match.lineup.read", async () => {
     const canonicalEntry = await tx
@@ -447,9 +448,12 @@ async function loadTeamLineupContextInTx(
     }
 
     if (match.qualificationRunId || (match.testConfig && season.competitionTemplate === "major")) {
-      const coherent = await assertSinglePrestartEntryCoherenceInTx(tx, match.seasonId, {
-        competitionEntryId: entryId,
-      });
+      const coherent = await assertSinglePrestartEntryCoherenceInTx(
+        tx,
+        match.seasonId,
+        { competitionEntryId: entryId },
+        { lockRows },
+      );
       if (coherent.eventRoster.status !== "confirmed" && coherent.eventRoster.status !== "frozen") {
         throw new AppError(
           ErrorCode.INTERNAL_ERROR,
@@ -555,32 +559,34 @@ async function loadTeamLineupContextInTx(
   });
 }
 
+interface StartingLineupInput {
+  match: Match;
+  entryId: string;
+  starterIds: readonly string[];
+  substituteIds?: readonly string[];
+}
+
 export async function assertStartingLineupAllowedInTx(
   tx: TxDb,
-  args: {
-    match: Match;
-    entryId: string;
-    starterIds: readonly string[];
-    substituteIds?: readonly string[];
-  },
+  args: StartingLineupInput,
 ): Promise<{ affiliatedStarterCounts: Map<string, number> }> {
-  const preflight = await getStartingLineupPreflightInTx(tx, args);
+  const preflight = await evaluateStartingLineupInTx(tx, args, true);
   if (!preflight.valid)
     throw new AppError(ErrorCode.VALIDATION_FAILED, preflight.blockers.join("；"));
   return { affiliatedStarterCounts: preflight.affiliatedStarterCounts };
 }
 
-/** Read-only counterpart of the start gate. It deliberately shares every eligibility branch with start. */
-export async function getStartingLineupPreflightInTx(
+/** Advisory preflight inside a consistent read snapshot. Mutation callers revalidate under locks. */
+export function getStartingLineupPreflightInTx(tx: TxDb, args: StartingLineupInput) {
+  return evaluateStartingLineupInTx(tx, args, false);
+}
+
+async function evaluateStartingLineupInTx(
   tx: TxDb,
-  args: {
-    match: Match;
-    entryId: string;
-    starterIds: readonly string[];
-    substituteIds?: readonly string[];
-  },
+  args: StartingLineupInput,
+  lockRows: boolean,
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
-  const context = await loadTeamLineupContextInTx(tx, args.match, args.entryId);
+  const context = await loadTeamLineupContextInTx(tx, args.match, args.entryId, lockRows);
   const result = evaluateStartingLineup({
     starterIds: args.starterIds,
     substituteIds: args.substituteIds,

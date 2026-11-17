@@ -254,17 +254,19 @@ export async function loadAdminMatchWorkbench({
         const roster = rostersByEntry.get(entryId);
         if (!roster) return { entryId, preflight: null };
         try {
-          const result = await db.transaction((tx) =>
-            getStartingLineupPreflightInTx(tx, {
-              match,
-              entryId,
-              starterIds: roster.players
-                .filter((player) => player.isStarter)
-                .map((player) => player.eventRosterMemberId),
-              substituteIds: roster.players
-                .filter((player) => !player.isStarter)
-                .map((player) => player.eventRosterMemberId),
-            }),
+          const result = await db.transaction(
+            (tx) =>
+              getStartingLineupPreflightInTx(tx, {
+                match,
+                entryId,
+                starterIds: roster.players
+                  .filter((player) => player.isStarter)
+                  .map((player) => player.eventRosterMemberId),
+                substituteIds: roster.players
+                  .filter((player) => !player.isStarter)
+                  .map((player) => player.eventRosterMemberId),
+              }),
+            { accessMode: "read only", isolationLevel: "repeatable read" },
           );
           return { entryId, preflight: { valid: result.valid, blockers: result.blockers } };
         } catch (error) {

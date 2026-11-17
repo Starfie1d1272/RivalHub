@@ -18,6 +18,15 @@ export const SUPPORTED_CS2_MAP_KEYS: readonly Cs2MapKey[] = CS2_MAP_CATALOG.map(
   ({ key }) => key,
 ) as Cs2MapKey[];
 
+/** Competition BP uses the fixed seven-map sequence. */
+export function isCompetitionVetoPool(mapPool: readonly string[]): boolean {
+  return (
+    mapPool.length === 7 &&
+    new Set(mapPool).size === 7 &&
+    mapPool.every((mapName) => mapName.trim().length > 0)
+  );
+}
+
 /** Current Valve/Premier reference pool; mutable rotation is isolated here. */
 export const CURRENT_CS2_ACTIVE_DUTY_MAP_POOL = [
   "de_mirage",
