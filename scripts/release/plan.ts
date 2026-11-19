@@ -109,6 +109,7 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
   const storageMutationChanged = readReleaseTimeStorageMutationCapability(cwd, releaseSha);
   const schedulerChanged = changedPaths.some(isReleaseSchedulerPath)
     || migrationPaths.some((path) => {
+      if (!path.endsWith(".sql")) return false;
       const text = migrationText(cwd, releaseSha, path, options.migrationContents);
       return text === undefined || isSchedulerMigration(text);
     });

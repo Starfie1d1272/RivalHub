@@ -86,6 +86,26 @@ describe("release plan", () => {
     expect(result.requiresDbCheckpoint).toBe(false);
   });
 
+  it("distinguishes an existing scheduler table in a snapshot from a scheduler migration", () => {
+    const migration = "drizzle/migrations/0111_receipts.sql";
+    const snapshot = "drizzle/migrations/meta/0111_snapshot.json";
+    const changes = [{ status: "A", paths: [migration] }, { status: "A", paths: [snapshot] }];
+    const contents = {
+      [migration]: "CREATE TABLE mizar_claim_receipts (request_id uuid);",
+      [snapshot]: '{"tables":{"public.scheduled_job_health":{"name":"scheduled_job_health"}}}',
+    };
+    const result = plan(changes, contents);
+    expect(result.requiresMigrationRehearsal).toBe(true);
+    expect(result.requiresProductionMigration).toBe(true);
+    expect(result.requiresSchedulerProvision).toBe(false);
+    expect(
+      plan(changes, {
+        ...contents,
+        [migration]: "ALTER TABLE scheduled_job_health ADD COLUMN detail text;",
+      }).requiresSchedulerProvision,
+    ).toBe(true);
+  });
+
   it("requires the protected Steam profile gate when a migration creates its cache", () => {
     const result = plan(
       [{ status: "A", paths: ["drizzle/migrations/0052_expand.sql"] }],
