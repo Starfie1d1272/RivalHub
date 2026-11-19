@@ -56,7 +56,7 @@ async function loadSource(sessionId: string) {
   return source!;
 }
 
-it("shows a late second-map observation without completing the missing first map or authorizing results", async () => {
+it("accepts a verified second map after an invalid observation without inventing the first result", async () => {
   const f = await seedFixture({ unboundSource: true });
   const mapsBefore = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
   const matchBefore = (await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!;
@@ -66,9 +66,9 @@ it("shows a late second-map observation without completing the missing first map
   await ingestMizarReliable(f.installationId, f.seasonId, { ...start, idempotencyKey: randomUUID(), mapId: null, mapName: "de_nuke" }, f.authorityRevision, f.steam64);
   expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: null, autoCanonicalizationArmed: false });
   const cursor = { ...start.cursor, runtimeSeq: 2 };
-  expect(await ingestMizarReliable(f.installationId, f.seasonId, { ...start, cursor }, f.authorityRevision, f.steam64)).toMatchObject({ outcome: "needs_attention" });
-  expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: f.mapTwoId, mapExecutionPhase: "gameplay", continuityHealth: "history_incomplete", identityHealth: "healthy", lineupHealth: "healthy", autoCanonicalizationArmed: false });
-  expect(projectOperatorSource(await loadSource(f.sessionId)).reviewReasons).toEqual(["history_incomplete"]);
+  expect(await ingestMizarReliable(f.installationId, f.seasonId, { ...start, cursor }, f.authorityRevision, f.steam64)).toMatchObject({ outcome: "armed" });
+  expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: f.mapTwoId, mapExecutionPhase: "gameplay", continuityHealth: "history_incomplete", identityHealth: "healthy", lineupHealth: "healthy", autoCanonicalizationArmed: true });
+  expect(projectOperatorSource(await loadSource(f.sessionId)).reviewReasons).toEqual([]);
   expect(await loadPublicMatchPhase(matchBefore, mapsBefore)).toMatchObject({ phase: "gameplay", currentMapId: f.mapTwoId, lastCompletedMap: null });
   const snapshot = mizarSnapshot(f, 3);
   snapshot.map = { ...snapshot.map, mapId: f.mapTwoId, name: "de_mirage" };
@@ -89,10 +89,12 @@ it("shows a late second-map observation without completing the missing first map
     if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
     if (previousKey === undefined) delete process.env.SUPABASE_SECRET_KEY; else process.env.SUPABASE_SECRET_KEY = previousKey;
   }
-  await ingestMizarReliable(f.installationId, f.seasonId, { ...start, idempotencyKey: randomUUID(), cursor: { ...cursor, runtimeSeq: 4 }, kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9 } }, f.authorityRevision, f.steam64);
-  expect(await loadSource(f.sessionId)).toMatchObject({ mapExecutionPhase: "inter_map", autoCanonicalizationArmed: false });
-  expect(await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).toEqual(mapsBefore);
-  expect(await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) })).toEqual(matchBefore);
+  expect(await ingestMizarReliable(f.installationId, f.seasonId, { ...start, idempotencyKey: randomUUID(), cursor: { ...cursor, runtimeSeq: 4 }, kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9 } }, f.authorityRevision, f.steam64)).toMatchObject({ outcome: "canonicalized" });
+  expect(await loadSource(f.sessionId)).toMatchObject({ mapExecutionPhase: "inter_map" });
+  const mapsAfter = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+  expect(mapsAfter.find((map) => map.id === f.mapOneId)).toMatchObject({ scoreA: null, scoreB: null, completedAt: null });
+  expect(mapsAfter.find((map) => map.id === f.mapTwoId)).toMatchObject({ scoreA: 13, scoreB: 9 });
+  expect((await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!.status).toBe("in_progress");
 });
 
 async function operatorContext(fixture: Fixture) {

@@ -79,7 +79,9 @@ function projectPublicContext(
   const confirmed = maps.filter(canConfirmMapScoreboard).sort((a, b) => a.mapOrder - b.mapOrder);
   const last = confirmed.at(-1);
   const progress =
-    match.status === "in_progress" && last
+    match.status === "in_progress" &&
+    last &&
+    confirmed.every((map, index) => map.mapOrder === index + 1)
       ? computeSeriesScoreAfterMap(match.format, confirmed.slice(0, -1), last.scoreA!, last.scoreB!)
       : null;
   return {

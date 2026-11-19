@@ -214,7 +214,7 @@ Mizar 数据源闭环：Mizar 在本机发起短期 pairing intent 并保留 pol
 
 Mizar 的地图结束事件维持既有比分负载；关联的临时玩家快照作为独立可靠事件提交，接收端以同一来源会话内已采纳的终图回执核对地图和游标。先发布支持快照的 RivalHub，再更新 Mizar；旧站点拒绝未知快照时不妨碍原比分事件或后续地图。
 
-可靠事件的错图拒绝持久化为 execution_conflict，工作台优先 REVIEW，保留既有可信 currentMapId 与 gameplay 事实；后续单独的结束事件保留冲突；同 epoch 更新的 map_started 在 BP 完成、正式第一张待进行地图、十人名单、identity/freshness、session/authority/context/generation 校验均通过后可重新 armed，并记录 revalidated 审计。显式人工接管的本 epoch 保持手动选择。Mizar 当前每个 epoch 只发送一次开始事件；同 epoch 重选采集来源不保证重发，只有新的有效开始证据被接收后才会重新核验，页面刷新只读取处理状态。管理员仍可显式接管本图，人工命令经同一正式赛果 owner。若 invalid map_started 后没有可信地图绑定，工作台展示正式计划中第一张未完成地图；管理员明确确认恢复并接管，服务端在 match→source 锁内重验 session、map epoch、空绑定、冲突与未完成地图顺序，记录恢复前后地图及操作者审计。已人工接管的同 epoch 若因 source generation 切换丢失绑定，后续可靠事件确认 execution_conflict 后仍提供此显式恢复入口；unknown 本身不授权恢复；管理员可通过下述明确登记采集故障的入口接管，已绑定且已接管时不重复提示。恢复审计包含 generation 与原人工接管 epoch。此恢复不切换 installation，不允许任选地图或覆盖正式赛果；下一图新 epoch 仍须通过健康检查才恢复 AUTO。
+可靠事件的错图拒绝持久化为 execution_conflict，工作台优先 REVIEW，保留既有可信 currentMapId 与 gameplay 事实；后续单独的结束事件保留冲突；同 epoch 更新的 map_started 在 BP 完成、可信地图绑定、十人名单、identity/freshness、session/authority/context/generation 校验均通过后可重新 armed。尚无可信地图绑定时，可按唯一匹配的未完成计划图接入后续图；此前缺失的比分保持未知，只有已确认结果构成从第一图起的连续前缀才可结束系列赛，并记录 revalidated 审计。显式人工接管的本 epoch 保持手动选择。Mizar 当前每个 epoch 只发送一次开始事件；同 epoch 重选采集来源不保证重发，只有新的有效开始证据被接收后才会重新核验，页面刷新只读取处理状态。管理员仍可显式接管本图，人工命令经同一正式赛果 owner。若 invalid map_started 后没有可信地图绑定，工作台展示正式计划中第一张未完成地图；管理员明确确认恢复并接管，服务端在 match→source 锁内重验 session、map epoch、空绑定、冲突与未完成地图顺序，记录恢复前后地图及操作者审计。已人工接管的同 epoch 若因 source generation 切换丢失绑定，后续可靠事件确认 execution_conflict 后仍提供此显式恢复入口；unknown 本身不授权恢复；管理员可通过下述明确登记采集故障的入口接管，已绑定且已接管时不重复提示。恢复审计包含 generation 与原人工接管 epoch。此恢复不切换 installation，不允许任选地图或覆盖正式赛果；下一图新 epoch 仍须通过健康检查才恢复 AUTO。
 
 ## Discipline and post-event
 
@@ -263,7 +263,7 @@ BET has independent public/admin entrypoints and a fixed points policy. Its mark
 
 ### Admin Match operations projection
 
-Mizar reliable HTTP 的受控拒绝保留既有 status、`code`、`error`，可附加 `reason`、`requestId` 与 `recovery`。原因包括 `context_stale`、`sequence_stale`、`generation_fence`、`epoch_fence`、`authority_changed`、`idempotency_conflict`、`invalid_schema`；无可信分类时省略。受控拒绝的 `requestId` 只在该请求的日志已交给本地日志流时返回；被限流聚合或日志写入失败时省略，后续日志链路仍可能丢失。`refresh_context` 提示刷新资料，`reconcile` 提示核对上下文与本地事件顺序，`none` 不提供自动恢复建议；它们均不授权改变来源、跳过事件或放宽服务端围栏。2xx 的 ACK 和业务结果语义不变。
+Mizar reliable HTTP 的受控拒绝保留既有 status、`code`、`error`，可附加 `reason`、`requestId` 与 `recovery`。原因包括 `context_stale`、`sequence_stale`、`generation_fence`、`epoch_fence`、`authority_changed`、`idempotency_conflict`、`invalid_schema`，以及统计快照的 `snapshot_duplicate`、`snapshot_parent_unavailable`、`snapshot_scope_mismatch`、`snapshot_map_unavailable`；无可信分类时省略。受控拒绝的 `requestId` 只在该请求的日志已交给本地日志流时返回；被限流聚合或日志写入失败时省略，后续日志链路仍可能丢失。`refresh_context` 提示刷新资料，`reconcile` 提示核对上下文与本地事件顺序，`none` 不提供自动恢复建议；它们均不授权改变来源、跳过事件或放宽服务端围栏。2xx 的 ACK 和业务结果语义不变。
 
 单场工作台复用 canonical phase facts，将当前任务、source mode、health 和 review reasons 分开投影。真实身份/阵容/连续性/赛果冲突优先处理，无 Mizar 是正常人工路径；已有正式开图或有效采集开始事实时显示当前地图进行中，采集核验与人工录分权限另行提示。解说认领另行展示；认领不等于已经开播或正在解说。准备房间时先展示 Perfect 指引，手动录分收在「录入本图比分」，显式接管后展开。服务端人工命令与可靠事件共用比赛锁及结果 owner；人工接管校验预期 source session、地图与 epoch，已有正式赛果只能走更正流程，后续真实新 epoch 的健康开局可重新自动 armed。持久化 health 表示已完成的核验，不表示当前仍在传输；工作台使用同场、同 authority / generation / epoch / map 的 receive-only LIVE 订阅显示正在接收、暂未更新或尚未收到数据，不以低频 reliable-event 时间冒充心跳。客户端失鲜只改变提示，不授权写入。
 
