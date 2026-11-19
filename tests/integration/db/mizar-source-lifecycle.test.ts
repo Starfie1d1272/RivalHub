@@ -8,7 +8,7 @@ import { seedFixture } from "./harness/mizar";
 
 const auth = vi.hoisted(() => ({ userId: "", role: "user" }));
 vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: async () => auth }));
-import { claimMizarSource, readMizarSourceStatus, recoverMizarClaim, releaseMizarSource } from "@/lib/mizar/source";
+import { claimMizarSource, readMizarSourceStatus, recoverLegacyMizarClaim, recoverMizarClaim, releaseMizarSource } from "@/lib/mizar/source";
 import { closeCompletedSource, listSourceSessions } from "@/lib/mizar/source-management";
 import { loadMizarMatchDocument } from "@/lib/mizar/context";
 
@@ -126,6 +126,39 @@ it("recovers a committed claim and fences an unreceived claim under the same loc
   expect(rows).toHaveLength(result.claimed ? 2 : 1);
 });
 
+it("fences legacy requests by their original scope without retiring a numbered claim", async () => {
+  const f = await seedFixture();
+  const scope = { matchId: f.matchId, producerInstanceId: f.producerInstanceId, liveSessionId: f.liveSessionId };
+  const claim = {
+    ...scope,
+    programSourceGeneration: 0,
+    mapEpoch: 0,
+    contextRevision: (await loadMizarMatchDocument(f.matchId, f.seasonId)).revision,
+    lineupSteam64: f.steam64,
+  };
+  expect(await recoverLegacyMizarClaim(f.installationBId, f.seasonId, scope))
+    .toMatchObject({ status: "fenced", scope: { installationId: f.installationBId } });
+  await expect(claimMizarSource(f.installationBId, f.seasonId, { ...claim, takeover: true }))
+    .rejects.toThrow("旧版认领已结清");
+  expect(await recoverLegacyMizarClaim(f.installationId, f.seasonId, scope))
+    .toMatchObject({ status: "found", source: { authorityRevision: 1, state: "open" } });
+  await releaseMizarSource(f.installationId, f.seasonId, scope, 1);
+  expect(await recoverLegacyMizarClaim(f.installationId, f.seasonId, scope))
+    .toMatchObject({ status: "fenced", scope: { installationId: f.installationId } });
+  const accepted = await claimMizarSource(f.installationId, f.seasonId, {
+    ...claim,
+    claimRequestId: randomUUID(),
+  });
+  expect(accepted.claimed).toBe(true);
+  if (!accepted.claimed) throw new Error("Expected a numbered claim");
+  expect(await recoverLegacyMizarClaim(f.installationId, f.seasonId, scope))
+    .toEqual({ status: "ambiguous" });
+  expect(await readMizarSourceStatus(f.installationId, f.seasonId, {
+    ...scope,
+    authorityRevision: accepted.authorityRevision,
+  })).toMatchObject({ status: "found", source: { state: "open" } });
+});
+
 it("checks receipt changes, quiet period, authority and concurrent precise cleanup without altering history", async () => {
   const f = await seedFixture();
   auth.userId = f.fixtureUserIds[0]!;
@@ -182,7 +215,7 @@ it("authenticates the status route and never permits a revoked installation", as
   const recoveryContext = { params: Promise.resolve({ operation: "claim-recovery" }) };
   const headers = { authorization: `Bearer ${syntheticToken}`, "content-type": "application/json" };
   const capability = await GET(new Request(recoveryUrl, { headers }), recoveryContext);
-  expect(await capability.json()).toEqual({ version: 1 });
+  expect(await capability.json()).toEqual({ version: 1, legacyScope: true });
   const claimRequestId = randomUUID();
   const recover = () => POST(new Request(recoveryUrl, {
     method: "POST",
