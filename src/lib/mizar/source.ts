@@ -8,6 +8,7 @@ import {
   matchMaps,
   matchVetoSessions,
   mizarInstallations,
+  mizarClaimReceipts,
   matches,
   users,
   type Match,
@@ -24,6 +25,7 @@ import { LINEUP_REVIEW_REQUIRED } from "./lineup-display";
 import { canTakeOverReportedMap } from "./manual-takeover";
 
 export const sourceClaimSchema = z.strictObject({
+  claimRequestId: z.uuid().optional(),
   matchId: z.uuid(),
   producerInstanceId: z.string().min(1).max(128),
   liveSessionId: z.string().min(1).max(128),
@@ -43,6 +45,60 @@ export const sourceReleaseSchema = z.strictObject({
   producerInstanceId: z.string().min(1).max(128),
   liveSessionId: z.string().min(1).max(128),
 });
+
+export const claimRecoverySchema = sourceReleaseSchema.extend({ claimRequestId: z.uuid() });
+
+async function readClaimReceipt(
+  tx: TxDb,
+  installationId: string,
+  input: z.infer<typeof sourceReleaseSchema> & { claimRequestId: string },
+) {
+  const [receipt] = await tx
+    .select({ source: matchLiveSessions })
+    .from(mizarClaimReceipts)
+    .leftJoin(matchLiveSessions, eq(matchLiveSessions.id, mizarClaimReceipts.sourceId))
+    .where(and(
+      eq(mizarClaimReceipts.installationId, installationId),
+      eq(mizarClaimReceipts.matchId, input.matchId),
+      eq(mizarClaimReceipts.requestId, input.claimRequestId),
+    ));
+  const source = receipt?.source;
+  if (source && (source.producerInstanceId !== input.producerInstanceId ||
+    source.liveSessionId !== input.liveSessionId))
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "认领请求与原来源身份不一致。");
+  return receipt;
+}
+
+export async function recoverMizarClaim(
+  installationId: string,
+  competitionId: string,
+  rawInput: z.input<typeof claimRecoverySchema>,
+) {
+  const input = claimRecoverySchema.parse(rawInput);
+  return db.transaction(async (tx) => {
+    await assertInstallationInTx(tx, installationId, competitionId);
+    const match = await lockMatchInTx(tx, input.matchId);
+    if (match.seasonId !== competitionId)
+      throw new AppError(ErrorCode.FORBIDDEN, "不能访问这场比赛。");
+    const receipt = await readClaimReceipt(tx, installationId, input);
+    if (!receipt)
+      await tx.insert(mizarClaimReceipts).values({
+        installationId, matchId: input.matchId, requestId: input.claimRequestId,
+      });
+    const source = receipt?.source;
+    if (!source) return { status: "cancelled" as const, claimRequestId: input.claimRequestId };
+    return {
+      status: "found" as const,
+      claimRequestId: input.claimRequestId,
+      source: {
+        installationId, competitionId, matchId: source.matchId,
+        producerInstanceId: source.producerInstanceId, liveSessionId: source.liveSessionId,
+        authorityRevision: source.authorityRevision,
+        state: source.closedAt ? "closed" : "open",
+      },
+    };
+  });
+}
 
 export const sourceStatusSchema = sourceReleaseSchema.extend({
   authorityRevision: z.coerce.number().int().positive().optional(),
@@ -122,8 +178,25 @@ export async function claimMizarSource(
   const result = await db.transaction(async (tx) => {
     await assertInstallationInTx(tx, installationId, competitionId);
     const match = await lockMatchInTx(tx, input.matchId);
-    if (match.seasonId !== competitionId || !["scheduled", "in_progress"].includes(match.status))
+    if (match.seasonId !== competitionId)
       throw new AppError(ErrorCode.FORBIDDEN, "不能连接这场比赛的数据源。");
+    const claimRequestId = input.claimRequestId;
+    if (claimRequestId) {
+      const receipt = await readClaimReceipt(tx, installationId, { ...input, claimRequestId });
+      if (receipt) {
+        if (!receipt.source || receipt.source.closedAt)
+          throw new AppError(ErrorCode.VALIDATION_FAILED, "原网站同步申请已结清。");
+        return { claimed: true as const, authorityRevision: receipt.source.authorityRevision };
+      }
+    }
+    if (!["scheduled", "in_progress"].includes(match.status))
+      throw new AppError(ErrorCode.FORBIDDEN, "不能连接这场比赛的数据源。");
+    const recordReceipt = async (sourceId: string | null) => {
+      if (claimRequestId)
+        await tx.insert(mizarClaimReceipts).values({
+          installationId, matchId: match.id, requestId: claimRequestId, sourceId,
+        });
+    };
     if (!input.allowLineupMismatch) await materializeDefaultLineupsInTx(tx, match);
     const context = await loadMizarMatchDocumentInTx(tx, match.id, competitionId);
     if (input.contextRevision !== context.revision)
@@ -161,9 +234,11 @@ export async function claimMizarSource(
             continuityHealth: "unknown",
           })
           .where(eq(matchLiveSessions.id, active.id));
+      await recordReceipt(active.id);
       return { authorityRevision: active.authorityRevision, claimed: true };
     }
     if (active && !input.takeover) {
+      await recordReceipt(null);
       const [device] = await tx
         .select({ displayName: users.displayName })
         .from(mizarInstallations)
@@ -215,6 +290,7 @@ export async function claimMizarSource(
         previousInstallationId: active?.installationId ?? null,
       },
     });
+    await recordReceipt(binding.id);
     return { claimed: true, authorityRevision: binding.authorityRevision };
   });
   if (result.claimed) await touchMizarInstallation(installationId, competitionId);
