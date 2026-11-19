@@ -5,6 +5,15 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.3]
+
+### Fixed
+
+- 同一份已选教育认证可计入所有符合的院校名单最低人数要求，避免规则顺序影响报名审核结果。
+- 支持 Mizar 自动核对丢失回执的网站同步申请，并安全作废尚未受理的旧请求。现有版本继续使用原认领接口。
+- 管理员查看 Play-in 和 Major 测试赛的首发预检时，减少与名单编辑和开赛操作的锁等待。
+- 自定义赛事发布时校验 BP 图池和个人报名位置，避免赛事公开后无法开始 BP，或选手无法提交报名。
+
 ## [2.26.2]
 
 ### Fixed
@@ -3694,6 +3703,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.26.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.2...v2.26.3
 [2.26.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.1...v2.26.2
 [2.26.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.0...v2.26.1
 [2.26.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.46...v2.26.0
