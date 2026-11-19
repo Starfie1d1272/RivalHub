@@ -33,10 +33,11 @@ type Context = { params: Promise<{ operation: string }> };
 export async function GET(request: Request, context: Context) {
   return withMizarRequest(request, "/api/mizar/[operation]", "get", async (diagnostics) => {
     const { operation } = await context.params;
-    diagnostics.operation =
-      ["match", "schedule", "source-status", "claim-recovery"].includes(operation)
-        ? operation
-        : "unknown";
+    diagnostics.operation = ["match", "schedule", "source-status", "claim-recovery"].includes(
+      operation,
+    )
+      ? operation
+      : "unknown";
     setDbTrafficSource(
       operation === "match"
         ? "mizar.manifest"
@@ -101,9 +102,14 @@ export async function POST(request: Request, context: Context) {
     let releaseLive: (() => void) | null = null;
     try {
       const { operation } = await context.params;
-      diagnostics.operation = ["live", "disconnect", "claim", "release", "reliable", "claim-recovery"].includes(
-        operation,
-      )
+      diagnostics.operation = [
+        "live",
+        "disconnect",
+        "claim",
+        "release",
+        "reliable",
+        "claim-recovery",
+      ].includes(operation)
         ? operation
         : "unknown";
       setDbTrafficSource(

@@ -106,8 +106,12 @@ export const matchLiveSessions = pgTable(
 export const mizarClaimReceipts = pgTable(
   "mizar_claim_receipts",
   {
-    installationId: uuid("installation_id").notNull().references(() => mizarInstallations.id),
-    matchId: uuid("match_id").notNull().references(() => matches.id, { onDelete: "cascade" }),
+    installationId: uuid("installation_id")
+      .notNull()
+      .references(() => mizarInstallations.id),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
     requestId: uuid("request_id").notNull(),
     // Null fences a request that did not acquire authority.
     sourceId: uuid("source_id").references(() => matchLiveSessions.id),

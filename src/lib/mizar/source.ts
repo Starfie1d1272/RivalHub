@@ -57,14 +57,19 @@ async function readClaimReceipt(
     .select({ source: matchLiveSessions })
     .from(mizarClaimReceipts)
     .leftJoin(matchLiveSessions, eq(matchLiveSessions.id, mizarClaimReceipts.sourceId))
-    .where(and(
-      eq(mizarClaimReceipts.installationId, installationId),
-      eq(mizarClaimReceipts.matchId, input.matchId),
-      eq(mizarClaimReceipts.requestId, input.claimRequestId),
-    ));
+    .where(
+      and(
+        eq(mizarClaimReceipts.installationId, installationId),
+        eq(mizarClaimReceipts.matchId, input.matchId),
+        eq(mizarClaimReceipts.requestId, input.claimRequestId),
+      ),
+    );
   const source = receipt?.source;
-  if (source && (source.producerInstanceId !== input.producerInstanceId ||
-    source.liveSessionId !== input.liveSessionId))
+  if (
+    source &&
+    (source.producerInstanceId !== input.producerInstanceId ||
+      source.liveSessionId !== input.liveSessionId)
+  )
     throw new AppError(ErrorCode.VALIDATION_FAILED, "认领请求与原来源身份不一致。");
   return receipt;
 }
@@ -83,7 +88,9 @@ export async function recoverMizarClaim(
     const receipt = await readClaimReceipt(tx, installationId, input);
     if (!receipt)
       await tx.insert(mizarClaimReceipts).values({
-        installationId, matchId: input.matchId, requestId: input.claimRequestId,
+        installationId,
+        matchId: input.matchId,
+        requestId: input.claimRequestId,
       });
     const source = receipt?.source;
     if (!source) return { status: "cancelled" as const, claimRequestId: input.claimRequestId };
@@ -91,8 +98,11 @@ export async function recoverMizarClaim(
       status: "found" as const,
       claimRequestId: input.claimRequestId,
       source: {
-        installationId, competitionId, matchId: source.matchId,
-        producerInstanceId: source.producerInstanceId, liveSessionId: source.liveSessionId,
+        installationId,
+        competitionId,
+        matchId: source.matchId,
+        producerInstanceId: source.producerInstanceId,
+        liveSessionId: source.liveSessionId,
         authorityRevision: source.authorityRevision,
         state: source.closedAt ? "closed" : "open",
       },
@@ -194,7 +204,10 @@ export async function claimMizarSource(
     const recordReceipt = async (sourceId: string | null) => {
       if (claimRequestId)
         await tx.insert(mizarClaimReceipts).values({
-          installationId, matchId: match.id, requestId: claimRequestId, sourceId,
+          installationId,
+          matchId: match.id,
+          requestId: claimRequestId,
+          sourceId,
         });
     };
     if (!input.allowLineupMismatch) await materializeDefaultLineupsInTx(tx, match);
