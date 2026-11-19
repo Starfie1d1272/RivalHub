@@ -12,6 +12,8 @@ import {
   claimMizarSource,
   recoverMizarClaim,
   claimRecoverySchema,
+  recoverLegacyMizarClaim,
+  legacyClaimRecoverySchema,
   releaseMizarSource,
   readMizarSourceStatus,
   sourceClaimSchema,
@@ -49,7 +51,10 @@ export async function GET(request: Request, context: Context) {
     const query = new URL(request.url).searchParams;
     diagnostics.phase = "validate";
     if (operation === "claim-recovery")
-      return Response.json({ version: 1 }, { headers: { "Cache-Control": "no-store" } });
+      return Response.json(
+        { version: 1, legacyScope: true },
+        { headers: { "Cache-Control": "no-store" } },
+      );
     if (operation === "source-status") {
       const input = sourceStatusSchema.parse({
         matchId: query.get("matchId"),
@@ -175,10 +180,16 @@ export async function POST(request: Request, context: Context) {
       const input = await readBoundedMizarJson(request, 20_480);
       diagnostics.phase = "validate";
       if (operation === "claim-recovery") {
-        const recovery = claimRecoverySchema.parse(input);
+        const recovery = z.union([claimRecoverySchema, legacyClaimRecoverySchema]).parse(input);
         diagnostics.phase = "domain";
         return Response.json(
-          await recoverMizarClaim(installation.id, installation.competitionId, recovery),
+          "legacy" in recovery
+            ? await recoverLegacyMizarClaim(installation.id, installation.competitionId, {
+                matchId: recovery.matchId,
+                producerInstanceId: recovery.producerInstanceId,
+                liveSessionId: recovery.liveSessionId,
+              })
+            : await recoverMizarClaim(installation.id, installation.competitionId, recovery),
           { headers: { "Cache-Control": "no-store" } },
         );
       }

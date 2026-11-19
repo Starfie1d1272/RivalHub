@@ -9,6 +9,7 @@ import {
   matchVetoSessions,
   mizarInstallations,
   mizarClaimReceipts,
+  mizarLegacyClaimFences,
   matches,
   users,
   type Match,
@@ -47,6 +48,7 @@ export const sourceReleaseSchema = z.strictObject({
 });
 
 export const claimRecoverySchema = sourceReleaseSchema.extend({ claimRequestId: z.uuid() });
+export const legacyClaimRecoverySchema = sourceReleaseSchema.extend({ legacy: z.literal(true) });
 
 async function readClaimReceipt(
   tx: TxDb,
@@ -106,6 +108,49 @@ export async function recoverMizarClaim(
         authorityRevision: source.authorityRevision,
         state: source.closedAt ? "closed" : "open",
       },
+    };
+  });
+}
+
+export async function recoverLegacyMizarClaim(
+  installationId: string,
+  competitionId: string,
+  rawInput: z.input<typeof sourceReleaseSchema>,
+) {
+  const input = sourceReleaseSchema.parse(rawInput);
+  const scope = { ...input, installationId, competitionId };
+  return db.transaction(async (tx) => {
+    await assertInstallationInTx(tx, installationId, competitionId);
+    const match = await lockMatchInTx(tx, input.matchId);
+    if (match.seasonId !== competitionId)
+      throw new AppError(ErrorCode.FORBIDDEN, "不能访问这场比赛。");
+    await tx
+      .insert(mizarLegacyClaimFences)
+      .values({ installationId, ...input })
+      .onConflictDoNothing();
+    const [source] = await tx
+      .select({ id: matchLiveSessions.id, authorityRevision: matchLiveSessions.authorityRevision })
+      .from(matchLiveSessions)
+      .where(
+        and(
+          eq(matchLiveSessions.matchId, input.matchId),
+          eq(matchLiveSessions.installationId, installationId),
+          eq(matchLiveSessions.producerInstanceId, input.producerInstanceId),
+          eq(matchLiveSessions.liveSessionId, input.liveSessionId),
+          isNull(matchLiveSessions.closedAt),
+        ),
+      )
+      .limit(1);
+    if (!source) return { status: "fenced" as const, scope };
+    const [numbered] = await tx
+      .select({ requestId: mizarClaimReceipts.requestId })
+      .from(mizarClaimReceipts)
+      .where(eq(mizarClaimReceipts.sourceId, source.id))
+      .limit(1);
+    if (numbered) return { status: "ambiguous" as const };
+    return {
+      status: "found" as const,
+      source: { ...scope, authorityRevision: source.authorityRevision, state: "open" as const },
     };
   });
 }
@@ -198,6 +243,19 @@ export async function claimMizarSource(
           throw new AppError(ErrorCode.VALIDATION_FAILED, "原网站同步申请已结清。");
         return { claimed: true as const, authorityRevision: receipt.source.authorityRevision };
       }
+    } else {
+      const [fenced] = await tx
+        .select({ matchId: mizarLegacyClaimFences.matchId })
+        .from(mizarLegacyClaimFences)
+        .where(
+          and(
+            eq(mizarLegacyClaimFences.installationId, installationId),
+            eq(mizarLegacyClaimFences.matchId, input.matchId),
+            eq(mizarLegacyClaimFences.producerInstanceId, input.producerInstanceId),
+            eq(mizarLegacyClaimFences.liveSessionId, input.liveSessionId),
+          ),
+        );
+      if (fenced) throw new AppError(ErrorCode.VALIDATION_FAILED, "旧版认领已结清。");
     }
     if (!["scheduled", "in_progress"].includes(match.status))
       throw new AppError(ErrorCode.FORBIDDEN, "不能连接这场比赛的数据源。");

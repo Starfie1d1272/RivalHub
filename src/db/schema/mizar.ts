@@ -119,6 +119,26 @@ export const mizarClaimReceipts = pgTable(
   (t) => [primaryKey({ columns: [t.installationId, t.matchId, t.requestId] })],
 ).enableRLS();
 
+export const mizarLegacyClaimFences = pgTable(
+  "mizar_legacy_claim_fences",
+  {
+    installationId: uuid("installation_id")
+      .notNull()
+      .references(() => mizarInstallations.id, { onDelete: "cascade" }),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    producerInstanceId: text("producer_instance_id").notNull(),
+    liveSessionId: text("live_session_id").notNull(),
+  },
+  (t) => [
+    primaryKey({
+      name: "mizar_legacy_claim_fences_scope_pk",
+      columns: [t.installationId, t.matchId, t.producerInstanceId, t.liveSessionId],
+    }),
+  ],
+).enableRLS();
+
 export const mizarReliableReceipts = pgTable(
   "mizar_reliable_receipts",
   {
