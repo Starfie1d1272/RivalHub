@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   pgTable,
+  primaryKey,
   uuid,
   text,
   timestamp,
@@ -101,6 +102,22 @@ export const matchLiveSessions = pgTable(
       .where(sql`${t.closedAt} IS NULL`),
   ],
 );
+
+export const mizarClaimReceipts = pgTable(
+  "mizar_claim_receipts",
+  {
+    installationId: uuid("installation_id")
+      .notNull()
+      .references(() => mizarInstallations.id),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    requestId: uuid("request_id").notNull(),
+    // Null fences a request that did not acquire authority.
+    sourceId: uuid("source_id").references(() => matchLiveSessions.id),
+  },
+  (t) => [primaryKey({ columns: [t.installationId, t.matchId, t.requestId] })],
+).enableRLS();
 
 export const mizarReliableReceipts = pgTable(
   "mizar_reliable_receipts",

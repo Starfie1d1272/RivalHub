@@ -10,6 +10,8 @@ import { loadBroadcastStats } from "@/lib/mizar/stats";
 import { loadMizarMatchDocument, loadMizarScheduleWindow } from "@/lib/mizar/context";
 import {
   claimMizarSource,
+  recoverMizarClaim,
+  claimRecoverySchema,
   releaseMizarSource,
   readMizarSourceStatus,
   sourceClaimSchema,
@@ -31,10 +33,11 @@ type Context = { params: Promise<{ operation: string }> };
 export async function GET(request: Request, context: Context) {
   return withMizarRequest(request, "/api/mizar/[operation]", "get", async (diagnostics) => {
     const { operation } = await context.params;
-    diagnostics.operation =
-      operation === "match" || operation === "schedule" || operation === "source-status"
-        ? operation
-        : "unknown";
+    diagnostics.operation = ["match", "schedule", "source-status", "claim-recovery"].includes(
+      operation,
+    )
+      ? operation
+      : "unknown";
     setDbTrafficSource(
       operation === "match"
         ? "mizar.manifest"
@@ -45,6 +48,8 @@ export async function GET(request: Request, context: Context) {
     const installation = await authenticateMizar(request.headers.get("authorization"));
     const query = new URL(request.url).searchParams;
     diagnostics.phase = "validate";
+    if (operation === "claim-recovery")
+      return Response.json({ version: 1 }, { headers: { "Cache-Control": "no-store" } });
     if (operation === "source-status") {
       const input = sourceStatusSchema.parse({
         matchId: query.get("matchId"),
@@ -97,9 +102,14 @@ export async function POST(request: Request, context: Context) {
     let releaseLive: (() => void) | null = null;
     try {
       const { operation } = await context.params;
-      diagnostics.operation = ["live", "disconnect", "claim", "release", "reliable"].includes(
-        operation,
-      )
+      diagnostics.operation = [
+        "live",
+        "disconnect",
+        "claim",
+        "release",
+        "reliable",
+        "claim-recovery",
+      ].includes(operation)
         ? operation
         : "unknown";
       setDbTrafficSource(
@@ -164,6 +174,14 @@ export async function POST(request: Request, context: Context) {
       diagnostics.phase = "read";
       const input = await readBoundedMizarJson(request, 20_480);
       diagnostics.phase = "validate";
+      if (operation === "claim-recovery") {
+        const recovery = claimRecoverySchema.parse(input);
+        diagnostics.phase = "domain";
+        return Response.json(
+          await recoverMizarClaim(installation.id, installation.competitionId, recovery),
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      }
       if (operation === "claim") {
         const claim = sourceClaimSchema.parse(input);
         diagnostics.phase = "domain";

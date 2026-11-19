@@ -8,8 +8,9 @@ import { seedFixture } from "./harness/mizar";
 
 const auth = vi.hoisted(() => ({ userId: "", role: "user" }));
 vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: async () => auth }));
-import { readMizarSourceStatus, releaseMizarSource } from "@/lib/mizar/source";
+import { claimMizarSource, readMizarSourceStatus, recoverMizarClaim, releaseMizarSource } from "@/lib/mizar/source";
 import { closeCompletedSource, listSourceSessions } from "@/lib/mizar/source-management";
+import { loadMizarMatchDocument } from "@/lib/mizar/context";
 
 it("reads a consistent receipt summary when the first receipt commits during the report", async () => {
   const f = await seedFixture();
@@ -71,6 +72,60 @@ it("resolves only exact installation intents, including ambiguous and finished s
   expect((await db.select().from(schema.matchLiveSessions).where(and(eq(schema.matchLiveSessions.matchId, f.matchId), eq(schema.matchLiveSessions.authorityRevision, 2))))[0].closedAt).toBeNull();
 });
 
+it("recovers a committed claim and fences an unreceived claim under the same lock", async () => {
+  const f = await seedFixture();
+  const claim = {
+    matchId: f.matchId,
+    producerInstanceId: f.producerInstanceId,
+    liveSessionId: f.liveSessionId,
+    programSourceGeneration: 0,
+    mapEpoch: 0,
+    contextRevision: (await loadMizarMatchDocument(f.matchId, f.seasonId)).revision,
+    lineupSteam64: f.steam64,
+  };
+  const committed = { ...claim, claimRequestId: randomUUID() };
+  const recover = (request: typeof committed, installationId = f.installationId) =>
+    recoverMizarClaim(installationId, f.seasonId, {
+      matchId: request.matchId,
+      producerInstanceId: request.producerInstanceId,
+      liveSessionId: request.liveSessionId,
+      claimRequestId: request.claimRequestId,
+    });
+  const accepted = await claimMizarSource(f.installationId, f.seasonId, committed);
+  expect(accepted).toEqual({ claimed: true, authorityRevision: 1 });
+  expect(await claimMizarSource(f.installationId, f.seasonId, claim)).toEqual(accepted);
+  expect(await recover(committed, f.installationBId)).toMatchObject({ status: "cancelled" });
+  expect(await recover(committed)).toMatchObject({
+    status: "found", claimRequestId: committed.claimRequestId,
+    source: { authorityRevision: 1, state: "open" },
+  });
+  await releaseMizarSource(f.installationId, f.seasonId, {
+    matchId: f.matchId, producerInstanceId: f.producerInstanceId, liveSessionId: f.liveSessionId,
+  }, 1);
+  await expect(claimMizarSource(f.installationId, f.seasonId, committed)).rejects.toThrow("原网站同步申请已结清");
+  expect(await recover(committed)).toMatchObject({ source: { authorityRevision: 1, state: "closed" } });
+
+  const unreceived = { ...claim, claimRequestId: randomUUID() };
+  expect(await recover(unreceived)).toEqual({ status: "cancelled", claimRequestId: unreceived.claimRequestId });
+  await expect(claimMizarSource(f.installationId, f.seasonId, unreceived)).rejects.toThrow("原网站同步申请已结清");
+
+  const racing = {
+    ...claim,
+    contextRevision: (await loadMizarMatchDocument(f.matchId, f.seasonId)).revision,
+    claimRequestId: randomUUID(),
+  };
+  const [result, receipt] = await Promise.all([
+    claimMizarSource(f.installationId, f.seasonId, racing).catch((error: unknown) => {
+      expect(error).toEqual(expect.objectContaining({ message: expect.stringContaining("原网站同步申请已结清") }));
+      return { claimed: false };
+    }),
+    recover(racing),
+  ]);
+  expect(receipt.status).toBe(result.claimed ? "found" : "cancelled");
+  const rows = await db.select().from(schema.matchLiveSessions).where(eq(schema.matchLiveSessions.matchId, f.matchId));
+  expect(rows).toHaveLength(result.claimed ? 2 : 1);
+});
+
 it("checks receipt changes, quiet period, authority and concurrent precise cleanup without altering history", async () => {
   const f = await seedFixture();
   auth.userId = f.fixtureUserIds[0]!;
@@ -111,7 +166,7 @@ it("checks receipt changes, quiet period, authority and concurrent precise clean
 it("authenticates the status route and never permits a revoked installation", async () => {
   const f = await seedFixture();
   const { hashCredential } = await import("@/lib/mizar/installation");
-  const { GET } = await import("@/app/api/mizar/[operation]/route");
+  const { GET, POST } = await import("@/app/api/mizar/[operation]/route");
   const syntheticToken = `rh_mizar_${randomUUID()}_${"a".repeat(64)}`;
   await db.update(schema.mizarInstallations).set({ credentialHash: hashCredential(syntheticToken) }).where(eq(schema.mizarInstallations.id, f.installationId));
   const query = new URLSearchParams({ matchId: f.matchId, producerInstanceId: f.producerInstanceId, liveSessionId: f.liveSessionId });
@@ -123,8 +178,23 @@ it("authenticates the status route and never permits a revoked installation", as
   const body = await response.json();
   expect(body).toMatchObject({ status: "found", source: { sessionId: f.sessionId, competitionId: f.seasonId } });
   expect(JSON.stringify(body)).not.toContain("credential");
+  const recoveryUrl = "http://localhost/api/mizar/claim-recovery";
+  const recoveryContext = { params: Promise.resolve({ operation: "claim-recovery" }) };
+  const headers = { authorization: `Bearer ${syntheticToken}`, "content-type": "application/json" };
+  const capability = await GET(new Request(recoveryUrl, { headers }), recoveryContext);
+  expect(await capability.json()).toEqual({ version: 1 });
+  const claimRequestId = randomUUID();
+  const recover = () => POST(new Request(recoveryUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ ...Object.fromEntries(query), claimRequestId }),
+  }), recoveryContext);
+  const cancelled = await recover();
+  expect(cancelled.status).toBe(200);
+  expect(await cancelled.json()).toEqual({ status: "cancelled", claimRequestId });
   await db.update(schema.mizarInstallations).set({ revokedAt: new Date() }).where(eq(schema.mizarInstallations.id, f.installationId));
   expect((await invoke(`Bearer ${syntheticToken}`)).status).toBe(403);
+  expect((await recover()).status).toBe(403);
 });
 
 it("blocks unconfirmed, future and active matches and keeps the owner/super-admin boundary", async () => {

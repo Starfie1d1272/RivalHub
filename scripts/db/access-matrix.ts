@@ -106,6 +106,7 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
   serverOnly("match_live_sessions", "制播集成", "单场单活跃数据源与 authority revision", "src/lib/mizar/live.ts; src/lib/mizar/source.ts", "低频权威与连续性事实；不存储 LiveSnapshot 高频历史。"),
   serverOnly("mizar_installations", "制播集成", "赛事级设备凭据散列与撤销状态", "src/lib/mizar/installation.ts", "设备凭据只授权一个赛事，且不进入浏览器或公开 DTO。"),
   serverOnly("mizar_pairing_intents", "制播集成", "短期浏览器授权意图与轮询密钥散列", "src/lib/mizar/installation.ts", "轮询密钥仅由 Mizar 本机持有，浏览器只看到 pairingId。"),
+  serverOnly("mizar_claim_receipts", "制播集成", "认领结果与迟到请求隔离", "src/lib/mizar/source.ts", "回执按赛事安装与比赛核对，禁止公开客户端直接读取。"),
   serverOnly("mizar_reliable_receipts", "制播集成", "可靠事件幂等去重", "src/lib/mizar/reliable.ts", "只保存低频事件摘要，不保存帧。"),
 
 
