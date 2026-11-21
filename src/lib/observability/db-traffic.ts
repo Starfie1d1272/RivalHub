@@ -138,7 +138,12 @@ export function queryShape(sql: unknown): string {
   const normalized: string[] = [];
   for (const token of tokens) {
     if (token.startsWith("--") || token.startsWith("/*")) continue;
-    if (token.startsWith("'") || /^[eE]'/.test(token) || token.startsWith("$") || /^\d/.test(token)) {
+    if (
+      token.startsWith("'") ||
+      /^[eE]'/.test(token) ||
+      token.startsWith("$") ||
+      /^\d/.test(token)
+    ) {
       normalized.push("?");
     } else {
       normalized.push(token.startsWith('"') ? token : token.toLowerCase());
