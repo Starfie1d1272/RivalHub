@@ -135,13 +135,16 @@ export function queryShape(sql: unknown): string {
       /--[^\n]*|\/\*[\s\S]*?\*\/|\$([A-Za-z_][A-Za-z_0-9]*)\$[\s\S]*?\$\1\$|\$\$[\s\S]*?\$\$|(?:[eE])?'(?:''|\\[\s\S]|[^'\\])*'|"(?:""|[^"])*"|\$\d+|[A-Za-z_][A-Za-z_0-9]*|\d+(?:\.\d+)?|[(),;=<>+*/-]/g,
     ) ?? [];
   if (tokens.length > 4096) return "unknown";
-  const shape = tokens
-    .flatMap((t) => {
-      if (t.startsWith("--") || t.startsWith("/*")) return [];
-      if (t.startsWith("'") || /^[eE]'/.test(t) || t.startsWith("$") || /^\d/.test(t)) return ["?"];
-      return [t.startsWith('"') ? t : t.toLowerCase()];
-    })
-    .join(" ");
+  const normalized: string[] = [];
+  for (const token of tokens) {
+    if (token.startsWith("--") || token.startsWith("/*")) continue;
+    if (token.startsWith("'") || /^[eE]'/.test(token) || token.startsWith("$") || /^\d/.test(token)) {
+      normalized.push("?");
+    } else {
+      normalized.push(token.startsWith('"') ? token : token.toLowerCase());
+    }
+  }
+  const shape = normalized.join(" ");
   return `q${createHash("sha256").update(shape).digest("hex").slice(0, 16)}`;
 }
 function ensureWindow() {
