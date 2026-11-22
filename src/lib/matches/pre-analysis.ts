@@ -4,6 +4,8 @@ import "server-only";
 
 import { db } from "@/db/client";
 import type { Match } from "@/db/schema";
+import { cacheLife, cacheTag } from "next/cache";
+import { ALL_EVENT_STATS_TAG, eventStatsTag } from "@/lib/cache/tags";
 import { getTeamMapProfiles } from "@/lib/teams/data";
 import { getSeasonFinishedMatches } from "./detail-data";
 import { projectRecentMatchResults, type RecentMatchResult } from "./recent-results";
@@ -125,7 +127,31 @@ export function projectMatchPreAnalysis(input: {
   };
 }
 
-export async function loadMatchPreAnalysis(
+export function loadMatchPreAnalysis(
+  seasonId: string,
+  entryAId: string,
+  entryBId: string,
+  mapPool: readonly string[],
+  visibility: "public" | "draft",
+): Promise<MatchPreAnalysis> {
+  return visibility === "draft"
+    ? readMatchPreAnalysis(seasonId, entryAId, entryBId, mapPool)
+    : cachedMatchPreAnalysis(seasonId, entryAId, entryBId, mapPool);
+}
+
+async function cachedMatchPreAnalysis(
+  seasonId: string,
+  entryAId: string,
+  entryBId: string,
+  mapPool: readonly string[],
+): Promise<MatchPreAnalysis> {
+  "use cache: remote";
+  cacheLife("seconds");
+  cacheTag(ALL_EVENT_STATS_TAG, eventStatsTag(seasonId));
+  return readMatchPreAnalysis(seasonId, entryAId, entryBId, mapPool);
+}
+
+async function readMatchPreAnalysis(
   seasonId: string,
   entryAId: string,
   entryBId: string,
