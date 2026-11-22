@@ -26,6 +26,10 @@ export async function loadPublicMatchRefreshToken(
       from matches m where m.season_id = ${seasonId} and ${condition}
     ), scoped_entries as (
       select entry_a_id as id from scoped union select entry_b_id from scoped
+    ), scoped_members as (
+      select e.id, e.user_id, e.is_current, e.is_primary_starter
+      from event_roster_members e join event_rosters r on r.id = e.event_roster_id
+      where r.entry_id in (select id from scoped_entries)
     )
     select md5(jsonb_build_object(
       'season', (select jsonb_build_array(s.status, s.updated_at) from seasons s where s.id = ${seasonId}),
@@ -65,15 +69,13 @@ export async function loadPublicMatchRefreshToken(
           ? sql`(select jsonb_agg(jsonb_build_array(users.id, users.status, users.updated_at,
         users.display_name, users.perfect_name, sp.persona_name, sp.avatar_url, ${hasActivePublicSanction(users.id)}) order by users.id)
         from users left join steam_profiles sp on sp.steam64 = users.steam64
-        where users.id in (select e.user_id from event_roster_members e join event_rosters r on r.id = e.event_roster_id
-          where r.entry_id in (select id from scoped_entries)))`
+        where users.id in (select user_id from scoped_members))`
           : sql`null`
       },
       'members', ${
         scope.matchId
           ? sql`(select jsonb_agg(jsonb_build_array(e.id, e.user_id, e.is_current, e.is_primary_starter) order by e.id)
-        from event_roster_members e join event_rosters r on r.id = e.event_roster_id
-        where r.entry_id in (select id from scoped_entries))`
+        from scoped_members e)`
           : sql`null`
       },
       'rosters', ${
