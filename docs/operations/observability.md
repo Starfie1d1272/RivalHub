@@ -14,7 +14,7 @@ canonical event ──► stdout / stderr ──► systemd journal
 ```
 
 - 应用不注册 OTel provider，不创建或导出 span，不发送 Better Stack 日志，也不加载 Vercel Analytics / Speed Insights。Preview 保留正常 Next 功能，不支持 Vercel collector。
-- 本地 JSON 日志保留异常分类、脱敏和 requestId；日志写入失败不改变请求结果。`onRequestError` 保留 Next 未处理异常捕获。
+- 本地 JSON 日志保留异常分类、脱敏和 requestId；日志写入失败不改变请求结果。stdout/stderr 背压期间，logger 暂停向该流写入并统计丢弃数量，最多保留首条 error/fatal；流恢复后写出计数与保留的错误。进程退出或流持续阻塞可能丢失这些诊断，非 logger 的写入不受此机制约束。`onRequestError` 保留 Next 未处理异常捕获。
 - Next server code 通过带 `server-only` 的 `@/lib/observability/server` facade 访问日志和运行诊断；`src/db/client-runtime.ts` 同时用于显式 Node CLI。
 - 请求上下文通过进程共享的 AsyncLocalStorage 隔离并跨异步调用传播。周期健康采样与 LIVE 聚合退出请求上下文，避免关联到安装 timer 的请求。
 - 外部日志 sink 无需环境变量；运行健康采样仍由 `RIVALHUB_RUNTIME_HEALTH_ENABLED` 控制，D1 配置见产品遥测文档。

@@ -24,6 +24,12 @@ export async function loadPublicMatchRefreshToken(
       select m.id, m.entry_a_id, m.entry_b_id, m.status, m.updated_at, m.scheduled_at,
         m.completed_at, m.started_at, m.gameplay_started_at, m.completion_deadline, m.score_a, m.score_b, m.result_disposition, m.mvp_winner_user_id
       from matches m where m.season_id = ${seasonId} and ${condition}
+    ), scoped_entries as (
+      select entry_a_id as id from scoped union select entry_b_id from scoped
+    ), scoped_members as (
+      select e.id, e.user_id, e.is_current, e.is_primary_starter
+      from event_roster_members e join event_rosters r on r.id = e.event_roster_id
+      where r.entry_id in (select id from scoped_entries)
     )
     select md5(jsonb_build_object(
       'season', (select jsonb_build_array(s.status, s.updated_at) from seasons s where s.id = ${seasonId}),
@@ -37,7 +43,7 @@ export async function loadPublicMatchRefreshToken(
       'live', (select jsonb_agg(jsonb_build_array(l.match_id, l.current_map_id, l.map_execution_phase, l.lineup_health) order by l.match_id)
         from match_live_sessions l join scoped m on m.id = l.match_id where l.closed_at is null),
       'entries', (select jsonb_agg(jsonb_build_array(e.id, e.name, e.logo_url, e.updated_at) order by e.id)
-        from competition_entries e where e.id in (select entry_a_id from scoped union select entry_b_id from scoped)),
+        from competition_entries e where e.id in (select id from scoped_entries)),
       'stageDirectory', (select jsonb_agg(d.stage order by d.stage) from
         (select distinct stage from matches where season_id = ${seasonId} and test_config is null) d),
       'stages', (select jsonb_agg(jsonb_build_array(r.id, r.stage_key, r.finalized_round) order by r.id)
@@ -63,15 +69,13 @@ export async function loadPublicMatchRefreshToken(
           ? sql`(select jsonb_agg(jsonb_build_array(users.id, users.status, users.updated_at,
         users.display_name, users.perfect_name, sp.persona_name, sp.avatar_url, ${hasActivePublicSanction(users.id)}) order by users.id)
         from users left join steam_profiles sp on sp.steam64 = users.steam64
-        where users.id in (select e.user_id from event_roster_members e join event_rosters r on r.id = e.event_roster_id
-          where r.entry_id in (select entry_a_id from scoped union select entry_b_id from scoped)))`
+        where users.id in (select user_id from scoped_members))`
           : sql`null`
       },
       'members', ${
         scope.matchId
           ? sql`(select jsonb_agg(jsonb_build_array(e.id, e.user_id, e.is_current, e.is_primary_starter) order by e.id)
-        from event_roster_members e join event_rosters r on r.id = e.event_roster_id
-        where r.entry_id in (select entry_a_id from scoped union select entry_b_id from scoped))`
+        from scoped_members e)`
           : sql`null`
       },
       'rosters', ${
