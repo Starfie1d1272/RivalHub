@@ -122,10 +122,10 @@ export function tryLogEvent(input: LogEventInput): boolean {
 
 type BackpressureState = { blocked: boolean; dropped: number; firstError: string | null };
 const backpressureSlot = Symbol.for("rivalhub.log-backpressure.v1");
-const processState = process as typeof process & {
+const runtimeState = globalThis as typeof globalThis & {
   [backpressureSlot]?: WeakMap<object, BackpressureState>;
 };
-const backpressure = (processState[backpressureSlot] ??= new WeakMap<object, BackpressureState>());
+const backpressure = (runtimeState[backpressureSlot] ??= new WeakMap<object, BackpressureState>());
 
 function writeEvent(event: StructuredEvent, serialized: string): boolean {
   try {
