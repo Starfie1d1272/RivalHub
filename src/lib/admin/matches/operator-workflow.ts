@@ -108,6 +108,10 @@ export function projectOperatorWorkflow(input: {
 }): OperatorWorkflow {
   const maps = [...input.maps].sort((a, b) => a.order - b.order);
   const completedMaps = maps.filter((map) => map.completedAt !== null);
+  const missingHistory = maps.find(
+    (map) =>
+      map.completedAt === null && completedMaps.some((completed) => completed.order > map.order),
+  );
   const outstanding = completedMaps.filter((map) => !map.scoreboardComplete);
   const source = projectOperatorSource(input.source ?? null);
   const phase = projectMatchPresentationPhase({
@@ -124,6 +128,7 @@ export function projectOperatorWorkflow(input: {
     gameplayMapId: input.observedGameplayMapId,
   });
   const manualResultAllowed =
+    (Boolean(missingHistory) && phase !== "gameplay") ||
     source.sourceMode === "none" ||
     (source.sourceMode === "manual_map" &&
       input.source?.currentMapId === maps.find((map) => map.completedAt === null)?.id);
@@ -153,10 +158,21 @@ export function projectOperatorWorkflow(input: {
       nextStep: "回到比赛总览查看其它场次。",
     };
   const nextMap = maps.find((map) => map.completedAt === null);
+  const gameplayMap = maps.find(
+    (map) => map.id === input.observedGameplayMapId && map.completedAt === null,
+  );
   const gameplayTitle =
-    phase === "gameplay" && nextMap
-      ? `Map ${nextMap.order} · ${mapLabel(nextMap.name)} 进行中`
+    phase === "gameplay" && gameplayMap
+      ? `Map ${gameplayMap.order} · ${mapLabel(gameplayMap.name)} 进行中`
       : null;
+  if (missingHistory && phase !== "gameplay" && input.status === "in_progress")
+    return {
+      ...base,
+      primaryTask: "manual_result",
+      title: `补录 Map ${missingHistory.order} 比分`,
+      description: "后续地图已记录正式结果，请补录此前缺失的比分。",
+      nextStep: "核对并录入此前地图的正式比分。",
+    };
   if (source.reviewReasons.length) {
     const prepareNext = input.vetoComplete && phase === "inter_map" && nextMap;
     return {

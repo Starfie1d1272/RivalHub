@@ -11,6 +11,7 @@ export async function startCanonicalMapInTx(
   matchId: string,
   mapId: string,
   actorId: string,
+  options: { allowUnobservedPriorMaps?: boolean } = {},
 ) {
   const match = await tx.query.matches.findFirst({ where: eq(matches.id, matchId) });
   const veto = await tx.query.matchVetoSessions.findFirst({
@@ -21,7 +22,9 @@ export async function startCanonicalMapInTx(
     .from(matchMaps)
     .where(eq(matchMaps.matchId, matchId))
     .orderBy(asc(matchMaps.mapOrder));
-  const next = maps.find((m) => !m.completedAt);
+  const next = options.allowUnobservedPriorMaps
+    ? maps.find((m) => m.id === mapId && !m.completedAt)
+    : maps.find((m) => !m.completedAt);
   if (!match || match.status !== "in_progress" || !veto?.completedAt || !next || next.id !== mapId)
     throw new AppError(ErrorCode.VALIDATION_FAILED, "请先完成 BP，并核对当前正式待进行地图");
   if (next.startedAt) {

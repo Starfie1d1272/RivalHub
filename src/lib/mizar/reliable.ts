@@ -19,7 +19,7 @@ import { recordCanonicalMapResultInTx } from "@/lib/matches/results";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { beginRuntimeResource } from "@/lib/observability/runtime-resources";
-import { AppError, ErrorCode } from "@/lib/errors";
+import { ErrorCode } from "@/lib/errors";
 import { touchMizarInstallation } from "./heartbeat";
 import { assertInstallationInTx, hashCredential } from "./installation";
 import { validateObservedLineupInTx } from "./source";
@@ -124,11 +124,24 @@ export async function ingestMizarReliable(
             ),
           );
         if (priorSnapshot)
-          throw new AppError(ErrorCode.VALIDATION_FAILED, "地图结束事件已有临时数据。");
+          throw new ReliableRejection(
+            ErrorCode.VALIDATION_FAILED,
+            "地图结束事件已有临时数据。",
+            "snapshot_duplicate",
+            details,
+          );
         if (
           !scope ||
           parent.kind !== "map_ended" ||
-          !["canonicalized", "consistent"].includes(parent.outcome) ||
+          !["canonicalized", "consistent"].includes(parent.outcome)
+        )
+          throw new ReliableRejection(
+            ErrorCode.VALIDATION_FAILED,
+            "地图结束结果尚不可用于统计。",
+            "snapshot_parent_unavailable",
+            details,
+          );
+        if (
           scope.receivedMapId !== event.mapId ||
           scope.mapName !== event.mapName ||
           scope.contextRevision !== event.contextRevision ||
@@ -142,14 +155,24 @@ export async function ingestMizarReliable(
           !event.evidence.contextFresh ||
           event.evidence.identity !== "matched"
         ) {
-          throw new AppError(ErrorCode.VALIDATION_FAILED, "临时数据与已确认的地图结束事件不匹配。");
+          throw new ReliableRejection(
+            ErrorCode.VALIDATION_FAILED,
+            "临时数据与已确认的地图结束事件不匹配。",
+            "snapshot_scope_mismatch",
+            details,
+          );
         }
         const [map] = await tx
           .select()
           .from(matchMaps)
           .where(and(eq(matchMaps.id, scope.mapId), eq(matchMaps.matchId, match.id)));
         if (!map || map.completedAt === null)
-          throw new AppError(ErrorCode.VALIDATION_FAILED, "临时数据地图不可用。");
+          throw new ReliableRejection(
+            ErrorCode.VALIDATION_FAILED,
+            "临时数据地图不可用。",
+            "snapshot_map_unavailable",
+            details,
+          );
         const roster = await loadEffectiveMatchRoster(tx, [match.id]);
         const players = event.payload.players.flatMap((player) => {
           const candidates = roster.filter(
@@ -386,7 +409,7 @@ export async function ingestMizarReliable(
           match.status === "in_progress" &&
           !executionConflict &&
           source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
-        const displayOnly = reviewRequired || observedLineup || historyIncomplete;
+        const displayOnly = reviewRequired || observedLineup;
         const displayReady =
           displayOnly &&
           validMap &&
@@ -427,13 +450,15 @@ export async function ingestMizarReliable(
         // manual choice remains authoritative for this epoch. End events never re-arm.
         if (
           validMap &&
-          (!laterMap || displayReady) &&
+          (!laterMap || displayReady || mayArm) &&
           (!executionConflict || mayArm || displayReady)
         ) {
           updates.currentMapId = map!.id;
           if (displayReady) updates.mapExecutionPhase = "gameplay";
-          if (!displayOnly && fresh && lineupValid && match.status === "in_progress") {
-            await startCanonicalMapInTx(tx, match.id, map!.id, mizarAuditActorId(installationId));
+          if (mayArm) {
+            await startCanonicalMapInTx(tx, match.id, map!.id, mizarAuditActorId(installationId), {
+              allowUnobservedPriorMaps: historyIncomplete,
+            });
             updates.mapExecutionPhase = "gameplay";
           }
         }
@@ -446,7 +471,10 @@ export async function ingestMizarReliable(
         const sameExecution = Boolean(
           map && source.currentMapId === map.id && (event.mapId === null || event.mapId === map.id),
         );
-        if (reviewRequired || source.continuityHealth === "history_incomplete") {
+        if (
+          reviewRequired ||
+          (source.continuityHealth === "history_incomplete" && !source.autoCanonicalizationArmed)
+        ) {
           updates.autoCanonicalizationArmed = false;
           outcome = "needs_attention";
           if (

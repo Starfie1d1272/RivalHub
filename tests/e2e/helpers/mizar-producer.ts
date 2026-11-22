@@ -118,7 +118,7 @@ async function main() {
         await clients[1].claimAutomatically(snapshot(), revision, () => true);
         assert.equal(clients[1].view().activeSourceMatchId, null, "Second commentator must not steal authority");
         const start = event("map_started");
-        assert.deepEqual(await clients[0].sendReliable(start, snapshot(), undefined, f.steam64), lateJoin ? { status: "accepted", outcome: "needs_attention" } : "accepted");
+        assert.equal(await clients[0].sendReliable(start, snapshot(), undefined, f.steam64), "accepted");
         pump();
         return { matchId: f.matchId };
       },
@@ -129,9 +129,9 @@ async function main() {
         await stop();
         if (uploadError) throw uploadError;
         assert(accepted > 1, "Server must accept live frames, not just return HTTP 200");
-        assert.deepEqual(await clients[0].sendReliable(event("map_ended"), snapshot()), lateJoin ? { status: "accepted", outcome: "needs_attention" } : "accepted");
+        assert.equal(await clients[0].sendReliable(event("map_ended"), snapshot()), "accepted");
         const [map] = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, mapId));
-        assert.equal(map.scoreA, lateJoin ? null : 13); assert.equal(map.scoreB, lateJoin ? null : 9);
+        assert.equal(map.scoreA, 13); assert.equal(map.scoreB, 9);
         if (lateJoin) {
           const [first] = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, f.mapOneId));
           assert.equal(first.scoreA, null); assert.equal(first.scoreB, null); assert.equal(first.completedAt, null);

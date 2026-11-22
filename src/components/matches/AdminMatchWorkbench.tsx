@@ -385,7 +385,8 @@ export function AdminMatchWorkbench({
               className="space-y-3 pt-3"
               open={
                 operator.workflow.sourceMode === "manual_map" ||
-                operator.workflow.phase === "gameplay"
+                operator.workflow.phase === "gameplay" ||
+                operator.workflow.primaryTask === "manual_result"
               }
             >
               <summary className="cursor-pointer text-sm font-medium">录入本图比分</summary>
