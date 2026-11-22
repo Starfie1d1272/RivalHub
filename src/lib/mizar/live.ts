@@ -50,6 +50,16 @@ export async function ingestMizarLive(
   let cleanup: (() => Promise<unknown>) | undefined;
   let outcome: LiveIngestOutcome = "error";
   try {
+    const broadcast = createLiveBroadcastFetch();
+    const client = createServiceClient({ fetch: broadcast.fetch });
+    // Prepare auth before checking out a database connection; surface failure only
+    // after the frame has passed the same authority checks as before.
+    const authStartedAt = performance.now();
+    const auth = await client.realtime.setAuth().then(
+      () => ({ ok: true as const }),
+      (error: unknown) => ({ ok: false as const, error }),
+    );
+    const authDurationMs = performance.now() - authStartedAt;
     const result = await db.transaction(async (tx) => {
       // No stale frame may sit in the shared pool and later become fresh again.
       if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS)
@@ -186,14 +196,12 @@ export async function ingestMizarLive(
       );
       if (!admitLiveDelivery(snapshot, authorityRevision))
         return { accepted: false, reason: "delivery_dropped" };
-      const broadcast = createLiveBroadcastFetch();
-      const client = createServiceClient({ fetch: broadcast.fetch });
       const channel = client.channel(matchLiveTopic(match.id), { config: { private: true } });
       cleanup = () => client.removeChannel(channel);
       const startedAt = performance.now();
       let stage = "auth";
       try {
-        await client.realtime.setAuth();
+        if (!auth.ok) throw auth.error;
         stage = "send";
         const result = await channel.httpSend("snapshot", payload, { timeout: 2000 });
         if (!result.success) throw new Error("broadcast_unavailable");
@@ -215,7 +223,7 @@ export async function ingestMizarLive(
           errorClass: "dependency",
           exception: broadcast.exception() ?? liveBroadcastException(error),
           retryable: false,
-          durationMs: performance.now() - startedAt,
+          durationMs: authDurationMs + performance.now() - startedAt,
           safeContext: { provider: "supabase", stage, ...broadcast.evidence() },
         });
         return { accepted: false, reason: "broadcast_unavailable" };
