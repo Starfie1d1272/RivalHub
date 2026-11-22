@@ -10,7 +10,6 @@ import {
   seasons,
   competitionQualificationRuns,
 } from "@/db/schema";
-import { createServiceClient } from "@/lib/auth/supabase-server";
 import { effectiveMatchRosterQuery } from "@/lib/match-rosters/effective";
 import {
   logEvent,
@@ -29,7 +28,12 @@ import {
   isLineupMismatchOnly,
   LINEUP_REVIEW_REQUIRED,
 } from "./lineup-display";
-import { createLiveBroadcastFetch, liveBroadcastException } from "./live-broadcast";
+import {
+  createLiveBroadcastFetch,
+  liveBroadcastException,
+  prepareLiveBroadcast,
+  sendLiveBroadcast,
+} from "./live-broadcast";
 
 // One producer cadence interval; requests delayed beyond it are disposable.
 const LIVE_FRAME_BUDGET_MS = 500;
@@ -47,30 +51,16 @@ export async function ingestMizarLive(
   if (snapshot.cursor.liveSessionId === null)
     throw new AppError(ErrorCode.FORBIDDEN, "制播数据不属于当前连接。");
   const finishResource = beginRuntimeResource("mizar.live");
-  let cleanup: (() => Promise<unknown>) | undefined;
   let outcome: LiveIngestOutcome = "error";
   try {
     const broadcast = createLiveBroadcastFetch();
-    let client: ReturnType<typeof createServiceClient> | undefined;
+    let transport: ReturnType<typeof prepareLiveBroadcast> | undefined;
     let clientError: unknown;
     try {
-      client = createServiceClient({ fetch: broadcast.fetch });
+      transport = prepareLiveBroadcast();
     } catch (error) {
       clientError = error;
     }
-    // Prepare auth before checking out a database connection; surface failure only
-    // after the frame has passed the same authority checks as before.
-    const authStartedAt = performance.now();
-    let auth: { ok: true } | { ok: false; error: unknown } | null = null;
-    if (client) {
-      try {
-        await client.realtime.setAuth();
-        auth = { ok: true };
-      } catch (error) {
-        auth = { ok: false, error };
-      }
-    }
-    const authDurationMs = performance.now() - authStartedAt;
     const result = await db.transaction(async (tx) => {
       // No stale frame may sit in the shared pool and later become fresh again.
       if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS)
@@ -207,16 +197,11 @@ export async function ingestMizarLive(
       );
       if (!admitLiveDelivery(snapshot, authorityRevision))
         return { accepted: false, reason: "delivery_dropped" };
-      if (!client) throw clientError;
-      const channel = client.channel(matchLiveTopic(match.id), { config: { private: true } });
-      cleanup = () => client.removeChannel(channel);
+      if (!transport) throw clientError;
       const startedAt = performance.now();
-      let stage = "auth";
+      const stage = "send";
       try {
-        if (auth && !auth.ok) throw auth.error;
-        stage = "send";
-        const result = await channel.httpSend("snapshot", payload, { timeout: 2000 });
-        if (!result.success) throw new Error("broadcast_unavailable");
+        await sendLiveBroadcast(transport, matchLiveTopic(match.id), payload, broadcast.fetch);
         recordLiveIngestStage("send_success", performance.now() - receivedAt);
         return { accepted: true };
       } catch (error) {
@@ -235,7 +220,7 @@ export async function ingestMizarLive(
           errorClass: "dependency",
           exception: broadcast.exception() ?? liveBroadcastException(error),
           retryable: false,
-          durationMs: authDurationMs + performance.now() - startedAt,
+          durationMs: performance.now() - startedAt,
           safeContext: { provider: "supabase", stage, ...broadcast.evidence() },
         });
         return { accepted: false, reason: "broadcast_unavailable" };
@@ -259,15 +244,10 @@ export async function ingestMizarLive(
     if (error instanceof AppError) outcome = "rejected";
     throw error;
   } finally {
-    // Channel never subscribes. Disposal cannot hold DB/authority locks; send did.
     try {
-      await cleanup?.();
+      recordLiveIngestOutcome(outcome, performance.now() - receivedAt);
     } finally {
-      try {
-        recordLiveIngestOutcome(outcome, performance.now() - receivedAt);
-      } finally {
-        finishResource();
-      }
+      finishResource();
     }
   }
 }
