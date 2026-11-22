@@ -8,6 +8,21 @@ export function getSeasonFinishedMatches(seasonId: string, teamId: string | read
   const entryIds = typeof teamId === "string" ? [teamId] : [...teamId];
   return db.query.matches
     .findMany({
+      columns: {
+        id: true,
+        seasonId: true,
+        entryAId: true,
+        entryBId: true,
+        stage: true,
+        status: true,
+        format: true,
+        scoreA: true,
+        scoreB: true,
+        isForfeit: true,
+        resultDisposition: true,
+        scheduledAt: true,
+        completedAt: true,
+      },
       where: and(
         officialMatchCondition(),
         eq(matches.seasonId, seasonId),

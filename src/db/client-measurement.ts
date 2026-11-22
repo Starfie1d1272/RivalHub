@@ -50,6 +50,16 @@ function logicalBytes(
 ): { bytes: number } | { reason: "budget" | "unsupported_value" } {
   let exhausted = false;
   try {
+    if (result && typeof result === "object" && !Array.isArray(result)) {
+      const rows = Object.getOwnPropertyDescriptor(result, "rows")?.value;
+      if (
+        Array.isArray(rows) &&
+        rows.length === 0 &&
+        Object.getPrototypeOf(rows) === Array.prototype &&
+        !Object.hasOwn(rows, Symbol.iterator)
+      )
+        return { bytes: 0 };
+    }
     const results = Array.isArray(result) ? result : [result];
     let budget = 100000,
       bytes = 0;
