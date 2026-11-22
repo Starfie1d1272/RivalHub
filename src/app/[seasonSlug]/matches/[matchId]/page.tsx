@@ -206,7 +206,13 @@ async function readMatchDetailContent({
     match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
   const preAnalysisRead =
     match.status !== "finished"
-      ? (async () => loadMatchPreAnalysis(season.id, match.entryAId, match.entryBId, mapPool))()
+      ? loadMatchPreAnalysis(
+          season.id,
+          match.entryAId,
+          match.entryBId,
+          mapPool,
+          season.status === "draft" ? "draft" : "public",
+        )
       : Promise.resolve(null);
   const [publicContext, userSession] = await Promise.all([
     loadPublicMatchPhase(match, maps),
