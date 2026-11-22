@@ -51,14 +51,22 @@ export async function ingestMizarLive(
   let outcome: LiveIngestOutcome = "error";
   try {
     const broadcast = createLiveBroadcastFetch();
-    const client = createServiceClient({ fetch: broadcast.fetch });
+    let client: ReturnType<typeof createServiceClient> | undefined;
+    let clientError: unknown;
+    try {
+      client = createServiceClient({ fetch: broadcast.fetch });
+    } catch (error) {
+      clientError = error;
+    }
     // Prepare auth before checking out a database connection; surface failure only
     // after the frame has passed the same authority checks as before.
     const authStartedAt = performance.now();
-    const auth = await client.realtime.setAuth().then(
-      () => ({ ok: true as const }),
-      (error: unknown) => ({ ok: false as const, error }),
-    );
+    const auth = client
+      ? await client.realtime.setAuth().then(
+          () => ({ ok: true as const }),
+          (error: unknown) => ({ ok: false as const, error }),
+        )
+      : null;
     const authDurationMs = performance.now() - authStartedAt;
     const result = await db.transaction(async (tx) => {
       // No stale frame may sit in the shared pool and later become fresh again.
@@ -196,12 +204,13 @@ export async function ingestMizarLive(
       );
       if (!admitLiveDelivery(snapshot, authorityRevision))
         return { accepted: false, reason: "delivery_dropped" };
+      if (!client) throw clientError;
       const channel = client.channel(matchLiveTopic(match.id), { config: { private: true } });
       cleanup = () => client.removeChannel(channel);
       const startedAt = performance.now();
       let stage = "auth";
       try {
-        if (!auth.ok) throw auth.error;
+        if (auth && !auth.ok) throw auth.error;
         stage = "send";
         const result = await channel.httpSend("snapshot", payload, { timeout: 2000 });
         if (!result.success) throw new Error("broadcast_unavailable");
