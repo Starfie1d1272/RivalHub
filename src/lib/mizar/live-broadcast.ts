@@ -1,5 +1,7 @@
 import "server-only";
 import { extractSafeException } from "@/lib/observability/redact";
+import { assertPreviewAuthEnvironment } from "@/lib/runtime/preview";
+import { requireSupabaseSecretKey } from "@/lib/runtime/supabase-keys";
 
 type BroadcastFailure =
   | "auth"
@@ -15,6 +17,46 @@ type BroadcastFailure =
 export function liveBroadcastException(error: unknown) {
   const { name, code } = extractSafeException(error, null);
   return { name, code };
+}
+
+/** Prepare the same private Broadcast REST endpoint used by Realtime's httpSend. */
+export function prepareLiveBroadcast() {
+  assertPreviewAuthEnvironment();
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, base);
+  const url = new URL("realtime/v1/api/broadcast/", `${base?.replace(/\/+$/, "")}/`);
+  if (url.protocol !== "https:" && url.protocol !== "http:")
+    throw new Error("Invalid Supabase URL");
+  return { url: url.href, key };
+}
+
+export async function sendLiveBroadcast(
+  config: ReturnType<typeof prepareLiveBroadcast>,
+  topic: string,
+  payload: unknown,
+  fetcher: typeof fetch,
+) {
+  const url = new URL(`${config.url}${encodeURIComponent(topic)}/events/snapshot`);
+  url.searchParams.set("apikey", config.key);
+  url.searchParams.set("vsn", "2.0.0");
+  url.searchParams.set("private", "true");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2000);
+  try {
+    const response = await fetcher(url, {
+      method: "POST",
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (response.status !== 202) throw new Error("broadcast_unavailable");
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /** Request-local evidence: never retain URL, headers, body or provider error text. */
