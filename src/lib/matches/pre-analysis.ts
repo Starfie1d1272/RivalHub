@@ -37,13 +37,29 @@ export interface MatchPreAnalysis {
 
 type MatchWinStats = { wins: number; played: number };
 type VetoStats = { count: Map<string, number>; bpMatchCount: number };
+type AnalysisMatch = Pick<
+  Match,
+  | "id"
+  | "seasonId"
+  | "entryAId"
+  | "entryBId"
+  | "stage"
+  | "status"
+  | "format"
+  | "scoreA"
+  | "scoreB"
+  | "isForfeit"
+  | "resultDisposition"
+  | "scheduledAt"
+  | "completedAt"
+> & { displayScore?: import("./display-score").DisplayScore };
 
 export function projectMatchPreAnalysis(input: {
   entryAId: string;
   entryBId: string;
   mapPool: readonly string[];
-  matchesA: readonly (Match & { displayScore?: import("./display-score").DisplayScore })[];
-  matchesB: readonly (Match & { displayScore?: import("./display-score").DisplayScore })[];
+  matchesA: readonly AnalysisMatch[];
+  matchesB: readonly AnalysisMatch[];
   entryNames: ReadonlyMap<string, string>;
   mapWinsA: ReadonlyMap<string, MatchWinStats>;
   mapWinsB: ReadonlyMap<string, MatchWinStats>;
