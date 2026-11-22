@@ -9,7 +9,7 @@ const env = {
   NEXT_PUBLIC_SUPABASE_URL: `https://${PREVIEW_PROJECT_REF}.supabase.co`,
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: manifest.publicKey, SUPABASE_SECRET_KEY: "sb_secret_test",
   ADMIN_SESSION_SECRET: "preview-test-session-secret-at-least-32-chars", SUPABASE_JWT_SECRET: "preview-test-jwt",
-  DATABASE_URL: `postgresql://postgres.${PREVIEW_PROJECT_REF}:test@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true`,
+  DATABASE_URL: `postgresql://postgres.${PREVIEW_PROJECT_REF}:test@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true`,
   HOSTNAME: "127.0.0.1", PORT: "3031",
 };
 test("Preview standby refuses production credentials, target switches, and public exposure", () => {

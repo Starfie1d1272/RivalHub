@@ -7,8 +7,8 @@ const production = {
   sessionPoolerPort: "5432",
 };
 const preview = {
-  projectRef: "dtdzxnzjtohzjmfkighg",
-  poolerHost: "aws-0-ap-northeast-1.pooler.supabase.com",
+  projectRef: "mpcmphihfoiykbfhxlry",
+  poolerHost: "aws-1-ap-northeast-1.pooler.supabase.com",
   poolerPort: "6543",
 };
 

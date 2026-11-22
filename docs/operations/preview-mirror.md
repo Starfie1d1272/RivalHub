@@ -1,6 +1,6 @@
 # Preview 脱敏镜像运行手册
 
-RivalHub 的服务器预览站固定连接 `rivalhub-dev`，不连接 production，也不读取 #569 的正式 R2 灾备 artifact。`rivalhub-dev` 是可牺牲 shared staging：Preview 可完整读写，下一次 refresh 覆盖测试数据。镜像由受保护的 `Refresh Preview Mirror` workflow 生成：production job 只读导出，dev job 在固定的 `dtdzxnzjtohzjmfkighg` 上重置和导入。
+RivalHub 的服务器预览站固定连接 `rivalhub-dev`，不连接 production，也不读取 #569 的正式 R2 灾备 artifact。`rivalhub-dev` 是可牺牲 shared staging：Preview 可完整读写，下一次 refresh 覆盖测试数据。镜像由受保护的 `Refresh Preview Mirror` workflow 生成：production job 只读导出，dev job 在固定的 `mpcmphihfoiykbfhxlry` 上重置和导入。
 
 生产导出通过主机上的受限 SSH 命令读取。专用公钥只允许执行生产包内的 `scripts/standby/preview-export.sh`。命令拒绝传入的远程命令，串行运行并限制总时长，以应用用户在同一个只读快照中读取迁移前缀、表列清单和审核过的投影。Demo 原始证据、统计投影与紧凑表按各自批量读取，保留全部镜像字段。GitHub runner 核对主机包与公开部署身份、迁移前缀和投影列。公开 Storage 读取限于允许的对象路径和总字节数。
 
@@ -49,7 +49,7 @@ Export 与 refresh 的失败都经过现有 `src/lib/observability/` safe except
 
 服务器预览运行环境使用 dev-scoped 值：
 
-- `DATABASE_URL`：`postgres.dtdzxnzjtohzjmfkighg` 的 Transaction Pooler URL（6543、`pgbouncer=true`）；
+- `DATABASE_URL`：`postgres.mpcmphihfoiykbfhxlry` 的 Transaction Pooler URL（6543、`pgbouncer=true`）；
 - `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 与 `SUPABASE_SECRET_KEY`：仅使用 `rivalhub-dev` 的现代 publishable/secret credential，不接受 legacy fallback；
 - `SUPABASE_JWT_SECRET` 与 `SUPABASE_JWT_KID`：仅使用 `rivalhub-dev` 的签名密钥及其 ID，用于签发 5 分钟、单场、只读的 Realtime viewer token；不得使用 production signing secret；
 - 独立 Preview `ADMIN_SESSION_SECRET`，以及仅用于 dev/sandbox 的邮件、OCR 或其它 provider credential。
