@@ -146,7 +146,7 @@ async function cachedMatchPreAnalysis(
   mapPool: readonly string[],
 ): Promise<MatchPreAnalysis> {
   "use cache: remote";
-  cacheLife("seconds");
+  cacheLife({ stale: 0, revalidate: 60, expire: 120 });
   cacheTag(ALL_EVENT_STATS_TAG, eventStatsTag(seasonId));
   return readMatchPreAnalysis(seasonId, entryAId, entryBId, mapPool);
 }
