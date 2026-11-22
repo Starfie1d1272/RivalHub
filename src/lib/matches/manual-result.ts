@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { matchLiveSessions, matchMaps } from "@/db/schema";
 import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
@@ -26,11 +26,28 @@ export async function recordManualMapResultInTx(tx: TxDb, command: CanonicalMapR
       .select()
       .from(matchMaps)
       .where(and(eq(matchMaps.matchId, command.matchId), eq(matchMaps.mapOrder, command.mapOrder)));
+    const [laterResult] =
+      map && map.id !== source.currentMapId && map.scoreA === null && map.scoreB === null
+        ? await tx
+            .select({ id: matchMaps.id })
+            .from(matchMaps)
+            .where(
+              and(
+                eq(matchMaps.matchId, command.matchId),
+                gt(matchMaps.mapOrder, command.mapOrder),
+                isNotNull(matchMaps.completedAt),
+                isNotNull(matchMaps.scoreA),
+                isNotNull(matchMaps.scoreB),
+              ),
+            )
+            .limit(1)
+        : [];
     if (
-      source.autoCanonicalizationArmed ||
-      source.manualTakeoverMapEpoch !== source.mapEpoch ||
       !map ||
-      source.currentMapId !== map.id
+      (!laterResult &&
+        (source.autoCanonicalizationArmed ||
+          source.manualTakeoverMapEpoch !== source.mapEpoch ||
+          source.currentMapId !== map.id))
     )
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,

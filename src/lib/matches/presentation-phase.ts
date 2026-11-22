@@ -43,12 +43,12 @@ export function resolveGameplayMapId(
   }[],
   session: { currentMapId: string | null; mapExecutionPhase: string } | null | undefined,
 ): string | null {
-  if (session?.currentMapId) {
-    return session.mapExecutionPhase === "gameplay" &&
-      maps.some((map) => map.id === session.currentMapId && !map.completedAt)
-      ? session.currentMapId
-      : null;
-  }
+  if (
+    session?.currentMapId &&
+    session.mapExecutionPhase === "gameplay" &&
+    maps.some((map) => map.id === session.currentMapId && !map.completedAt)
+  )
+    return session.currentMapId;
   const latestCompletion = Math.max(
     0,
     ...maps.map((map) => (map.completedAt ? new Date(map.completedAt).getTime() : 0)),
