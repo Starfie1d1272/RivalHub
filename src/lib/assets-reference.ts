@@ -7,6 +7,7 @@ const knownOrigins = new Set([
   "https://eurxkguokrkvpcsmxuru.supabase.co",
   "https://atjiukerfgqlwvnctigc.supabase.co",
   "https://ggkxqgbiudlovcgizgsq.supabase.co",
+  "https://jvqfhvttgvaeszrnsrrf.supabase.co",
 ]);
 
 /** Parse encoded path segments without allowing URL syntax or path traversal. */

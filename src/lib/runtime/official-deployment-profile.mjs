@@ -1,14 +1,14 @@
 // Public targets for the official hosted instance; never put credentials here.
 const production = {
   origin: "https://match.starfie1d.top",
-  projectRef: "ggkxqgbiudlovcgizgsq",
-  poolerHost: "aws-0-ap-northeast-1.pooler.supabase.com",
+  projectRef: "jvqfhvttgvaeszrnsrrf",
+  poolerHost: "aws-1-ap-northeast-1.pooler.supabase.com",
   poolerPort: "6543",
   sessionPoolerPort: "5432",
 };
 const preview = {
-  projectRef: "dtdzxnzjtohzjmfkighg",
-  poolerHost: "aws-0-ap-northeast-1.pooler.supabase.com",
+  projectRef: "mpcmphihfoiykbfhxlry",
+  poolerHost: "aws-1-ap-northeast-1.pooler.supabase.com",
   poolerPort: "6543",
 };
 

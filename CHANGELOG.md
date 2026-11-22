@@ -5,6 +5,18 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.5]
+
+### Fixed
+
+- 迁移生产数据库与存储服务至 `Rivalhub-nju`，恢复登录与存储服务。
+- 修复中途接入后续地图时自动赛果和计分板候选无法同步的问题；前图缺失时保留未知系列比分。
+- 限制日志输出受阻时的内存积压，并在恢复后记录丢弃数量。
+
+### Changed
+
+- 优化比赛页面刷新、Mizar 实时广播发送与数据库遥测空结果处理的性能与内存分配。
+
 ## [2.26.4]
 
 ### Fixed
@@ -167,6 +179,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - 修复队伍改名、开放报名及后台补全 Steam 资料后首页相关数据未及时更新的问题。
+
+## 2.26.5
+
+### Patch Changes
+
+- 978cad7: 减少数据库遥测处理空结果时的临时分配。
+- 30f0719: 修复中途接入后续地图时自动赛果和计分板候选无法同步的问题；前图缺失时保留未知系列比分。
+- 5314df0: 减少 Mizar 实时画面发送时数据库连接的准备工作。
+- 07dc96b: 减少比赛实时数据广播时的服务端资源分配。
+- cdd0656: 限制日志输出受阻时的内存积压，并在恢复后记录丢弃数量。
+- 3e4cc03: 减少比赛页面变化检测中的重复参赛队集合计算。
+- d28c5a5: 迁移生产数据库与存储服务至 Rivalhub-nju，恢复登录与存储服务。
 
 ## 2.25.35（未单独发布）
 
@@ -3709,6 +3733,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.26.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.4...v2.26.5
 [2.26.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.3...v2.26.4
 [2.26.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.2...v2.26.3
 [2.26.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.1...v2.26.2
