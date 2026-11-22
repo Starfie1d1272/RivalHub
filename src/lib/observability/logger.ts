@@ -120,14 +120,66 @@ export function tryLogEvent(input: LogEventInput): boolean {
   }
 }
 
+type BackpressureState = { blocked: boolean; dropped: number; firstError: string | null };
+const backpressureSlot = Symbol.for("rivalhub.log-backpressure.v1");
+const processState = process as typeof process & {
+  [backpressureSlot]?: WeakMap<object, BackpressureState>;
+};
+const backpressure = (processState[backpressureSlot] ??= new WeakMap<object, BackpressureState>());
+
 function writeEvent(event: StructuredEvent, serialized: string): boolean {
   try {
     const streams = getRuntimeStreams();
     const stream =
       event.level === "debug" || event.level === "info" ? streams?.stdout : streams?.stderr;
     if (!stream) return false;
-    // A false return means backpressure, not a rejected write.
-    stream.write(`${serialized}\n`);
+    let state = backpressure.get(stream);
+    if (!state) {
+      state = { blocked: false, dropped: 0, firstError: null };
+      backpressure.set(stream, state);
+    }
+    if (state.blocked) {
+      state.dropped = Math.min(state.dropped + 1, Number.MAX_SAFE_INTEGER);
+      if (!state.firstError && (event.level === "error" || event.level === "fatal"))
+        state.firstError = serialized;
+      return false;
+    }
+    if (stream.write(`${serialized}\n`) === false && stream.once) {
+      state.blocked = true;
+      const current = state;
+      const resume = () => {
+        current.blocked = false;
+        if (!current.dropped) return;
+        const count = current.dropped;
+        const firstError = current.firstError;
+        current.dropped = 0;
+        current.firstError = null;
+        try {
+          const accepted = stream.write(
+            `${JSON.stringify({
+              timestamp: new Date().toISOString(),
+              level: "warn",
+              event: "runtime.log.backpressure",
+              scope: "runtime",
+              operation: "log.write",
+              environment: event.environment,
+              safeContext: { count: count - (firstError ? 1 : 0) },
+            })}\n`,
+          );
+          const errorAccepted = firstError ? stream.write(`${firstError}\n`) : true;
+          if (
+            (accepted === false || errorAccepted === false || stream.writableNeedDrain) &&
+            stream.once
+          ) {
+            current.blocked = true;
+            stream.once("drain", resume);
+          }
+        } catch {
+          // Diagnostics remain best effort if the stream closes.
+        }
+      };
+      stream.once("drain", resume);
+    }
     return true;
   } catch {
     // Logging is best effort and must never change the core request result.
@@ -136,8 +188,16 @@ function writeEvent(event: StructuredEvent, serialized: string): boolean {
 }
 
 interface RuntimeStreams {
-  stdout?: { write: (value: string) => unknown };
-  stderr?: { write: (value: string) => unknown };
+  stdout?: {
+    write: (value: string) => unknown;
+    once?: (event: "drain", listener: () => void) => unknown;
+    writableNeedDrain?: boolean;
+  };
+  stderr?: {
+    write: (value: string) => unknown;
+    once?: (event: "drain", listener: () => void) => unknown;
+    writableNeedDrain?: boolean;
+  };
 }
 
 function getRuntimeStreams(): RuntimeStreams | undefined {
