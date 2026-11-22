@@ -36,11 +36,16 @@ export async function readBoundedRequestJson(
       }
       chunks.push(value);
     }
-    const buffer = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      buffer.set(chunk, offset);
-      offset += chunk.length;
+    let buffer: Uint8Array;
+    if (chunks.length === 1) {
+      buffer = chunks[0]!;
+    } else {
+      buffer = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        buffer.set(chunk, offset);
+        offset += chunk.length;
+      }
     }
     try {
       return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer));
