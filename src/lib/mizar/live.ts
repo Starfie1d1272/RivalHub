@@ -61,12 +61,15 @@ export async function ingestMizarLive(
     // Prepare auth before checking out a database connection; surface failure only
     // after the frame has passed the same authority checks as before.
     const authStartedAt = performance.now();
-    const auth = client
-      ? await client.realtime.setAuth().then(
-          () => ({ ok: true as const }),
-          (error: unknown) => ({ ok: false as const, error }),
-        )
-      : null;
+    let auth: { ok: true } | { ok: false; error: unknown } | null = null;
+    if (client) {
+      try {
+        await client.realtime.setAuth();
+        auth = { ok: true };
+      } catch (error) {
+        auth = { ok: false, error };
+      }
+    }
     const authDurationMs = performance.now() - authStartedAt;
     const result = await db.transaction(async (tx) => {
       // No stale frame may sit in the shared pool and later become fresh again.
