@@ -5,23 +5,56 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 import type {
-  PerfectRoomFieldKey,
   PerfectRoomGuideData,
   PerfectRoomGuideField,
 } from "@/lib/admin/matches/operator-workflow";
 
-const CARD_CLASS =
-  "rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-panel)] px-3.5 py-2.5";
+function GuideCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-panel)] px-3.5 py-2.5",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
 
-const ROW_GRID_CLASS =
-  "grid grid-cols-1 gap-2 md:grid-cols-[9.5rem_minmax(0,1fr)] md:items-center md:gap-x-3";
-
-const LABEL_CLASS = "text-xs font-medium text-[var(--color-fg-essential)] md:text-right";
+function GuideRow({
+  label,
+  alignTop,
+  children,
+}: {
+  label: string;
+  alignTop?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-2 md:grid-cols-[9.5rem_minmax(0,1fr)] md:gap-x-3",
+        alignTop ? "md:items-start" : "md:items-center",
+      )}
+    >
+      <div
+        className={cn(
+          "text-xs font-medium text-[var(--color-fg-essential)] md:text-right",
+          alignTop && "md:pt-2.5",
+        )}
+      >
+        {label}：
+      </div>
+      <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-12 md:items-center">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function PerfectRoomGuide({ guide }: { guide: PerfectRoomGuideData }) {
-  const byKey = new Map<PerfectRoomFieldKey, PerfectRoomGuideField>(
-    guide.fields.map((field) => [field.key, field]),
-  );
+  const { fields } = guide;
 
   async function copy(label: string, value: string) {
     try {
@@ -32,25 +65,19 @@ export function PerfectRoomGuide({ guide }: { guide: PerfectRoomGuideData }) {
     }
   }
 
-  function fieldBox(
-    field: PerfectRoomGuideField | undefined,
-    options?: {
-      inlineLabel?: string;
-      badge?: string;
-      warn?: boolean;
-      className?: string;
-    },
+  function renderFieldBox(
+    field: PerfectRoomGuideField,
+    options?: { inlineLabel?: string; className?: string },
   ) {
-    if (!field) return null;
     const isMissing = field.value === null;
-    const isDefault = !field.actionRequired && !field.copyable;
-    const warnTone = Boolean(options?.warn) || isMissing;
+    const isDefault = !isMissing && field.tone === "default";
+    const isWarn = isMissing || field.tone === "warn";
 
     return (
       <div
         className={cn(
           "flex min-h-10 min-w-0 items-center justify-between gap-2 rounded-[var(--radius-sm)] px-3 py-1.5",
-          warnTone
+          isWarn
             ? "border border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)] text-[var(--color-fg)]"
             : isDefault
               ? "border border-dashed border-[var(--color-border)] bg-[var(--color-bg)]/50 text-[var(--color-fg-mid)]"
@@ -74,16 +101,16 @@ export function PerfectRoomGuide({ guide }: { guide: PerfectRoomGuideData }) {
             >
               {field.value ?? "待核对赛程配置"}
             </span>
-            {options?.badge && (
+            {field.badge && (
               <span
                 className={cn(
                   "shrink-0 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[11px] font-medium leading-none",
-                  warnTone
+                  isWarn
                     ? "border border-[var(--color-warn-edge)] text-[var(--color-warn)]"
                     : "border border-[var(--color-border)] text-[var(--color-fg-mid)]",
                 )}
               >
-                {options.badge}
+                {field.badge}
               </span>
             )}
           </div>
@@ -105,22 +132,34 @@ export function PerfectRoomGuide({ guide }: { guide: PerfectRoomGuideData }) {
     );
   }
 
-  const season = byKey.get("season");
-  const round = byKey.get("round");
-  const description = byKey.get("description");
-  const gameMode = byKey.get("gameMode");
-  const team1 = byKey.get("team1");
-  const coach1 = byKey.get("coach1");
-  const team2 = byKey.get("team2");
-  const coach2 = byKey.get("coach2");
-  const mapMode = byKey.get("mapMode");
-  const server = byKey.get("server");
-  const observer = byKey.get("observer");
-  const gotv1 = byKey.get("gotv1");
-  const gotv2 = byKey.get("gotv2");
-  const gotvPassword = byKey.get("gotvPassword");
-  const side = byKey.get("side");
-  const testMatch = byKey.get("testMatch");
+  function renderTeamRow(team: PerfectRoomGuideField, coach: PerfectRoomGuideField) {
+    return (
+      <GuideRow label={team.label}>
+        {renderFieldBox(team, { className: "md:col-span-5" })}
+        <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2.5 md:col-span-7">
+          <span className="shrink-0 text-xs font-medium text-[var(--color-fg-mid)]">
+            {coach.label}：
+          </span>
+          {renderFieldBox(coach, { className: "w-full sm:max-w-[15rem]" })}
+        </div>
+      </GuideRow>
+    );
+  }
+
+  function renderNote(field: PerfectRoomGuideField, className: string) {
+    if (!field.note) return null;
+    return (
+      <p
+        className={cn(
+          "text-xs",
+          field.tone === "warn" ? "text-[var(--color-warn)]" : "text-[var(--color-fg-mid)]",
+          className,
+        )}
+      >
+        {field.note}
+      </p>
+    );
+  }
 
   return (
     <section
@@ -129,9 +168,7 @@ export function PerfectRoomGuide({ guide }: { guide: PerfectRoomGuideData }) {
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 space-y-0.5">
-          <h3 className="font-medium">
-            Perfect 建房 · Map {guide.mapOrder} · {guide.mapName}
-          </h3>
+          <h3 className="font-medium">Perfect 建房</h3>
           <p className="text-xs text-[var(--color-fg-mid)]">
             按「创建团队赛」后台分区与位置一一对应；直接选单图，无需在后台重复 BP。
           </p>
@@ -144,165 +181,79 @@ export function PerfectRoomGuide({ guide }: { guide: PerfectRoomGuideData }) {
       </div>
 
       <div className="space-y-2">
-        {/* Card 1: 比赛归属 + 轮次 / 比赛短描述 */}
-        <div className={CARD_CLASS}>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-[9.5rem_minmax(0,1fr)] md:items-start md:gap-x-3">
-            <div className={cn(LABEL_CLASS, "md:pt-2.5")}>比赛归属：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-12">
-              {fieldBox(season, {
-                inlineLabel: "选择本届赛事",
-                className: "md:col-span-6",
-              })}
-              {fieldBox(round, {
-                inlineLabel: "轮次",
-                className: "md:col-span-5",
-              })}
-              {fieldBox(description, {
-                inlineLabel: "比赛短描述",
-                className: "md:col-span-5 md:col-start-1",
-              })}
-            </div>
-          </div>
-        </div>
+        <GuideCard>
+          <GuideRow label={fields.season.label} alignTop>
+            {renderFieldBox(fields.season, {
+              inlineLabel: "选择本届赛事",
+              className: "md:col-span-6",
+            })}
+            {renderFieldBox(fields.round, {
+              inlineLabel: fields.round.label,
+              className: "md:col-span-5",
+            })}
+            {renderFieldBox(fields.description, {
+              inlineLabel: fields.description.label,
+              className: "md:col-span-5 md:col-start-1",
+            })}
+          </GuideRow>
+        </GuideCard>
 
-        {/* Card 2: 游戏模式 */}
-        <div className={CARD_CLASS}>
-          <div className={ROW_GRID_CLASS}>
-            <div className={LABEL_CLASS}>游戏模式：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-12 md:items-center">
-              {fieldBox(gameMode, {
-                badge: gameMode?.note,
-                className: "md:col-span-6",
-              })}
-            </div>
-          </div>
-        </div>
+        <GuideCard>
+          <GuideRow label={fields.gameMode.label}>
+            {renderFieldBox(fields.gameMode, { className: "md:col-span-6" })}
+          </GuideRow>
+        </GuideCard>
 
-        {/* Card 3: 设置队伍1 / 设置队伍2 与各自教练64位ID */}
-        <div className={cn(CARD_CLASS, "space-y-2")}>
-          <div className={ROW_GRID_CLASS}>
-            <div className={LABEL_CLASS}>设置队伍 1：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-12 lg:items-center">
-              {fieldBox(team1, { className: "lg:col-span-5" })}
-              <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2.5 lg:col-span-7">
-                <span className="shrink-0 text-xs font-medium text-[var(--color-fg-mid)]">
-                  教练 64 位 ID：
-                </span>
-                {fieldBox(coach1, { className: "w-full sm:max-w-[15rem]" })}
-              </div>
-            </div>
-          </div>
+        <GuideCard className="space-y-2">
+          {renderTeamRow(fields.team1, fields.coach1)}
+          {renderTeamRow(fields.team2, fields.coach2)}
+        </GuideCard>
 
-          <div className={ROW_GRID_CLASS}>
-            <div className={LABEL_CLASS}>设置队伍 2：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-12 lg:items-center">
-              {fieldBox(team2, { className: "lg:col-span-5" })}
-              <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2.5 lg:col-span-7">
-                <span className="shrink-0 text-xs font-medium text-[var(--color-fg-mid)]">
-                  教练 64 位 ID：
-                </span>
-                {fieldBox(coach2, { className: "w-full sm:max-w-[15rem]" })}
-              </div>
-            </div>
-          </div>
-        </div>
+        <GuideCard>
+          <GuideRow label={fields.mapMode.label}>
+            {renderFieldBox(fields.mapMode, { className: "md:col-span-6" })}
+            {renderNote(fields.mapMode, "md:col-span-6")}
+          </GuideRow>
+        </GuideCard>
 
-        {/* Card 4: 选图模式 */}
-        <div className={CARD_CLASS}>
-          <div className={ROW_GRID_CLASS}>
-            <div className={LABEL_CLASS}>选图模式：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-12 md:items-center">
-              {fieldBox(mapMode, { className: "md:col-span-6" })}
-              {mapMode?.note && (
-                <p className="text-xs text-[var(--color-fg-mid)] md:col-span-6">{mapMode.note}</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <GuideCard>
+          <GuideRow label={fields.server.label}>
+            {renderFieldBox(fields.server, { className: "md:col-span-6" })}
+            {renderNote(fields.server, "md:col-span-6")}
+          </GuideRow>
+        </GuideCard>
 
-        {/* Card 5: 服务器选择 */}
-        <div className={CARD_CLASS}>
-          <div className={ROW_GRID_CLASS}>
-            <div className={LABEL_CLASS}>服务器选择：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-12 md:items-center">
-              {fieldBox(server, {
-                badge: "须手动改选",
-                warn: true,
-                className: "md:col-span-6",
-              })}
-              {server?.note && (
-                <p className="text-xs text-[var(--color-warn)] md:col-span-6">{server.note}</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <GuideCard>
+          <GuideRow label={fields.observer.label}>
+            {renderFieldBox(fields.observer, { className: "md:col-span-3" })}
+          </GuideRow>
+        </GuideCard>
 
-        {/* Card 6: 观察者选项（窄控件比例） */}
-        <div className={CARD_CLASS}>
-          <div className={ROW_GRID_CLASS}>
-            <div className={LABEL_CLASS}>观察者选项：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-12 md:items-center">
-              {fieldBox(observer, {
-                badge: observer?.note,
-                className: "md:col-span-3",
-              })}
-            </div>
-          </div>
-        </div>
+        <GuideCard className="space-y-2">
+          <GuideRow label={fields.gotv1.label}>
+            {renderFieldBox(fields.gotv1, { className: "md:col-span-5" })}
+          </GuideRow>
+          <GuideRow label={fields.gotv2.label}>
+            {renderFieldBox(fields.gotv2, { className: "md:col-span-5" })}
+            {renderNote(fields.gotv2, "md:col-span-7")}
+          </GuideRow>
+          <GuideRow label={fields.gotvPassword.label}>
+            {renderFieldBox(fields.gotvPassword, { className: "md:col-span-5" })}
+          </GuideRow>
+        </GuideCard>
 
-        {/* Card 7: GOTV 三行竖排 */}
-        <div className={cn(CARD_CLASS, "space-y-2")}>
-          <div className={ROW_GRID_CLASS}>
-            <div className={LABEL_CLASS}>GOTV 线路 1 延迟：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-12 md:items-center">
-              {fieldBox(gotv1, { className: "md:col-span-5" })}
-            </div>
-          </div>
+        <GuideCard>
+          <GuideRow label={fields.side.label}>
+            {renderFieldBox(fields.side, { className: "md:col-span-6" })}
+            {renderNote(fields.side, "md:col-span-6")}
+          </GuideRow>
+        </GuideCard>
 
-          <div className={ROW_GRID_CLASS}>
-            <div className={LABEL_CLASS}>GOTV 线路 2 延迟：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-12 md:items-center">
-              {fieldBox(gotv2, { className: "md:col-span-5" })}
-              {gotv2?.note && (
-                <p className="text-xs text-[var(--color-fg-mid)] md:col-span-7">{gotv2.note}</p>
-              )}
-            </div>
-          </div>
-
-          <div className={ROW_GRID_CLASS}>
-            <div className={LABEL_CLASS}>GOTV Password：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-12 md:items-center">
-              {fieldBox(gotvPassword, { className: "md:col-span-5" })}
-            </div>
-          </div>
-        </div>
-
-        {/* Card 8: 选边方式 */}
-        <div className={CARD_CLASS}>
-          <div className={ROW_GRID_CLASS}>
-            <div className={LABEL_CLASS}>选边方式：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-12 md:items-center">
-              {fieldBox(side, {
-                badge: "须核对",
-                warn: true,
-                className: "md:col-span-6",
-              })}
-              {side?.note && (
-                <p className="text-xs text-[var(--color-warn)] md:col-span-6">{side.note}</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Card 9: 测试赛 */}
-        <div className={CARD_CLASS}>
-          <div className={ROW_GRID_CLASS}>
-            <div className={LABEL_CLASS}>测试赛：</div>
-            <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-12 md:items-center">
-              {fieldBox(testMatch, { className: "md:col-span-3" })}
-            </div>
-          </div>
-        </div>
+        <GuideCard>
+          <GuideRow label={fields.testMatch.label}>
+            {renderFieldBox(fields.testMatch, { className: "md:col-span-3" })}
+          </GuideRow>
+        </GuideCard>
       </div>
     </section>
   );
