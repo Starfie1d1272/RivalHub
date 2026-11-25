@@ -30,10 +30,57 @@ export interface OperatorMap {
   demoReviewAnchor?: string;
 }
 
+export type PerfectRoomFieldTone = "default" | "active" | "warn";
+
+export interface PerfectRoomGuideField {
+  label: string;
+  value: string | null;
+  copyable?: boolean;
+  badge?: string;
+  note?: string;
+  tone?: PerfectRoomFieldTone;
+}
+
+export interface PerfectRoomGuideFields {
+  season: PerfectRoomGuideField;
+  round: PerfectRoomGuideField;
+  description: PerfectRoomGuideField;
+  gameMode: PerfectRoomGuideField;
+  team1: PerfectRoomGuideField;
+  coach1: PerfectRoomGuideField;
+  team2: PerfectRoomGuideField;
+  coach2: PerfectRoomGuideField;
+  mapMode: PerfectRoomGuideField;
+  server: PerfectRoomGuideField;
+  observer: PerfectRoomGuideField;
+  gotv1: PerfectRoomGuideField;
+  gotv2: PerfectRoomGuideField;
+  gotvPassword: PerfectRoomGuideField;
+  side: PerfectRoomGuideField;
+  testMatch: PerfectRoomGuideField;
+}
+
 export interface PerfectRoomGuideData {
   mapOrder: number;
   mapName: string;
-  fields: { label: string; value: string | null; copyable?: boolean }[];
+  fields: PerfectRoomGuideFields;
+}
+
+const PERFECT_MAP_OPTION_LABELS: Record<string, string> = {
+  de_mirage: "荒漠迷城 de_mirage",
+  de_inferno: "炼狱小镇 de_inferno",
+  de_nuke: "核子危机 de_nuke",
+  de_ancient: "远古遗迹 de_ancient",
+  de_dust2: "炙热沙城II de_dust2",
+  de_anubis: "阿努比斯 de_anubis",
+  de_train: "列车停放站 de_train",
+  de_cache: "死城之谜 de_cache",
+  de_overpass: "死亡游乐园 de_overpass",
+  de_vertigo: "殒命大厦 de_vertigo",
+};
+
+function perfectMapOptionLabel(mapKey: string): string {
+  return PERFECT_MAP_OPTION_LABELS[mapKey] ?? mapLabel(mapKey);
 }
 
 /** A/B stays Team 1/2 for the entire series, independent of the chosen side. */
@@ -45,25 +92,49 @@ export function buildPerfectRoomGuide(input: {
   teamBName: string;
   map: Pick<OperatorMap, "order" | "name" | "startSide">;
 }): PerfectRoomGuideData {
+  const sideConfirmed = input.map.startSide === "ct" || input.map.startSide === "t";
   return {
     mapOrder: input.map.order,
     mapName: mapLabel(input.map.name),
-    fields: [
-      { label: "比赛归属", value: `选择 ${input.seasonName}` },
-      { label: "轮次", value: input.roundLabel, copyable: true },
-      { label: "比赛短描述", value: input.description, copyable: true },
-      { label: "游戏模式", value: "普通模式" },
-      { label: "队伍 1", value: input.teamAName, copyable: true },
-      { label: "队伍 1 教练 64 位 ID", value: "留空" },
-      { label: "队伍 2", value: input.teamBName, copyable: true },
-      { label: "队伍 2 教练 64 位 ID", value: "留空" },
-      { label: "选图模式", value: mapLabel(input.map.name) },
-      { label: "服务器", value: "上海大区" },
-      { label: "观察者", value: "任意观察者" },
-      { label: "GOTV 线路 1 延迟", value: "留空（默认 0s）" },
-      { label: "GOTV 线路 2 延迟", value: "120", copyable: true },
-      { label: "GOTV Password", value: "1", copyable: true },
-      {
+    fields: {
+      season: { label: "比赛归属", value: input.seasonName, tone: "active" },
+      round: { label: "轮次", value: input.roundLabel, copyable: true, tone: "active" },
+      description: {
+        label: "比赛短描述",
+        value: input.description,
+        copyable: true,
+        tone: "active",
+      },
+      gameMode: { label: "游戏模式", value: "普通模式", badge: "保持默认", tone: "default" },
+      team1: { label: "设置队伍 1", value: input.teamAName, copyable: true, tone: "active" },
+      coach1: { label: "教练 64 位 ID", value: "留空（非必填）", tone: "default" },
+      team2: { label: "设置队伍 2", value: input.teamBName, copyable: true, tone: "active" },
+      coach2: { label: "教练 64 位 ID", value: "留空（非必填）", tone: "default" },
+      mapMode: {
+        label: "选图模式",
+        value: perfectMapOptionLabel(input.map.name),
+        badge: "须手动改选",
+        note: "直接选单图，勿选「队长BP选图」",
+        tone: "warn",
+      },
+      server: {
+        label: "服务器选择",
+        value: "上海大区",
+        badge: "须手动改选",
+        note: "后台默认「队长BP服务器」，须手动改选",
+        tone: "warn",
+      },
+      observer: { label: "观察者选项", value: "任意观察者", badge: "保持默认", tone: "default" },
+      gotv1: { label: "GOTV 线路 1 延迟", value: "留空（默认 0s）", tone: "default" },
+      gotv2: {
+        label: "GOTV 线路 2 延迟",
+        value: "120",
+        copyable: true,
+        note: "默认 30s → 填 120",
+        tone: "active",
+      },
+      gotvPassword: { label: "GOTV Password", value: "1", copyable: true, tone: "active" },
+      side: {
         label: "选边方式",
         value:
           input.map.startSide === "ct"
@@ -71,9 +142,12 @@ export function buildPerfectRoomGuide(input: {
             : input.map.startSide === "t"
               ? "TEAM 1 T / TEAM 2 CT"
               : "起始边尚未确定，请先核对 BP 选边",
+        badge: "须核对",
+        note: sideConfirmed ? "勿保留默认「使用BP结果」" : "BP 选边未完成前请勿建房",
+        tone: "warn",
       },
-      { label: "测试赛", value: "保持关闭" },
-    ],
+      testMatch: { label: "测试赛", value: "保持关闭", tone: "default" },
+    },
   };
 }
 
