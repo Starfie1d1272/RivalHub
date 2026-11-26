@@ -8,6 +8,7 @@ describe("Supabase organization Storage origin migration", () => {
     ["0102_supabase_relocation_storage_origin.sql", "eurxkguokrkvpcsmxuru", "atjiukerfgqlwvnctigc"],
     ["0104_supabase_relocation_nju_2.sql", "atjiukerfgqlwvnctigc", "ggkxqgbiudlovcgizgsq"],
     ["0113_supabase_relocation_rivalhub_nju.sql", "ggkxqgbiudlovcgizgsq", "jvqfhvttgvaeszrnsrrf"],
+    ["0114_supabase_relocation_rivalhub_nju_1.sql", "jvqfhvttgvaeszrnsrrf", "icgzotrazaysihpsqiac"],
   ])("%s preserves paths and external origins", async (migration, sourceRef, targetRef) => {
     await withScratchDatabase("storage_origin", async (client) => {
       const oldOrigin = `https://${sourceRef}.supabase.co/storage/v1/object/public/`;
