@@ -5,6 +5,12 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.7]
+
+### Fixed
+
+- 迁移生产数据库与 Storage 目标至 `rivalhub-nju-1` 新项目 `icgzotrazaysihpsqiac`。
+
 ## [2.26.6]
 
 ### Fixed
@@ -3732,6 +3738,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.26.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.6...v2.26.7
 [2.26.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.5...v2.26.6
 [2.26.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.4...v2.26.5
 [2.26.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.3...v2.26.4
