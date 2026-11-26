@@ -24,7 +24,7 @@ function validManifest() {
     runId: RUN_ID,
     createdAt: CREATED_AT,
     sourceEnvironment: "production" as const,
-    sourceProjectRef: "jvqfhvttgvaeszrnsrrf",
+    sourceProjectRef: "icgzotrazaysihpsqiac",
     postgresVersion: "17.6",
     supabaseCliVersion: "2.116.0",
     producer: {
@@ -91,9 +91,9 @@ describe("recovery contracts", () => {
   it("keeps production backup read-only and rejects loopback/remote target confusion", () => {
     const environment = assertProductionBackupEnvironment({
       RIVALHUB_DB_TARGET: "production",
-      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "jvqfhvttgvaeszrnsrrf",
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "icgzotrazaysihpsqiac",
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-1-ap-northeast-1.pooler.supabase.com:6543",
-      DATABASE_URL: "postgresql://postgres.jvqfhvttgvaeszrnsrrf:secret@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+      DATABASE_URL: "postgresql://postgres.icgzotrazaysihpsqiac:secret@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
       SUPABASE_SECRET_KEY: "sb_secret_modern",
       SUPABASE_SERVICE_ROLE_KEY: "service-role-secret",
       RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
@@ -103,7 +103,7 @@ describe("recovery contracts", () => {
       RIVALHUB_R2_SECRET_ACCESS_KEY: "secret-key",
     });
 
-    expect(environment.databaseUrl).toBe("postgresql://postgres.jvqfhvttgvaeszrnsrrf:secret@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres");
+    expect(environment.databaseUrl).toBe("postgresql://postgres.icgzotrazaysihpsqiac:secret@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres");
     expect(environment.databaseUrl).not.toContain(":6543");
     expect(environment.databaseUrl).not.toContain("pgbouncer");
     expect(environment.supabaseSecretKey).toBe("sb_secret_modern");
@@ -114,7 +114,7 @@ describe("recovery contracts", () => {
     expect(() => buildIsolatedRecoveryEnvironment({
       RIVALHUB_RECOVERY_TARGET: "isolated",
       RIVALHUB_RECOVERY_DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/postgres",
-      RIVALHUB_RECOVERY_SUPABASE_URL: "https://jvqfhvttgvaeszrnsrrf.supabase.co",
+      RIVALHUB_RECOVERY_SUPABASE_URL: "https://icgzotrazaysihpsqiac.supabase.co",
       RIVALHUB_RECOVERY_PUBLISHABLE_KEY: "publishable",
       RIVALHUB_RECOVERY_SERVICE_ROLE_KEY: "service-role",
     })).toThrow();
