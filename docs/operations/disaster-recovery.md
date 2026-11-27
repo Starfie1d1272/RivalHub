@@ -99,7 +99,7 @@ GitHub `production` job 读取以下名称；值不得写入仓库、Issue、PR�
 | `RIVALHUB_PRODUCTION_BASE_URL` | environment variable | canonical production HTTPS origin 与 release identity read-back |
 | `RIVALHUB_R2_ACCOUNT_ID` / `RIVALHUB_R2_BUCKET` | environment variables | private recovery bucket identity |
 | `RIVALHUB_R2_ACCESS_KEY_ID` / `RIVALHUB_R2_SECRET_ACCESS_KEY` | secrets | 标准 R2 S3 API credentials，用于 backup 写入核验及 fetch 离线拉取 |
-| `CLOUDFLARE_API_TOKEN` | secret | 仅 R2 retention workflow 的 provider read/apply |
+| `CLOUDFLARE_API_TOKEN` | secret（本地按需） | 本地按需执行 `pnpm db:recovery:r2:verify` / `apply` 时的 Cloudflare R2 provider read/apply |
 
 这次 hardening 不进行 PostgreSQL TLS 设置迁移，也不进行 `service_role` 全仓库改名或权限扩大；现有 backup connection 的 TLS 行为保持其既有 owner。`db:recovery:fetch` 复用标准 R2 credential（`RIVALHUB_R2_ACCESS_KEY_ID`、`RIVALHUB_R2_SECRET_ACCESS_KEY`、`RIVALHUB_R2_ACCOUNT_ID`、`RIVALHUB_R2_BUCKET`），在完全隔离的环境中抓取加密备份产物；脚本仅暴露 `head` 与 `download` 只读接口。
 
@@ -153,6 +153,9 @@ pnpm db:recovery:fetch \
 
 fetch 固定按 completion → sidecar → encrypted artifact 顺序执行 HEAD/真实 GET 与 checksum 验证，核对 run identity、artifact size/hash 和 sidecar/completion relationship；只把三个已验证文件放进一个全新的 `0700` 目录，拒绝覆盖已存在目录。它严格只执行 HEAD/GET 下载，不连接 PostgreSQL/Supabase，不调用 Cloudflare configuration API，不执行 PUT，不读取 age private key，也不在 fetch 阶段解密 artifact。
 
+### 没有本地 R2 凭据时取件
+
+从受保护的 `main` 手动运行 **Recovery offline download**，输入已完成 full backup 的 R2 completion key。工作流核对三个对象，并将 15 分钟有效的三个 GET URL 加密给现有离线灾备 identity。Actions 只保存加密凭据，R2 继续保存原备份。按 completion、sidecar、encrypted artifact 的顺序取件到私有目录，立即用 `db:recovery:restore` 的 manifest、completion 和 artifact 校验。签名 URL 不写入终端输出、仓库或验收记录。
 
 ## Recovery format baseline
 

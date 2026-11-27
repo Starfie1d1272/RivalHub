@@ -13,14 +13,16 @@ RivalHub staging 是**受保护的远程数据库 rehearsal 环境**，不是自
 
 ## 入口
 
-在受保护环境中通过 canonical wrapper 执行 staging migration 与校验：
+在本地或受保护环境通过 canonical wrapper 按需执行 staging migration 与校验：
 
 ```bash
 pnpm db:staging:migrate
 pnpm db:staging:verify
 ```
 
-独立的 `staging.yml` workflow 已下线，发版前的 migration rehearsal 由 [Release workflow](./release.md#3-protected-release-workflow) 的 PostgreSQL 17 阶段统一承担。不要把个人 shell、Preview 或普通 PR job 当成 staging 写入口。
+本地运行 `pnpm db:staging:migrate` 前需先启动 Local PostgreSQL 完成 active migration chain replay，并提供目标确认与写授权环境变量（`RIVALHUB_STAGING_PROJECT_CONFIRM`、`RIVALHUB_STAGING_DB_HOST_CONFIRM`、`RIVALHUB_ALLOW_REMOTE_DB_WRITE=staging`，以及 `RIVALHUB_STAGING_DB_PASSWORD` 或 `RIVALHUB_STAGING_DATABASE_URL`）；`pnpm db:staging:verify` 只需只读目标凭据与确认变量。不要把 Preview 运行时或普通 PR job 当成 staging 写入口。
+
+独立的 `staging.yml` workflow 已下线，发版前的 migration rehearsal 由 [Release workflow](./release.md#3-protected-release-workflow) 的 PostgreSQL 17 阶段统一承担：该 CI 阶段仅针对隔离的纯 PostgreSQL 17 实例执行 migration 演练，不连接或写入远程 `rivalhub-dev` staging。
 
 ## 不做什么
 
@@ -36,7 +38,7 @@ Staging rehearsal 不：
 
 一个成功 rehearsal 至少应确认：
 
-- workflow checkout 的 exact commit 与预期一致；
+- 当前 checkout 的 exact commit 与预期一致；
 - local migration replay 成功；
 - staging migration 成功；
 - staging ledger 与 terminal schema verify 成功；
@@ -46,4 +48,4 @@ Staging rehearsal 不：
 
 ## Preview mirror
 
-`rivalhub-dev` 是可牺牲的 shared staging，同时承载 production 派生的脱敏 Preview mirror。它不是 production fallback 或灾备 artifact；[Preview mirror workflow](./preview-mirror.md) 负责 reset/refresh。Preview 可正常写入它，下一次 refresh 会覆盖这些测试数据；普通本地 shell 仍不得直接写入该目标。
+`rivalhub-dev` 是可牺牲的 shared staging，同时承载 production 派生的脱敏 Preview mirror。它不是 production fallback 或灾备 artifact；[Preview mirror workflow](./preview-mirror.md) 负责 reset/refresh。Preview 可正常写入它，下一次 refresh 会覆盖这些测试数据；本地手工执行 `db:staging:migrate` 仍受上述目标确认与写授权环境变量约束。
