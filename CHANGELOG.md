@@ -5,6 +5,13 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.8]
+
+### Fixed
+
+- 修复战绩纪录的 `freezeEnd` 装备取样版本识别，对 `cs2-demo-format/3.0` 契约下所有 `cs2df >=3.0.0` 正式导出版本（含 `3.0.x`、`3.1.x` 与 `4.x`）统一识别为 `freezeEnd`，避免合法版本被误判为 `unverified`。
+- 迁移 Preview 开发库目标至 `Rivalhub` 新项目 `pdcuydvqaejhorcxrnwl`。
+
 ## [2.26.7]
 
 ### Fixed
@@ -3738,6 +3745,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.26.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.7...v2.26.8
 [2.26.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.6...v2.26.7
 [2.26.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.5...v2.26.6
 [2.26.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.4...v2.26.5
