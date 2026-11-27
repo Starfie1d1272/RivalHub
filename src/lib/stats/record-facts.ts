@@ -39,7 +39,18 @@ export interface CompactRecordFacts {
   eventCounts?: Record<RecordEventKind, number>;
   multiKills?: { entityId: string; entryId: string; fourKills: number; aces: number }[];
 }
-/** Freeze-end equipment semantics verified at cs2df v3.1.0 (0e3e6c71), not inferred from a nullable value. */
+const CS2DF_VERSION_PATTERN = /^cs2df\/(\d+)\.(\d+)\.(\d+)$/;
+
+/** Freeze-end equipment semantics match cs2-demo-format/3.0 across verified cs2df >=3.0.0 releases, not inferred from a nullable value. */
+export function resolveEquipmentSampling(
+  source: Pick<RivalHubDemoEvidenceV1["source"], "sourceSchemaVersion" | "exporterVersion">,
+): "freezeEnd" | "unverified" {
+  if (source.sourceSchemaVersion !== "cs2-demo-format/3.0") return "unverified";
+  const match = CS2DF_VERSION_PATTERN.exec(source.exporterVersion);
+  if (!match) return "unverified";
+  return Number(match[1]) >= 3 ? "freezeEnd" : "unverified";
+}
+
 export function collectRecordFacts(
   evidence: RivalHubDemoEvidenceV1,
   bindings: ReadonlyMap<string, StatsPlayerBinding>,
@@ -70,8 +81,7 @@ export function collectRecordFacts(
       round: row.roundSeq,
     });
   }
-  const equipmentSampling =
-    evidence.source.exporterVersion === "cs2df/3.1.0" ? "freezeEnd" : "unverified";
+  const equipmentSampling = resolveEquipmentSampling(evidence.source);
   let economyKnownRounds = 0;
   if (equipmentSampling === "freezeEnd") {
     for (const round of evidence.sourceFacts.rounds) {
