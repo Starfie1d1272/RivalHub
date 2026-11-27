@@ -33,8 +33,8 @@ esac
     assert.equal(run('--apply').status, 0);
     const journal = join(etc, 'journald@rivalhub.conf');
     assert.match(readFileSync(journal, 'utf8'), /SystemMaxUse=256M/);
-    assert.equal(run('--apply', 'rivalhub-standby').status, 0);
-    assert.equal(run('--apply').status, 0);
+    assert.equal(run('--apply', 'rivalhub-standby').status, 1);
+    assert.equal(run('--apply', 'rivalhub-production').status, 0);
     writeFileSync(journal, 'operator policy');
     assert.equal(run('--apply').status, 1);
     assert.equal(readFileSync(journal, 'utf8'), 'operator policy');

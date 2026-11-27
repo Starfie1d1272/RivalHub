@@ -165,7 +165,7 @@ const PRODUCTION_SMOKE_PREFIXES = [
 
 function isDeploymentTool(path) {
   return path.startsWith("scripts/standby/") || path === "scripts/release/linux-routing.ts"
-    || path === ".github/workflows/release.yml" || path === ".github/workflows/standby-package.yml";
+    || path === ".github/workflows/release.yml";
 }
 
 function browserSpecs(directory = "tests/e2e") {

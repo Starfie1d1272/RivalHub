@@ -36,6 +36,6 @@ describe("production database target guard", () => {
 
   it("rejects non-production DATABASE_URL values", () => {
     expect(() => buildProductionEnvironment({ ...confirmation, DATABASE_URL: "postgresql://prod.example.com/postgres" }, { requiresWriteAuthorization: false })).toThrow(/固定的 production/);
-    expect(() => assertProductionDatabaseUrl(`postgresql://postgres.mpcmphihfoiykbfhxlry:pw@${PRODUCTION_POOLER_HOST}:${PRODUCTION_POOLER_PORT}/postgres?pgbouncer=true`)).toThrow(/project ref/);
+    expect(() => assertProductionDatabaseUrl(`postgresql://postgres.pdcuydvqaejhorcxrnwl:pw@${PRODUCTION_POOLER_HOST}:${PRODUCTION_POOLER_PORT}/postgres?pgbouncer=true`)).toThrow(/project ref/);
   });
 });
