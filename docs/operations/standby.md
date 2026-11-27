@@ -1,41 +1,6 @@
-# Linux 应用托管与 Preview 备用机
+# Linux 应用托管
 
-本手册管理官方实例的 Linux 应用托管。Production 使用正式域名与独立生产服务；Preview 使用 `preview-standby.starfie1d.top`，只连接 dev 项目，并保留独立访问密码。Supabase 继续提供数据库、Auth、Storage 和 Realtime。实际在线版本以正式 `/api/system/release` 回读为准；首次生产切换及验收缺口见 [2026-10-23 执行记录](../archive/rehearsals/2026-10-23-linux-hosting-cutover.md)。
-
-## 环境隔离与生产切换前置条件
-
-`Standby application package` workflow 在 Linux x64 打包 Next.js standalone、静态资源和锁定的 Node runtime。`standby.json` 记录精确 commit、公开环境配置和 runtime 版本；Preview job 的启动路径复用 canonical Preview guard，拒绝 production DB/Auth URL、环境标志或构建后更改公开配置。
-
-**Preview 包不能直接改环境变量接入生产。** 公共 Supabase key 和应用 URL 已内联到浏览器资源。正式切换前必须通过 [release authority](./release.md) 建立并验收受保护的 production standalone 构建、凭据交付与部署路径，以当前 immutable release tag 为输入，构建 production public configuration，并回读同一 tag/commit。生产打包使用独立的 `production-package` job 与 `install-production.sh`，消费已有 immutable release tag。Preview 包和 guard 保持独立。生产迁移是否完成以候选业务验收、DNS/TLS 回读和调度证据为准；仅新增脚本或成功打包不能标记为已演练。
-
-生产路径准备完成后，在故障前保留以下材料：当前正式 tag/commit、对应 Linux production 包及校验和、完整生产 runtime 配置、原 DNS 记录与 TTL、Caddy 配置备份、候选实例的验收记录。凭据存入服务器 root-only 文件或既有受保护 secret store；记录里仅保留变量名和来源。
-
-## Preview 安装与更新
-
-1. PR 构建读取仓库变量 `RIVALHUB_PREVIEW_PUBLISHABLE_KEY`，只含 dev 公开 key。main 合并后可手动运行 `standby-package.yml`；下载对应 run 的 `standby-preview-linux-x64` artifact，核对 run SHA 与包名。
-2. 单独准备 dev runtime 配置：参见 [Preview mirror](./preview-mirror.md#preview-运行环境配置)。另设 `NODE_ENV=production`、`VERCEL_ENV=preview`、`RIVALHUB_DB_TARGET=preview`、`HOSTNAME=127.0.0.1`、`PORT=3031`、`NEXT_PUBLIC_APP_URL=https://preview-standby.starfie1d.top`、`NODE_OPTIONS=--max-old-space-size=320`。`ADMIN_SESSION_SECRET`、`CRON_SECRET` 使用本环境独立随机值。禁止将 production secret 文件直接复制到预览环境。
-3. 若现有 dev DB password 只在 GitHub staging secret 中，操作员可生成临时 RSA-4096 key，仅将公钥写入 `RIVALHUB_STANDBY_OPERATOR_PUBLIC_KEY`，手动运行 workflow。受保护 staging job 将密码用 RSA-OAEP-SHA256 封装给该公钥；本地验证 project ref 和 recipient fingerprint 后解密。私钥留在本地；取用后删除临时公钥变量、密文 artifact 和临时明文副本。日常 PR 不触发凭据交付。
-4. 通过 SSH 传输包、`.sha256`、私有环境文件，以及同一 commit 的 `install-preview.sh`、`rivalhub-standby.service`；在目标 Linux 主机以 root 运行：
-
-   ```bash
-   bash install-preview.sh /root/incoming/rivalhub-standby-<COMMIT>.tar.gz /root/incoming/preview.env
-   ```
-
-   安装器核验包、目标环境和启动身份，原子切换 `current`，失败时恢复上一版本和环境。安装后服务保持停止且不设置开机自启；需要预览时手动启动，用完后停止。成功的身份检查仅证明进程和版本，仍需页面与角色态验收。
-5. 按 [`Caddyfile.example`](../../scripts/standby/Caddyfile.example) 设置独立 HTTPS 入口。使用 `caddy hash-password` 生成访问密码 hash；先备份已有 Caddyfile，新增本应用独立 import，执行 `caddy validate --config /etc/caddy/Caddyfile` 后再 reload。不要替换其它服务配置。使用有效证书验证 HTTPS；未认证必须返回 401。
-
-服务由 systemd 管理，独立系统用户、loopback 端口、512 MiB 内存上限，写权限限于 Next cache 目录。应用凭据由 `/etc/rivalhub-standby/preview.env` 提供，权限 600。历史包位于 `/opt/rivalhub-standby/releases/`；更新保留上一包。重启不恢复业务数据，Preview 数据由既有 refresh workflow 管理。
-
-```bash
-systemctl start rivalhub-standby  # 需要时启动
-systemctl stop rivalhub-standby   # 使用后停止
-systemctl status rivalhub-standby
-systemctl show rivalhub-standby -p MemoryCurrent -p NRestarts
-journalctl -u rivalhub-standby --since '10 minutes ago'
-curl --fail http://127.0.0.1:3031/api/system/release
-```
-
-本机不设置第二份 cron。Preview 没有生产邮件/OCR 等 provider 凭据，对应功能保持现有 fail-closed 行为；日志保留在 journal，尚未配置远端日志 exporter。
+本手册管理官方实例的 Linux 应用托管。Production 使用正式域名与独立生产服务（`47.103.131.158`）；Preview 备用机已下线，相关打包与安装流程已退役。Supabase 继续提供数据库、Auth、Storage 和 Realtime。实际在线版本以正式 `/api/system/release` 回读为准；首次生产切换及验收缺口见 [2026-10-23 执行记录](../archive/rehearsals/2026-10-23-linux-hosting-cutover.md)。
 
 ## 应用日志容量与只读量测
 
@@ -73,11 +38,11 @@ systemctl show rivalhub-production -p LogNamespace -p MainPID
 
 ## Production 打包与安装
 
-`standby-package.yml` 的 `production_release_tag` 非空时，只运行受保护 production job；`production_public_configuration` 是从实际 Production 核实的公开配置 JSON，仅接受 `production-config.mjs` 声明的键。不要放入数据库、会话或 provider secret。
+正式 Production 通过 [Release workflow](./release.md#3-protected-release-workflow) 调用 `build-production.mjs` 构建 Linux x64 standalone 包；`production_public_configuration` 是从实际 Production 核实的公开配置 JSON，仅接受 `production-config.mjs` 声明的键。不要放入数据库、会话或 provider secret。
 
 构建器在独立 worktree 检出正式 tag，验证 clean source、package version、main ancestry 与 exact-SHA canonical CI，再通过原 release build entrypoint 构建 Linux x64 standalone。构建仅继承公开 allowlist，禁用本地 `.env` 加载，凭据不进入构建环境。包记录应用 SHA、operator tooling SHA、public configuration SHA-256、Node 版本和 CI run；archive sidecar 记录整体 SHA-256。构建工具的提交与应用提交分开记录，新增部署工具不改变应用 release identity。
 
-1. 手动运行 workflow，下载 `standby-production-linux-x64`，保存 JSON manifest 和 `.sha256`，交叉核对正式 release 与构建配置。
+1. 从对应 Release workflow run 核对构建产物、JSON manifest 和 `.sha256`，交叉核对正式 release 与构建配置。
 2. 从既有受保护 Production 配置准备独立 runtime 文件。凭据从现有 secret store 取得；禁止用旧导出或新随机值静默替换 session/cron/provider 凭据。必需项为 `DATABASE_URL`、`SUPABASE_SECRET_KEY`、`SUPABASE_JWT_SECRET`、`ADMIN_SESSION_SECRET`、`CRON_SECRET`；启用的 Turnstile、Steam、OCR、observability 和 telemetry 配置保持原值。全部公开变量须与包一致。
 3. runtime 明确设置 `NODE_ENV=production`、`VERCEL_ENV=production`、`RIVALHUB_DB_TARGET=production`、`HOSTNAME=127.0.0.1`、`PORT=3032`、`NODE_OPTIONS=--max-old-space-size=320`；`GIT_COMMIT_SHA`、`RIVALHUB_RELEASE_COMMIT` 和 `RIVALHUB_RELEASE_TAG` 与包 manifest 对齐，供日志和产品统计标记来源；禁止测试认证开关。凭据文件权限 600，目录 700。已交付的 Linux runtime 副本保存在操作员本机 `~/.config/rivalhub/credentials/production-linux.env`；更新须同步受保护副本，禁止提交或打印。
 4. 传输包、checksum、runtime 文件及同一 operator commit 的 `install-production.sh`、`production-host.mjs` 与 `rivalhub-production.service`，运行 `bash install-production.sh ARCHIVE PRODUCTION_ENV`。安装器先校验包和实际 runtime target，再切换应用；不执行 migration。systemd 用户 `rivalhub-production`、服务 `rivalhub-production`、目录 `/opt/rivalhub-production`、配置 `/etc/rivalhub-production/production.env` 与 Preview 分离。服务只监听 loopback；内存上限 512 MiB，写权限限于 `.next/cache` 与 `.next/server/route-cache`；安装器预建并赋予应用用户这两个运行时缓存目录的写权限，构建代码保持只读。
@@ -102,10 +67,6 @@ Preview 先验证 401 访问保护；Production 验证公开入口可访问。�
 ## Production 更新
 
 正式更新使用 [Release workflow](./release.md#3-protected-release-workflow) 的 Linux 路径，保持 migration、checkpoint 与 exact-SHA CI 门槛。构建公开配置写入 production Environment 的 `RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION`；`LINUX_DEPLOY_SSH_KEY` 为专用部署私钥，`LINUX_DEPLOY_KNOWN_HOSTS` 固定已验证主机公钥。SSH root 部署权限须经 owner 授权后建立，禁止把个人 SSH key 上传到 GitHub。安装采用单实例短暂停机切换，公网 canonical 检查失败也会回退上一包；制品、快照及 SSH 事务目录保留作恢复证据。
-
-## Preview 回退
-
-若仅 Preview 新包失败，可先停止服务，将 `current` 原子切回 `/opt/rivalhub-standby/previous-release` 中记录的相对路径，恢复匹配的 `preview.env.previous`，再启动并核对 `/api/system/release`。目标包为空或已移除时停止，不能猜测版本。
 
 ### 单进程在线人数
 

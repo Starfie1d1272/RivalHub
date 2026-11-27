@@ -13,28 +13,14 @@ RivalHub staging 是**受保护的远程数据库 rehearsal 环境**，不是自
 
 ## 入口
 
-使用 GitHub Actions 中的：
+在受保护环境中通过 canonical wrapper 执行 staging migration 与校验：
 
-> **Staging database rehearsal**
-
-从受保护的 `main` 发起 `workflow_dispatch`，在 `ref` 输入中指定要验证的 branch、tag 或 commit。输入默认 `main`。
-
-不要把个人 shell、Preview 或普通 PR job 当成 staging 写入口。
-
-## Workflow 做什么
-
-受保护 workflow 当前执行：
-
-```text
-checkout requested ref
-→ record exact commit
-→ start Local PostgreSQL
-→ protected staging migrate
-→ protected staging verify
-→ stop Local PostgreSQL
+```bash
+pnpm db:staging:migrate
+pnpm db:staging:verify
 ```
 
-远程 migration 前先在 local replay，确保 active chain 本身可用。staging wrapper 负责目标确认和 remote-write authorization。
+独立的 `staging.yml` workflow 已下线，发版前的 migration rehearsal 由 [Release workflow](./release.md#3-protected-release-workflow) 的 PostgreSQL 17 阶段统一承担。不要把个人 shell、Preview 或普通 PR job 当成 staging 写入口。
 
 ## 不做什么
 

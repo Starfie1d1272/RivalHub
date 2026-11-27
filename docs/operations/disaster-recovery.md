@@ -107,7 +107,7 @@ age private key 只保存在离线 recovery kit/password manager。它不能进�
 
 ## R2 retention contract
 
-首次配置或变更时，在 production Environment approval 下运行 `.github/workflows/recovery-r2.yml` 的 `apply`；日常/变更后运行 `verify` 做 provider read-back。脚本先验证 Cloudflare GET shape 与私有访问属性，再核验 30 天生命周期与锁定规则。
+首次配置或变更时运行 `pnpm db:recovery:r2:apply`；日常/变更后运行 `pnpm db:recovery:r2:verify` 做 provider read-back。脚本先验证 Cloudflare GET shape 与私有访问属性，再核验 30 天生命周期与锁定规则。
 
 Cloudflare 默认的 `Default Multipart Abort Rule` 只清理 incomplete multipart upload，不等同于 completed-object deletion，不会被误判为冲突。所有生产恢复产物统一使用单一规则：
 
@@ -117,7 +117,7 @@ Cloudflare 默认的 `Default Multipart Abort Rule` 只清理 incomplete multipa
 
 所有 `daily`、`pre-release`、`manual`、`release-db` 产物均归属于 `production/` 前缀，30 天内由 Cloudflare R2 bucket lock 保护不可被覆盖或删除，30 天后由 lifecycle 规则自动清理。字段与 API payload 以 [Cloudflare R2 Lifecycle API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/)、[Object lifecycles](https://developers.cloudflare.com/r2/buckets/object-lifecycles/) 和 [Bucket Lock API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/) 为准。
 
-`recovery-backup.yml` 与 release workflow 中真正执行 production migration/scheduler mutation 的 job 共享 `rivalhub-production-state-serialization` concurrency group（`queue: max`、`cancel-in-progress: false`），确保 backup dump 与 production state mutation 不发生竞态。Release workflow 使用独立的 `rivalhub-release-lineage` workflow-level group，让 release 与 release 保持 lineage 串行；只有 `production_migration`，以及 `requiresSchedulerProvision=true` 时的 `finalize` job，进入 production-state serialization，因此 application-only release 不因 daily backup 的 lock 排队。candidate build、PG17 rehearsal 和 checkpoint 也不持有该 backup lock。`.github/workflows/recovery-r2.yml` 属于独立的 provider 对象策略管理工作流，不参与生产数据库状态排队。
+`recovery-backup.yml` 与 release workflow 中真正执行 production migration/scheduler mutation 的 job 共享 `rivalhub-production-state-serialization` concurrency group（`queue: max`、`cancel-in-progress: false`），确保 backup dump 与 production state mutation 不发生竞态。Release workflow 使用独立的 `rivalhub-release-lineage` workflow-level group，让 release 与 release 保持 lineage 串行；只有 `production_migration`，以及 `requiresSchedulerProvision=true` 时的 `finalize` job，进入 production-state serialization，因此 application-only release 不因 daily backup 的 lock 排队。candidate build、PG17 rehearsal 和 checkpoint 也不持有该 backup lock。
 
 ## Backup 命令与失败语义
 
@@ -153,9 +153,6 @@ pnpm db:recovery:fetch \
 
 fetch 固定按 completion → sidecar → encrypted artifact 顺序执行 HEAD/真实 GET 与 checksum 验证，核对 run identity、artifact size/hash 和 sidecar/completion relationship；只把三个已验证文件放进一个全新的 `0700` 目录，拒绝覆盖已存在目录。它严格只执行 HEAD/GET 下载，不连接 PostgreSQL/Supabase，不调用 Cloudflare configuration API，不执行 PUT，不读取 age private key，也不在 fetch 阶段解密 artifact。
 
-### 没有本地 R2 凭据时取件
-
-从受保护的 `main` 手动运行 **Recovery offline download**，输入已完成 full backup 的 R2 completion key。工作流核对三个对象，并将 15 分钟有效的三个 GET URL 加密给现有离线灾备 identity。Actions 只保存加密凭据，R2 继续保存原备份。按 completion、sidecar、encrypted artifact 的顺序取件到私有目录，立即用 `db:recovery:restore` 的 manifest、completion 和 artifact 校验。签名 URL 不写入终端输出、仓库或验收记录。
 
 ## Recovery format baseline
 

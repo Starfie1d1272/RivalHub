@@ -109,7 +109,7 @@ active `education-evidence` business copy 继续是 7 天 retention；encrypted 
 
 ## 5. 并发与重试
 
-Release workflow 使用 `rivalhub-release-lineage` group，配置 `queue: max` 与 `cancel-in-progress: false`，保持 release 与 release 的 previous/candidate lineage 串行。`production_migration` job，以及 `requiresSchedulerProvision=true` 时的 `finalize` job，与 `recovery-backup.yml` 共享 `rivalhub-production-state-serialization`；不需要这些 production mutation 的 application-only release 不会因 daily backup 排队。`finalize` 在 fresh path 执行 exact candidate smoke → routing → conditional scheduler → GitHub Release，在 same-tag resume 中跳过 smoke/routing，但仍按 capability 重新 provision/verify scheduler 后才 publish；`recovery-r2.yml` 是独立 provider config verification workflow，不参与 DB serialization。
+Release workflow 使用 `rivalhub-release-lineage` group，配置 `queue: max` 与 `cancel-in-progress: false`，保持 release 与 release 的 previous/candidate lineage 串行。`production_migration` job，以及 `requiresSchedulerProvision=true` 时的 `finalize` job，与 `recovery-backup.yml` 共享 `rivalhub-production-state-serialization`；不需要这些 production mutation 的 application-only release 不会因 daily backup 排队。`finalize` 在 fresh path 执行 exact candidate smoke → routing → conditional scheduler → GitHub Release，在 same-tag resume 中跳过 smoke/routing，但仍按 capability 重新 provision/verify scheduler 后才 publish。
 
 workflow dispatch 只能从当前 `main` HEAD 发起；preflight 会冻结该 operator SHA、验证其 canonical `main` push CI，并拒绝从其它 branch/ref 或过期 main SHA 发起的 retry。满足该 operator integrity gate 后，可以 retry 同一个已存在 tag，但分两种情况：
 
@@ -138,10 +138,3 @@ PostgreSQL TLS contract 由 `src/db/postgres-connection.ts` 统一维护，详�
 
 Production destructive restore、provider cutover、incident freeze 和 Issue close 不是普通 release retry 的隐含副作用；必须满足各自明确授权与独立证据门槛。
 
-### Statistics transport backfill
-
-After a compatible release is serving Production, the separate manually dispatched
-`Statistics transport backfill` workflow performs a bounded batch using the existing
-production environment and protected database wrapper. It does not trigger a release.
-See [statistics-projections.md](statistics-projections.md#protected-transport-backfill-runner)
-for dispatch inputs, cursor recovery, verification limits and rollback semantics.
