@@ -41,16 +41,14 @@ export interface CompactRecordFacts {
 }
 const CS2DF_VERSION_PATTERN = /^cs2df\/(\d+)\.(\d+)\.(\d+)$/;
 
-/** Freeze-end equipment semantics verified for cs2-demo-format/3.0 from cs2df v3.1.0 through v4.x, not inferred from a nullable value. */
+/** Freeze-end equipment semantics match cs2-demo-format/3.0 across verified cs2df >=3.0.0 releases, not inferred from a nullable value. */
 export function resolveEquipmentSampling(
   source: Pick<RivalHubDemoEvidenceV1["source"], "sourceSchemaVersion" | "exporterVersion">,
 ): "freezeEnd" | "unverified" {
   if (source.sourceSchemaVersion !== "cs2-demo-format/3.0") return "unverified";
   const match = CS2DF_VERSION_PATTERN.exec(source.exporterVersion);
   if (!match) return "unverified";
-  const major = Number(match[1]);
-  const minor = Number(match[2]);
-  return (major === 3 && minor >= 1) || major === 4 ? "freezeEnd" : "unverified";
+  return Number(match[1]) >= 3 ? "freezeEnd" : "unverified";
 }
 
 export function collectRecordFacts(
