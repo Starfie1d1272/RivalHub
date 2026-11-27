@@ -20,7 +20,7 @@ pnpm db:staging:migrate
 pnpm db:staging:verify
 ```
 
-本地运行 `pnpm db:staging:migrate` 前需先启动 Local PostgreSQL 完成 active migration chain replay，并提供目标确认与写授权环境变量（`RIVALHUB_STAGING_PROJECT_CONFIRM`、`RIVALHUB_STAGING_DB_HOST_CONFIRM`、`RIVALHUB_ALLOW_REMOTE_DB_WRITE=staging`，以及 `RIVALHUB_STAGING_DB_PASSWORD` 或 `RIVALHUB_STAGING_DATABASE_URL`）；`pnpm db:staging:verify` 只需只读目标凭据与确认变量。不要把 Preview 运行时或普通 PR job 当成 staging 写入口。
+本地运行 `pnpm db:staging:migrate` 前需先启动 Local PostgreSQL 完成 active migration chain replay，并提供目标确认与写授权环境变量（`RIVALHUB_STAGING_PROJECT_CONFIRM`、`RIVALHUB_STAGING_DB_HOST_CONFIRM`、`RIVALHUB_ALLOW_REMOTE_DB_WRITE=staging` 与 `RIVALHUB_STAGING_DB_PASSWORD`；数据库连接串由 wrapper 基于固定目标与密码生成，不能仅提供 `RIVALHUB_STAGING_DATABASE_URL` 替代密码）；`pnpm db:staging:verify` 只需 `RIVALHUB_STAGING_PROJECT_CONFIRM`、`RIVALHUB_STAGING_DB_HOST_CONFIRM` 与 `RIVALHUB_STAGING_DB_PASSWORD`。不要把 Preview 运行时或普通 PR job 当成 staging 写入口。
 
 独立的 `staging.yml` workflow 已下线，发版前的 migration rehearsal 由 [Release workflow](./release.md#3-protected-release-workflow) 的 PostgreSQL 17 阶段统一承担：该 CI 阶段仅针对隔离的纯 PostgreSQL 17 实例执行 migration 演练，不连接或写入远程 `rivalhub-dev` staging。
 
