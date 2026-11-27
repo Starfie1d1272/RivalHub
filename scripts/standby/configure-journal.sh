@@ -3,8 +3,8 @@
 set -Eeuo pipefail
 mode=${1:---check}
 service=${2:-rivalhub-production}
-[[ $# -le 2 && ( $mode == --check || $mode == --apply ) && ( $service == rivalhub-production || $service == rivalhub-standby ) ]] || {
-  echo 'Usage: configure-journal.sh [--check|--apply] [rivalhub-production|rivalhub-standby]' >&2; exit 1;
+[[ $# -le 2 && ( $mode == --check || $mode == --apply ) && $service == rivalhub-production ]] || {
+  echo 'Usage: configure-journal.sh [--check|--apply] [rivalhub-production]' >&2; exit 1;
 }
 source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/journal
 journal=/etc/systemd/journald@rivalhub.conf
