@@ -34,7 +34,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      - uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           cache: true
           require-lockfile: true
@@ -119,7 +119,7 @@ jobs:
           path: .agent-tmp/preview-migration-ref
           sparse-checkout: drizzle/migrations
           persist-credentials: false
-      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+      - uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           cache: true
           require-lockfile: true
@@ -135,10 +135,10 @@ jobs:
       - name: Decrypt and import into staging
         env:
           RIVALHUB_DB_TARGET: staging
-          RIVALHUB_STAGING_PROJECT_CONFIRM: mpcmphihfoiykbfhxlry
-          RIVALHUB_STAGING_DB_HOST_CONFIRM: aws-1-ap-northeast-1.pooler.supabase.com:6543
+          RIVALHUB_STAGING_PROJECT_CONFIRM: pdcuydvqaejhorcxrnwl
+          RIVALHUB_STAGING_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
           RIVALHUB_ALLOW_REMOTE_DB_WRITE: staging
-          RIVALHUB_PREVIEW_RESET_CONFIRM: mpcmphihfoiykbfhxlry
+          RIVALHUB_PREVIEW_RESET_CONFIRM: pdcuydvqaejhorcxrnwl
           RIVALHUB_STAGING_DB_PASSWORD: ${{ secrets.RIVALHUB_STAGING_DB_PASSWORD }}
           RIVALHUB_PREVIEW_DEV_SECRET_KEY: ${{ secrets.RIVALHUB_PREVIEW_DEV_SECRET_KEY }}
           RIVALHUB_PREVIEW_AGE_IDENTITY: ${{ secrets.RIVALHUB_PREVIEW_AGE_IDENTITY }}
