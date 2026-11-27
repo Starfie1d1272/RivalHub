@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildTournamentPerformanceAnalyticsFromProjections, collectTournamentPerformanceMapProjection } from "@cs2dak/tournament";
 import type { RivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
 import { adaptStatsEvidence } from "./evidence-adapter";
-import { collectRecordEvents, collectRecordFacts } from "./record-facts";
+import { collectRecordEvents, collectRecordFacts, resolveEquipmentSampling } from "./record-facts";
 import { parseStatsQuery, statsHref } from "./view-state";
 
 function fixture() {
@@ -62,5 +62,39 @@ describe("Records occurrences", () => {
     expect(scope.searchParams.has("eventPage")).toBe(false);
     expect(scope.searchParams.has("recordPage")).toBe(false);
     expect(new URL(statsHref("major", query, { tab: "players" }), "https://example.test").searchParams.has("eventType")).toBe(false);
+  });
+});
+
+describe("Equipment sampling exporter version guard", () => {
+  it("accepts verified cs2df >=3.1.0 and <5.0.0 exporters on cs2-demo-format/3.0 and rejects unverified ones", () => {
+    for (const exporterVersion of ["cs2df/3.1.0", "cs2df/3.1.1", "cs2df/4.0.0"]) {
+      expect(
+        resolveEquipmentSampling({
+          sourceSchemaVersion: "cs2-demo-format/3.0",
+          exporterVersion,
+        }),
+      ).toBe("freezeEnd");
+    }
+    for (const source of [
+      { sourceSchemaVersion: "cs2-demo-format/3.0", exporterVersion: "cs2df/3.0.9" },
+      { sourceSchemaVersion: "cs2-demo-format/3.0", exporterVersion: "cs2df/5.0.0" },
+      { sourceSchemaVersion: "cs2-demo-format/3.0", exporterVersion: "cs2df/4.0.0-alpha.1" },
+      { sourceSchemaVersion: "cs2-demo-format/3.0", exporterVersion: "other/3.1.0" },
+      { sourceSchemaVersion: "cs2-demo-format/4.0", exporterVersion: "cs2df/4.0.0" },
+    ]) {
+      expect(resolveEquipmentSampling(source)).toBe("unverified");
+    }
+  });
+
+  it("collects economy upset candidates when exported with cs2df/3.1.1 or cs2df/4.0.0", () => {
+    const { evidence, bindings } = fixture();
+    evidence.source.exporterVersion = "cs2df/4.0.0";
+    const performance = buildTournamentPerformanceAnalyticsFromProjections([
+      collectTournamentPerformanceMapProjection(adaptStatsEvidence(evidence, bindings).performance),
+    ]);
+    const facts = collectRecordFacts(evidence, bindings, performance);
+    expect(facts.equipmentSampling).toBe("freezeEnd");
+    expect(facts.economyKnownRounds).toBeGreaterThan(0);
+    expect(facts.candidates.some((candidate) => candidate.kind === "economy")).toBe(true);
   });
 });
