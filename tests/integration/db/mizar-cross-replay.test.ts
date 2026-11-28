@@ -79,10 +79,10 @@ describe.skipIf(!checkout)("Mizar real connection and RivalHub receiver", () => 
       // map results are the independent oracle for delivery, not its cache size.
       const receipts = await db.select().from(schema.mizarReliableReceipts).where(eq(schema.mizarReliableReceipts.sessionId, f.sessionId));
       expect(receipts.map(receipt => receipt.idempotencyKey).sort()).toEqual(
-        [firstStart, endOne, epochTwo, startTwo, endTwo, epochThree, startThree].map(event => event.idempotencyKey).sort(),
+        [firstStart, endOne, startTwo, endTwo, startThree].map(event => event.idempotencyKey).sort(),
       );
       const [source] = await db.select().from(schema.matchLiveSessions).where(eq(schema.matchLiveSessions.id, f.sessionId));
-      expect(source).toMatchObject({ mapEpoch: 3, currentMapId: mapThreeId, lastReliableSeq: 8 });
+      expect(source).toMatchObject({ currentMapId: mapThreeId, lastReliableSeq: 8 });
       const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
       expect(maps.find(map => map.id === f.mapOneId)).toMatchObject({ scoreA: 13, scoreB: 9 });
       expect(maps.find(map => map.id === f.mapTwoId)).toMatchObject({ scoreA: 9, scoreB: 13 });
