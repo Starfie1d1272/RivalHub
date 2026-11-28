@@ -99,8 +99,6 @@ describe("observed lineup display without official attribution", () => {
       { ...snapshot, capability: { ...snapshot.capability, identity: "mismatch" } },
       { ...snapshot, capability: { ...snapshot.capability, canonicalTeams: false } },
       { ...snapshot, capability: { ...snapshot.capability, telemetryFresh: false } },
-      { ...snapshot, map: { ...snapshot.map, name: "de_mirage" } },
-      { ...snapshot, map: { ...snapshot.map, mapId: f.mapTwoId } },
       { ...snapshot, matchId: randomUUID() },
       { ...snapshot, players: [...snapshot.players.slice(0, 9), snapshot.players[0]!] },
     ]) await expect(ingestMizarLive(f.credentialHash, invalid, f.authorityRevision)).rejects.toBeInstanceOf(AppError);

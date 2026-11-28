@@ -3,14 +3,16 @@ import { createHmac } from "node:crypto";
 import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
+  eventRosterMembers,
+  eventRosters,
   matches,
   matchMaps,
   matchLiveSessions,
   mizarInstallations,
   seasons,
   competitionQualificationRuns,
+  users,
 } from "@/db/schema";
-import { effectiveMatchRosterQuery } from "@/lib/match-rosters/effective";
 import {
   logEvent,
   recordLiveIngestOutcome,
@@ -22,12 +24,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { parseLiveSnapshotV1 } from "./protocol";
 import { projectPublicLive } from "./live-projection";
 import { admitLiveDelivery } from "./live-admission";
-import {
-  hasObservedLineup,
-  hasCurrentLineup,
-  isLineupMismatchOnly,
-  LINEUP_REVIEW_REQUIRED,
-} from "./lineup-display";
+import { isLineupMismatchOnly } from "./lineup-display";
 import {
   createLiveBroadcastFetch,
   liveBroadcastException,
@@ -69,6 +66,7 @@ export async function ingestMizarLive(
         set_config('lock_timeout', '25ms', true), set_config('statement_timeout', '1000ms', true),
         pg_try_advisory_xact_lock(hashtextextended(${"mizar-live:" + snapshot.matchId}, 0)) AS acquired`);
       if (!gate.rows[0]?.acquired) return { accepted: false, reason: "contended" };
+      const lineupMismatchOnly = isLineupMismatchOnly(snapshot.capability);
       // Materialized dependencies preserve installation → match → source lock order in one round trip.
       const authority = await tx.execute<{
         installationId: string | null;
@@ -84,18 +82,7 @@ export async function ingestMizarLive(
           authorityRevision: number;
           producerInstanceId: string;
           liveSessionId: string;
-          programSourceGeneration: number;
-          mapEpoch: number;
-          lastReliableSeq: number;
-          identityHealth: string;
-          lineupHealth: string;
-          continuityHealth: string;
-          autoCanonicalizationArmed: boolean;
-          mapExecutionPhase: string;
-          currentMapId: string | null;
-          manualTakeoverMapEpoch: number | null;
         } | null;
-        mapMatches: boolean;
         identities: Record<string, string>;
       }>(sql`WITH installation AS MATERIALIZED (
         SELECT ${mizarInstallations.id} AS id, ${mizarInstallations.competitionId} AS "competitionId" FROM ${mizarInstallations}
@@ -108,44 +95,25 @@ export async function ingestMizarLive(
           AND ${matches.seasonId}=${snapshot.competitionId} FOR SHARE
       ), current_source AS MATERIALIZED (
         SELECT ${matchLiveSessions.installationId} AS "installationId", ${matchLiveSessions.authorityRevision} AS "authorityRevision",
-          ${matchLiveSessions.producerInstanceId} AS "producerInstanceId", ${matchLiveSessions.liveSessionId} AS "liveSessionId",
-          ${matchLiveSessions.programSourceGeneration} AS "programSourceGeneration", ${matchLiveSessions.mapEpoch} AS "mapEpoch",
-          ${matchLiveSessions.lastReliableSeq} AS "lastReliableSeq", ${matchLiveSessions.identityHealth} AS "identityHealth",
-          ${matchLiveSessions.lineupHealth} AS "lineupHealth", ${matchLiveSessions.continuityHealth} AS "continuityHealth",
-          ${matchLiveSessions.autoCanonicalizationArmed} AS "autoCanonicalizationArmed", ${matchLiveSessions.mapExecutionPhase} AS "mapExecutionPhase",
-          ${matchLiveSessions.currentMapId} AS "currentMapId", ${matchLiveSessions.manualTakeoverMapEpoch} AS "manualTakeoverMapEpoch"
+          ${matchLiveSessions.producerInstanceId} AS "producerInstanceId", ${matchLiveSessions.liveSessionId} AS "liveSessionId"
         FROM ${matchLiveSessions} WHERE ${matchLiveSessions.matchId}=(SELECT id FROM current_match)
           AND ${matchLiveSessions.closedAt} IS NULL FOR SHARE
-      ), roster("matchId", "entryId", "rosterId", "eventRosterMemberId", "userId", "steam64", "displayName", "personaName", "perfectName", "isStarter") AS MATERIALIZED (
-        ${effectiveMatchRosterQuery(tx, [snapshot.matchId])}
+      ), roster AS MATERIALIZED (
+        SELECT ${users.steam64} AS steam64, ${users.id} AS "userId"
+        FROM ${eventRosterMembers}
+        INNER JOIN ${eventRosters} ON ${eventRosters.id} = ${eventRosterMembers.eventRosterId}
+        INNER JOIN ${users} ON ${users.id} = ${eventRosterMembers.userId}
+        WHERE ${eventRosters.entryId} IN ((SELECT "entryAId" FROM current_match), (SELECT "entryBId" FROM current_match))
+          AND ${eventRosterMembers.isCurrent} = true
+          AND ${users.steam64} IS NOT NULL
       ) SELECT (SELECT id FROM installation) AS "installationId",
         (SELECT row_to_json(current_match) FROM current_match) AS match,
         (SELECT row_to_json(current_source) FROM current_source) AS source,
-        EXISTS (SELECT 1 FROM ${matchMaps} WHERE ${matchMaps.id}=(SELECT "currentMapId" FROM current_source)
-          AND ${matchMaps.matchId}=${snapshot.matchId} AND ${matchMaps.mapName}=${snapshot.map.name ?? ""}
-          AND ${matchMaps.mapOrder}=${snapshot.series.currentMapOrder ?? -1} AND ${matchMaps.completedAt} IS NULL) AS "mapMatches",
-        CASE WHEN (SELECT "lineupHealth" FROM current_source)=${LINEUP_REVIEW_REQUIRED}
-          THEN COALESCE((SELECT jsonb_object_agg("steam64", "userId") FROM roster WHERE "steam64" IS NOT NULL), '{}'::jsonb)
+        CASE WHEN ${lineupMismatchOnly}
+          THEN COALESCE((SELECT jsonb_object_agg("steam64", "userId") FROM roster), '{}'::jsonb)
           ELSE '{}'::jsonb END AS identities`);
-      const {
-        installationId,
-        match,
-        source,
-        mapMatches,
-        identities: identityRows,
-      } = authority.rows[0]!;
+      const { installationId, match, source, identities: identityRows } = authority.rows[0]!;
       if (!installationId) throw new AppError(ErrorCode.FORBIDDEN, "制播设备连接已撤销。");
-      const observedLineup =
-        source?.identityHealth === "healthy" &&
-        source.lineupHealth === LINEUP_REVIEW_REQUIRED &&
-        ["healthy", "history_incomplete"].includes(source.continuityHealth) &&
-        source.mapExecutionPhase === "gameplay" &&
-        source.currentMapId === snapshot.map.mapId &&
-        source.manualTakeoverMapEpoch !== snapshot.cursor.mapEpoch &&
-        (hasObservedLineup(snapshot) ||
-          (snapshot.capability.identity === "matched" && hasCurrentLineup(snapshot.players)));
-      if (isLineupMismatchOnly(snapshot.capability) && !observedLineup)
-        throw new AppError(ErrorCode.FORBIDDEN, "名单差异仍需确认展示来源。");
       if (
         !match ||
         match.status !== "in_progress" ||
@@ -155,24 +123,14 @@ export async function ingestMizarLive(
         source.authorityRevision !== authorityRevision ||
         source.producerInstanceId !== snapshot.cursor.producerInstanceId ||
         source.liveSessionId !== snapshot.cursor.liveSessionId ||
-        source.identityHealth !== "healthy" ||
-        (source.lineupHealth !== "healthy" && !observedLineup) ||
         !snapshot.capability.telemetryFresh ||
         !snapshot.capability.contextFresh ||
-        (snapshot.capability.identity !== "matched" && !observedLineup) ||
+        (snapshot.capability.identity !== "matched" && !lineupMismatchOnly) ||
         !snapshot.capability.lineupComplete ||
         !snapshot.capability.canonicalTeams
       ) {
         throw new AppError(ErrorCode.FORBIDDEN, "实时数据源或本场首发校验未通过。");
       }
-      if (
-        (observedLineup || source.continuityHealth === "history_incomplete") &&
-        (!mapMatches ||
-          source.mapExecutionPhase !== "gameplay" ||
-          source.currentMapId !== snapshot.map.mapId ||
-          source.manualTakeoverMapEpoch === snapshot.cursor.mapEpoch)
-      )
-        throw new AppError(ErrorCode.FORBIDDEN, "实时地图不匹配。");
       if (
         ![match.entryAId, match.entryBId].includes(snapshot.teams.ct.entryId ?? "") ||
         ![match.entryAId, match.entryBId].includes(snapshot.teams.t.entryId ?? "") ||
@@ -182,7 +140,7 @@ export async function ingestMizarLive(
       recordLiveIngestStage("authorized", performance.now() - receivedAt);
       if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS)
         return { accepted: false, reason: "frame_expired" };
-      const identities = observedLineup ? new Map(Object.entries(identityRows)) : undefined;
+      const identities = lineupMismatchOnly ? new Map(Object.entries(identityRows)) : undefined;
       if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS)
         return { accepted: false, reason: "frame_expired" };
       const payload = projectPublicLive(
@@ -310,9 +268,6 @@ export async function issueLiveViewerToken(matchId: string, cachePartition: stri
     match.phase === "gameplay" &&
     match.mapStartedAt &&
     !match.mapCompletedAt &&
-    match.manualTakeoverEpoch !== match.epoch &&
-    match.identity === "healthy" &&
-    match.lineup === "healthy" &&
     match.authorityRevision !== null &&
     match.generation !== null &&
     match.epoch !== null

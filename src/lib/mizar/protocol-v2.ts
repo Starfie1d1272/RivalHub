@@ -10,12 +10,7 @@ const count = nonNegativeInteger.nullable();
 const steam64 = z.string().regex(/^\d{17}$/);
 const steam64List = z.array(steam64).max(10);
 
-export const reliableEventKindV2Schema = z.enum([
-  "match_started",
-  "map_started",
-  "map_ended",
-  "series_ended",
-]);
+export const reliableEventKindV2Schema = z.enum(["match_started", "map_started", "map_ended"]);
 
 const reliableEventV2Base = z.strictObject({
   schemaVersion: z.literal(RELIABLE_EVENT_V2_SCHEMA_VERSION),
@@ -67,13 +62,6 @@ export const reliableEventV2Schema = z.discriminatedUnion("kind", [
         )
         .max(10)
         .optional(),
-    }),
-  }),
-  reliableEventV2Base.extend({
-    kind: z.literal("series_ended"),
-    payload: z.strictObject({
-      scoreA: nonNegativeInteger,
-      scoreB: nonNegativeInteger,
     }),
   }),
 ]);

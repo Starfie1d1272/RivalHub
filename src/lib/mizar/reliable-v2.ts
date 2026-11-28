@@ -6,7 +6,6 @@ import { db } from "@/db/client";
 import {
   eventRosterMembers,
   eventRosters,
-  matches,
   matchLiveSessions,
   matchMaps,
   matchVetoSessions,
@@ -36,12 +35,7 @@ export type ReliableV2Outcome =
   "accepted" | "canonicalized" | "canonicalized_with_warning" | "consistent" | "needs_attention";
 
 export type ReliableV2Warning =
-  | "lineup_mismatch"
-  | "result_conflict"
-  | "manual_takeover"
-  | "map_not_found"
-  | "veto_incomplete"
-  | "series_mismatch";
+  "lineup_mismatch" | "result_conflict" | "manual_takeover" | "map_not_found" | "veto_incomplete";
 
 export interface ReliableV2Result {
   outcome: ReliableV2Outcome;
@@ -115,7 +109,7 @@ export async function ingestMizarReliableV2(
         );
       }
 
-      const allowsClosedSession = event.kind === "map_ended" || event.kind === "series_ended";
+      const allowsClosedSession = event.kind === "map_ended";
       if (source.closedAt !== null) {
         if (!allowsClosedSession) {
           throw new ReliableRejection(
@@ -276,7 +270,8 @@ export async function ingestMizarReliableV2(
             }
           } else if (
             source.manualTakeoverMapEpoch !== null &&
-            source.manualTakeoverMapEpoch === source.mapEpoch
+            source.manualTakeoverMapEpoch === source.mapEpoch &&
+            source.currentMapId === targetMap.id
           ) {
             outcome = "needs_attention";
             warning = "manual_takeover";
@@ -287,6 +282,28 @@ export async function ingestMizarReliableV2(
             const lineupValid = hasTenUnique
               ? await validateObservedLineupInTx(tx, match, observed)
               : false;
+
+            const needsRegisteredRoster = !lineupValid || Boolean(event.payload.players?.length);
+            const registered = needsRegisteredRoster
+              ? await tx
+                  .select({
+                    entryId: eventRosters.entryId,
+                    userId: users.id,
+                    steam64: users.steam64,
+                    displayName: users.displayName,
+                    perfectName: users.perfectName,
+                  })
+                  .from(eventRosterMembers)
+                  .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+                  .innerJoin(users, eq(users.id, eventRosterMembers.userId))
+                  .where(
+                    and(
+                      inArray(eventRosters.entryId, [match.entryAId, match.entryBId]),
+                      eq(eventRosterMembers.isCurrent, true),
+                      isNotNull(users.steam64),
+                    ),
+                  )
+              : [];
 
             let canCanonicalize = lineupValid;
             if (!lineupValid) {
@@ -310,21 +327,6 @@ export async function ingestMizarReliableV2(
                 : null;
 
               if (hasTenUnique) {
-                const registered = await tx
-                  .select({
-                    entryId: eventRosters.entryId,
-                    steam64: users.steam64,
-                  })
-                  .from(eventRosterMembers)
-                  .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-                  .innerJoin(users, eq(users.id, eventRosterMembers.userId))
-                  .where(
-                    and(
-                      inArray(eventRosters.entryId, [match.entryAId, match.entryBId]),
-                      eq(eventRosterMembers.isCurrent, true),
-                      isNotNull(users.steam64),
-                    ),
-                  );
                 const teamASteam64s = new Set(
                   registered
                     .filter((r) => r.entryId === match.entryAId && r.steam64)
@@ -370,11 +372,13 @@ export async function ingestMizarReliableV2(
                 teamAStartSide: null,
                 actorId: mizarAuditActorId(installationId),
               });
-              updates.mapExecutionPhase = "inter_map";
+              if (source.currentMapId === targetMap.id) {
+                updates.mapExecutionPhase = "inter_map";
+              }
 
               if (event.payload.players?.length) {
                 const players = event.payload.players.flatMap((player) => {
-                  const candidates = roster.filter(
+                  const candidates = registered.filter(
                     (r) =>
                       r.steam64 === player.sourcePlayerId &&
                       (player.canonicalPlayerId === null || r.userId === player.canonicalPlayerId),
@@ -384,7 +388,11 @@ export async function ingestMizarReliableV2(
                   return [
                     {
                       userId: resolved.userId,
-                      name: getDisplayName(resolved),
+                      name: getDisplayName({
+                        displayName: resolved.displayName,
+                        perfectName: resolved.perfectName,
+                        personaName: null,
+                      }),
                       kills: player.kills,
                       deaths: player.deaths,
                       assists: player.assists,
@@ -403,7 +411,9 @@ export async function ingestMizarReliableV2(
               }
 
               if (lineupValid) {
-                updates.lineupHealth = "healthy";
+                if (source.lineupHealth !== LINEUP_REVIEW_REQUIRED) {
+                  updates.lineupHealth = "healthy";
+                }
                 outcome = "canonicalized";
               } else {
                 updates.lineupHealth = LINEUP_REVIEW_REQUIRED;
@@ -412,20 +422,6 @@ export async function ingestMizarReliableV2(
               }
             }
           }
-        }
-      } else if (event.kind === "series_ended") {
-        const [current] = await tx.select().from(matches).where(eq(matches.id, match.id));
-        if (
-          current &&
-          current.status === "finished" &&
-          current.scoreA === event.payload.scoreA &&
-          current.scoreB === event.payload.scoreB
-        ) {
-          outcome = "consistent";
-        } else {
-          updates.continuityHealth = "result_conflict";
-          outcome = "needs_attention";
-          warning = "series_mismatch";
         }
       }
 
