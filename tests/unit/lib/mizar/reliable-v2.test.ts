@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { LINEUP_REVIEW_REQUIRED } from "@/lib/mizar/lineup-display";
-import {
-  parseReliableEventV2,
-  RELIABLE_EVENT_SCHEMA_VERSION,
-  RELIABLE_EVENT_V2_SCHEMA_VERSION,
-} from "@/lib/mizar/protocol";
+import { RELIABLE_EVENT_SCHEMA_VERSION } from "@/lib/mizar/protocol";
+import { parseReliableEventV2, RELIABLE_EVENT_V2_SCHEMA_VERSION } from "@/lib/mizar/protocol-v2";
 import { projectOperatorSource } from "@/lib/admin/matches/source-state";
 
 const mocks = vi.hoisted(() => ({

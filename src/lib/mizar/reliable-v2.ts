@@ -26,7 +26,7 @@ import { beginRuntimeResource } from "@/lib/observability/runtime-resources";
 import { touchMizarInstallation } from "./heartbeat";
 import { assertInstallationInTx, hashCredential } from "./installation";
 import { LINEUP_REVIEW_REQUIRED } from "./lineup-display";
-import { parseReliableEventV2 } from "./protocol";
+import { parseReliableEventV2 } from "./protocol-v2";
 import { ReliableRejection } from "./rejection";
 import { validateObservedLineupInTx } from "./source";
 
