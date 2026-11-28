@@ -121,15 +121,15 @@ export async function adminSelectMatchRoster(
   try {
     const match = await getMatchOrThrow(matchId);
     const admin = await requireSeasonAdmin(match.seasonId);
-    if (match.status !== "scheduled") {
+    if (!["scheduled", "in_progress", "finished"].includes(match.status)) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛当前状态不允许选择名单");
     }
 
     const actorId = auditActorId(admin);
     const rosterId = await db.transaction(async (tx) => {
       const locked = await lockMatchInTx(tx, matchId);
-      if (locked.status !== "scheduled") {
-        throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已开始或取消，不能再调整阵容");
+      if (!["scheduled", "in_progress", "finished"].includes(locked.status)) {
+        throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已取消，不能再调整阵容");
       }
       if (entryId !== locked.entryAId && entryId !== locked.entryBId) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "所选队伍不属于本场比赛");
@@ -143,6 +143,7 @@ export async function adminSelectMatchRoster(
         starterIds,
         substituteIds,
         vetoRepresentativeEventRosterMemberId,
+        allowPostStartAdminCorrection: true,
       });
 
       await writeAuditInTx(tx, {
@@ -153,6 +154,7 @@ export async function adminSelectMatchRoster(
         meta: {
           matchId,
           entryId,
+          matchStatus: locked.status,
           source: "admin_select",
           starterIds,
           substituteIds,

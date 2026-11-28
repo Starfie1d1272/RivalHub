@@ -6,7 +6,7 @@ import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { OfficialMapStart } from "@/components/bet/OfficialMapStart";
 import { OperatorLiveStatus } from "./OperatorLiveStatus";
-import { OperatorIssuePanel } from "./OperatorIssuePanel";
+import { LineupDifferenceDetails, OperatorIssuePanel } from "./OperatorIssuePanel";
 import Link from "next/link";
 import React from "react";
 import { presentMatchFormat } from "@/lib/matches/presentation";
@@ -345,6 +345,32 @@ export function AdminMatchWorkbench({
             BP 开始前双方首发须就绪，由负责人在房间内确认。完成禁选与选边后，按地图计划建房。
           </p>
         )}
+        {operator.workflow.lineupReviewWarning && (
+          <div
+            role="status"
+            aria-label="上场名单差异提示"
+            className="space-y-2 rounded border border-[var(--color-warn)]/60 bg-[var(--color-warn)]/5 p-3 text-sm"
+          >
+            <p className="font-medium">
+              赛果已自动入库，但上场名单与登记首发存在差异。赛务可按需核对并修正名单或比分。
+            </p>
+            <LineupDifferenceDetails
+              difference={operator.review?.evidence?.lineupDifference}
+              href={
+                match.status === "scheduled"
+                  ? "#match-lineup-details"
+                  : `#${MATCH_WORKBENCH_TASK_ANCHORS.lineups}`
+              }
+            />
+            {finishedMaps.length > 0 && ["in_progress", "finished"].includes(match.status) && (
+              <div>
+                <a className="text-[var(--color-accent)] underline" href="#match-score-correction">
+                  前往比分更正
+                </a>
+              </div>
+            )}
+          </div>
+        )}
         {operator.review && (
           <OperatorIssuePanel reasons={operator.workflow.reviewReasons} review={operator.review} />
         )}
@@ -530,8 +556,9 @@ export function AdminMatchWorkbench({
 
       {finishedMaps.length > 0 && ["in_progress", "finished"].includes(match.status) && (
         <details
+          id="match-score-correction"
           aria-label="比分更正与系列恢复"
-          className="space-y-3 rounded border border-[var(--color-border)] p-3"
+          className="scroll-mt-4 space-y-3 rounded border border-[var(--color-border)] p-3"
         >
           <summary className="cursor-pointer text-sm font-medium">比分更正与系列恢复</summary>
           {finishedMaps.map((map) => (
@@ -590,18 +617,37 @@ export function AdminMatchWorkbench({
               : MATCH_WORKBENCH_TASK_ANCHORS.lineups
           }
           className="scroll-mt-4 space-y-4 rounded border border-[var(--color-border)] p-4"
-          open={match.status === "scheduled" || task === "lineups" || task === "scheduling"}
+          open={
+            match.status === "scheduled" ||
+            task === "lineups" ||
+            task === "scheduling" ||
+            operator.workflow.lineupReviewWarning
+          }
         >
           <summary className="cursor-pointer font-semibold">首发、BP 与赛程管理</summary>
           {
             <section aria-labelledby="match-workbench-lineup" className="space-y-3">
-              <div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2
                   id="match-workbench-lineup"
                   className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]"
                 >
                   首发名单
                 </h2>
+                {["in_progress", "finished"].includes(match.status) && (
+                  <AdminRosterDialog
+                    matchId={match.id}
+                    teamAName={teamAName}
+                    teamBName={teamBName}
+                    entryAId={match.entryAId}
+                    entryBId={match.entryBId}
+                    teamAMembers={teamAMembers}
+                    teamBMembers={teamBMembers}
+                    teamARoster={teamARoster}
+                    teamBRoster={teamBRoster}
+                    allowSubstitutes={match.ownership !== "major_stage"}
+                  />
+                )}
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <RosterSummary

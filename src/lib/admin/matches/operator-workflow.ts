@@ -157,6 +157,7 @@ export interface OperatorWorkflow {
   sourceMode: SourceMode;
   sourceHealth: SourceHealth;
   reviewReasons: ReviewReason[];
+  lineupReviewWarning: boolean;
   manualResultAllowed: boolean;
   title: string;
   description: string;
@@ -187,7 +188,9 @@ export function projectOperatorWorkflow(input: {
       map.completedAt === null && completedMaps.some((completed) => completed.order > map.order),
   );
   const outstanding = completedMaps.filter((map) => !map.scoreboardComplete);
-  const source = projectOperatorSource(input.source ?? null);
+  const source = projectOperatorSource(
+    input.source ? { ...input.source, hasCompletedMaps: completedMaps.length > 0 } : null,
+  );
   const phase = projectMatchPresentationPhase({
     status: input.status,
     scheduledAt: input.scheduledAt ?? null,

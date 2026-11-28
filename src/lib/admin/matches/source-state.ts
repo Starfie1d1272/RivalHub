@@ -21,6 +21,7 @@ export interface OperatorSourceFacts {
   lineupHealth: string;
   continuityHealth: string;
   autoCanonicalizationArmed: boolean;
+  hasCompletedMaps?: boolean;
   /** Only explicit current-source evidence; never lastReliableEventAt age. */
   freshness?: "fresh" | "stale" | "unknown";
   resultConflict?: boolean;
@@ -32,12 +33,18 @@ export function projectOperatorSource(source: OperatorSourceFacts | null) {
     : source.manualTakeoverMapEpoch === source.mapEpoch
       ? "manual_map"
       : "mizar_auto";
+  const lineupReviewWarning = Boolean(
+    source?.lineupHealth === LINEUP_REVIEW_REQUIRED && source.hasCompletedMaps,
+  );
   const reviewReasons: ReviewReason[] = [];
   if (source?.continuityHealth === "history_incomplete" && !source.autoCanonicalizationArmed)
     reviewReasons.push("history_incomplete");
   if (source?.continuityHealth === "execution_conflict") reviewReasons.push("execution_mismatch");
   if (source?.identityHealth === "conflict") reviewReasons.push("identity_mismatch");
-  if (source?.lineupHealth === "conflict" || source?.lineupHealth === LINEUP_REVIEW_REQUIRED)
+  if (
+    source?.lineupHealth === "conflict" ||
+    (source?.lineupHealth === LINEUP_REVIEW_REQUIRED && !lineupReviewWarning)
+  )
     reviewReasons.push("lineup_mismatch");
   if (source?.sourceConflict || source?.continuityHealth === "source_conflict")
     reviewReasons.push("source_conflict");
@@ -51,13 +58,12 @@ export function projectOperatorSource(source: OperatorSourceFacts | null) {
       ? "conflict"
       : source.freshness === "stale" || source.continuityHealth === "stale"
         ? "stale"
-        : source.autoCanonicalizationArmed &&
-            source.identityHealth === "healthy" &&
-            source.lineupHealth === "healthy" &&
+        : source.identityHealth === "healthy" &&
+            (source.lineupHealth === "healthy" || lineupReviewWarning) &&
             ["healthy", "history_incomplete"].includes(source.continuityHealth)
           ? "healthy"
           : "unknown";
-  return { sourceMode, sourceHealth, reviewReasons };
+  return { sourceMode, sourceHealth, reviewReasons, lineupReviewWarning };
 }
 export const REVIEW_REASON_LABEL: Record<ReviewReason, string> = {
   history_incomplete: "之前地图的比分尚未确认",

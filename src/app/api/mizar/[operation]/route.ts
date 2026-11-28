@@ -21,6 +21,7 @@ import {
   sourceStatusSchema,
 } from "@/lib/mizar/source";
 import { ingestMizarReliable } from "@/lib/mizar/reliable";
+import { ingestMizarReliableV2 } from "@/lib/mizar/reliable-v2";
 import { admitLiveIngress, tryAdmitLiveRequest } from "@/lib/mizar/live-admission";
 import { ingestMizarLive } from "@/lib/mizar/live";
 import { withMizarRequest, mizarContextResponse, readBoundedMizarJson } from "@/lib/mizar/http";
@@ -113,6 +114,7 @@ export async function POST(request: Request, context: Context) {
         "claim",
         "release",
         "reliable",
+        "reliable-v2",
         "claim-recovery",
       ].includes(operation)
         ? operation
@@ -120,7 +122,7 @@ export async function POST(request: Request, context: Context) {
       setDbTrafficSource(
         operation === "live"
           ? "mizar.live"
-          : operation === "reliable"
+          : operation === "reliable" || operation === "reliable-v2"
             ? "mizar.reliable"
             : operation === "claim"
               ? "mizar.claim"
@@ -177,8 +179,47 @@ export async function POST(request: Request, context: Context) {
       }
       const installation = await authenticateMizar(request.headers.get("authorization"));
       diagnostics.phase = "read";
-      const input = await readBoundedMizarJson(request, 20_480);
+      const input = await readBoundedMizarJson(
+        request,
+        operation === "reliable-v2" ? 32_768 : 20_480,
+      );
       diagnostics.phase = "validate";
+      if (operation === "reliable-v2") {
+        const headerAuthority = request.headers.get("x-rivalhub-authority");
+        if (headerAuthority !== null && headerAuthority !== "") {
+          z.coerce.number().int().positive().parse(headerAuthority);
+        }
+        diagnostics.phase = "domain";
+        const outcome = await ingestMizarReliableV2(
+          installation.id,
+          installation.competitionId,
+          input,
+        );
+        diagnostics.phase = "revalidation";
+        const { matchId } = z.object({ matchId: z.uuid() }).parse(input);
+        const shouldInvalidate = [
+          "canonicalized",
+          "canonicalized_with_warning",
+          "needs_attention",
+        ].includes(outcome.outcome);
+        const delivery = shouldInvalidate
+          ? await deliverMatchProjectionInvalidations("route", [matchId])
+          : undefined;
+        if (!outcome.duplicate && !delivery?.processed) {
+          const [season] = await db
+            .select({ slug: seasons.slug })
+            .from(seasons)
+            .where(eq(seasons.id, installation.competitionId));
+          if (season) {
+            if (shouldInvalidate) revalidateMatchPaths(season.slug, matchId, { mode: "route" });
+            else {
+              revalidatePath(`/admin/${season.slug}/matches/${matchId}`);
+              revalidatePath(`/${season.slug}/matches/${matchId}`);
+            }
+          }
+        }
+        return Response.json(outcome);
+      }
       if (operation === "claim-recovery") {
         const recovery = z.union([claimRecoverySchema, legacyClaimRecoverySchema]).parse(input);
         diagnostics.phase = "domain";

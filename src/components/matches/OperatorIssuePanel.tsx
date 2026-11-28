@@ -21,6 +21,47 @@ const steps: Record<ReviewReason, string> = {
     "检查 Mizar 当前采集的比赛与地图。正确的本图开始数据到达后重新核验；需要手动收尾时，在备用录分中确认当前地图。",
 };
 
+export function LineupDifferenceDetails({
+  difference,
+  href = "#match-lineups",
+}: {
+  difference: OperatorLineupDifference | null | undefined;
+  href?: string;
+}) {
+  if (!difference) {
+    return (
+      <a className="text-[var(--color-accent)] underline" href={href}>
+        查看本场首发
+      </a>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {difference.missing.length > 0 && (
+        <p>
+          待核对首发：
+          <SteamPlayers players={difference.missing} />
+        </p>
+      )}
+      {difference.unexpected.length > 0 && (
+        <p>
+          采集到的额外玩家：
+          <SteamPlayers players={difference.unexpected} />
+        </p>
+      )}
+      {difference.duplicated.length > 0 && (
+        <p>
+          重复玩家：
+          <SteamPlayers players={difference.duplicated} />
+        </p>
+      )}
+      <a className="inline-block text-[var(--color-accent)] underline" href={href}>
+        查看本场首发
+      </a>
+    </div>
+  );
+}
+
 function SteamPlayers({ players }: { players: OperatorLineupPlayer[] }) {
   return players.map((player, index) => (
     <span key={player.steam64 ?? index}>

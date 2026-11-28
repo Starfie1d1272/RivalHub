@@ -61,7 +61,8 @@ export function withMizarRequest(
 
 export function mizarHttpError(error: unknown, diagnostics?: MizarDiagnostics) {
   const headers = { "Cache-Control": "no-store" };
-  const reliable = diagnostics?.operation === "reliable";
+  const reliable =
+    diagnostics?.operation === "reliable" || diagnostics?.operation === "reliable-v2";
   // Do not copy an untrusted request header into reliable rejection logs.
   if (reliable) diagnostics.requestId = crypto.randomUUID();
   let reason: ReliableReason | undefined;
