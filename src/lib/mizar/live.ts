@@ -139,7 +139,6 @@ export async function ingestMizarLive(
         source?.identityHealth === "healthy" &&
         source.lineupHealth === LINEUP_REVIEW_REQUIRED &&
         ["healthy", "history_incomplete"].includes(source.continuityHealth) &&
-        !source.autoCanonicalizationArmed &&
         source.mapExecutionPhase === "gameplay" &&
         source.currentMapId === snapshot.map.mapId &&
         source.manualTakeoverMapEpoch !== snapshot.cursor.mapEpoch &&
@@ -156,9 +155,6 @@ export async function ingestMizarLive(
         source.authorityRevision !== authorityRevision ||
         source.producerInstanceId !== snapshot.cursor.producerInstanceId ||
         source.liveSessionId !== snapshot.cursor.liveSessionId ||
-        source.programSourceGeneration !== snapshot.cursor.programSourceGeneration ||
-        source.mapEpoch !== snapshot.cursor.mapEpoch ||
-        snapshot.cursor.runtimeSeq < source.lastReliableSeq ||
         source.identityHealth !== "healthy" ||
         (source.lineupHealth !== "healthy" && !observedLineup) ||
         !snapshot.capability.telemetryFresh ||

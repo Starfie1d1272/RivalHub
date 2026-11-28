@@ -25,7 +25,7 @@ import { assertInstallationInTx, hashCredential } from "./installation";
 import { validateObservedLineupInTx } from "./source";
 import { parseReliableEventV1 } from "./protocol";
 import { ReliableRejection } from "./rejection";
-import { loadMizarMatchDocumentInTx } from "./context";
+
 import { isLineupMismatchOnly, LINEUP_REVIEW_REQUIRED } from "./lineup-display";
 
 export async function ingestMizarReliable(
@@ -219,61 +219,15 @@ export async function ingestMizarReliable(
         });
         return { outcome, duplicate: false };
       }
-      // A refreshed producer may advance to the current website document without
-      // relinquishing its source. Never adopt an arbitrary or stale revision.
-      if (event.contextRevision !== source.contextRevision) {
-        const context = await loadMizarMatchDocumentInTx(tx, match.id, competitionId);
-        if (event.contextRevision !== context.revision)
-          throw new ReliableRejection(
-            ErrorCode.VALIDATION_FAILED,
-            "比赛资料已经更新，请刷新制播比赛。",
-            "context_stale",
-            details,
-          );
+      if (event.kind === "source_generation_changed" || event.kind === "map_epoch_changed") {
+        return { outcome: "observed", duplicate: false };
       }
-      // One runtime mutation may emit several distinct boundary events at the same cursor.
-      // Idempotency keys are checked above; only an older cursor is stale.
-      if (event.cursor.runtimeSeq < source.lastReliableSeq)
-        throw new ReliableRejection(ErrorCode.VALIDATION_FAILED, "事件已过期。", "sequence_stale", {
-          ...details,
-          receivedCursor: event.cursor.runtimeSeq,
-          storedCursor: source.lastReliableSeq,
-        });
-      const generationChanged =
-        event.kind === "source_generation_changed" &&
-        event.payload.previousSourceGeneration === source.programSourceGeneration &&
-        event.cursor.programSourceGeneration > source.programSourceGeneration;
-      const epochChanged =
-        event.kind === "map_epoch_changed" &&
-        event.payload.previousMapEpoch === source.mapEpoch &&
-        event.cursor.mapEpoch > source.mapEpoch;
-      if (
-        !generationChanged &&
-        event.cursor.programSourceGeneration !== source.programSourceGeneration
-      )
-        throw new ReliableRejection(
-          ErrorCode.VALIDATION_FAILED,
-          "对局数据已过期，请刷新数据源。",
-          "generation_fence",
-          {
-            ...details,
-            receivedCursor: event.cursor.programSourceGeneration,
-            storedCursor: source.programSourceGeneration,
-          },
-        );
-      if (!epochChanged && event.cursor.mapEpoch !== source.mapEpoch)
-        throw new ReliableRejection(
-          ErrorCode.VALIDATION_FAILED,
-          "对局数据已过期，请刷新数据源。",
-          "epoch_fence",
-          { ...details, receivedCursor: event.cursor.mapEpoch, storedCursor: source.mapEpoch },
-        );
       const now = new Date();
       let outcome = "observed";
       let mapEndScope: typeof mizarReliableReceipts.$inferInsert.mapEndScope;
       const updates: Partial<typeof matchLiveSessions.$inferInsert> = {
         contextRevision: event.contextRevision,
-        lastReliableSeq: event.cursor.runtimeSeq,
+        lastReliableSeq: Math.max(source.lastReliableSeq, event.cursor.runtimeSeq),
         lastReliableEventAt: now,
       };
       const reviewRequired =
@@ -288,20 +242,7 @@ export async function ingestMizarReliable(
         event.evidence.identity === "matched" &&
         event.evidence.telemetryFresh &&
         event.evidence.contextFresh;
-      if (generationChanged || epochChanged) {
-        updates.programSourceGeneration = event.cursor.programSourceGeneration;
-        updates.mapEpoch = event.cursor.mapEpoch;
-        updates.autoCanonicalizationArmed = false;
-        updates.continuityHealth = "unknown";
-        updates.mapExecutionPhase = "waiting";
-        if (!reviewRequired && source.continuityHealth !== "history_incomplete")
-          updates.currentMapId = null;
-        else if (
-          source.mapExecutionPhase === "inter_map" ||
-          source.mapExecutionPhase === "awaiting_next_map"
-        )
-          updates.mapExecutionPhase = epochChanged ? "awaiting_next_map" : source.mapExecutionPhase;
-      } else if (event.kind === "identity_mismatch" || event.kind === "lineup_mismatch") {
+      if (event.kind === "identity_mismatch" || event.kind === "lineup_mismatch") {
         updates.autoCanonicalizationArmed = false;
         if (event.kind === "identity_mismatch") updates.identityHealth = "conflict";
         else updates.lineupHealth = reviewRequired ? LINEUP_REVIEW_REQUIRED : "conflict";

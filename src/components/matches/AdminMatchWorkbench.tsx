@@ -6,7 +6,7 @@ import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { OfficialMapStart } from "@/components/bet/OfficialMapStart";
 import { OperatorLiveStatus } from "./OperatorLiveStatus";
-import { OperatorIssuePanel } from "./OperatorIssuePanel";
+import { LineupDifferenceDetails, OperatorIssuePanel } from "./OperatorIssuePanel";
 import Link from "next/link";
 import React from "react";
 import { presentMatchFormat } from "@/lib/matches/presentation";
@@ -344,6 +344,21 @@ export function AdminMatchWorkbench({
           <p className="text-sm text-[var(--color-fg-secondary)]">
             BP 开始前双方首发须就绪，由负责人在房间内确认。完成禁选与选边后，按地图计划建房。
           </p>
+        )}
+        {operator.workflow.lineupReviewWarning && (
+          <div
+            role="status"
+            aria-label="上场名单差异提示"
+            className="space-y-2 rounded border border-[var(--color-warn)]/60 bg-[var(--color-warn)]/5 p-3 text-sm"
+          >
+            <p className="font-medium">
+              赛果已自动入库，但上场名单与登记首发存在差异。赛务可按需核对并修正名单或比分。
+            </p>
+            <LineupDifferenceDetails
+              difference={operator.review?.evidence?.lineupDifference}
+              href="#match-lineup-details"
+            />
+          </div>
         )}
         {operator.review && (
           <OperatorIssuePanel reasons={operator.workflow.reviewReasons} review={operator.review} />

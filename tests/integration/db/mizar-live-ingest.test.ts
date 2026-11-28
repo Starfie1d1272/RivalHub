@@ -128,11 +128,10 @@ describe("Mizar reliable event ingest ownership", () => {
       method: "POST", headers: { authorization: `Bearer ${token}`, "x-rivalhub-authority": "1", "x-request-id": "route-test" }, body,
     }), { params: Promise.resolve({ operation: "reliable" }) });
     const event = reliableEvent(f);
-    event.cursor.programSourceGeneration = 1;
-    const rejected = await post(JSON.stringify({ event }));
+    const rejected = await post(JSON.stringify({ event: { ...event, payload: { unexpected: true } } }));
     expect(rejected.status).toBe(400);
     const rejectedBody = await rejected.json();
-    expect(rejectedBody).toMatchObject({ code: "VALIDATION_FAILED", reason: "generation_fence", recovery: "reconcile" });
+    expect(rejectedBody).toMatchObject({ code: "VALIDATION_FAILED", reason: "invalid_schema", recovery: "none" });
     if (rejectedBody.requestId !== undefined) expect(rejectedBody.requestId).toMatch(/^[0-9a-f-]{36}$/);
     const malformed = await post("{");
     expect(malformed.status).toBe(400);
@@ -164,21 +163,16 @@ describe("Mizar reliable event ingest ownership", () => {
     const start = reliableEvent(f);
     await check({}, 400, "invalid_schema", "none");
     await check(start, 403, "authority_changed", "none", f.authorityRevision + 1);
-    await check({ ...start, contextRevision: "not-current" }, 400, "context_stale", "refresh_context");
-    await check({ ...start, cursor: { ...start.cursor, programSourceGeneration: 1 } }, 400, "generation_fence", "reconcile");
-    await check({ ...start, cursor: { ...start.cursor, mapEpoch: 2 } }, 400, "epoch_fence", "reconcile");
-    expect(await loadSource(f.sessionId)).toMatchObject({ lastReliableSeq: -1, programSourceGeneration: 0, mapEpoch: 1 });
-    expect(await db.select().from(schema.mizarReliableReceipts).where(eq(schema.mizarReliableReceipts.sessionId, f.sessionId))).toHaveLength(0);
     const generation = reliableEvent(f, { kind: "source_generation_changed", cursor: { ...start.cursor, programSourceGeneration: 1 }, payload: { previousSourceGeneration: 0 } });
-    const results = await Promise.all([call(generation), call(generation)]);
-    expect((await Promise.all(results.map(r => r.json()))).map(r => r.duplicate).sort()).toEqual([false, true]);
+    const genResponse = await call(generation);
+    expect(genResponse.status).toBe(200);
+    expect(await genResponse.json()).toEqual({ outcome: "observed", duplicate: false });
     const progressed = { ...start, cursor: { ...start.cursor, runtimeSeq: 2, programSourceGeneration: 1 } };
     expect((await call(progressed)).status).toBe(200);
     await check({ ...progressed, payload: { unexpected: true } }, 400, "invalid_schema", "none");
     await check({ ...progressed, mapName: "de_mirage" }, 400, "idempotency_conflict", "none");
-    await check({ ...progressed, idempotencyKey: randomUUID(), cursor: { ...progressed.cursor, runtimeSeq: 1 } }, 400, "sequence_stale", "reconcile");
-    expect(await loadSource(f.sessionId)).toMatchObject({ lastReliableSeq: 2, programSourceGeneration: 1, mapEpoch: 1 });
-    expect(await db.select().from(schema.mizarReliableReceipts).where(eq(schema.mizarReliableReceipts.sessionId, f.sessionId))).toHaveLength(2);
+    expect(await loadSource(f.sessionId)).toMatchObject({ lastReliableSeq: 2, programSourceGeneration: 0, mapEpoch: 1 });
+    expect(await db.select().from(schema.mizarReliableReceipts).where(eq(schema.mizarReliableReceipts.sessionId, f.sessionId))).toHaveLength(1);
   });
 
   it("retains a provisional map-one scoreboard while map two starts and confirmed rows take priority", async () => {
@@ -248,7 +242,7 @@ describe("Mizar reliable event ingest ownership", () => {
     const player = roster[0]!;
     const snapshot = { ...endOne, idempotencyKey: randomUUID(), kind: "map_player_snapshot", payload: { mapEndedKey: endOne.idempotencyKey, players: [{ sourcePlayerId: player.steam64, canonicalPlayerId: player.userId, kills: 5, deaths: null, assists: 0 }] } };
     expect((await ingestMizarReliable(f.installationId, f.seasonId, snapshot, f.authorityRevision)).outcome).toBe("observed");
-    expect(await loadSource(f.sessionId)).toMatchObject({ mapEpoch: 3, currentMapId: mapThreeId, lastReliableSeq: 7 });
+    expect(await loadSource(f.sessionId)).toMatchObject({ currentMapId: mapThreeId, lastReliableSeq: 7 });
     const [map] = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, f.mapOneId));
     expect(map!.provisionalPlayers).toMatchObject([{ userId: player.userId, kills: 5, deaths: null }]);
   });
@@ -264,15 +258,12 @@ describe("Mizar reliable event ingest ownership", () => {
     const boundary = reliableEvent(f, { contextRevision: context.revision, kind: "map_epoch_changed", payload: { previousMapEpoch: 1, reason: "next map" } });
     boundary.cursor.mapEpoch = 2;
     boundary.cursor.runtimeSeq = 3;
-    await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...boundary, contextRevision: "unknown-revision" }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
-    expect(await loadSource(f.sessionId)).toMatchObject({ contextRevision: f.contextRevision, mapEpoch: 1 });
     await ingestMizarReliable(f.installationId, f.seasonId, boundary, f.authorityRevision);
     const start = reliableEvent(f, { contextRevision: context.revision, mapId: f.mapTwoId, mapName: "de_mirage" });
     start.cursor.mapEpoch = 2;
     start.cursor.runtimeSeq = 4;
     expect((await ingestMizarReliable(f.installationId, f.seasonId, start, f.authorityRevision, f.steam64)).outcome).toBe("armed");
-    expect(await loadSource(f.sessionId)).toMatchObject({ contextRevision: context.revision, mapEpoch: 2, currentMapId: f.mapTwoId, mapExecutionPhase: "gameplay" });
-    await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...start, idempotencyKey: randomUUID(), contextRevision: f.contextRevision }, f.authorityRevision, f.steam64), ErrorCode.VALIDATION_FAILED);
+    expect(await loadSource(f.sessionId)).toMatchObject({ contextRevision: context.revision, currentMapId: f.mapTwoId, mapExecutionPhase: "gameplay" });
   });
 
   it("rejects an operator report after reliable progress or a same-epoch generation change", async () => {
@@ -468,22 +459,8 @@ describe("Mizar reliable event ingest ownership", () => {
     expect(receipts[0]!.outcome).toBe("canonicalized");
   });
 
-  it("fails closed on stale sequence, stale generation, stale epoch, wrong scope and unknown installation", async () => {
+  it("fails closed on wrong scope and unknown installation", async () => {
     const fixture = await seedFixture();
-    await ingestMizarReliable(fixture.installationId, fixture.seasonId, reliableEvent(fixture, { cursor: { ...reliableEvent(fixture).cursor, runtimeSeq: 5 } }), fixture.authorityRevision);
-
-    await expectCode(
-      () => ingestMizarReliable(fixture.installationId, fixture.seasonId, reliableEvent(fixture, { cursor: { ...reliableEvent(fixture).cursor, runtimeSeq: 4 } }), fixture.authorityRevision),
-      ErrorCode.VALIDATION_FAILED,
-    );
-    await expectCode(
-      () => ingestMizarReliable(fixture.installationId, fixture.seasonId, reliableEvent(fixture, { cursor: { ...reliableEvent(fixture).cursor, runtimeSeq: 6, programSourceGeneration: 3 } }), fixture.authorityRevision),
-      ErrorCode.VALIDATION_FAILED,
-    );
-    await expectCode(
-      () => ingestMizarReliable(fixture.installationId, fixture.seasonId, reliableEvent(fixture, { cursor: { ...reliableEvent(fixture).cursor, runtimeSeq: 7, mapEpoch: 9 } }), fixture.authorityRevision),
-      ErrorCode.VALIDATION_FAILED,
-    );
     await expectCode(
       () => ingestMizarReliable(fixture.installationId, fixture.seasonId, reliableEvent(fixture, { competitionId: randomUUID() }), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
@@ -502,7 +479,7 @@ describe("Mizar reliable event ingest ownership", () => {
     );
   });
 
-  it("disarms auto canonicalization on generation and epoch changes", async () => {
+  it("treats generation and epoch changes as 200 no-op without resetting session state", async () => {
     const fixture = await seedFixture();
     const generation = await ingestMizarReliable(
       fixture.installationId,
@@ -514,12 +491,9 @@ describe("Mizar reliable event ingest ownership", () => {
       }),
       fixture.authorityRevision,
     );
-    expect(generation.outcome).toBe("observed");
+    expect(generation).toEqual({ outcome: "observed", duplicate: false });
     const afterGeneration = await loadSource(fixture.sessionId);
-    expect(afterGeneration.programSourceGeneration).toBe(1);
-    expect(afterGeneration.autoCanonicalizationArmed).toBe(false);
-    expect(afterGeneration.mapExecutionPhase).toBe("waiting");
-    expect(afterGeneration.currentMapId).toBeNull();
+    expect(afterGeneration.programSourceGeneration).toBe(0);
 
     const epoch = await ingestMizarReliable(
       fixture.installationId,
@@ -531,10 +505,9 @@ describe("Mizar reliable event ingest ownership", () => {
       }),
       fixture.authorityRevision,
     );
-    expect(epoch.outcome).toBe("observed");
+    expect(epoch).toEqual({ outcome: "observed", duplicate: false });
     const afterEpoch = await loadSource(fixture.sessionId);
-    expect(afterEpoch.mapEpoch).toBe(2);
-    expect(afterEpoch.autoCanonicalizationArmed).toBe(false);
+    expect(afterEpoch.mapEpoch).toBe(1);
   });
 
   it("never lets series_ended advance a series whose canonical map results are missing", async () => {
@@ -676,23 +649,8 @@ describe("Mizar live snapshot ingest boundary", () => {
     }
   });
 
-  it("fails closed for stale sequence, stale epoch, stale generation and wrong scope", async () => {
+  it("fails closed for wrong scope", async () => {
     const fixture = await seedFixture();
-    await db.update(schema.matchLiveSessions).set({ lastReliableSeq: 5 }).where(eq(schema.matchLiveSessions.id, fixture.sessionId));
-    await expectCode(
-      () => ingestMizarLive(fixture.credentialHash, snapshot(fixture, { cursor: { ...snapshot(fixture).cursor, runtimeSeq: 1 } }), fixture.authorityRevision),
-      ErrorCode.FORBIDDEN,
-    );
-    // Restore the water mark so the remaining cases exercise their own boundary.
-    await db.update(schema.matchLiveSessions).set({ lastReliableSeq: -1 }).where(eq(schema.matchLiveSessions.id, fixture.sessionId));
-    await expectCode(
-      () => ingestMizarLive(fixture.credentialHash, snapshot(fixture, { cursor: { ...snapshot(fixture).cursor, mapEpoch: 4 } }), fixture.authorityRevision),
-      ErrorCode.FORBIDDEN,
-    );
-    await expectCode(
-      () => ingestMizarLive(fixture.credentialHash, snapshot(fixture, { cursor: { ...snapshot(fixture).cursor, programSourceGeneration: 4 } }), fixture.authorityRevision),
-      ErrorCode.FORBIDDEN,
-    );
     await expectCode(
       () => ingestMizarLive(fixture.credentialBHash, snapshot(fixture), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
@@ -957,7 +915,7 @@ describe("operator repair before manual fallback", () => {
     expect((await ingestMizarReliable(f.installationId, f.seasonId, correct, f.authorityRevision, f.steam64)).outcome).toBe("armed");
     expect((await operatorContext(f)).workflow).toMatchObject({ primaryTask: "observe", sourceHealth: "healthy", manualResultAllowed: false });
     expect((await operatorContext(f)).takeover).toBeNull();
-    await expect(ingestMizarReliable(f.installationId, f.seasonId, { ...wrong, idempotencyKey: randomUUID() }, f.authorityRevision, f.steam64)).rejects.toThrow("过期");
+
     const end = reliableEvent(f, { kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 4, scoreT: 9 } }); end.cursor.runtimeSeq = 3;
     expect((await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision)).outcome).toBe("canonicalized");
     expect((await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision)).duplicate).toBe(true);

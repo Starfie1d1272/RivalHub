@@ -139,7 +139,7 @@ export async function loadOperatorContext(input: {
     recoveryMap;
   const currentMap = maps.find((map) => map.id === liveSession?.currentMapId);
   const evidence =
-    liveSession && workflow.reviewReasons.length
+    liveSession && (workflow.reviewReasons.length || workflow.lineupReviewWarning)
       ? await loadOperatorEvidence(
           match.seasonId,
           match.id,
