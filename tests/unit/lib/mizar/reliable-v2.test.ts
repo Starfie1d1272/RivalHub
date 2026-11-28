@@ -413,8 +413,96 @@ describe("Mizar reliable v2 & decoupled LIVE", () => {
     expect(setMock).toHaveBeenCalledWith(expect.objectContaining({ lineupHealth: "conflict" }));
   });
 
-  it("allows late map_ended submission within 24h of non-revoked session close", async () => {
-    const closedAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  it("returns map_not_found when mapId and mapName disagree", async () => {
+    mocks.tx.select
+      .mockReturnValueOnce(selectChain([baseSession()]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(
+        selectChain([{ id: mapId, matchId, mapOrder: 1, mapName: "de_ancient", completedAt: null }]),
+      );
+
+    const res = await ingestMizarReliableV2(
+      installationId,
+      competitionId,
+      baseEvent({ mapId, mapName: "de_mirage" }),
+    );
+    expect(res).toEqual({
+      outcome: "needs_attention",
+      duplicate: false,
+      warning: "map_not_found",
+    });
+    expect(mocks.recordCanonicalMapResultInTx).not.toHaveBeenCalled();
+  });
+
+  it("clears manualTakeoverMapEpoch on map_started for a new map and canonicalizes its map_ended", async () => {
+    const setMock = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+    mocks.tx.update.mockReturnValue({ set: setMock });
+    mocks.tx.select
+      .mockReturnValueOnce(
+        selectChain([
+          baseSession({
+            manualTakeoverMapEpoch: 1,
+            mapEpoch: 1,
+            currentMapId: mapId,
+          }),
+        ]),
+      )
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(
+        selectChain([
+          { id: mapId, matchId, mapOrder: 1, mapName: "de_ancient", completedAt: new Date() },
+          { id: mapTwoId, matchId, mapOrder: 2, mapName: "de_mirage", completedAt: null },
+        ]),
+      );
+
+    const startRes = await ingestMizarReliableV2(
+      installationId,
+      competitionId,
+      baseEvent({
+        kind: "map_started",
+        mapId: mapTwoId,
+        mapName: "de_mirage",
+        payload: {},
+      }),
+    );
+    expect(startRes).toEqual({ outcome: "accepted", duplicate: false });
+    expect(setMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentMapId: mapTwoId,
+        manualTakeoverMapEpoch: null,
+        mapExecutionPhase: "gameplay",
+      }),
+    );
+
+    mocks.tx.select
+      .mockReturnValueOnce(
+        selectChain([
+          baseSession({
+            manualTakeoverMapEpoch: null,
+            mapEpoch: 1,
+            currentMapId: mapTwoId,
+          }),
+        ]),
+      )
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(
+        selectChain([
+          { id: mapId, matchId, mapOrder: 1, mapName: "de_ancient", completedAt: new Date() },
+          { id: mapTwoId, matchId, mapOrder: 2, mapName: "de_mirage", completedAt: null },
+        ]),
+      );
+
+    const endRes = await ingestMizarReliableV2(
+      installationId,
+      competitionId,
+      baseEvent({ mapId: mapTwoId, mapName: "de_mirage" }),
+    );
+    expect(endRes).toEqual({ outcome: "canonicalized", duplicate: false });
+    expect(mocks.recordCanonicalMapResultInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows late map_ended submission after 24h and within 7 days of non-revoked session close", async () => {
+    const closedAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
     mocks.tx.select
       .mockReturnValueOnce(selectChain([baseSession({ closedAt, closeReason: "released" })]))
       .mockReturnValueOnce(selectChain([]))

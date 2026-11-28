@@ -29,7 +29,7 @@ import { parseReliableEventV2 } from "./protocol-v2";
 import { ReliableRejection } from "./rejection";
 import { validateObservedLineupInTx } from "./source";
 
-const LATE_SUBMISSION_WINDOW_MS = 24 * 60 * 60 * 1000;
+const LATE_SUBMISSION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type ReliableV2Outcome =
   "accepted" | "canonicalized" | "canonicalized_with_warning" | "consistent" | "needs_attention";
@@ -212,6 +212,9 @@ export async function ingestMizarReliableV2(
         if (candidates.length === 1) {
           const targetMap = candidates[0]!;
           updates.currentMapId = targetMap.id;
+          if (source.currentMapId !== targetMap.id) {
+            updates.manualTakeoverMapEpoch = null;
+          }
           updates.mapExecutionPhase = "gameplay";
           const veto = await tx.query.matchVetoSessions.findFirst({
             where: eq(matchVetoSessions.matchId, match.id),
@@ -236,7 +239,10 @@ export async function ingestMizarReliableV2(
           .orderBy(asc(matchMaps.mapOrder));
         const targetMap =
           event.mapId !== null
-            ? maps.find((m) => m.id === event.mapId)
+            ? maps.find(
+                (m) =>
+                  m.id === event.mapId && (event.mapName === null || m.mapName === event.mapName),
+              )
             : event.mapName !== null
               ? (() => {
                   const byName = maps.filter((m) => m.mapName === event.mapName);
