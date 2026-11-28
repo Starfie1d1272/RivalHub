@@ -5,6 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.27.0]
+
+### Added
+
+- 上线无状态自包含的 `POST /api/mizar/reliable-v2` 赛果接口，支持 `map_ended` 直接入库、已关闭会话 7 天内补交、两档 `lineup_mismatch` 分级处理（本队替补自动入库并告警，陌生 Steam64 或不足 10 人转人工核对），以及赛中/赛后管理员更正本场实际首发名单。
+
+### Changed
+
+- 移除 Mizar 同步链路中的连续性围栏与 `autoCanonicalizationArmed` 门禁，彻底解耦 LIVE 通道对可靠事件健康状态的依赖，并放开旧版 v1 边界事件为 200 no-op。
+- 比赛管理工作台对带 `lineup_mismatch` 告警的已入库比赛（含已完赛且会话已关闭场景）展示非阻塞提示横幅，并提供跳往比分更正与实际首发更正的入口。
+
 ## [2.26.8]
 
 ### Fixed
