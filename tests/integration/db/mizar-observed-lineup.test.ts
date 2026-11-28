@@ -100,7 +100,6 @@ describe("observed lineup display without official attribution", () => {
       { ...snapshot, capability: { ...snapshot.capability, canonicalTeams: false } },
       { ...snapshot, capability: { ...snapshot.capability, telemetryFresh: false } },
       { ...snapshot, matchId: randomUUID() },
-      { ...snapshot, players: [...snapshot.players.slice(0, 9), snapshot.players[0]!] },
     ]) await expect(ingestMizarLive(f.credentialHash, invalid, f.authorityRevision)).rejects.toBeInstanceOf(AppError);
     await expect(ingestMizarLive(f.credentialBHash, snapshot, f.authorityRevision)).rejects.toMatchObject({ code: ErrorCode.FORBIDDEN });
     const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

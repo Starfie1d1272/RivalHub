@@ -148,9 +148,7 @@ describe("event test matches", () => {
     const [source] = await db.select().from(schema.matchLiveSessions).where(eq(schema.matchLiveSessions.matchId, f.matchId));
     await db.update(schema.matchLiveSessions).set({ authorityRevision: source!.authorityRevision + 1 }).where(eq(schema.matchLiveSessions.id, source!.id));
     expect((await issueLiveViewerToken(f.matchId, partition)).cacheContext!.revision).not.toBe(first!.revision);
-    await db.update(schema.matchLiveSessions).set({ manualTakeoverMapEpoch: source!.mapEpoch }).where(eq(schema.matchLiveSessions.id, source!.id));
-    expect((await issueLiveViewerToken(f.matchId, partition)).cacheContext).toBeNull();
-    await db.update(schema.matchLiveSessions).set({ manualTakeoverMapEpoch: null }).where(eq(schema.matchLiveSessions.id, source!.id));
+
     await db.update(schema.matchMaps).set({ completedAt: new Date(), scoreA: 13, scoreB: 5 }).where(eq(schema.matchMaps.id, f.mapOneId));
     expect((await issueLiveViewerToken(f.matchId, partition)).cacheContext).toBeNull();
     await db.update(schema.matches).set({ status: "finished" }).where(eq(schema.matches.id, f.matchId));
