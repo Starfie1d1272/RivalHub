@@ -356,8 +356,19 @@ export function AdminMatchWorkbench({
             </p>
             <LineupDifferenceDetails
               difference={operator.review?.evidence?.lineupDifference}
-              href="#match-lineup-details"
+              href={
+                match.status === "scheduled"
+                  ? "#match-lineup-details"
+                  : `#${MATCH_WORKBENCH_TASK_ANCHORS.lineups}`
+              }
             />
+            {finishedMaps.length > 0 && ["in_progress", "finished"].includes(match.status) && (
+              <div>
+                <a className="text-[var(--color-accent)] underline" href="#match-score-correction">
+                  前往比分更正
+                </a>
+              </div>
+            )}
           </div>
         )}
         {operator.review && (
@@ -545,8 +556,9 @@ export function AdminMatchWorkbench({
 
       {finishedMaps.length > 0 && ["in_progress", "finished"].includes(match.status) && (
         <details
+          id="match-score-correction"
           aria-label="比分更正与系列恢复"
-          className="space-y-3 rounded border border-[var(--color-border)] p-3"
+          className="scroll-mt-4 space-y-3 rounded border border-[var(--color-border)] p-3"
         >
           <summary className="cursor-pointer text-sm font-medium">比分更正与系列恢复</summary>
           {finishedMaps.map((map) => (
@@ -605,18 +617,37 @@ export function AdminMatchWorkbench({
               : MATCH_WORKBENCH_TASK_ANCHORS.lineups
           }
           className="scroll-mt-4 space-y-4 rounded border border-[var(--color-border)] p-4"
-          open={match.status === "scheduled" || task === "lineups" || task === "scheduling"}
+          open={
+            match.status === "scheduled" ||
+            task === "lineups" ||
+            task === "scheduling" ||
+            operator.workflow.lineupReviewWarning
+          }
         >
           <summary className="cursor-pointer font-semibold">首发、BP 与赛程管理</summary>
           {
             <section aria-labelledby="match-workbench-lineup" className="space-y-3">
-              <div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2
                   id="match-workbench-lineup"
                   className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]"
                 >
                   首发名单
                 </h2>
+                {["in_progress", "finished"].includes(match.status) && (
+                  <AdminRosterDialog
+                    matchId={match.id}
+                    teamAName={teamAName}
+                    teamBName={teamBName}
+                    entryAId={match.entryAId}
+                    entryBId={match.entryBId}
+                    teamAMembers={teamAMembers}
+                    teamBMembers={teamBMembers}
+                    teamARoster={teamARoster}
+                    teamBRoster={teamBRoster}
+                    allowSubstitutes={match.ownership !== "major_stage"}
+                  />
+                )}
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <RosterSummary

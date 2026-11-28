@@ -1,7 +1,7 @@
 import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionQualificationRuns,
@@ -83,6 +83,30 @@ export async function loadOperatorContext(input: {
         : Promise.resolve(null),
     qualificationRun,
   ]);
+  const latestClosedSession =
+    !liveSession && match.status === "finished"
+      ? await db.query.matchLiveSessions.findFirst({
+          where: eq(matchLiveSessions.matchId, match.id),
+          orderBy: [desc(matchLiveSessions.openedAt)],
+          columns: {
+            id: true,
+            authorityRevision: true,
+            programSourceGeneration: true,
+            lastReliableSeq: true,
+            currentMapId: true,
+            mapExecutionPhase: true,
+            mapEpoch: true,
+            manualTakeoverMapEpoch: true,
+            identityHealth: true,
+            lineupHealth: true,
+            continuityHealth: true,
+            autoCanonicalizationArmed: true,
+          },
+        })
+      : null;
+  const workflowSource =
+    liveSession ??
+    (latestClosedSession?.lineupHealth === "review_required" ? latestClosedSession : null);
   const qualification = run?.id === match.qualificationRunId ? run : null;
   const operatorMaps = projectOperatorMaps({
     match,
@@ -92,7 +116,7 @@ export async function loadOperatorContext(input: {
     scoreboards,
   });
   const workflow = projectOperatorWorkflow({
-    source: liveSession,
+    source: workflowSource,
     scheduledAt: match.scheduledAt?.toISOString(),
     startedAt: match.startedAt?.toISOString(),
     completedAt: match.completedAt?.toISOString(),
@@ -139,12 +163,12 @@ export async function loadOperatorContext(input: {
     recoveryMap;
   const currentMap = maps.find((map) => map.id === liveSession?.currentMapId);
   const evidence =
-    liveSession && (workflow.reviewReasons.length || workflow.lineupReviewWarning)
+    workflowSource && (workflow.reviewReasons.length || workflow.lineupReviewWarning)
       ? await loadOperatorEvidence(
           match.seasonId,
           match.id,
-          liveSession.id,
-          liveSession.mapEpoch,
+          workflowSource.id,
+          workflowSource.mapEpoch,
           currentMap && workflow.reviewReasons.includes("execution_mismatch")
             ? { id: currentMap.id, name: currentMap.mapName }
             : undefined,

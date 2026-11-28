@@ -71,6 +71,7 @@ import { ingestMizarReliable } from "@/lib/mizar/reliable";
 function selectChain(rows: unknown[]) {
   const chain = {
     from: vi.fn(),
+    innerJoin: vi.fn(),
     where: vi.fn(),
     orderBy: vi.fn(),
     limit: vi.fn(),
@@ -78,6 +79,7 @@ function selectChain(rows: unknown[]) {
     then: (resolve: (value: unknown[]) => unknown) => Promise.resolve(resolve(rows)),
   };
   chain.from.mockReturnValue(chain);
+  chain.innerJoin.mockReturnValue(chain);
   chain.where.mockReturnValue(chain);
   chain.orderBy.mockReturnValue(chain);
   chain.limit.mockReturnValue(chain);
@@ -93,6 +95,7 @@ describe("Mizar reliable v2", () => {
   const entryBId = randomUUID();
   const mapId = randomUUID();
   const sessionId = randomUUID();
+  const defaultSteam64 = Array.from({ length: 10 }, (_, i) => "7656119800000000" + i);
 
   const baseEvent = (overrides: Record<string, unknown> = {}) => ({
     schemaVersion: RELIABLE_EVENT_V2_SCHEMA_VERSION,
@@ -115,7 +118,7 @@ describe("Mizar reliable v2", () => {
       scoreB: 9,
       scoreCT: 13,
       scoreT: 9,
-      lineupSteam64: [],
+      lineupSteam64: defaultSteam64,
     },
     ...overrides,
   });
@@ -188,8 +191,7 @@ describe("Mizar reliable v2", () => {
     );
   });
 
-  it("canonicalizes with warning when lineupSteam64 mismatches starters", async () => {
-    const steam64s = Array.from({ length: 10 }, (_, i) => "7656119800000000" + i);
+  it("canonicalizes with warning when all 10 players belong to the two teams (substitute/order diff)", async () => {
     mocks.validateObservedLineupInTx.mockResolvedValue(false);
     mocks.loadEffectiveMatchRoster.mockResolvedValue([
       {
@@ -201,6 +203,10 @@ describe("Mizar reliable v2", () => {
         isStarter: true,
       },
     ]);
+    const registeredRows = defaultSteam64.map((steam64, i) => ({
+      entryId: i < 5 ? entryAId : entryBId,
+      steam64,
+    }));
     const setMock = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
     mocks.tx.update.mockReturnValue({ set: setMock });
     mocks.tx.select
@@ -208,15 +214,10 @@ describe("Mizar reliable v2", () => {
       .mockReturnValueOnce(selectChain([]))
       .mockReturnValueOnce(
         selectChain([{ id: mapId, matchId, mapOrder: 1, mapName: "de_ancient", completedAt: null }]),
-      );
+      )
+      .mockReturnValueOnce(selectChain(registeredRows));
 
-    const res = await ingestMizarReliableV2(
-      installationId,
-      competitionId,
-      baseEvent({
-        payload: { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9, lineupSteam64: steam64s },
-      }),
-    );
+    const res = await ingestMizarReliableV2(installationId, competitionId, baseEvent());
     expect(res).toEqual({
       outcome: "canonicalized_with_warning",
       duplicate: false,
@@ -237,6 +238,54 @@ describe("Mizar reliable v2", () => {
               expect.objectContaining({ steam64: "76561198000000099" }),
             ]),
           }),
+        }),
+      }),
+    );
+  });
+
+  it("does not canonicalize and returns needs_attention when a stranger Steam64 or < 10 players is observed", async () => {
+    mocks.validateObservedLineupInTx.mockResolvedValue(false);
+    mocks.loadEffectiveMatchRoster.mockResolvedValue([
+      {
+        userId: randomUUID(),
+        steam64: "76561198000000099",
+        displayName: "StarterOne",
+        personaName: null,
+        perfectName: null,
+        isStarter: true,
+      },
+    ]);
+    const registeredRows = defaultSteam64.slice(1).map((steam64, i) => ({
+      entryId: i < 4 ? entryAId : entryBId,
+      steam64,
+    }));
+    const setMock = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+    mocks.tx.update.mockReturnValue({ set: setMock });
+    mocks.tx.select
+      .mockReturnValueOnce(selectChain([baseSession()]))
+      .mockReturnValueOnce(selectChain([]))
+      .mockReturnValueOnce(
+        selectChain([{ id: mapId, matchId, mapOrder: 1, mapName: "de_ancient", completedAt: null }]),
+      )
+      .mockReturnValueOnce(selectChain(registeredRows));
+
+    const res = await ingestMizarReliableV2(installationId, competitionId, baseEvent());
+    expect(res).toEqual({
+      outcome: "needs_attention",
+      duplicate: false,
+      warning: "lineup_mismatch",
+    });
+    expect(mocks.recordCanonicalMapResultInTx).not.toHaveBeenCalled();
+    expect(setMock).toHaveBeenCalledWith(expect.objectContaining({ lineupHealth: "conflict" }));
+    expect(mocks.writeAuditInTx).toHaveBeenCalledWith(
+      mocks.tx,
+      expect.objectContaining({
+        action: "mizar.reliable.accept",
+        meta: expect.objectContaining({
+          warning: "lineup_mismatch",
+          scoreA: 13,
+          scoreB: 9,
+          lineupDifference: expect.anything(),
         }),
       }),
     );

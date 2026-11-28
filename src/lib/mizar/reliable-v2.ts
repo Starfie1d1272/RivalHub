@@ -1,14 +1,17 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { ZodError } from "zod";
-import { and, asc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
+  eventRosterMembers,
+  eventRosters,
   matches,
   matchLiveSessions,
   matchMaps,
   matchVetoSessions,
   mizarReliableReceipts,
+  users,
 } from "@/db/schema";
 import { mizarAuditActorId } from "@/lib/audit/people";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -278,85 +281,135 @@ export async function ingestMizarReliableV2(
             outcome = "needs_attention";
             warning = "manual_takeover";
           } else {
-            if (match.status === "scheduled") {
-              await applyMatchStatusTransitionInTx(tx, {
-                matchId: match.id,
-                nextStatus: "in_progress",
-                actorId: mizarAuditActorId(installationId),
-                now,
-              });
-            }
-            await recordCanonicalMapResultInTx(tx, {
-              matchId: match.id,
-              mapOrder: targetMap.mapOrder,
-              mapName: targetMap.mapName,
-              scoreA: event.payload.scoreA,
-              scoreB: event.payload.scoreB,
-              pickedByEntryId: null,
-              teamAStartSide: null,
-              actorId: mizarAuditActorId(installationId),
-            });
-            updates.mapExecutionPhase = "inter_map";
-
             const roster = await loadEffectiveMatchRoster(tx, [match.id]);
-            if (event.payload.players?.length) {
-              const players = event.payload.players.flatMap((player) => {
-                const candidates = roster.filter(
-                  (r) =>
-                    r.steam64 === player.sourcePlayerId &&
-                    (player.canonicalPlayerId === null || r.userId === player.canonicalPlayerId),
+            const observed = event.payload.lineupSteam64;
+            const hasTenUnique = observed.length === 10 && new Set(observed).size === 10;
+            const lineupValid = hasTenUnique
+              ? await validateObservedLineupInTx(tx, match, observed)
+              : false;
+
+            let canCanonicalize = lineupValid;
+            if (!lineupValid) {
+              const expectedPlayers = roster.filter((player) => player.isStarter);
+              lineupDifference = expectedPlayers.length
+                ? {
+                    missing: expectedPlayers
+                      .filter((player) => !player.steam64 || !observed.includes(player.steam64))
+                      .map((player) => ({
+                        name: getDisplayName(player),
+                        userId: player.userId,
+                        steam64: player.steam64,
+                      })),
+                    unexpected: observed.filter(
+                      (id) => !expectedPlayers.some((player) => player.steam64 === id),
+                    ),
+                    duplicated: [
+                      ...new Set(observed.filter((id, index) => observed.indexOf(id) !== index)),
+                    ],
+                  }
+                : null;
+
+              if (hasTenUnique) {
+                const registered = await tx
+                  .select({
+                    entryId: eventRosters.entryId,
+                    steam64: users.steam64,
+                  })
+                  .from(eventRosterMembers)
+                  .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+                  .innerJoin(users, eq(users.id, eventRosterMembers.userId))
+                  .where(
+                    and(
+                      inArray(eventRosters.entryId, [match.entryAId, match.entryBId]),
+                      eq(eventRosterMembers.isCurrent, true),
+                      isNotNull(users.steam64),
+                    ),
+                  );
+                const teamASteam64s = new Set(
+                  registered
+                    .filter((r) => r.entryId === match.entryAId && r.steam64)
+                    .map((r) => r.steam64!),
                 );
-                if (candidates.length !== 1) return [];
-                const resolved = candidates[0]!;
-                return [
-                  {
-                    userId: resolved.userId,
-                    name: getDisplayName(resolved),
-                    kills: player.kills,
-                    deaths: player.deaths,
-                    assists: player.assists,
-                  },
-                ];
-              });
-              if (players.length && new Set(players.map((p) => p.userId)).size === players.length) {
-                await tx
-                  .update(matchMaps)
-                  .set({ provisionalPlayers: players })
-                  .where(eq(matchMaps.id, targetMap.id));
+                const teamBSteam64s = new Set(
+                  registered
+                    .filter((r) => r.entryId === match.entryBId && r.steam64)
+                    .map((r) => r.steam64!),
+                );
+                const teamACount = observed.filter(
+                  (id) => teamASteam64s.has(id) && !teamBSteam64s.has(id),
+                ).length;
+                const teamBCount = observed.filter(
+                  (id) => teamBSteam64s.has(id) && !teamASteam64s.has(id),
+                ).length;
+                if (teamACount === 5 && teamBCount === 5) {
+                  canCanonicalize = true;
+                }
               }
             }
 
-            const observed = event.payload.lineupSteam64;
-            if (observed.length > 0) {
-              const lineupValid = await validateObservedLineupInTx(tx, match, observed);
-              if (!lineupValid) {
-                const expectedPlayers = roster.filter((player) => player.isStarter);
-                lineupDifference = expectedPlayers.length
-                  ? {
-                      missing: expectedPlayers
-                        .filter((player) => !player.steam64 || !observed.includes(player.steam64))
-                        .map((player) => ({
-                          name: getDisplayName(player),
-                          userId: player.userId,
-                          steam64: player.steam64,
-                        })),
-                      unexpected: observed.filter(
-                        (id) => !expectedPlayers.some((player) => player.steam64 === id),
-                      ),
-                      duplicated: [
-                        ...new Set(observed.filter((id, index) => observed.indexOf(id) !== index)),
-                      ],
-                    }
-                  : null;
+            if (!canCanonicalize) {
+              updates.lineupHealth = "conflict";
+              outcome = "needs_attention";
+              warning = "lineup_mismatch";
+            } else {
+              if (match.status === "scheduled") {
+                await applyMatchStatusTransitionInTx(tx, {
+                  matchId: match.id,
+                  nextStatus: "in_progress",
+                  actorId: mizarAuditActorId(installationId),
+                  now,
+                });
+              }
+              await recordCanonicalMapResultInTx(tx, {
+                matchId: match.id,
+                mapOrder: targetMap.mapOrder,
+                mapName: targetMap.mapName,
+                scoreA: event.payload.scoreA,
+                scoreB: event.payload.scoreB,
+                pickedByEntryId: null,
+                teamAStartSide: null,
+                actorId: mizarAuditActorId(installationId),
+              });
+              updates.mapExecutionPhase = "inter_map";
+
+              if (event.payload.players?.length) {
+                const players = event.payload.players.flatMap((player) => {
+                  const candidates = roster.filter(
+                    (r) =>
+                      r.steam64 === player.sourcePlayerId &&
+                      (player.canonicalPlayerId === null || r.userId === player.canonicalPlayerId),
+                  );
+                  if (candidates.length !== 1) return [];
+                  const resolved = candidates[0]!;
+                  return [
+                    {
+                      userId: resolved.userId,
+                      name: getDisplayName(resolved),
+                      kills: player.kills,
+                      deaths: player.deaths,
+                      assists: player.assists,
+                    },
+                  ];
+                });
+                if (
+                  players.length &&
+                  new Set(players.map((p) => p.userId)).size === players.length
+                ) {
+                  await tx
+                    .update(matchMaps)
+                    .set({ provisionalPlayers: players })
+                    .where(eq(matchMaps.id, targetMap.id));
+                }
+              }
+
+              if (lineupValid) {
+                updates.lineupHealth = "healthy";
+                outcome = "canonicalized";
+              } else {
                 updates.lineupHealth = LINEUP_REVIEW_REQUIRED;
                 outcome = "canonicalized_with_warning";
                 warning = "lineup_mismatch";
-              } else {
-                updates.lineupHealth = "healthy";
-                outcome = "canonicalized";
               }
-            } else {
-              outcome = "canonicalized";
             }
           }
         }

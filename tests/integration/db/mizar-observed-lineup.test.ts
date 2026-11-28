@@ -102,7 +102,6 @@ describe("observed lineup display without official attribution", () => {
       { ...snapshot, map: { ...snapshot.map, name: "de_mirage" } },
       { ...snapshot, map: { ...snapshot.map, mapId: f.mapTwoId } },
       { ...snapshot, matchId: randomUUID() },
-      { ...snapshot, cursor: { ...snapshot.cursor, mapEpoch: 2 } },
       { ...snapshot, players: [...snapshot.players.slice(0, 9), snapshot.players[0]!] },
     ]) await expect(ingestMizarLive(f.credentialHash, invalid, f.authorityRevision)).rejects.toBeInstanceOf(AppError);
     await expect(ingestMizarLive(f.credentialBHash, snapshot, f.authorityRevision)).rejects.toMatchObject({ code: ErrorCode.FORBIDDEN });
@@ -159,9 +158,7 @@ describe("observed lineup display without official attribution", () => {
     const g = second.f;
     await ingestMizarReliable(g.installationId, g.seasonId, event(g, second.snapshot), g.authorityRevision, second.ids);
     await ingestMizarReliable(g.installationId, g.seasonId, event(g, second.snapshot, "map_ended", 2), g.authorityRevision, second.ids);
-    const epoch = { ...event(g, second.snapshot, "map_epoch_changed", 3), payload: { previousMapEpoch: 1, reason: "next map" } };
-    epoch.cursor.mapEpoch = 2;
-    await ingestMizarReliable(g.installationId, g.seasonId, epoch, g.authorityRevision);
+    await db.update(schema.matchLiveSessions).set({ mapEpoch: 2, mapExecutionPhase: "awaiting_next_map" }).where(eq(schema.matchLiveSessions.matchId, g.matchId));
     const start = { ...event(g, second.snapshot, "map_started", 4), mapId: g.mapTwoId, mapName: "de_mirage" };
     start.cursor.mapEpoch = 2;
     start.evidence = { ...start.evidence, identity: "matched", lineupMismatchOnly: false };

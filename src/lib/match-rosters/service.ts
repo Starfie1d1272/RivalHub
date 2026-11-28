@@ -685,6 +685,7 @@ export async function persistMatchRosterInTx(
     starterIds: readonly string[];
     substituteIds?: readonly string[];
     vetoRepresentativeEventRosterMemberId?: string | null;
+    allowPostStartAdminCorrection?: boolean;
   },
 ): Promise<PersistedRosterSummary> {
   const substituteIds = args.substituteIds ?? [];
@@ -703,7 +704,11 @@ export async function persistMatchRosterInTx(
     substituteIds,
   });
   const now = new Date();
-  if (args.match.status !== "scheduled")
+  const allowPostStartAdmin =
+    Boolean(args.allowPostStartAdminCorrection) &&
+    args.source === "admin_select" &&
+    ["scheduled", "in_progress", "finished"].includes(args.match.status);
+  if (!allowPostStartAdmin && args.match.status !== "scheduled")
     throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已开始，首发已定格。");
   const late =
     args.match.scheduledAt !== null &&
@@ -713,10 +718,14 @@ export async function persistMatchRosterInTx(
   if (late && args.source === "admin_select" && !args.actorId)
     throw new AppError(ErrorCode.VALIDATION_FAILED, "临近开赛调整首发必须记录操作人。");
   const [existing] = await tx
-    .select({ id: matchRosters.id })
+    .select({
+      id: matchRosters.id,
+      confirmedAt: matchRosters.confirmedAt,
+      confirmedBy: matchRosters.confirmedBy,
+    })
     .from(matchRosters)
     .where(and(eq(matchRosters.matchId, args.match.id), eq(matchRosters.entryId, args.entryId)));
-  if (late && args.source === "admin_select" && existing) {
+  if (late && args.source === "admin_select" && existing && args.match.status === "scheduled") {
     await tx.insert(matchLineupIncidents).values({
       matchId: args.match.id,
       entryId: args.entryId,
@@ -734,15 +743,16 @@ export async function persistMatchRosterInTx(
   let rosterId: string;
   if (existing) {
     rosterId = existing.id;
+    const keepConfirmed = args.match.status !== "scheduled" && allowPostStartAdmin;
     await tx
       .update(matchRosters)
       .set({
-        status: "submitted",
+        status: keepConfirmed ? "confirmed" : "submitted",
         submittedBy: args.submittedBy,
         source: args.source,
         lockedAt: now,
-        confirmedAt: null,
-        confirmedBy: null,
+        confirmedAt: keepConfirmed ? (existing.confirmedAt ?? now) : null,
+        confirmedBy: keepConfirmed ? (existing.confirmedBy ?? args.actorId ?? null) : null,
         updatedAt: now,
       })
       .where(eq(matchRosters.id, existing.id));
