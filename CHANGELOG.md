@@ -3756,6 +3756,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.27.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.8...v2.27.0
 [2.26.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.7...v2.26.8
 [2.26.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.6...v2.26.7
 [2.26.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.26.5...v2.26.6
